@@ -4,8 +4,7 @@
 name: "CodeQL config"
 
 # Exclude paths from analysis
-# The melodee/ subdirectory is a historical copy of the repository and should not be analyzed
-# Only analyze the main src/, tests/, and benchmarks/ directories
+# Only analyze the main src/ directory
 paths-ignore:
   # Exclude the entire melodee/ subdirectory (historical copy, not actively maintained)
   - 'melodee/**'
@@ -18,6 +17,6 @@ paths-ignore:
   - '**/lunr*.js'
   - '**/*.min.js'
   
-  # Exclude benchmark and test directories from security scanning
+  # Exclude benchmark and test directories from CodeQL analysis
   - 'benchmarks/**'
   - 'tests/**'
