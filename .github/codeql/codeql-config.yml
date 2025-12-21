@@ -1,22 +1,23 @@
 # CodeQL configuration
-# This file configures which paths to analyze for JavaScript/TypeScript
+# This file configures which paths to analyze for both C# and JavaScript/TypeScript
 
 name: "CodeQL config"
 
-# For JavaScript/TypeScript, only analyze application code in src directory
-# Exclude documentation, vendored libraries, and other non-application code
+# Exclude paths from analysis
+# The melodee/ subdirectory is a historical copy of the repository and should not be analyzed
+# Only analyze the main src/, tests/, and benchmarks/ directories
 paths-ignore:
+  # Exclude the entire melodee/ subdirectory (historical copy, not actively maintained)
+  - 'melodee/**'
+  
   # Exclude entire docs directory (contains Jekyll templates and vendored JS)
   - 'docs/**'
-  - 'melodee/docs/**'
   
   # Exclude vendored/third-party JavaScript libraries  
   - '**/jquery*.js'
   - '**/lunr*.js'
   - '**/*.min.js'
   
-  # Exclude benchmark and test directories
+  # Exclude benchmark and test directories from security scanning
   - 'benchmarks/**'
   - 'tests/**'
-  - 'melodee/benchmarks/**'
-  - 'melodee/tests/**'
