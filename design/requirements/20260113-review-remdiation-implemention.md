@@ -1,6 +1,6 @@
 # Review Remediation — Phased Implementation Plan (2026-01-13)
 
-This document is an implementation-ready plan to remediate the consolidated findings in `design/reviews/combined.md`. It is intentionally prescriptive to prevent drift and prevent “design decisions” from being pushed down to coding agents.
+This document is an implementation-ready plan to remediate the consolidated findings in `design/reviews/20260113.combined.md`. It is intentionally prescriptive to prevent drift and prevent “design decisions” from being pushed down to coding agents.
 
 ## Non-Negotiable Constraints (Applies to Every Phase)
 
@@ -19,11 +19,63 @@ This document is an implementation-ready plan to remediate the consolidated find
 
 This plan is ordered by priority. If a later phase depends on an earlier phase, the dependency is explicitly stated.
 
+--
+
+## Coding Agent Template
+```aiignore
+You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-review-remdiation-implemention.md`.
+
+  Context docs (read first):
+  - `design/reviews/20260113.combined.md`
+  - `design/requirements/20260113-review-remdiation-implemention.md` (read Phase {{PHASE}} in full, plus any explicitly listed dependencies/prerequisites for Phase {{PHASE}})
+
+  Non-negotiable constraints:
+  - Do NOT modify any existing file under `tests/**` (no edits, renames, or deletions). If tests fail, fix production code/config—not tests.
+  - New tests are allowed ONLY as new test files (new `*.cs` files) and must be placed exactly where Phase {{PHASE}} specifies.
+  - All existing tests must pass at the end of this phase: run `dotnet test` (full suite) and ensure green.
+  - Do NOT implement any other phase(s). Do NOT introduce alternate designs. Follow Phase {{PHASE}} “Implementation Decisions (Locked)” exactly.
+  - No insecure temporary bypasses; for security-sensitive config, fail closed in non-Development environments.
+
+  Before coding:
+  1) Read applicable instruction files under `.github/instructions/` based on the files Phase {{PHASE}} touches:
+     - Security-sensitive changes (auth/tokens/cookies/file paths/external URLs/user input): `security-and-owasp.instructions.md`
+     - Performance-sensitive changes (hot paths/DB queries/streaming/large collections): `performance-optimization.instructions.md`
+     - C#: `csharp.instructions.md`
+     - Tests: `testing.instructions.md`
+  2) Confirm Phase {{PHASE}} prerequisites are satisfied (only as described in the Phase Map/phase text).
+
+  Scope:
+  - Change ONLY what Phase {{PHASE}} requires. If something is not required by Phase {{PHASE}}, do not change it “because it’s nearby.”
+
+  Implementation requirements:
+  - Treat Phase {{PHASE}} section as a checklist. Implement every “Implementation Steps (Explicit)” item.
+  - Adhere to every “Implementation Decisions (Locked)” item; do not deviate.
+  - If Phase {{PHASE}} specifies exact files/paths/values/config keys/test locations, use exactly those.
+  - If Phase {{PHASE}} is ambiguous or conflicts with current code/tests, STOP and ask for clarification (do not guess).
+
+  Execution order:
+  1) Run `dotnet test` before making changes and record whether baseline is green.
+  2) Implement Phase {{PHASE}} changes.
+  3) Add any required tests as NEW files only (no edits to existing tests).
+  4) Run `dotnet test` again and ensure all tests pass.
+  5) Update the Phase Map in `design/requirements/20260113-review-remdiation-implemention.md`:
+     - Mark ONLY Phase {{PHASE}} as complete (`[x]`).
+     - Do not check any other phases.
+  6) Final summary must include:
+     - list of files changed/added
+     - mapping of each Phase {{PHASE}} deliverable to the specific file(s) that satisfy it
+     - confirmation that `dotnet test` passed
+
+  Stop conditions:
+  - Tests fail and cannot be fixed without modifying existing tests => STOP and report failures.
+  - Phase {{PHASE}} requirements are unclear => STOP and ask questions.
+```
+
 ---
 
 ## Phase Map (Progress Tracking)
 
-- [ ] Phase 0 (Gate) — Baseline, safety rails, and no-regression checkpoint
+- [x] Phase 0 (Gate) — Baseline, safety rails, and no-regression checkpoint
 - [ ] Phase 1 (P0) — Remove password secrets from claims + introduce password hashing (stop reversible login passwords)
 - [ ] Phase 2 (P0) — Secrets hygiene: confirm non-commit, rotate, and add automated secret scanning gates
 - [ ] Phase 3 (P0) — Fix Blazor `AuthService` JWT validation and stop storing auth tokens in `localStorage` for the UI path
@@ -869,7 +921,7 @@ Add new tests that validate the following without touching existing tests:
 ### Implementation Steps (Explicit)
 
 1. **Index review and additions**
-   - Identify the top query patterns flagged in `design/reviews/combined.md` (user/song history, scan histories, party queue ordering).
+   - Identify the top query patterns flagged in `design/reviews/20260113.combined.md` (user/song history, scan histories, party queue ordering).
    - Add explicit `HasIndex(...)` definitions in EF Core model configuration for those patterns.
    - Create migrations for index additions only (do not mix schema + behavioral changes in one migration).
 
