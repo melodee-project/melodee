@@ -95,7 +95,7 @@ public static class UserExtensions
 
     public static UserInfo ToUserInfo(this User user)
     {
-        return new UserInfo(user.Id, user.ApiKey, user.UserName, user.Email, user.PublicKey, user.PasswordEncrypted, user.TimeZoneId)
+        return new UserInfo(user.Id, user.ApiKey, user.UserName, user.Email, user.PublicKey, user.TimeZoneId)
         {
             Roles = user.Roles().ToList()
         };

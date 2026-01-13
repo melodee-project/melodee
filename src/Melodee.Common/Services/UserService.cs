@@ -19,6 +19,7 @@ using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Importing;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -38,14 +39,16 @@ public sealed class UserService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-IMelodeeConfigurationFactory configurationFactory,
-LibraryService libraryService,
-ArtistService artistService,
-AlbumService albumService,
-SongService songService,
-PlaylistService playlistService,
-PodcastService podcastService,
-IBus bus)
+    IMelodeeConfigurationFactory configurationFactory,
+    LibraryService libraryService,
+    ArtistService artistService,
+    AlbumService albumService,
+    SongService songService,
+    PlaylistService playlistService,
+    PodcastService podcastService,
+    IBus bus,
+    IPasswordHashService? passwordHashService = null,
+    IOpenSubsonicSecretProtector? openSubsonicSecretProtector = null)
 : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:user:apikey:{0}";
@@ -1011,15 +1014,29 @@ IBus bus)
             };
         }
 
-        bool authenticated;
-        var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-        if (password?.StartsWith("enc:") ?? false)
+        var authenticated = false;
+        var shouldMigrate = false;
+
+        if (passwordHashService != null && !string.IsNullOrEmpty(user.Data.PasswordHash))
         {
-            authenticated = password[4..] == user.Data.PasswordEncrypted;
+            authenticated = passwordHashService.Verify(password!, user.Data.PasswordHash);
         }
         else
         {
-            authenticated = user.Data.PasswordEncrypted == user.Data.Encrypt(password!, configuration);
+            var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
+            if (password != null && password.StartsWith("enc:"))
+            {
+                authenticated = password[4..] == user.Data.PasswordEncrypted;
+            }
+            else
+            {
+                authenticated = user.Data.PasswordEncrypted == user.Data.Encrypt(password!, configuration);
+            }
+
+            if (authenticated)
+            {
+                shouldMigrate = true;
+            }
         }
 
         if (!authenticated)
@@ -1036,7 +1053,18 @@ IBus bus)
 
         await bus.SendLocal(new UserLoginEvent(user.Data!.Id, user.Data.UserName)).ConfigureAwait(false);
 
-        // Sets return object so consumer sees new value, actual update to DB happens in another non-blocking thread.
+        if (shouldMigrate && passwordHashService != null)
+        {
+            await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Data.Id, cancellationToken).ConfigureAwait(false);
+            dbUser.PasswordHash = passwordHashService.Hash(password!);
+            dbUser.PasswordHashAlgorithm = "bcrypt";
+            await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            user.Data.PasswordHash = dbUser.PasswordHash;
+            user.Data.PasswordHashAlgorithm = dbUser.PasswordHashAlgorithm;
+            Log.Information("[{ServiceName}] Migrated user [{EmailAddress}] to BCrypt password hashing", nameof(UserService), emailAddress);
+        }
+
         user.Data.LastActivityAt = now;
         user.Data.LastLoginAt = now;
         return user;
@@ -1068,7 +1096,19 @@ IBus bus)
         }
 
         var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-        var usersPassword = user.Data.Decrypt(user.Data.PasswordEncrypted, configuration);
+        var usersPassword = string.Empty;
+        var shouldMigrateToSecret = false;
+
+        if (openSubsonicSecretProtector != null && !string.IsNullOrEmpty(user.Data.OpenSubsonicSecretProtected))
+        {
+            usersPassword = openSubsonicSecretProtector.Unprotect(user.Data.OpenSubsonicSecretProtected);
+        }
+        else
+        {
+            usersPassword = user.Data.Decrypt(user.Data.PasswordEncrypted, configuration);
+            shouldMigrateToSecret = openSubsonicSecretProtector != null;
+        }
+
         // NOTE: MD5 is required here by the OpenSubsonic API specification for token-based authentication.
         // The token is computed as MD5(password + salt) per the OpenSubsonic/Subsonic protocol.
         // This cannot be changed without breaking API compatibility with all Subsonic clients.
@@ -1087,13 +1127,30 @@ IBus bus)
             };
         }
 
+        if (shouldMigrateToSecret && openSubsonicSecretProtector != null)
+        {
+            await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Data.Id, cancellationToken).ConfigureAwait(false);
+            var newSecret = GenerateOpenSubsonicSecret();
+            dbUser.OpenSubsonicSecretProtected = openSubsonicSecretProtector.Protect(newSecret);
+            await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            user.Data.OpenSubsonicSecretProtected = dbUser.OpenSubsonicSecretProtected;
+            Log.Information("[{ServiceName}] Migrated user [{Username}] to OpenSubsonic secret protection", nameof(UserService), username);
+        }
+
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
         await bus.SendLocal(new UserLoginEvent(user.Data!.Id, user.Data.UserName)).ConfigureAwait(false);
 
-        // Sets return object so consumer sees new value, actual update to DB happens in another non-blocking thread.
         user.Data.LastActivityAt = now;
         user.Data.LastLoginAt = now;
         return user;
+    }
+
+    private static string GenerateOpenSubsonicSecret()
+    {
+        var bytes = new byte[32];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     public async Task<MelodeeModels.OperationResult<int>> ImportUserFavoriteSongs(
@@ -1355,6 +1412,9 @@ IBus bus)
                 PasswordEncrypted =
                     EncryptionHelper.Encrypt(configuration.GetValue<string>(SettingRegistry.EncryptionPrivateKey)!,
                         plainTextPassword, usersPublicKey),
+                PasswordHash = passwordHashService?.Hash(plainTextPassword),
+                PasswordHashAlgorithm = passwordHashService != null ? "bcrypt" : null,
+                OpenSubsonicSecretProtected = openSubsonicSecretProtector?.Protect(GenerateOpenSubsonicSecret()),
                 CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
             };
             scopedContext.Users.Add(newUser);

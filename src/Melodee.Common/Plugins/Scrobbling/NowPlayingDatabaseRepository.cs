@@ -64,7 +64,6 @@ public sealed class NowPlayingDatabaseRepository(
                 h.User.UserName,
                 h.User.Email,
                 h.User.PublicKey,
-                h.User.PasswordEncrypted,
                 h.User.TimeZoneId),
             new ScrobbleInfo(
                 h.Song.ApiKey,

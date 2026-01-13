@@ -8,17 +8,22 @@ using Melodee.Common.Utility;
 
 namespace Melodee.Common.Models;
 
-public record UserInfo(int Id, Guid ApiKey, string UserName, string Email, string PublicKey, string PasswordEncrypted, string TimeZoneId = "UTC")
+public record UserInfo(
+    int Id,
+    Guid ApiKey,
+    string UserName,
+    string Email,
+    string PublicKey,
+    string TimeZoneId = "UTC",
+    string? PasswordEncrypted = null)
 {
     public List<string>? Roles { get; init; }
 
-    public static UserInfo BlankUserInfo => new(0, Guid.Empty, string.Empty, string.Empty, string.Empty, string.Empty, "UTC");
+    public static UserInfo BlankUserInfo => new(0, Guid.Empty, string.Empty, string.Empty, string.Empty, "UTC");
 
     public ClaimsPrincipal ToClaimsPrincipal(IMelodeeConfiguration configuration, string userAvatarPath)
     {
         var userSalt = UserService.GenerateSalt();
-        var usersPassword = this.Decrypt(PasswordEncrypted, configuration);
-        var userToken = $"{usersPassword}{userSalt}".ToMd5() ?? string.Empty;
 
         return new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
             {
@@ -28,8 +33,6 @@ public record UserInfo(int Id, Guid ApiKey, string UserName, string Email, strin
                 new(ClaimTypes.Email, Email),
                 new(ClaimTypeRegistry.UserSalt, userSalt),
                 new(ClaimTypeRegistry.UserPublicKey, PublicKey),
-                new(ClaimTypeRegistry.UserToken, userToken),
-                new(ClaimTypeRegistry.PasswordEncrypted, PasswordEncrypted),
                 new(ClaimTypeRegistry.UserTimeZoneId, string.IsNullOrWhiteSpace(TimeZoneId) ? "UTC" : TimeZoneId)
             }.Concat(Roles?.Select(r => new Claim(ClaimTypes.Role, r)).ToArray() ?? []),
             "Melodee"));
@@ -44,7 +47,6 @@ public record UserInfo(int Id, Guid ApiKey, string UserName, string Email, strin
             principal.FindFirst(ClaimTypes.Name)?.Value ?? "",
             principal.FindFirst(ClaimTypes.Email)?.Value ?? "",
             principal.FindFirst(ClaimTypeRegistry.UserPublicKey)?.Value ?? "",
-            principal.FindFirst(ClaimTypeRegistry.PasswordEncrypted)?.Value ?? "",
             principal.FindFirst(ClaimTypeRegistry.UserTimeZoneId)?.Value ?? "UTC"
         )
         {
