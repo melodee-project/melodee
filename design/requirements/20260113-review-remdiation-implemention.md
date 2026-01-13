@@ -77,7 +77,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 
 - [x] Phase 0 (Gate) — Baseline, safety rails, and no-regression checkpoint
 - [x] Phase 1 (P0) — Remove password secrets from claims + introduce password hashing (stop reversible login passwords)
-- [ ] Phase 2 (P0) — Secrets hygiene: confirm non-commit, rotate, and add automated secret scanning gates
+- [x] Phase 2 (P0) — Secrets hygiene: confirm non-commit, rotate, and add automated secret scanning gates
 - [ ] Phase 3 (P0) — Fix Blazor `AuthService` JWT validation and stop storing auth tokens in `localStorage` for the UI path
 - [ ] Phase 4 (P0) — Replace permissive CORS with strict allowlist policies (dev vs. prod)
 - [ ] Phase 5 (P0) — Prevent path traversal in email template loading and add root containment checks
