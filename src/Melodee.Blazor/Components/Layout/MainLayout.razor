@@ -8,7 +8,7 @@
 @implements IDisposable
 @inject LibraryService LibraryService
 @inject MainLayoutProxyService MainLayoutProxyService
-@inject IAuthService AuthService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
 @inject IMelodeeConfigurationFactory MelodeeConfigurationFactory
 @inject RequestActivityService RequestActivityService
@@ -89,7 +89,7 @@
                     <RadzenPanelMenuItem data-nav-item-id="albums" Text="@LocalizationService.Localize("Navigation.Albums")" Path="/data/albums" Icon="album"/>
                     <RadzenPanelMenuItem data-nav-item-id="charts" Text="@LocalizationService.Localize("Navigation.Charts")" Path="/charts" Icon="format_list_numbered"/>
                     <RadzenPanelMenuItem data-nav-item-id="libraries" Text="@LocalizationService.Localize("Navigation.Libraries")" Path="/data/libraries" Icon="library_music"
-                                         Visible="@AuthService.IsAdmin"/>
+                                         Visible="@context.User.IsAdmin()"/>
                     <RadzenPanelMenuItem data-nav-item-id="nowplaying" Text="@LocalizationService.Localize("Navigation.NowPlaying")" Path="/activity/nowplaying" Icon="sound_sampler"/>
                     <RadzenPanelMenuItem data-nav-item-id="jukebox" Text="@LocalizationService.Localize("Navigation.Jukebox")" Path="/jukebox" Icon="speaker" Visible="@_jukeboxEnabled"/>
                     <RadzenPanelMenuItem data-nav-item-id="party" Text="@LocalizationService.Localize("Navigation.PartyMode")" Path="/party" Icon="celebration" Visible="@_partyModeEnabled"/>
@@ -121,7 +121,7 @@
                     <RadzenPanelMenuItem data-nav-item-id="shares" Text="@LocalizationService.Localize("Navigation.Shares")" Path="/data/shares" Icon="share"/>
                     <RadzenPanelMenuItem data-nav-item-id="users" Text="@LocalizationService.Localize("Navigation.Users")" Path="/data/users" Icon="group"/>
                     <RadzenPanelMenuItem data-nav-item-id="admin" Text="@LocalizationService.Localize("Navigation.Admin")" Icon="admin_panel_settings" IconColor="@Colors.Danger"
-                                         Visible="@AuthService.IsAdmin">
+                                         Visible="@context.User.IsAdmin()">
                         <RadzenPanelMenuItem Text="@LocalizationService.Localize("Navigation.Dashboard")" Path="/admin/dashboard" Icon="dashboard"/>
                         <RadzenPanelMenuItem Text="@LocalizationService.Localize("Navigation.Media")" Icon="perm_media">
                             @foreach (var mediaLibraryInfo in _mediaLibraryInfos)
@@ -249,11 +249,20 @@
         await CheckUnplayedPodcastsAsync();
     }
 
+    /// <summary>
+    /// Retrieves the authenticated user ID from the current auth state.
+    /// </summary>
+    private async Task<int> GetCurrentUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return authState.User?.UserId() ?? 0;
+    }
+
     private async Task CheckUnreadRequestsAsync()
     {
         try
         {
-            var userId = AuthService.CurrentUser?.UserId() ?? 0;
+            var userId = await GetCurrentUserIdAsync();
             if (userId > 0)
             {
                 _hasUnreadRequests = await RequestActivityService.HasUnreadAsync(userId);
@@ -272,7 +281,7 @@
         {
             if (!_podcastEnabled) return;
             
-            var userId = AuthService.CurrentUser?.UserId() ?? 0;
+            var userId = await GetCurrentUserIdAsync();
             if (userId > 0)
             {
                 _unplayedPodcastCount = await PodcastService.GetUnplayedDownloadedEpisodeCountAsync(userId);

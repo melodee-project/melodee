@@ -970,11 +970,24 @@ public sealed class UserService(
         };
     }
 
+    /// <summary>
+    /// Logs a user in using their username and password.
+    /// </summary>
     public async Task<MelodeeModels.OperationResult<User?>> LoginUserByUsernameAsync(
         string userName,
         string? password,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return new MelodeeModels.OperationResult<User?>
+            {
+                Data = null,
+                Type = MelodeeModels.OperationResponseType.Unauthorized
+            };
+        }
+
+        var passwordValue = password!;
         var user = await GetByUsernameAsync(userName, cancellationToken).ConfigureAwait(false);
         if (!user.IsSuccess || user.Data == null)
         {
@@ -985,9 +998,12 @@ public sealed class UserService(
             };
         }
 
-        return await LoginUserAsync(user.Data.Email, password, cancellationToken).ConfigureAwait(false);
+        return await CompleteLoginAsync(user.Data, passwordValue, userName, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Logs a user in using their email address and password.
+    /// </summary>
     public async Task<MelodeeModels.OperationResult<User?>> LoginUserAsync(
         string emailAddress,
         string? password,
@@ -995,7 +1011,7 @@ public sealed class UserService(
     {
         Guard.Against.NullOrWhiteSpace(emailAddress, nameof(emailAddress));
 
-        if (password.Nullify() == null)
+        if (string.IsNullOrWhiteSpace(password))
         {
             return new MelodeeModels.OperationResult<User?>
             {
@@ -1004,6 +1020,7 @@ public sealed class UserService(
             };
         }
 
+        var passwordValue = password!;
         var user = await GetByEmailAddressAsync(emailAddress, cancellationToken).ConfigureAwait(false);
         if (!user.IsSuccess || user.Data == null)
         {
@@ -1014,23 +1031,35 @@ public sealed class UserService(
             };
         }
 
+        return await CompleteLoginAsync(user.Data, passwordValue, emailAddress, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Validates credentials and applies login side effects for an identified user.
+    /// </summary>
+    private async Task<MelodeeModels.OperationResult<User?>> CompleteLoginAsync(
+        User user,
+        string password,
+        string identifier,
+        CancellationToken cancellationToken)
+    {
         var authenticated = false;
         var shouldMigrate = false;
 
-        if (passwordHashService != null && !string.IsNullOrEmpty(user.Data.PasswordHash))
+        if (passwordHashService != null && !string.IsNullOrEmpty(user.PasswordHash))
         {
-            authenticated = passwordHashService.Verify(password!, user.Data.PasswordHash);
+            authenticated = passwordHashService.Verify(password, user.PasswordHash);
         }
         else
         {
             var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-            if (password != null && password.StartsWith("enc:"))
+            if (password.StartsWith("enc:", StringComparison.Ordinal))
             {
-                authenticated = password[4..] == user.Data.PasswordEncrypted;
+                authenticated = password[4..] == user.PasswordEncrypted;
             }
             else
             {
-                authenticated = user.Data.PasswordEncrypted == user.Data.Encrypt(password!, configuration);
+                authenticated = user.PasswordEncrypted == user.Encrypt(password, configuration);
             }
 
             if (authenticated)
@@ -1041,7 +1070,7 @@ public sealed class UserService(
 
         if (!authenticated)
         {
-            Log.Warning("[{ServiceName}] LoginUserAsync [{EmailAddress}] failed", nameof(UserService), emailAddress);
+            Log.Warning("[{ServiceName}] LoginUserAsync [{Identifier}] failed", nameof(UserService), identifier);
             return new MelodeeModels.OperationResult<User?>
             {
                 Data = null,
@@ -1051,23 +1080,28 @@ public sealed class UserService(
 
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
 
-        await bus.SendLocal(new UserLoginEvent(user.Data!.Id, user.Data.UserName)).ConfigureAwait(false);
+        await bus.SendLocal(new UserLoginEvent(user.Id, user.UserName)).ConfigureAwait(false);
 
         if (shouldMigrate && passwordHashService != null)
         {
             await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Data.Id, cancellationToken).ConfigureAwait(false);
-            dbUser.PasswordHash = passwordHashService.Hash(password!);
+            var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Id, cancellationToken).ConfigureAwait(false);
+            dbUser.PasswordHash = passwordHashService.Hash(password);
             dbUser.PasswordHashAlgorithm = "bcrypt";
             await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            user.Data.PasswordHash = dbUser.PasswordHash;
-            user.Data.PasswordHashAlgorithm = dbUser.PasswordHashAlgorithm;
-            Log.Information("[{ServiceName}] Migrated user [{EmailAddress}] to BCrypt password hashing", nameof(UserService), emailAddress);
+            user.PasswordHash = dbUser.PasswordHash;
+            user.PasswordHashAlgorithm = dbUser.PasswordHashAlgorithm;
+            Log.Information("[{ServiceName}] Migrated user [{EmailAddress}] to BCrypt password hashing", nameof(UserService),
+                user.Email ?? identifier);
         }
 
-        user.Data.LastActivityAt = now;
-        user.Data.LastLoginAt = now;
-        return user;
+        user.LastActivityAt = now;
+        user.LastLoginAt = now;
+
+        return new MelodeeModels.OperationResult<User?>
+        {
+            Data = user
+        };
     }
 
     public async Task<MelodeeModels.OperationResult<User?>> ValidateTokenAsync(string username, string token, string salt, CancellationToken cancellationToken = default)

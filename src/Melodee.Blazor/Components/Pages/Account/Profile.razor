@@ -9,9 +9,6 @@
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 @inject UserService UserService
-@inject LibraryService LibraryService
-@inject IAuthService AuthService
-@inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject IOptions<GoogleAuthOptions> GoogleAuthOptions
 @inject IJSRuntime JsRuntime
 @inject IHttpClientFactory HttpClientFactory
@@ -500,10 +497,6 @@
 
             // Ensure server-side cache is refreshed and UI will re-read the updated timezone on next load.
             await UserService.GetAsync(user.Data.Id);
-
-            var configuration = await ConfigurationFactory.GetConfigurationAsync();
-            var userImageLibrary = await LibraryService.GetUserImagesLibraryAsync();
-            await AuthService.Login(user.Data.ToUserInfo().ToClaimsPrincipal(configuration, userImageLibrary.Data.Path));
 
             if (_newSelectedProfileImage?.ImageBytes != null)
             {

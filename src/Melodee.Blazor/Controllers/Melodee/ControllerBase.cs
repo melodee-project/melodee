@@ -30,6 +30,9 @@ public abstract class ControllerBase(
     protected IConfiguration Configuration { get; } = configuration;
     public IMelodeeConfigurationFactory ConfigurationFactory { get; } = configurationFactory;
 
+    /// <summary>
+    /// Populates request context data for authenticated API calls.
+    /// </summary>
     public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var headers = new List<KeyValue>
@@ -41,7 +44,12 @@ public abstract class ControllerBase(
         var principal = context.HttpContext.User;
         if (principal?.Identity?.IsAuthenticated ?? false)
         {
-            var ipAddress = GetRequestIp(context.HttpContext, tryUseXForwardHeader: false);
+            var ipAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString()
+                ?? GetHeaderValueAs<string>(context.HttpContext, "REMOTE_ADDR");
+            if (string.IsNullOrWhiteSpace(ipAddress))
+            {
+                ipAddress = "unknown";
+            }
             ApiRequest = new ApiRequest
             (
                 headers.ToArray(),

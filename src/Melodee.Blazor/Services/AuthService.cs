@@ -1,22 +1,16 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Melodee.Common.Constants;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace Melodee.Blazor.Services;
 
 /// <summary>
-///     Store and manage the current user's authentication state as a browser Session JWT and in Server Side Blazor
+///     Store and manage the current user's authentication state for Server Side Blazor.
 /// </summary>
-public class AuthService(
-    ILocalStorageService localStorageService,
-    IConfiguration configuration)
-    : IAuthService
+public class AuthService(AuthenticationStateProvider authenticationStateProvider) : IAuthService
 {
-    private const string AuthTokenName = "melodee_auth_token";
     private ClaimsPrincipal? _currentUser;
-    private bool _tokenValidated = false;
+    private bool _authStateChecked;
 
     public event Action<ClaimsPrincipal>? UserChanged;
 
@@ -41,52 +35,20 @@ public class AuthService(
     public async Task LogoutAsync()
     {
         CurrentUser = new ClaimsPrincipal();
-        _tokenValidated = false; // Reset validation state on logout
-        await localStorageService.RemoveItemAsync(AuthTokenName);
+        _authStateChecked = false;
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 
 
     /// <summary>
-    ///     If the user somehow loses their server session, this method will attempt to restore the state from the JWT in the
-    ///     browser session
+    ///     Refreshes the current authentication state from the server-side provider.
     /// </summary>
     /// <returns>True if the state was restored</returns>
     public async Task<bool> GetStateFromTokenAsync()
     {
-        var result = false;
-        var authToken = await localStorageService.GetItemAsStringAsync(AuthTokenName);
-        var identity = new ClaimsIdentity();
-        if (!string.IsNullOrEmpty(authToken))
-        {
-            try
-            {
-                //Ensure the JWT is valid
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.UTF8.GetBytes(configuration.GetSection("MelodeeAuthSettings:Token").Value!);
-
-                tokenHandler.ValidateToken(authToken, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = TimeSpan.Zero
-                }, out var validatedToken);
-
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                identity = new ClaimsIdentity(jwtToken.Claims, "jwt");
-                result = true;
-            }
-            catch
-            {
-                await localStorageService.RemoveItemAsync(AuthTokenName);
-                identity = new ClaimsIdentity();
-            }
-        }
-
-        var user = new ClaimsPrincipal(identity);
-        CurrentUser = user;
-        return result;
+        var authState = await authenticationStateProvider.GetAuthenticationStateAsync().ConfigureAwait(false);
+        CurrentUser = authState.User;
+        return IsLoggedIn;
     }
 
 
@@ -96,9 +58,9 @@ public class AuthService(
     /// <returns>True if user is authenticated</returns>
     public async Task<bool> EnsureAuthenticatedAsync()
     {
-        if (!_tokenValidated && !IsLoggedIn)
+        if (!_authStateChecked && !IsLoggedIn)
         {
-            _tokenValidated = true;
+            _authStateChecked = true;
             return await GetStateFromTokenAsync();
         }
         return IsLoggedIn;
@@ -107,17 +69,7 @@ public class AuthService(
     public async Task Login(ClaimsPrincipal user, bool? doRememberMe = null)
     {
         CurrentUser = user;
-        _tokenValidated = true; // Mark as validated since we're setting a valid user
-        var tokenEncryptionKey = configuration.GetSection("MelodeeAuthSettings:Token").Value!;
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenEncryptionKey));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
-        var tokenHoursString = configuration.GetSection("MelodeeAuthSettings:TokenHours").Value;
-        int.TryParse(tokenHoursString, out var tokenHours);
-        var token = new JwtSecurityToken(
-            claims: user.Claims,
-            expires: DateTime.Now.AddHours(tokenHours),
-            signingCredentials: creds);
-        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-        await localStorageService.SetItemAsStringAsync(AuthTokenName, jwt);
+        _authStateChecked = true;
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 }

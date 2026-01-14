@@ -8,10 +8,13 @@ using Melodee.Blazor.Filters;
 using Melodee.Blazor.Services;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
+using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -66,43 +69,53 @@ public class AuthController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AuthenticateAsync([FromBody] LoginModel model, CancellationToken cancellationToken = default)
     {
-        var clientIp = GetRequestIp(HttpContext);
-
-        if (string.IsNullOrWhiteSpace(model.Email) && string.IsNullOrWhiteSpace(model.Password))
+        var authResult = await TryAuthenticateUserAsync(model, cancellationToken).ConfigureAwait(false);
+        if (authResult.ErrorResult != null)
         {
-            LogAuthEvent("password", "validation_error", clientIp, model.UserName ?? model.Email);
-            return ApiValidationError("Email or password are required");
+            return authResult.ErrorResult;
         }
 
-        // Authentication is always performed via the service layer regardless of which identifier is provided.
-        // Both paths perform full credential validation - this is not a security bypass.
-        var hasUsername = !string.IsNullOrWhiteSpace(model.UserName);
-        var authResult = hasUsername
-            ? await userService.LoginUserByUsernameAsync(model.UserName!, model.Password, cancellationToken).ConfigureAwait(false)
-            : await userService.LoginUserAsync(model.Email ?? string.Empty, model.Password, cancellationToken).ConfigureAwait(false);
+        return await GenerateAuthResponseAsync(authResult.User!, null, cancellationToken).ConfigureAwait(false);
+    }
 
-        if (!authResult.IsSuccess || authResult.Data == null)
+    /// <summary>
+    /// Authenticate a user and issue a browser auth cookie.
+    /// </summary>
+    [HttpPost]
+    [Route("cookie/sign-in")]
+    [AllowAnonymous]
+    [EnableRateLimiting("melodee-auth")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CookieSignInAsync([FromBody] LoginModel model, CancellationToken cancellationToken = default)
+    {
+        var authResult = await TryAuthenticateUserAsync(model, cancellationToken).ConfigureAwait(false);
+        if (authResult.ErrorResult != null)
         {
-            LogAuthEvent("password", "invalid_credentials", clientIp, model.UserName ?? model.Email);
-            return ApiUnauthorized("Invalid credentials");
+            return authResult.ErrorResult;
         }
 
-        if (authResult.Data.IsLocked)
-        {
-            LogAuthEvent("password", "account_disabled", clientIp, model.UserName ?? model.Email, authResult.Data.Id);
-            return StatusCode(StatusCodes.Status403Forbidden,
-                new ApiError(ApiError.Codes.AccountDisabled, "Account is disabled", GetCorrelationId()));
-        }
+        var principal = await CreateCookiePrincipalAsync(authResult.User!, cancellationToken).ConfigureAwait(false);
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
 
-        if (await blacklistService.IsEmailBlacklistedAsync(authResult.Data.Email).ConfigureAwait(false) ||
-            await blacklistService.IsIpBlacklistedAsync(clientIp).ConfigureAwait(false))
-        {
-            LogAuthEvent("password", "blacklisted", clientIp, authResult.Data.UserName, authResult.Data.Id);
-            return ApiBlacklisted();
-        }
+        return Ok(new { message = "Signed in" });
+    }
 
-        LogAuthEvent("password", "success", clientIp, authResult.Data.UserName, authResult.Data.Id);
-        return await GenerateAuthResponseAsync(authResult.Data, null, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Sign out the current browser session and clear the auth cookie.
+    /// </summary>
+    [HttpPost]
+    [Route("cookie/sign-out")]
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> CookieSignOutAsync(CancellationToken cancellationToken = default)
+    {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).ConfigureAwait(false);
+        return Ok(new { message = "Signed out" });
     }
 
     /// <summary>
@@ -123,151 +136,42 @@ public class AuthController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> GoogleAuthAsync([FromBody] GoogleAuthRequest request, CancellationToken cancellationToken = default)
     {
-        var clientIp = GetRequestIp(HttpContext);
-
-        if (!_googleAuthOptions.Enabled)
+        var authResult = await TryResolveGoogleUserAsync(request, cancellationToken).ConfigureAwait(false);
+        if (authResult.ErrorResult != null)
         {
-            LogAuthEvent("google", "not_enabled", clientIp);
-            return ApiBadRequest("Google authentication is not enabled");
+            return authResult.ErrorResult;
         }
 
-        // Validate the Google ID token
-        var validationResult = await googleTokenService.ValidateTokenAsync(request.IdToken, cancellationToken).ConfigureAwait(false);
+        return await GenerateAuthResponseAsync(authResult.User!, request.DeviceId, cancellationToken).ConfigureAwait(false);
+    }
 
-        if (!validationResult.IsValid || validationResult.Payload == null)
+    /// <summary>
+    /// Exchange a Google ID token for a browser auth cookie.
+    /// </summary>
+    [HttpPost]
+    [Route("cookie/google")]
+    [AllowAnonymous]
+    [EnableRateLimiting("melodee-auth")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GoogleCookieAuthAsync([FromBody] GoogleAuthRequest request, CancellationToken cancellationToken = default)
+    {
+        var authResult = await TryResolveGoogleUserAsync(request, cancellationToken).ConfigureAwait(false);
+        if (authResult.ErrorResult != null)
         {
-            var errorCode = validationResult.ErrorCode ?? ApiError.Codes.InvalidGoogleToken;
-            LogAuthEvent("google", errorCode, clientIp);
-            var statusCode = errorCode == ApiError.Codes.ExpiredGoogleToken
-                ? StatusCodes.Status401Unauthorized
-                : errorCode == ApiError.Codes.ForbiddenTenant
-                    ? StatusCodes.Status403Forbidden
-                    : StatusCodes.Status400BadRequest;
-
-            return StatusCode(statusCode,
-                new ApiError(errorCode, validationResult.ErrorMessage ?? "Google token validation failed", GetCorrelationId()));
+            return authResult.ErrorResult;
         }
 
-        var payload = validationResult.Payload;
-        var googleSubject = payload.Subject;
-        var googleEmail = payload.Email;
+        var principal = await CreateCookiePrincipalAsync(authResult.User!, cancellationToken).ConfigureAwait(false);
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
 
-        // Check IP blacklist
-        if (await blacklistService.IsIpBlacklistedAsync(clientIp).ConfigureAwait(false))
-        {
-            LogAuthEvent("google", "blacklisted", clientIp, googleEmail);
-            return ApiBlacklisted();
-        }
-
-        // Try to find existing social login
-        var socialLoginResult = await userService.GetUserBySocialLoginAsync("Google", googleSubject, cancellationToken).ConfigureAwait(false);
-
-        Data.User? user = null;
-        var authOutcome = "existing_link";
-
-        if (socialLoginResult.IsSuccess && socialLoginResult.Data != null)
-        {
-            // Existing linked user
-            user = socialLoginResult.Data;
-
-            if (user.IsLocked)
-            {
-                LogAuthEvent("google", "account_disabled", clientIp, googleEmail, user.Id);
-                return StatusCode(StatusCodes.Status403Forbidden,
-                    new ApiError(ApiError.Codes.AccountDisabled, "Account is disabled", GetCorrelationId()));
-            }
-
-            if (await blacklistService.IsEmailBlacklistedAsync(user.Email).ConfigureAwait(false))
-            {
-                LogAuthEvent("google", "blacklisted", clientIp, user.UserName, user.Id);
-                return ApiBlacklisted();
-            }
-
-            // Update last login timestamp for social login
-            await userService.UpdateSocialLoginLastLoginAsync("Google", googleSubject, cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            // No existing link - try auto-link by email if enabled
-            if (_googleAuthOptions.AutoLinkEnabled && !string.IsNullOrEmpty(googleEmail))
-            {
-                var userByEmail = await userService.GetByEmailAddressAsync(googleEmail, cancellationToken).ConfigureAwait(false);
-                if (userByEmail.IsSuccess && userByEmail.Data != null)
-                {
-                    user = userByEmail.Data;
-                    authOutcome = "auto_linked";
-
-                    if (user.IsLocked)
-                    {
-                        LogAuthEvent("google", "account_disabled", clientIp, googleEmail, user.Id);
-                        return StatusCode(StatusCodes.Status403Forbidden,
-                            new ApiError(ApiError.Codes.AccountDisabled, "Account is disabled", GetCorrelationId()));
-                    }
-
-                    // Auto-link the Google account
-                    await userService.LinkSocialLoginAsync(
-                        user.Id,
-                        "Google",
-                        googleSubject,
-                        googleEmail,
-                        payload.Name,
-                        payload.HostedDomain,
-                        cancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            // If still no user, check if we should create one
-            if (user == null)
-            {
-                if (!_authPolicyOptions.SelfRegistrationEnabled)
-                {
-                    LogAuthEvent("google", "signup_disabled", clientIp, googleEmail);
-                    return StatusCode(StatusCodes.Status403Forbidden,
-                        new ApiError(ApiError.Codes.SignupDisabled, "Self-registration is disabled", GetCorrelationId()));
-                }
-
-                // Check if email is blacklisted before creating account
-                if (!string.IsNullOrEmpty(googleEmail) &&
-                    await blacklistService.IsEmailBlacklistedAsync(googleEmail).ConfigureAwait(false))
-                {
-                    LogAuthEvent("google", "blacklisted", clientIp, googleEmail);
-                    return ApiBlacklisted();
-                }
-
-                // Create new user from Google identity
-                var createResult = await userService.CreateUserFromGoogleAsync(
-                    googleSubject,
-                    googleEmail ?? $"{googleSubject}@google.user",
-                    payload.Name ?? googleSubject,
-                    payload.HostedDomain,
-                    cancellationToken).ConfigureAwait(false);
-
-                if (!createResult.IsSuccess || createResult.Data == null)
-                {
-                    LogAuthEvent("google", "create_failed", clientIp, googleEmail);
-                    return StatusCode(StatusCodes.Status409Conflict,
-                        new ApiError(ApiError.Codes.GoogleAccountNotLinked,
-                            createResult.Messages?.FirstOrDefault() ?? "Failed to create account",
-                            GetCorrelationId()));
-                }
-
-                user = createResult.Data;
-                authOutcome = "new_user";
-            }
-        }
-
-        if (user == null)
-        {
-            // This shouldn't happen, but handle it gracefully
-            LogAuthEvent("google", "not_linked", clientIp, googleEmail);
-            return StatusCode(StatusCodes.Status409Conflict,
-                new ApiError(ApiError.Codes.GoogleAccountNotLinked,
-                    "Google account is not linked. Please log in with password and link your Google account.",
-                    GetCorrelationId()));
-        }
-
-        LogAuthEvent("google", $"success_{authOutcome}", clientIp, user.UserName, user.Id);
-        return await GenerateAuthResponseAsync(user, request.DeviceId, cancellationToken).ConfigureAwait(false);
+        return Ok(new { message = "Signed in" });
     }
 
     /// <summary>
@@ -551,6 +455,200 @@ public class AuthController(
         }
 
         return Ok(new { message = "Password has been reset successfully" });
+    }
+
+    /// <summary>
+    /// Validates user credentials and applies policy checks before issuing auth responses.
+    /// </summary>
+    private async Task<(Data.User? User, IActionResult? ErrorResult)> TryAuthenticateUserAsync(LoginModel model, CancellationToken cancellationToken)
+    {
+        var clientIp = GetRequestIp(HttpContext);
+
+        if (string.IsNullOrWhiteSpace(model.Email) && string.IsNullOrWhiteSpace(model.Password))
+        {
+            LogAuthEvent("password", "validation_error", clientIp, model.UserName ?? model.Email);
+            return (null, ApiValidationError("Email or password are required"));
+        }
+
+        // Authentication is always performed via the service layer regardless of which identifier is provided.
+        // Both paths perform full credential validation - this is not a security bypass.
+        var hasUsername = !string.IsNullOrWhiteSpace(model.UserName);
+        var authResult = hasUsername
+            ? await userService.LoginUserByUsernameAsync(model.UserName!, model.Password, cancellationToken).ConfigureAwait(false)
+            : await userService.LoginUserAsync(model.Email ?? string.Empty, model.Password, cancellationToken).ConfigureAwait(false);
+
+        if (!authResult.IsSuccess || authResult.Data == null)
+        {
+            LogAuthEvent("password", "invalid_credentials", clientIp, model.UserName ?? model.Email);
+            return (null, ApiUnauthorized("Invalid credentials"));
+        }
+
+        if (authResult.Data.IsLocked)
+        {
+            LogAuthEvent("password", "account_disabled", clientIp, model.UserName ?? model.Email, authResult.Data.Id);
+            return (null, StatusCode(StatusCodes.Status403Forbidden,
+                new ApiError(ApiError.Codes.AccountDisabled, "Account is disabled", GetCorrelationId())));
+        }
+
+        if (await blacklistService.IsEmailBlacklistedAsync(authResult.Data.Email).ConfigureAwait(false) ||
+            await blacklistService.IsIpBlacklistedAsync(clientIp).ConfigureAwait(false))
+        {
+            LogAuthEvent("password", "blacklisted", clientIp, authResult.Data.UserName, authResult.Data.Id);
+            return (null, ApiBlacklisted());
+        }
+
+        LogAuthEvent("password", "success", clientIp, authResult.Data.UserName, authResult.Data.Id);
+        return (authResult.Data, null);
+    }
+
+    /// <summary>
+    /// Resolves a Google-authenticated user, enforcing policy and blacklist checks.
+    /// </summary>
+    private async Task<(Data.User? User, IActionResult? ErrorResult)> TryResolveGoogleUserAsync(GoogleAuthRequest request, CancellationToken cancellationToken)
+    {
+        var clientIp = GetRequestIp(HttpContext);
+
+        if (!_googleAuthOptions.Enabled)
+        {
+            LogAuthEvent("google", "not_enabled", clientIp);
+            return (null, ApiBadRequest("Google authentication is not enabled"));
+        }
+
+        var validationResult = await googleTokenService.ValidateTokenAsync(request.IdToken, cancellationToken).ConfigureAwait(false);
+
+        if (!validationResult.IsValid || validationResult.Payload == null)
+        {
+            var errorCode = validationResult.ErrorCode ?? ApiError.Codes.InvalidGoogleToken;
+            LogAuthEvent("google", errorCode, clientIp);
+            var statusCode = errorCode == ApiError.Codes.ExpiredGoogleToken
+                ? StatusCodes.Status401Unauthorized
+                : errorCode == ApiError.Codes.ForbiddenTenant
+                    ? StatusCodes.Status403Forbidden
+                    : StatusCodes.Status400BadRequest;
+
+            return (null, StatusCode(statusCode,
+                new ApiError(errorCode, validationResult.ErrorMessage ?? "Google token validation failed", GetCorrelationId())));
+        }
+
+        var payload = validationResult.Payload;
+        var googleSubject = payload.Subject;
+        var googleEmail = payload.Email;
+
+        if (await blacklistService.IsIpBlacklistedAsync(clientIp).ConfigureAwait(false))
+        {
+            LogAuthEvent("google", "blacklisted", clientIp, googleEmail);
+            return (null, ApiBlacklisted());
+        }
+
+        var socialLoginResult = await userService.GetUserBySocialLoginAsync("Google", googleSubject, cancellationToken).ConfigureAwait(false);
+
+        Data.User? user = null;
+        var authOutcome = "existing_link";
+
+        if (socialLoginResult.IsSuccess && socialLoginResult.Data != null)
+        {
+            user = socialLoginResult.Data;
+
+            if (user.IsLocked)
+            {
+                LogAuthEvent("google", "account_disabled", clientIp, googleEmail, user.Id);
+                return (null, StatusCode(StatusCodes.Status403Forbidden,
+                    new ApiError(ApiError.Codes.AccountDisabled, "Account is disabled", GetCorrelationId())));
+            }
+
+            if (await blacklistService.IsEmailBlacklistedAsync(user.Email).ConfigureAwait(false))
+            {
+                LogAuthEvent("google", "blacklisted", clientIp, user.UserName, user.Id);
+                return (null, ApiBlacklisted());
+            }
+
+            await userService.UpdateSocialLoginLastLoginAsync("Google", googleSubject, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            if (_googleAuthOptions.AutoLinkEnabled && !string.IsNullOrEmpty(googleEmail))
+            {
+                var userByEmail = await userService.GetByEmailAddressAsync(googleEmail, cancellationToken).ConfigureAwait(false);
+                if (userByEmail.IsSuccess && userByEmail.Data != null)
+                {
+                    user = userByEmail.Data;
+                    authOutcome = "auto_linked";
+
+                    if (user.IsLocked)
+                    {
+                        LogAuthEvent("google", "account_disabled", clientIp, googleEmail, user.Id);
+                        return (null, StatusCode(StatusCodes.Status403Forbidden,
+                            new ApiError(ApiError.Codes.AccountDisabled, "Account is disabled", GetCorrelationId())));
+                    }
+
+                    await userService.LinkSocialLoginAsync(
+                        user.Id,
+                        "Google",
+                        googleSubject,
+                        googleEmail,
+                        payload.Name,
+                        payload.HostedDomain,
+                        cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            if (user == null)
+            {
+                if (!_authPolicyOptions.SelfRegistrationEnabled)
+                {
+                    LogAuthEvent("google", "signup_disabled", clientIp, googleEmail);
+                    return (null, StatusCode(StatusCodes.Status403Forbidden,
+                        new ApiError(ApiError.Codes.SignupDisabled, "Self-registration is disabled", GetCorrelationId())));
+                }
+
+                if (!string.IsNullOrEmpty(googleEmail) &&
+                    await blacklistService.IsEmailBlacklistedAsync(googleEmail).ConfigureAwait(false))
+                {
+                    LogAuthEvent("google", "blacklisted", clientIp, googleEmail);
+                    return (null, ApiBlacklisted());
+                }
+
+                var createResult = await userService.CreateUserFromGoogleAsync(
+                    googleSubject,
+                    googleEmail ?? $"{googleSubject}@google.user",
+                    payload.Name ?? googleSubject,
+                    payload.HostedDomain,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (!createResult.IsSuccess || createResult.Data == null)
+                {
+                    LogAuthEvent("google", "create_failed", clientIp, googleEmail);
+                    return (null, StatusCode(StatusCodes.Status409Conflict,
+                        new ApiError(ApiError.Codes.GoogleAccountNotLinked,
+                            createResult.Messages?.FirstOrDefault() ?? "Failed to create account",
+                            GetCorrelationId())));
+                }
+
+                user = createResult.Data;
+                authOutcome = "new_user";
+            }
+        }
+
+        if (user == null)
+        {
+            LogAuthEvent("google", "not_linked", clientIp, googleEmail);
+            return (null, StatusCode(StatusCodes.Status409Conflict,
+                new ApiError(ApiError.Codes.GoogleAccountNotLinked,
+                    "Google account is not linked. Please log in with password and link your Google account.",
+                    GetCorrelationId())));
+        }
+
+        LogAuthEvent("google", $"success_{authOutcome}", clientIp, user.UserName, user.Id);
+        return (user, null);
+    }
+
+    /// <summary>
+    /// Builds the cookie authentication principal for a UI session.
+    /// </summary>
+    private async Task<ClaimsPrincipal> CreateCookiePrincipalAsync(Data.User user, CancellationToken cancellationToken)
+    {
+        var melodeeConfig = await GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        return user.ToUserInfo().ToClaimsPrincipal(melodeeConfig, string.Empty);
     }
 
     private async Task<IActionResult> GenerateAuthResponseAsync(Data.User user, string? deviceId, CancellationToken cancellationToken)

@@ -12,7 +12,6 @@
 @inject DialogService DialogService
 @inject TooltipService TooltipService
 @inject NavigationManager NavigationManager
-@inject IAuthService AuthService
 @inject DefaultImages DefaultImages
 
 <PageTitle>@L("Charts.PageTitle")</PageTitle>
@@ -35,7 +34,7 @@
                 Gap="0.5rem">
                 <RadzenButton Icon="trending_up" Text="@L("Charts.RankedReport")" Click="@(() => NavigationManager.NavigateTo("/charts/ranked-report"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"/>
                 <RadzenButton Icon="report" Text="@L("Charts.MissingReport")" Click="@(() => NavigationManager.NavigateTo("/charts/missing-report"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"/>
-                @if (AuthService.IsAdmin)
+                @if (IsAdmin)
                 {
                     <RadzenButton Icon="upload_file" Text="@L("Actions.ImportJSON")" Click="@ImportJsonClick" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
                     <RadzenButton Icon="add_circle_outline" Text="@L("Actions.CreateChart")" Click="@CreateChartClick" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"/>
@@ -66,10 +65,10 @@
             PageSizeText="@GridPageSizeText"
             EmptyText="@GridEmptyText"
             ColumnWidth="200px"
-            SelectionMode="@(AuthService.IsAdmin ? DataGridSelectionMode.Multiple : DataGridSelectionMode.Single)"
+            SelectionMode="@(IsAdmin ? DataGridSelectionMode.Multiple : DataGridSelectionMode.Single)"
             @bind-Value="@_selectedCharts">
             <Columns>
-                @if (AuthService.IsAdmin)
+                @if (IsAdmin)
                 {
                     <RadzenDataGridColumn Width="60px" Sortable="false" Filterable="false">
                         <HeaderTemplate>
@@ -132,7 +131,7 @@
                     </Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn Property="@nameof(Chart.IsVisible)" Title="@L("Label.Visible")" Width="100px" Visible="@AuthService.IsAdmin">
+                <RadzenDataGridColumn Property="@nameof(Chart.IsVisible)" Title="@L("Label.Visible")" Width="100px" Visible="@IsAdmin">
                     <Template Context="data">
                         @if (data.IsVisible)
                         {
@@ -164,7 +163,7 @@
                     </Template>
                 </RadzenDataGridColumn>
 
-                @if (AuthService.IsAdmin)
+                @if (IsAdmin)
                 {
                     <RadzenDataGridColumn Title="@L("Data.Actions")" Width="120px" Sortable="false">
                         <Template Context="data">
@@ -181,6 +180,7 @@
 </RadzenStack>
 
 @code {
+    private bool IsAdmin => CurrentUser?.IsAdmin() == true;
     RadzenDataGrid<Chart> _grid = null!;
     int _count;
     IEnumerable<Chart> _charts = [];
@@ -219,7 +219,7 @@
               Page = _currentPage,
               PageSize = SafeParser.ToNumber<short>(args.Top)
             },
-            includeHidden: AuthService.IsAdmin);
+            includeHidden: IsAdmin);
           _charts = result.Data;
           _count = result.TotalCount;
         }
