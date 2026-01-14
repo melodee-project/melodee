@@ -13,7 +13,6 @@ using Melodee.Common.Plugins.Validation.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Extensions;
-using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using Serilog;

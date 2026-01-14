@@ -6,7 +6,6 @@ using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Blazored.SessionStorage;
 using Melodee.Blazor.Components;
-using Melodee.Blazor.Configuration;
 using Melodee.Blazor.Constants;
 using Melodee.Blazor.Filters;
 using Melodee.Blazor.Hubs;

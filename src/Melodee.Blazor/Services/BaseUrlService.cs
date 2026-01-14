@@ -1,7 +1,6 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Extensions;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Melodee.Blazor.Services;

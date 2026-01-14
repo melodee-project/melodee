@@ -1032,7 +1032,15 @@ namespace Melodee.Common.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ForAlbumId");
+
+                    b.HasIndex("ForArtistId");
+
                     b.HasIndex("LibraryId");
+
+                    b.HasIndex("LibraryId", "CreatedAt");
 
                     b.ToTable("LibraryScanHistories");
                 });
@@ -1236,7 +1244,11 @@ namespace Melodee.Common.Migrations
 
                     b.HasIndex("EnqueuedByUserId");
 
+                    b.HasIndex("PartySessionId");
+
                     b.HasIndex("SongApiKey");
+
+                    b.HasIndex("SortOrder");
 
                     b.HasIndex("PartySessionId", "SortOrder");
 
@@ -5386,7 +5398,13 @@ namespace Melodee.Common.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IsNowPlaying");
+
                     b.HasIndex("PlayedAt");
+
+                    b.HasIndex("SongId");
+
+                    b.HasIndex("UserId");
 
                     b.HasIndex("SongId", "PlayedAt");
 

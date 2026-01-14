@@ -1,8 +1,6 @@
 using FluentAssertions;
 using Melodee.Blazor.Middleware;
 using Microsoft.AspNetCore.Http;
-using Serilog;
-using Serilog.Events;
 
 namespace Melodee.Tests.Blazor.Middleware;
 

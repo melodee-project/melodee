@@ -1,6 +1,3 @@
-using System.Net;
-using Melodee.Common.Configuration;
-using Melodee.Common.Constants;
 using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Serilog;

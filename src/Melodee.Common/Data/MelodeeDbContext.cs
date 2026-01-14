@@ -2059,6 +2059,33 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                 .HasForeignKey(x => x.OwnerUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        modelBuilder.Entity<UserSongPlayHistory>(ush =>
+        {
+            ush.HasIndex(x => x.UserId);
+            ush.HasIndex(x => x.PlayedAt);
+            ush.HasIndex(x => new { x.UserId, x.PlayedAt });
+            ush.HasIndex(x => x.SongId);
+            ush.HasIndex(x => x.IsNowPlaying);
+        });
+
+        modelBuilder.Entity<PartyQueueItem>(pqi =>
+        {
+            pqi.HasIndex(x => x.PartySessionId);
+            pqi.HasIndex(x => x.SortOrder);
+            pqi.HasIndex(x => new { x.PartySessionId, x.SortOrder });
+            pqi.HasIndex(x => x.EnqueuedByUserId);
+            pqi.HasIndex(x => x.EnqueuedAt);
+        });
+
+        modelBuilder.Entity<LibraryScanHistory>(lsh =>
+        {
+            lsh.HasIndex(x => x.LibraryId);
+            lsh.HasIndex(x => x.CreatedAt);
+            lsh.HasIndex(x => new { x.LibraryId, x.CreatedAt });
+            lsh.HasIndex(x => x.ForArtistId);
+            lsh.HasIndex(x => x.ForAlbumId);
+        });
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

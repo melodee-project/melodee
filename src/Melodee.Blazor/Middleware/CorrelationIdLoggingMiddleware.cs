@@ -1,7 +1,4 @@
-using Microsoft.AspNetCore.Http;
-using Serilog;
 using Serilog.Context;
-using Serilog.Events;
 
 namespace Melodee.Blazor.Middleware;
 
