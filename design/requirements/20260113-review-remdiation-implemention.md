@@ -79,7 +79,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 - [x] Phase 1 (P0) — Remove password secrets from claims + introduce password hashing (stop reversible login passwords)
 - [x] Phase 2 (P0) — Secrets hygiene: confirm non-commit, rotate, and add automated secret scanning gates
 - [x] Phase 3 (P0) — Fix Blazor `AuthService` JWT validation and stop storing auth tokens in `localStorage` for the UI path
-- [ ] Phase 4 (P0) — Replace permissive CORS with strict allowlist policies (dev vs. prod)
+- [x] Phase 4 (P0) — Replace permissive CORS with strict allowlist policies (dev vs. prod)
 - [ ] Phase 5 (P0) — Prevent path traversal in email template loading and add root containment checks
 - [ ] Phase 6 (P0) — Centralize file path guarding for all destructive file operations (delete/move)
 - [ ] Phase 7 (P0) — Harden external fetches against SSRF + resource exhaustion using existing `SsrfValidator`

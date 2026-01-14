@@ -281,6 +281,32 @@ builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<IThemeClientService, ThemeClientService>();
 
+// Configure CORS with strict allowlist policies
+var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MelodeeCors", policy =>
+    {
+        if (corsAllowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(corsAllowedOrigins);
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            policy.WithOrigins("http://localhost:*", "https://localhost:*");
+        }
+        else
+        {
+            throw new InvalidOperationException("CORS is not configured for production. Set Cors:AllowedOrigins in configuration.");
+        }
+
+        policy.WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+        policy.WithHeaders("Authorization", "Content-Type", "If-None-Match", "If-Match");
+        policy.WithExposedHeaders("Accept-Ranges", "Content-Range", "Content-Length", "Content-Type", "ETag");
+        policy.AllowCredentials();
+    });
+});
+
 // Email services
 builder.Services.AddScoped<Melodee.Blazor.Services.Email.IEmailSender, Melodee.Blazor.Services.Email.SmtpEmailSender>();
 builder.Services.AddScoped<Melodee.Blazor.Services.Email.IEmailTemplateService, Melodee.Blazor.Services.Email.EmailTemplateService>();
@@ -880,11 +906,7 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-app.UseCors(bb => bb
-    .AllowAnyOrigin()
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .WithExposedHeaders("Accept-Ranges", "Content-Range", "Content-Length", "Content-Type"));
+app.UseCors("MelodeeCors");
 
 // Configure request localization with supported cultures
 var supportedCultures = new[] { "en-US", "de-DE", "es-ES", "fr-FR", "it-IT", "ja-JP", "pt-BR", "ru-RU", "zh-CN", "ar-SA" };
