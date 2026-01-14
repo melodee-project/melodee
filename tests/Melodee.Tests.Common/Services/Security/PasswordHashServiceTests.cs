@@ -1,5 +1,4 @@
 using Melodee.Common.Services.Security;
-using Xunit;
 
 namespace Melodee.Tests.Common.Services.Security;
 

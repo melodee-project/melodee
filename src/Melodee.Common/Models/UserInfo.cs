@@ -1,8 +1,6 @@
 using System.Security.Claims;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
-using Melodee.Common.Extensions;
-using Melodee.Common.Models.Extensions;
 using Melodee.Common.Services;
 using Melodee.Common.Utility;
 

@@ -3,7 +3,6 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Models;
 using Moq;
-using Xunit;
 
 namespace Melodee.Tests.Common.Models;
 

@@ -1,7 +1,6 @@
 using Melodee.Common.Services.Security;
 using Microsoft.Extensions.Configuration;
 using Moq;
-using Xunit;
 
 namespace Melodee.Tests.Common.Services.Security;
 

@@ -1,5 +1,3 @@
-using BCrypt.Net;
-
 namespace Melodee.Common.Services.Security;
 
 public sealed class PasswordHashService : IPasswordHashService
