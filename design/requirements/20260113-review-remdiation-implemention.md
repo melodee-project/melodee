@@ -86,7 +86,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 - [x] Phase 8 (P0) — Fix MQL regex evaluation to be timeout-safe (ReDoS) without `Task.Run(...).Result`
 - [x] Phase 9 (P1) — Fix base URL generation (Host header trust) and eliminate sync-over-async in request paths
 - [x] Phase 10 (P1) — Remove `async void` handlers and eliminate sync-over-async patterns flagged by review
-- [ ] Phase 11 (P1) — Fix high-risk performance issues (unbounded parallel file reads, missing pagination, N+1 hot paths)
+- [x] Phase 11 (P1) — Fix high-risk performance issues (unbounded parallel file reads, missing pagination, N+1 hot paths)
 - [ ] Phase 12 (P1) — Standardize error handling (no secret leakage; consistent error envelopes)
 - [ ] Phase 13 (P2) — Observability hardening (correlation IDs, metrics, tracing baseline)
 - [ ] Phase 14 (P2) — CI/CD hardening gates (SCA, container scanning, formatting/analyzers as checks)

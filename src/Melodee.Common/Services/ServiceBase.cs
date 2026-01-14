@@ -73,9 +73,11 @@ public abstract class ServiceBase
         {
             var existingImages = ImageHelper.ImageFilesInDirectory(existingDir.FullName, SearchOption.TopDirectoryOnly)
                 .ToList();
-            var existingImagesCrc = existingImages.Select(async x => new
-            { Crc = CRC32.Calculate(await File.ReadAllBytesAsync(x, cancellationToken)), ImageFileName = x })
-                .ToArray();
+            var existingImagesCrc = existingImages.Select(async x =>
+            {
+                var crc = Crc32.Calculate(new FileInfo(x));
+                return new { Crc = crc, ImageFileName = x };
+            }).ToArray();
             var imagesToMoveCrc = albumToMove.Images
                 .Select(x => new { Crc = x.CrcHash, ImageFileName = x.FileInfo!.FullName(albumToMoveDir) }).ToList();
 
