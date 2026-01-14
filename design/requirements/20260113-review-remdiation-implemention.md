@@ -82,7 +82,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 - [x] Phase 4 (P0) — Replace permissive CORS with strict allowlist policies (dev vs. prod)
 - [x] Phase 5 (P0) — Prevent path traversal in email template loading and add root containment checks
 - [x] Phase 6 (P0) — Centralize file path guarding for all destructive file operations (delete/move)
-- [ ] Phase 7 (P0) — Harden external fetches against SSRF + resource exhaustion using existing `SsrfValidator`
+- [x] Phase 7 (P0) — Harden external fetches against SSRF + resource exhaustion using existing `SsrfValidator`
 - [ ] Phase 8 (P0) — Fix MQL regex evaluation to be timeout-safe (ReDoS) without `Task.Run(...).Result`
 - [ ] Phase 9 (P1) — Fix base URL generation (Host header trust) and eliminate sync-over-async in request paths
 - [ ] Phase 10 (P1) — Remove `async void` handlers and eliminate sync-over-async patterns flagged by review

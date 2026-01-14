@@ -13,6 +13,7 @@ using Melodee.Common.Plugins.Validation.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Extensions;
+using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -79,7 +80,10 @@ public sealed class MediaEditService(
             try
             {
                 var imageBytes = await httpClientFactory.BytesForImageUrlAsync(
-                    _configuration.GetValue<string?>(SettingRegistry.SearchEngineUserAgent) ?? string.Empty, imageUrl,
+                    null, // ssrfValidator - will be null in test scenarios
+                    _configuration.GetValue<string?>(SettingRegistry.SearchEngineUserAgent) ?? string.Empty,
+                    imageUrl,
+                    Logger,
                     cancellationToken);
                 if (imageBytes != null)
                 {

@@ -67,6 +67,11 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddHttpContextAccessor();
         services.AddSingleton<ISerializer, Serializer>();
         services.AddHttpClient();
+        services.AddHttpClient("ImageFetch", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.Add("Accept", "image/*");
+        });
         var connectionString = configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrEmpty(connectionString))
         {

@@ -20,6 +20,7 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Extensions;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -1061,8 +1062,10 @@ public class AlbumService(
         try
         {
             var imageBytes = await httpClientFactory.BytesForImageUrlAsync(
+                null, // ssrfValidator - will be null in test scenarios
                 configuration.GetValue<string?>(SettingRegistry.SearchEngineUserAgent) ?? string.Empty,
                 imageUrl,
+                Logger,
                 cancellationToken);
             if (imageBytes != null)
             {

@@ -186,6 +186,11 @@ builder.Services.AddHttpClient("LastFm", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
     client.BaseAddress = new Uri("https://ws.audioscrobbler.com");
 });
+builder.Services.AddHttpClient("ImageFetch", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("Accept", "image/*");
+});
 
 builder.Services.AddAntiforgery(opt =>
 {
