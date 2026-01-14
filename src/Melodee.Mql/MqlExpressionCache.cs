@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Linq.Expressions;
 using Melodee.Mql.Interfaces;
 using Melodee.Mql.Models;
@@ -8,12 +9,12 @@ namespace Melodee.Mql;
 /// <summary>
 /// Thread-safe LRU cache for compiled MQL expressions.
 /// </summary>
-public sealed class MqlExpressionCache : IMqlExpressionCache
+public sealed class MqlExpressionCache : IMqlExpressionCache, Melodee.Common.Services.Caching.ICacheInvalidatable
 {
     private readonly int _maxEntries;
     private readonly TimeSpan _defaultTtl;
     private readonly ConcurrentDictionary<string, CacheEntry> _cache;
-    private readonly ConcurrentDictionary<string, HashSet<string>> _entityTypeIndex;
+    private readonly ConcurrentDictionary<string, ImmutableList<string>> _entityTypeIndex;
     private readonly LRUCache<string, string> _lruOrder;
     private long _hitCount;
     private long _missCount;
@@ -131,8 +132,8 @@ public sealed class MqlExpressionCache : IMqlExpressionCache
     {
         _maxEntries = maxEntries;
         _defaultTtl = defaultTtl ?? TimeSpan.FromMinutes(30);
-        _cache = new(StringComparer.OrdinalIgnoreCase);
-        _entityTypeIndex = new(StringComparer.OrdinalIgnoreCase);
+        _cache = new ConcurrentDictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
+        _entityTypeIndex = new ConcurrentDictionary<string, ImmutableList<string>>(StringComparer.OrdinalIgnoreCase);
         _lruOrder = new LRUCache<string, string>(maxEntries);
     }
 
@@ -217,13 +218,14 @@ public sealed class MqlExpressionCache : IMqlExpressionCache
 
     private void ClearByEntityType(string entityTypeName)
     {
-        if (_entityTypeIndex.TryRemove(entityTypeName, out var keys))
+        if (_entityTypeIndex.TryGetValue(entityTypeName, out var keys))
         {
             foreach (var key in keys)
             {
                 _cache.TryRemove(key, out _);
                 _lruOrder.Remove(key);
             }
+            _entityTypeIndex.TryRemove(entityTypeName, out _);
         }
     }
 
@@ -331,25 +333,21 @@ public sealed class MqlExpressionCache : IMqlExpressionCache
     {
         _entityTypeIndex.AddOrUpdate(
             entityTypeName,
-            _ => new HashSet<string> { cacheKey },
-            (_, set) =>
-            {
-                lock (set)
-                {
-                    set.Add(cacheKey);
-                }
-                return set;
-            });
+            _ => ImmutableList.Create(cacheKey),
+            (_, existing) => existing.Add(cacheKey));
     }
 
     private void RemoveFromEntityTypeIndex(string entityTypeName, string cacheKey)
     {
-        if (_entityTypeIndex.TryGetValue(entityTypeName, out var set))
-        {
-            lock (set)
-            {
-                set.Remove(cacheKey);
-            }
-        }
+        _entityTypeIndex.AddOrUpdate(
+            entityTypeName,
+            _ => ImmutableList<string>.Empty,
+            (_, existing) => existing.Remove(cacheKey));
+    }
+
+    /// <inheritdoc />
+    public void InvalidateAll()
+    {
+        ClearAll();
     }
 }

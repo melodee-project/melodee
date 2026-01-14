@@ -9,7 +9,7 @@ namespace Melodee.Common.Services.Caching;
 /// </summary>
 /// <typeparam name="TKey">The type of cache key.</typeparam>
 /// <typeparam name="TValue">The type of cached value.</typeparam>
-public sealed class SingleFlightCache<TKey, TValue> : IDisposable where TKey : notnull
+public sealed class SingleFlightCache<TKey, TValue> : IDisposable, ICacheInvalidatable where TKey : notnull
 {
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _inflight = new();
@@ -266,6 +266,17 @@ public sealed class SingleFlightCache<TKey, TValue> : IDisposable where TKey : n
             Array array => array.Length == 0,
             _ => false
         };
+    }
+
+    /// <inheritdoc />
+    public void InvalidateByEntityType(string entityTypeName)
+    {
+    }
+
+    /// <inheritdoc />
+    public void InvalidateAll()
+    {
+        Clear();
     }
 
     public void Dispose()
