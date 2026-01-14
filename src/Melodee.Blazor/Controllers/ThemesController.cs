@@ -131,7 +131,14 @@ public class ThemesController(
             return BadRequest(new { error = "File must be a .zip archive" });
         }
 
+        // Validate zip file magic bytes for defense in depth
         await using var stream = file.OpenReadStream();
+        var detectedType = FileTypeValidator.DetectContentType(stream);
+        if (detectedType != "application/zip")
+        {
+            return BadRequest(new { error = "Invalid file format. File content does not match a zip archive." });
+        }
+
         var (success, themeId, error) = await themeService.ImportThemePackAsync(stream, cancellationToken);
 
         if (!success)

@@ -5,6 +5,8 @@
 @using Melodee.Common.Data.Models.Extensions
 @using Melodee.Common.Enums
 @using Melodee.Common.Models.Extensions
+@using Melodee.Common.Serialization
+@using Melodee.Common.Utility
 @using NodaTime
 @using Album = Melodee.Common.Data.Models.Album
 @using Artist = Melodee.Common.Data.Models.Artist
@@ -709,7 +711,21 @@
         {
             await using var ms = new MemoryStream();
             await file.OpenReadStream(_maxUploadSize).CopyToAsync(ms);
-            var save = await AlbumService.SaveImageAsAlbumImageAsync(_album.Id, _replaceAllAlbumImages, ms.ToArray());
+            var imageBytes = ms.ToArray();
+
+            await using var validationStream = new MemoryStream(imageBytes);
+            if (!FileTypeValidator.IsValidImage(validationStream))
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = L("AlbumDetail.UploadAlbumImage"),
+                    Detail = $"Invalid image file: {file.Name}. File content does not match a supported image type."
+                });
+                continue;
+            }
+
+            var save = await AlbumService.SaveImageAsAlbumImageAsync(_album.Id, _replaceAllAlbumImages, imageBytes);
             if (!save.IsSuccess)
             {
                 NotificationService.Notify(NotificationMessageForResult(save, L("AlbumDetail.UploadAlbumImage"), ToastTime));

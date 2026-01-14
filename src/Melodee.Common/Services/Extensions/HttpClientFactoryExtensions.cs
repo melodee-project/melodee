@@ -88,7 +88,16 @@ public static class HttpClientFactoryExtensions
                 await memoryStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
             }
 
-            return memoryStream.ToArray();
+            var imageBytes = memoryStream.ToArray();
+
+            await using var validationStream = new MemoryStream(imageBytes);
+            if (!FileTypeValidator.IsValidImage(validationStream))
+            {
+                (logger ?? NoOpLogger.Instance).Warning("[HttpClientFactoryExtensions] Downloaded file from URL [{Url}] is not a valid image", LogSanitizer.Sanitize(url));
+                return null;
+            }
+
+            return imageBytes;
         }
         catch (TaskCanceledException ex) when (ex.CancellationToken != cancellationToken)
         {

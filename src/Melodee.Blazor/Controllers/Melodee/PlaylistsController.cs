@@ -9,6 +9,7 @@ using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
+using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -534,19 +535,19 @@ public sealed class PlaylistsController(
             return ApiValidationError("Image file is required.");
         }
 
-        // Validate file type
-        var allowedContentTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
-        if (!allowedContentTypes.Contains(file.ContentType.ToLowerInvariant()))
-        {
-            return ApiValidationError("Invalid image type. Allowed types: JPEG, PNG, GIF, WebP.");
-        }
-
         // Validate file size using configured max upload size
         var configuration = await ConfigurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
         var maxFileSize = configuration.GetValue<long>(SettingRegistry.SystemMaxUploadSize);
         if (file.Length > maxFileSize)
         {
             return ApiValidationError($"Image file size must be less than {maxFileSize.FormatFileSize()}.");
+        }
+
+        // Validate file type using magic bytes (defense in depth)
+        await using var fileStream = file.OpenReadStream();
+        if (!FileTypeValidator.IsValidImage(fileStream))
+        {
+            return ApiValidationError("Invalid image file. File content does not match a supported image type.");
         }
 
         byte[] imageBytes;
