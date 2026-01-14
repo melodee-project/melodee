@@ -80,7 +80,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 - [x] Phase 2 (P0) — Secrets hygiene: confirm non-commit, rotate, and add automated secret scanning gates
 - [x] Phase 3 (P0) — Fix Blazor `AuthService` JWT validation and stop storing auth tokens in `localStorage` for the UI path
 - [x] Phase 4 (P0) — Replace permissive CORS with strict allowlist policies (dev vs. prod)
-- [ ] Phase 5 (P0) — Prevent path traversal in email template loading and add root containment checks
+- [x] Phase 5 (P0) — Prevent path traversal in email template loading and add root containment checks
 - [ ] Phase 6 (P0) — Centralize file path guarding for all destructive file operations (delete/move)
 - [ ] Phase 7 (P0) — Harden external fetches against SSRF + resource exhaustion using existing `SsrfValidator`
 - [ ] Phase 8 (P0) — Fix MQL regex evaluation to be timeout-safe (ReDoS) without `Task.Run(...).Result`
@@ -94,7 +94,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 - [ ] Phase 16 (P2) — Data-access hardening (indexes + production-like DB integration tests)
 - [ ] Phase 17 (P2) — Cache hardening (invalidation strategy + concurrency safety)
 - [ ] Phase 18 (P2/P3) — Structured refactors and hygiene (Program.cs modularization, DbContext configuration split, dependency hygiene, MD5 scoping, SDK pinning)
-2
+
 ---
 
 ## Phase 0 (Gate) — Baseline, Safety Rails, No-Regression Checkpoint

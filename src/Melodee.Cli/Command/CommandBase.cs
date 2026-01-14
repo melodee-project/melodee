@@ -20,6 +20,7 @@ using Rebus.Transport.InMem;
 using Serilog;
 using Spectre.Console.Cli;
 using SpotifyAPI.Web;
+using Melodee.Common.Services.Security;
 
 namespace Melodee.Cli.Command;
 
@@ -43,10 +44,12 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
                 .Build();
         }
 
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("MELODEE_ENVIRONMENT") ?? "Production";
+
         return new ConfigurationBuilder()
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.json")
-            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", true)
+            .AddJsonFile($"appsettings.{environment}.json", true)
             .AddEnvironmentVariables()
             .Build();
     }
@@ -64,8 +67,16 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddHttpContextAccessor();
         services.AddSingleton<ISerializer, Serializer>();
         services.AddHttpClient();
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            Console.WriteLine("Error: Database connection string is not configured.");
+            Console.WriteLine("Please set the MELODEE_ENVIRONMENT or ASPNETCORE_ENVIRONMENT environment variable to 'Development' or ensure 'DefaultConnection' is set in your configuration.");
+            Environment.Exit(1);
+        }
+
         services.AddDbContextFactory<MelodeeDbContext>(opt =>
-            opt.UseNpgsql(configuration.GetConnectionString("DefaultConnection"),
+            opt.UseNpgsql(connectionString,
                 o => o.UseNodaTime().UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
         services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
             opt.UseSqlite(configuration.GetConnectionString("MusicBrainzConnection")));
@@ -106,9 +117,12 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<AlbumService>();
         services.AddScoped<SongService>();
         services.AddScoped<PlaylistService>();
+        services.AddScoped<PodcastService>();
         services.AddScoped<UserService>();
         services.AddScoped<UserQueueService>();
         services.AddScoped<IArtistDuplicateFinder, ArtistDuplicateFinder>();
+        services.AddSingleton<ISsrfValidator, SsrfValidator>();
+        services.AddSingleton<PodcastHttpClient>();
         services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
 
         return services.BuildServiceProvider();

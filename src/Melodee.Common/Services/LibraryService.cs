@@ -1606,8 +1606,15 @@ public class LibraryService : ServiceBase
 
         foreach (var album in melodeeFilesForLibrary.Where(x => x.Status != AlbumStatus.Ok))
         {
-            result.Add(new MelodeeModels.Statistic(StatisticType.Warning, album.Directory.Name,
-                album.StatusReasons.ToString(), StatisticColorRegistry.Warning));
+            var artistName = album.Artist?.Name ?? string.Empty;
+            var albumTitle = album.AlbumTitle() ?? string.Empty;
+            var albumYear = album.AlbumYear()?.ToString() ?? string.Empty;
+
+            var summary = $"{album.Directory.Name}";
+            var message = $"\u251C [{artistName}]\n\u251C [{albumTitle}]\n\u2514 [{albumYear}]";
+
+            result.Add(new MelodeeModels.Statistic(StatisticType.Warning, summary,
+                album.StatusReasons.ToString(), StatisticColorRegistry.Warning, message));
         }
 
         return new MelodeeModels.OperationResult<MelodeeModels.Statistic[]?>
