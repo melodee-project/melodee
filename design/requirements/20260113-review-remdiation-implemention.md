@@ -1,4 +1,21 @@
-# Review Remediation — Phased Implementation Plan (2026-01-13)
+---
+post_title: Review Remediation - Phased Implementation Plan (2026-01-13)
+author1: ai-assistant
+post_slug: 20260113-review-remediation-implementation-plan
+microsoft_alias: n/a
+featured_image: ""
+categories:
+  - design
+tags:
+  - remediation
+  - implementation
+  - phases
+ai_note: ai-assisted update
+summary: Implementation-ready plan for review remediation phases.
+post_date: 2026-01-13
+---
+
+## Review Remediation - Phased Implementation Plan (2026-01-13)
 
 This document is an implementation-ready plan to remediate the consolidated findings in `design/reviews/20260113.combined.md`. It is intentionally prescriptive to prevent drift and prevent “design decisions” from being pushed down to coding agents.
 
@@ -988,7 +1005,6 @@ Add new tests that validate the following without touching existing tests:
 - `P2-02: Large services / monolithic Common`
 - `P2-11: DbContext configuration/seed bloat`
 - `P3-01: MD5 usage scoping`
-- `P2-07: Dependency risk (beta/unmaintained)`
 - `P3-03: Cache size estimation via serialization`
 - `P3-04: TODO/test sprawl entropy`
 - `P3-05: ConfigureAwait policy (intentional)`
@@ -1002,8 +1018,105 @@ Add new tests that validate the following without touching existing tests:
 - MD5 is allowed only in:
   - explicit OpenSubsonic compatibility code paths (documented)
   - deterministic non-security ID generation (prefer SHA-256 if replacing)
- - SDK version is pinned in `global.json` if the project requires a non-default SDK on common build agents.
+- SDK version is pinned in `global.json` if the project requires a
+  non-default SDK on common build agents.
+
+### Implementation Steps (Explicit)
+
+1. **Modularize startup wiring**
+   - File: `src/Melodee.Blazor/Program.cs`
+   - Extract extension methods into new files under
+     `src/Melodee.Blazor/Extensions/`:
+     - `ServiceCollectionExtensions.cs`:
+       - `AddMelodeeServices`
+       - `AddMelodeeAuth`
+       - `AddMelodeeJobs`
+     - `ApplicationBuilderExtensions.cs`:
+       - `UseMelodeeMiddleware`
+   - Ensure `Program.cs` only wires high-level calls and
+     environment-specific switches.
+
+2. **Split large services and isolate external integrations**
+   - Initial carve-out targets:
+     - `src/Melodee.Common/Services/ArtistService.cs`
+     - `src/Melodee.Common/Services/UserService.cs`
+     - `src/Melodee.Common/Services/OpenSubsonicApiService.cs`
+   - Extract focused sub-services (query vs. command, validation, external
+     integrations) and register via DI without changing public behavior.
+   - Place new sub-services under `src/Melodee.Common/Services/`:
+     - `Artists/` for `ArtistService` queries, commands, and validation
+     - `Users/` for `UserService` auth and profile flows
+     - `OpenSubsonic/` for OpenSubsonic compatibility paths
+   - Introduce explicit interfaces for file system/HTTP dependencies
+     (`IStorage`, `IExternalMetadataClient`, etc.) and route usage through
+     those interfaces. Keep interfaces next to their primary service unless
+     there is an existing shared abstraction.
+
+3. **Split DbContext configuration and seed data**
+   - File: `src/Melodee.Common/Data/MelodeeDbContext.cs`
+   - Move entity configuration into `IEntityTypeConfiguration<T>` classes in
+     `src/Melodee.Common/Data/Configurations/`.
+   - Add `modelBuilder.ApplyConfigurationsFromAssembly(...)` and remove
+     inlined configuration where possible.
+   - Isolate seed data into per-entity configuration classes or
+     migration-based seeding. If seed data is large, keep source files in
+     `src/Melodee.Common/Data/Seeds/` and generate seed entries during
+     migration creation.
+
+4. **Scope MD5 usage to explicit compatibility helpers**
+   - Replace direct `MD5.HashData` usages with `HashHelper.CreateMd5(...)`
+     (`src/Melodee.Common/Utility/HashHelper.cs`).
+   - Keep MD5 call sites limited to OpenSubsonic/Jellyfin/Last.fm
+     compatibility and deterministic ID generation; prefer SHA-256 for new
+     non-compatibility paths.
+   - Document each remaining MD5 call site with a short compatibility note
+     and scoped suppression.
+
+5. **Replace cache size estimation by serialization**
+   - File: `src/Melodee.Common/Services/Caching/MemoryCacheManager.cs`
+   - Update `GetObjectSizeInBytes` to use fixed/approximate sizing for common
+     types and collections, and skip sizing below a small threshold.
+   - Cache size estimates for immutable types where safe to avoid repeated
+     sizing work.
+
+6. **Reduce TODO/FIXME and test-project sprawl**
+   - Inventory `TODO`/`FIXME`/`HACK` with
+     `rg -n "TODO|FIXME|HACK" src tests`.
+   - Convert high-risk items into tracked issues; update remaining comments
+     to `TODO(ISSUE-1234): ...` or remove them.
+   - Define a test-project organization rule (unit vs. integration vs.
+     performance) and align CI selection to it.
+
+7. **ConfigureAwait policy**
+   - Decide per-project policy: no blanket `ConfigureAwait(false)` in Blazor
+     or web entry points; allow in reusable libraries and background jobs.
+   - Encode the policy in `.editorconfig` or `Directory.Build.props`
+     analyzers and adjust call sites accordingly.
+
+8. **SDK pinning and documentation**
+   - Add a root `global.json` if a non-default or preview SDK is required.
+   - Update `README.md` build prerequisites with the pinned SDK version and
+     preview status.
+
+### Tests to Add (New Files Only)
+
+- Add a startup smoke test in `tests/Melodee.Tests.Blazor/Startup/` that
+  boots the app with production-like configuration and validates core
+  middleware/service wiring.
+- Add cache sizing tests in `tests/Melodee.Tests.Common/Caching/` that cover
+  size estimates for strings, primitives, and representative collections.
 
 ### Definition of Done
 
+- Program.cs is modularized and startup concerns are segmented by extension.
+- Targeted services are decomposed into smaller units with explicit
+  integration boundaries.
+- DbContext configuration and seed data are split into discrete files.
+- MD5 usage is scoped and documented to compatibility paths only.
+- Dependency inventory exists and CI reports outdated/vulnerable packages.
+- Cache sizing avoids serialization on hot paths and remains accurate enough
+  for eviction logic.
+- TODO/test organization rules are documented and applied.
+- ConfigureAwait policy is explicit and enforced.
+- SDK pinning is explicit where required.
 - Refactors do not change behavior and all tests pass.
