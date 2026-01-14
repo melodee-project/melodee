@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Melodee.Blazor.Controllers.Jellyfin.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
@@ -6,6 +5,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Serialization;
+using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -55,11 +55,8 @@ public abstract class JellyfinControllerBase(
         }
 
         var instanceId = Configuration.GetValue<string>("Jwt:Issuer") ?? "Melodee";
-        // NOTE: MD5 is used here for deterministic GUID generation from instance ID for Jellyfin API compatibility.
-        // This is NOT a cryptographic use - it's purely for generating a stable server identifier.
-        // lgtm[cs/weak-crypto] MD5 used for non-cryptographic GUID generation, not for security
-        var hash = MD5.HashData(System.Text.Encoding.UTF8.GetBytes(instanceId));
-        var id = new Guid(hash).ToString("N");
+        var hash = HashHelper.CreateMd5(instanceId);
+        var id = hash ?? Guid.NewGuid().ToString("N");
         HttpContext.Items[ServerIdCacheKey] = id;
         return id;
     }

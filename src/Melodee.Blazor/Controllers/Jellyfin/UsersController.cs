@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Melodee.Blazor.Controllers.Jellyfin.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
@@ -805,7 +803,6 @@ public class UsersController(
         // NOTE: MD5 is used here for generating ETag values for HTTP caching in Jellyfin API compatibility.
         // This is NOT a cryptographic use - ETags are public cache identifiers, not security tokens.
         // lgtm[cs/weak-crypto] MD5 used for non-cryptographic ETag generation, not for security
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        return HashHelper.CreateMd5(input) ?? string.Empty;
     }
 }
