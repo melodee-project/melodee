@@ -219,7 +219,7 @@
     {
         if (_module != null)
         {
-            await _module.InvokeVoidAsync("loadSong", GetStreamUrl());
+            await _module.InvokeVoidAsync("loadSong", await GetStreamUrlAsync());
             Duration = CurrentSong.DurationInSeconds();
             CurrentTime = 0;
             _nowPlayingRecordedForCurrentSong = false;
@@ -380,9 +380,9 @@
         return $"{minutes}:{remainingSeconds:00}";
     }
 
-    private string GetStreamUrl()
+    private async Task<string> GetStreamUrlAsync()
     {
-        var baseUrl = BaseUrlService.GetBaseUrl();
+        var baseUrl = await BaseUrlService.GetBaseUrlAsync();
         if (baseUrl == null)
         {
             throw new Exception("Base URL is not available for generating streaming URLs. Please configure the system.baseUrl setting.");

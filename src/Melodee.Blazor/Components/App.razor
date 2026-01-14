@@ -2,12 +2,11 @@
 @implements IDisposable
 @using Melodee.Common.Configuration
 @using Melodee.Common.Constants
-@using Microsoft.Extensions.Logging
 @inject IHttpContextAccessor HttpContextAccessor
 @inject Radzen.ThemeService RadzenThemeService
 @inject Melodee.Common.Services.IThemeService ThemeService
 @inject IMelodeeConfigurationFactory ConfigurationFactory
-@inject ILogger<App> Logger
+@inject ILogger Logger
 
 <!DOCTYPE html>
 <html lang="en">
@@ -150,12 +149,19 @@
 
     private async void OnThemeChanged()
     {
-        _currentTheme = RadzenThemeService.Theme ?? "default";
-        
-        // Resolve the theme (handles both built-in and custom themes)
-        await ResolveCustomThemeAsync(_currentTheme);
-        
-        await InvokeAsync(StateHasChanged);
+        try
+        {
+            _currentTheme = RadzenThemeService.Theme ?? "default";
+
+            // Resolve the theme (handles both built-in and custom themes)
+            await ResolveCustomThemeAsync(_currentTheme);
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error handling theme change");
+        }
     }
 
     private async Task ResolveCustomThemeAsync(string themeId)
@@ -184,7 +190,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to load theme {ThemeId}, falling back to Radzen dark theme", themeId);
+            Logger.Warning(ex, "Failed to load theme {ThemeId}, falling back to Radzen dark theme", themeId);
         }
         
         // Theme library not configured or theme not found - fall back to Radzen dark

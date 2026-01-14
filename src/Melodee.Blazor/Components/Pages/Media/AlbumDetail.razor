@@ -432,19 +432,26 @@
 
     private async void OnShowItemChange(TreeEventArgs arg)
     {
-        switch (arg.Text)
+        try
         {
-            default:
-                _showItem = ShowItem.Overview;
-                break;
-            case "Files":
-                _showItem = ShowItem.Files;
-                await LoadAlbumFilesAsync();
-                break;
-            case "Images":
-                _showItem = ShowItem.Images;
-                await InvokeAsync(StateHasChanged);
-                break;
+            switch (arg.Text)
+            {
+                default:
+                    _showItem = ShowItem.Overview;
+                    break;
+                case "Files":
+                    _showItem = ShowItem.Files;
+                    await LoadAlbumFilesAsync();
+                    break;
+                case "Images":
+                    _showItem = ShowItem.Images;
+                    await InvokeAsync(StateHasChanged);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error handling tree item change in Media AlbumDetail");
         }
     }
 

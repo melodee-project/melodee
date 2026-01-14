@@ -75,4 +75,17 @@ public sealed class SystemController(
 
         return Ok(statsResult.Data.Where(x => x.IncludeInApiResult ?? false).Select(x => x.ToStatisticModel()).ToArray());
     }
+
+    /// <summary>
+    ///     Test endpoint that throws an exception for testing global exception handler.
+    ///     This endpoint is only available in development/test environments.
+    /// </summary>
+    [HttpGet]
+    [Route("throw")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status500InternalServerError)]
+    public IActionResult ThrowException()
+    {
+        throw new InvalidOperationException("Test exception for global exception handler testing");
+    }
 }

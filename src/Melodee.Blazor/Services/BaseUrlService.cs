@@ -1,6 +1,5 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
-using Melodee.Common.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Melodee.Blazor.Services;
@@ -28,23 +27,10 @@ public sealed class BaseUrlService : IBaseUrlService
         _logger = logger ?? NullLogger<BaseUrlService>.Instance;
     }
 
+    [Obsolete("Use GetBaseUrlAsync() instead. This synchronous method blocks the thread and can cause performance issues.")]
     public string? GetBaseUrl()
     {
-        var configuration = _configurationFactory.GetConfigurationAsync().GetAwaiter().GetResult();
-        var configuredBaseUrl = configuration.GetValue<string>(SettingRegistry.SystemBaseUrl);
-
-        if (configuredBaseUrl.Nullify() != null && configuredBaseUrl != MelodeeConfiguration.RequiredNotSetValue)
-        {
-            return configuredBaseUrl!.TrimEnd('/');
-        }
-
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext != null)
-        {
-            return $"{httpContext.Request.Scheme}://{httpContext.Request.Host.Value}";
-        }
-
-        return null;
+        return GetBaseUrlAsync().GetAwaiter().GetResult();
     }
 
     public async Task<string?> GetBaseUrlAsync(CancellationToken cancellationToken = default)
@@ -66,7 +52,16 @@ public sealed class BaseUrlService : IBaseUrlService
                 return _cachedBaseUrl;
             }
 
-            _logger.LogWarning("[BaseUrlService] SystemBaseUrl is not configured. External URLs will fail. Set {Setting} to a valid URL.",
+            // Fall back to HttpContext if configuration is not set
+            if (_httpContextAccessor.HttpContext?.Request != null)
+            {
+                var request = _httpContextAccessor.HttpContext.Request;
+                _cachedBaseUrl = $"{request.Scheme}://{request.Host}";
+                _cacheExpiry = DateTime.UtcNow.AddMinutes(CacheDurationMinutes);
+                return _cachedBaseUrl;
+            }
+
+            _logger.LogWarning("[BaseUrlService] SystemBaseUrl is not configured and HttpContext is not available. External URLs will fail. Set {Setting} to a valid URL.",
                 SettingRegistry.SystemBaseUrl);
             return null;
         }

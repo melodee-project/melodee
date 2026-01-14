@@ -252,7 +252,12 @@ public sealed class MqlExpressionCache : IMqlExpressionCache, Melodee.Common.Ser
             return;
         }
 
-        _cleanupSemaphore.Wait();
+        // Use TryEnter pattern to avoid blocking if cleanup is already in progress
+        if (!_cleanupSemaphore.Wait(0))
+        {
+            return; // Skip cleanup if semaphore is busy
+        }
+
         try
         {
             if (_cache.Count < _maxEntries * 0.9)

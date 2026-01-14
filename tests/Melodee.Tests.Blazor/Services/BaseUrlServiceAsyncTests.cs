@@ -97,7 +97,7 @@ public class BaseUrlServiceAsyncTests
     }
 
     [Fact]
-    public async Task GetBaseUrlAsync_DoesNotFallBackToHttpContext()
+    public async Task GetBaseUrlAsync_FallsBackToHttpContext()
     {
         _mockConfiguration.Setup(x => x.GetValue<string?>(SettingRegistry.SystemBaseUrl, null))
             .Returns((string?)null);
@@ -105,12 +105,12 @@ public class BaseUrlServiceAsyncTests
         var mockHttpContext = new Mock<HttpContext>();
         var mockRequest = new Mock<HttpRequest>();
         mockRequest.Setup(x => x.Scheme).Returns("https");
-        mockRequest.Setup(x => x.Host).Returns(new HostString("should-not-be-used.com"));
+        mockRequest.Setup(x => x.Host).Returns(new HostString("fallback.example.com"));
         mockHttpContext.Setup(x => x.Request).Returns(mockRequest.Object);
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(mockHttpContext.Object);
 
         var result = await _service.GetBaseUrlAsync();
 
-        Assert.Null(result);
+        Assert.Equal("https://fallback.example.com", result);
     }
 }

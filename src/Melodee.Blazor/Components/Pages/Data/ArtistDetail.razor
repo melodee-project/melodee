@@ -22,6 +22,7 @@
 @inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject IJSRuntime JsRuntime
 @inject ISerializer Serializer
+@inject ILogger Logger
 
 <PageTitle>@_artist.Name</PageTitle>
 
@@ -725,20 +726,27 @@
 
     private async void OnShowItemChange(TreeEventArgs arg)
     {
-        switch (arg.Text)
+        try
         {
-            default:
-                _showItem = ShowItem.Overview;
-                break;
-            case var text when text == L("Nav.Images"):
-                _showItem = ShowItem.Images;
-                _imageCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                await RefreshArtistImages();
-                break;
-            case var text when text == L("Nav.Relationships"):
-                _showItem = ShowItem.Relationships;
-                await RefreshRelationshipsAsync();
-                break;
+            switch (arg.Text)
+            {
+                default:
+                    _showItem = ShowItem.Overview;
+                    break;
+                case var text when text == L("Nav.Images"):
+                    _showItem = ShowItem.Images;
+                    _imageCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    await RefreshArtistImages();
+                    break;
+                case var text when text == L("Nav.Relationships"):
+                    _showItem = ShowItem.Relationships;
+                    await RefreshRelationshipsAsync();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error handling tree item change in ArtistDetail");
         }
     }
 

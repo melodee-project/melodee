@@ -337,12 +337,19 @@
 
     private async void MergeSelectedButtonClick()
     {
-        await DialogService.OpenAsync(L("Data.MergeSongs"), ds =>
-            @<div>
-                <RadzenText>@L("Data.SongMergingInfo")</RadzenText>
-                <RadzenButton Text="@L("Data.OK")" Click="@(() => ds.Close())" class="rz-mt-3"/>
-            </div>,
-            new DialogOptions { Width = "500px" });
+        try
+        {
+            await DialogService.OpenAsync(L("Data.MergeSongs"), ds =>
+                @<div>
+                    <RadzenText>@L("Data.SongMergingInfo")</RadzenText>
+                    <RadzenButton Text="@L("Data.OK")" Click="@(() => ds.Close())" class="rz-mt-3"/>
+                </div>,
+                new DialogOptions { Width = "500px" });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error in MergeSelectedButtonClick for Songs");
+        }
     }
 
 

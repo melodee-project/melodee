@@ -88,7 +88,11 @@ builder.Services.Configure<Microsoft.AspNetCore.Components.Server.CircuitOptions
 
 builder.Services.AddScoped<CircuitHandler, MelodeeCircuitHandler>();
 
-builder.Services.AddControllers(options => { options.Filters.Add<ETagFilter>(); });
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ETagFilter>();
+    options.Filters.Add<GlobalExceptionFilter>();
+});
 
 builder.Services.AddEndpointsApiExplorer();
 

@@ -686,22 +686,29 @@
 
     private async void OnShowItemChange(TreeEventArgs arg)
     {
-        switch (arg.Text)
+        try
         {
-            default:
-                _showItem = ShowItem.Overview;
-                break;
-            case var text when text == L("Navigation.Charts"):
-                _showItem = ShowItem.Charts;
-                break;
-            case var text when text == L("Nav.Files"):
-                _showItem = ShowItem.Files;
-                break;
-            case var text when text == L("Nav.Images"):
-                _showItem = ShowItem.Images;
-                _imageCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                await RefreshAlbumImages();
-                break;
+            switch (arg.Text)
+            {
+                default:
+                    _showItem = ShowItem.Overview;
+                    break;
+                case var text when text == L("Navigation.Charts"):
+                    _showItem = ShowItem.Charts;
+                    break;
+                case var text when text == L("Nav.Files"):
+                    _showItem = ShowItem.Files;
+                    break;
+                case var text when text == L("Nav.Images"):
+                    _showItem = ShowItem.Images;
+                    _imageCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    await RefreshAlbumImages();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error handling tree item change in AlbumDetail");
         }
     }
 
