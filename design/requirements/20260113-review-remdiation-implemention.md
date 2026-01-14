@@ -90,7 +90,7 @@ You are implementing ONLY: Phase {{PHASE}} from `design/requirements/20260113-re
 - [x] Phase 12 (P1) — Standardize error handling (no secret leakage; consistent error envelopes)
 - [x] Phase 13 (P2) — Observability hardening (correlation IDs, metrics, tracing baseline)
 - [x] Phase 14 (P2) — CI/CD hardening gates (SCA, container scanning, formatting/analyzers as checks)
-- [ ] Phase 15 (P2) — Policy hardening (rate limiting configuration + security headers/CSP are centralized and validated)
+- [x] Phase 15 (P2) — Policy hardening (rate limiting configuration + security headers/CSP are centralized and validated)
 - [ ] Phase 16 (P2) — Data-access hardening (indexes + production-like DB integration tests)
 - [ ] Phase 17 (P2) — Cache hardening (invalidation strategy + concurrency safety)
 - [ ] Phase 18 (P2/P3) — Structured refactors and hygiene (Program.cs modularization, DbContext configuration split, dependency hygiene, MD5 scoping, SDK pinning)

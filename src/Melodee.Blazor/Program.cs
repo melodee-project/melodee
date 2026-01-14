@@ -6,6 +6,7 @@ using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Blazored.SessionStorage;
 using Melodee.Blazor.Components;
+using Melodee.Blazor.Configuration;
 using Melodee.Blazor.Constants;
 using Melodee.Blazor.Filters;
 using Melodee.Blazor.Hubs;
@@ -341,27 +342,40 @@ builder.Services.AddSingleton<Melodee.Blazor.Services.CustomBlocks.IHtmlSanitize
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    var apiTokenLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:TokenLimit", 30);
+    var apiQueueLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:QueueLimit", 10);
+    var apiReplenishmentPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:ReplenishmentPeriodSeconds", 30);
+    var apiTokensPerPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:TokensPerPeriod", 30);
+    var apiAutoReplenishment = builder.Configuration.GetValue<bool>("RateLimiting:MelodeeApi:AutoReplenishment", true);
+
+    var authTokenLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:TokenLimit", 10);
+    var authQueueLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:QueueLimit", 5);
+    var authReplenishmentPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:ReplenishmentPeriodSeconds", 60);
+    var authTokensPerPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:TokensPerPeriod", 10);
+    var authAutoReplenishment = builder.Configuration.GetValue<bool>("RateLimiting:MelodeeAuth:AutoReplenishment", true);
+
     options.AddPolicy("melodee-api", context =>
         RateLimitPartition.GetTokenBucketLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new TokenBucketRateLimiterOptions
             {
-                TokenLimit = 30,
+                TokenLimit = apiTokenLimit,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 10,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(30),
-                TokensPerPeriod = 30,
-                AutoReplenishment = true
+                QueueLimit = apiQueueLimit,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(apiReplenishmentPeriod),
+                TokensPerPeriod = apiTokensPerPeriod,
+                AutoReplenishment = apiAutoReplenishment
             }));
     options.AddPolicy("melodee-auth", context =>
         RateLimitPartition.GetTokenBucketLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new TokenBucketRateLimiterOptions
             {
-                TokenLimit = 10,
+                TokenLimit = authTokenLimit,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 5,
-                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
-                TokensPerPeriod = 10,
-                AutoReplenishment = true
+                QueueLimit = authQueueLimit,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(authReplenishmentPeriod),
+                TokensPerPeriod = authTokensPerPeriod,
+                AutoReplenishment = authAutoReplenishment
             }));
     options.AddPolicy("jellyfin-api", context =>
     {
@@ -635,22 +649,6 @@ app.UseStaticFiles(new StaticFileOptions
 
         // Add ETag for better cache validation
         ctx.Context.Response.Headers.ETag = $"\"{ctx.File.LastModified:yyyyMMddHHmmss}\"";
-
-        // Add security headers
-        ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-        ctx.Context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
-
-        // Add Content Security Policy (addresses Lighthouse: CSP XSS protection)
-        ctx.Context.Response.Headers["Content-Security-Policy"] =
-            "default-src 'self'; " +
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline'; " +
-            "style-src 'self' 'unsafe-inline'; " +
-            "img-src 'self' data: blob:; " +
-            "font-src 'self'; " +
-            "connect-src 'self' wss: ws:; " +
-            "media-src 'self'; " +
-            "object-src 'none'; " +
-            "frame-ancestors 'self';";
     }
 });
 
@@ -933,14 +931,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-// Add security headers to all responses
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    await next();
-});
+app.UseMelodeeSecurityHeaders();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
