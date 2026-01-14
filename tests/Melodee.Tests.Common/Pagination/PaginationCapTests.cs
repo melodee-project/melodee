@@ -40,7 +40,6 @@ public class PaginationCapTests
     [Fact]
     public void ControllerBase_TryValidatePaging_ClampsToMaxPageSize()
     {
-        var page = 1;
         var requestedPageSize = 500;
 
         var normalizedPageSize = (short)Math.Clamp(requestedPageSize, 1, ApiDefaults.MaxPageSize);
@@ -51,7 +50,6 @@ public class PaginationCapTests
     [Fact]
     public void ControllerBase_TryValidatePaging_MinimumIsOne()
     {
-        var page = 1;
         var requestedPageSize = 0;
 
         var normalizedPageSize = (short)Math.Clamp(requestedPageSize, 1, ApiDefaults.MaxPageSize);
