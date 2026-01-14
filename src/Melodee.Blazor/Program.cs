@@ -660,6 +660,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts(); // HSTS configured via services above
 }
 
+app.UseCorrelationIdLogging();
+
 app.UseStatusCodePages(context =>
 {
     var request = context.HttpContext.Request;

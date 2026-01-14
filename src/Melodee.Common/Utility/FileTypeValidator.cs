@@ -114,12 +114,19 @@ public static class FileTypeValidator
                 return false;
             }
 
+            // Check for partial or full PNG header (first 4 bytes match)
+            if (bytesRead >= 4 && buffer[0] == 0x89 && buffer[1] == 0x50 && buffer[2] == 0x4E && buffer[3] == 0x47)
+            {
+                return true;
+            }
+
+            // Check for other full signatures
             foreach (var kvp in MagicBytesSignatures)
             {
                 if (kvp.Value.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
                     AllowedImageContentTypes.Contains(kvp.Value))
                 {
-                    if (MatchesSignature(buffer, kvp.Key))
+                    if (bytesRead >= kvp.Key.Length && MatchesSignature(buffer, kvp.Key))
                     {
                         return true;
                     }
