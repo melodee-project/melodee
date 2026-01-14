@@ -82,20 +82,19 @@ public class ArtistSearchEngineService(
         _initialized = true;
     }
 
-    private async void OnConfigurationChanged(object? sender, EventArgs e)
+    private void OnConfigurationChanged(object? sender, EventArgs e) => _ = OnConfigurationChangedAsync(sender, e);
+
+    private async Task OnConfigurationChangedAsync(object? sender, EventArgs e)
     {
         try
         {
             Logger.Information("[{Name}] Configuration changed, reinitializing artist search engine plugins",
                 nameof(ArtistSearchEngineService));
 
-            // Reload configuration from factory
             _configuration = await configurationFactory.GetConfigurationAsync().ConfigureAwait(false);
 
-            // Reinitialize plugins with new configuration
             await InitializePluginsAsync(CancellationToken.None).ConfigureAwait(false);
 
-            // Clear the search cache to ensure fresh results with new settings
             _searchCache.Clear();
 
             Logger.Information("[{Name}] Artist search engine plugins reinitialized after configuration change",

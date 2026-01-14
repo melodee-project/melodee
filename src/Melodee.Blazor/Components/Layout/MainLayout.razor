@@ -187,9 +187,10 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private async void OnConfigurationChanged(object? sender, EventArgs e)
+    private void OnConfigurationChanged(object? sender, EventArgs e) => _ = OnConfigurationChangedAsync(sender, e);
+
+    private async Task OnConfigurationChangedAsync(object? sender, EventArgs e)
     {
-        // Reload configuration-dependent values
         await LoadConfigurationAsync();
         await InvokeAsync(StateHasChanged);
     }
