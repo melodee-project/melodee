@@ -1,9 +1,7 @@
 using System.Net;
 using FluentAssertions;
 using Melodee.Common.Data;
-using Melodee.Common.Data.Models;
 using Melodee.Common.Services.Security;
-using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +9,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using NodaTime;
 
 namespace Melodee.Tests.Blazor;
 

@@ -1,10 +1,8 @@
 using Melodee.Blazor.Services.Email;
-using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
-using Melodee.Common.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NodaTime;

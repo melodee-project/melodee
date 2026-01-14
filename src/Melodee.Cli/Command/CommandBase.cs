@@ -10,6 +10,7 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.SearchEngines;
+using Melodee.Common.Services.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,6 @@ using Rebus.Transport.InMem;
 using Serilog;
 using Spectre.Console.Cli;
 using SpotifyAPI.Web;
-using Melodee.Common.Services.Security;
 
 namespace Melodee.Cli.Command;
 

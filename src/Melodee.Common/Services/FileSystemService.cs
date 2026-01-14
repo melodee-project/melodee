@@ -1,6 +1,7 @@
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Serialization;
+using Melodee.Common.Utility;
 
 namespace Melodee.Common.Services;
 
@@ -31,6 +32,12 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
     public void DeleteDirectory(string path, bool recursive)
     {
         Directory.Delete(path, recursive);
+    }
+
+    public void DeleteDirectory(string root, string path, bool recursive)
+    {
+        var fullPath = PathGuard.EnsureUnderRoot(root, path, allowRootEqualsCandidate: recursive);
+        Directory.Delete(fullPath, recursive);
     }
 
     public async Task<Album?> DeserializeAlbumAsync(string filePath, CancellationToken cancellationToken)
@@ -79,9 +86,22 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
         File.Delete(path);
     }
 
+    public void DeleteFile(string root, string path)
+    {
+        var fullPath = PathGuard.EnsureUnderRoot(root, path);
+        File.Delete(fullPath);
+    }
+
     public void MoveDirectory(string sourcePath, string destinationPath)
     {
         Directory.Move(sourcePath, destinationPath);
+    }
+
+    public void MoveDirectory(string root, string sourcePath, string destinationPath)
+    {
+        var fullSourcePath = PathGuard.EnsureUnderRoot(root, sourcePath);
+        var fullDestPath = PathGuard.EnsureUnderRoot(root, destinationPath);
+        Directory.Move(fullSourcePath, fullDestPath);
     }
 
     public string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly)
@@ -94,6 +114,18 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
         var filesToDelete = directoryInfo.FileInfosForExtension(extension);
         foreach (var fileToDelete in filesToDelete)
         {
+            fileToDelete.Delete();
+        }
+    }
+
+    public void DeleteAllFilesForExtension(string root, FileSystemDirectoryInfo directoryInfo, string extension)
+    {
+        var directoryPath = PathGuard.EnsureUnderRoot(root, directoryInfo.Path);
+        var filesToDelete = directoryInfo.FileInfosForExtension(extension);
+        foreach (var fileToDelete in filesToDelete)
+        {
+            var fullFilePath = Path.Combine(directoryPath, fileToDelete.Name);
+            PathGuard.EnsureUnderRoot(root, fullFilePath);
             fileToDelete.Delete();
         }
     }
