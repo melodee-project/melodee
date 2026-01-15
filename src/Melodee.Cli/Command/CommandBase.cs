@@ -136,7 +136,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<UserAuthenticationService>();
         services.AddScoped<UserProfileService>();
         services.AddSingleton<IPasswordHashService, PasswordHashService>();
-        services.AddSingleton<IOpenSubsonicSecretProtector, OpenSubsonicSecretProtector>();
+        services.AddSingleton<ISecretProtector, SecretProtector>();
         services.AddScoped<UserQueueService>();
         services.AddScoped<ArtistDuplicateFinder>();
         services.AddSingleton<ISsrfValidator, SsrfValidator>();

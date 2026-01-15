@@ -1,24 +1,53 @@
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Configuration;
+using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 
 namespace Melodee.Common.Services.Security;
 
-public sealed class OpenSubsonicSecretProtector : IOpenSubsonicSecretProtector
+/// <summary>
+/// Protects secrets (e.g., user tokens/passwords) using AES-GCM.
+/// </summary>
+/// <remarks>
+/// This service requires <c>security.secretKey</c> to be present in the application's settings.
+/// The value must be at least 32 characters and should be provided via a secret source (environment variable,
+/// database setting, Kubernetes secret, etc.), not hardcoded.
+///
+/// Examples:
+/// <list type="bullet">
+/// <item>
+/// <description>Database setting: <c>security.secretKey</c></description>
+/// </item>
+/// <item>
+/// <description>Environment variable: <c>security_secretKey</c></description>
+/// </item>
+/// </list>
+/// </remarks>
+public sealed class SecretProtector : ISecretProtector
 {
     private const string Prefix = "v1:gcm:";
     private const int NonceLength = 12;
     private const int TagLength = 16;
     private readonly byte[] _key;
 
-    public OpenSubsonicSecretProtector(IConfiguration configuration)
+    /// <summary>
+    /// Creates a new <see cref="SecretProtector"/>.
+    /// </summary>
+    /// <param name="configurationFactory">Melodee configuration factory.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when <c>security.secretKey</c> is missing or does not meet the minimum length requirement.
+    /// </exception>
+    public SecretProtector(IMelodeeConfigurationFactory configurationFactory)
     {
-        var configKey = configuration.GetValue<string>("Security:OpenSubsonicSecretKey")
-                        ?? throw new InvalidOperationException("Security:OpenSubsonicSecretKey configuration is required");
+        // Example to generate a random key:
+        // openssl rand -base64 48 | tr -d '\n
+        var configuration = configurationFactory.GetConfigurationAsync().GetAwaiter().GetResult();
+        var configKey = configuration.GetValue<string>(SettingRegistry.SecuritySecretKey)
+                        ?? throw new InvalidOperationException($"{SettingRegistry.SecuritySecretKey} configuration is required");
 
         if (configKey.Length < 32)
         {
-            throw new InvalidOperationException("Security:OpenSubsonicSecretKey must be at least 32 characters");
+            throw new InvalidOperationException($"{SettingRegistry.SecuritySecretKey} must be at least 32 characters");
         }
 
         _key = SHA256.HashData(Encoding.UTF8.GetBytes(configKey));

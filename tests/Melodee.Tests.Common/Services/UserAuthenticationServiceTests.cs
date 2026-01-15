@@ -23,12 +23,12 @@ public class UserAuthenticationServiceTests : ServiceTestBase
         IMelodeeConfigurationFactory? configFactory = null,
         IBus? bus = null,
         IPasswordHashService? passwordHashService = null,
-        IOpenSubsonicSecretProtector? openSubsonicSecretProtector = null)
+        ISecretProtector? secretProtector = null)
     {
         return new UserAuthenticationService(
             Logger,
             passwordHashService ?? new Mock<IPasswordHashService>().Object,
-            openSubsonicSecretProtector ?? new Mock<IOpenSubsonicSecretProtector>().Object,
+            secretProtector ?? new Mock<ISecretProtector>().Object,
             bus ?? MockBus(),
             userProfileService ?? GetUserProfileService(),
             configFactory ?? MockConfigurationFactory());

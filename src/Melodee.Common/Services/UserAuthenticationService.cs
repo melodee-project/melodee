@@ -22,14 +22,14 @@ namespace Melodee.Common.Services;
 public sealed class UserAuthenticationService(
     ILogger logger,
     IPasswordHashService passwordHashService,
-    IOpenSubsonicSecretProtector openSubsonicSecretProtector,
+    ISecretProtector secretProtector,
     IBus bus,
     UserProfileService userProfileService,
     IMelodeeConfigurationFactory configurationFactory)
 {
     private readonly ILogger _logger = logger;
     private readonly IPasswordHashService _passwordHashService = passwordHashService;
-    private readonly IOpenSubsonicSecretProtector _openSubsonicSecretProtector = openSubsonicSecretProtector;
+    private readonly ISecretProtector _secretProtector = secretProtector;
     private readonly IBus _bus = bus;
     private readonly UserProfileService _userProfileService = userProfileService;
     private readonly IMelodeeConfigurationFactory _configurationFactory = configurationFactory;
@@ -210,7 +210,7 @@ public sealed class UserAuthenticationService(
 
         if (!string.IsNullOrEmpty(user.OpenSubsonicSecretProtected))
         {
-            usersPassword = _openSubsonicSecretProtector.Unprotect(user.OpenSubsonicSecretProtected);
+            usersPassword = _secretProtector.Unprotect(user.OpenSubsonicSecretProtected);
         }
         else
         {
@@ -244,7 +244,7 @@ public sealed class UserAuthenticationService(
             await using var scopedContext = await _userProfileService.GetContextFactory().CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Id, cancellationToken).ConfigureAwait(false);
             var newSecret = GenerateOpenSubsonicSecret();
-            dbUser.OpenSubsonicSecretProtected = _openSubsonicSecretProtector.Protect(newSecret);
+            dbUser.OpenSubsonicSecretProtected = _secretProtector.Protect(newSecret);
             await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             user.OpenSubsonicSecretProtected = dbUser.OpenSubsonicSecretProtected;
             Log.Information("[{ServiceName}] Migrated user [{Username}] to OpenSubsonic secret protection", nameof(UserAuthenticationService), username);

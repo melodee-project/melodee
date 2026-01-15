@@ -458,9 +458,9 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         return new Mock<IPasswordHashService>().Object;
     }
 
-    protected IOpenSubsonicSecretProtector MockOpenSubsonicSecretProtector()
+    protected ISecretProtector MockSecretProtector()
     {
-        return new Mock<IOpenSubsonicSecretProtector>().Object;
+        return new Mock<ISecretProtector>().Object;
     }
 
     protected UserProfileService GetUserProfileService()
@@ -478,7 +478,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetPodcastService(),
             MockBus(),
             MockPasswordHashService(),
-            MockOpenSubsonicSecretProtector());
+            MockSecretProtector());
     }
 
     protected UserAuthenticationService GetUserAuthenticationService()
@@ -486,7 +486,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         return new UserAuthenticationService(
             Logger,
             MockPasswordHashService(),
-            MockOpenSubsonicSecretProtector(),
+            MockSecretProtector(),
             MockBus(),
             GetUserProfileService(),
             MockConfigurationFactory());

@@ -1,23 +1,26 @@
+using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 using Melodee.Common.Services.Security;
-using Microsoft.Extensions.Configuration;
 using Moq;
 
 namespace Melodee.Tests.Common.Services.Security;
 
-public class OpenSubsonicSecretProtectorTests
+public class SecretProtectorTests
 {
     private const string TestSecretKey = "ThisIsAVeryLongSecretKeyForTesting1234567890";
-    private readonly IOpenSubsonicSecretProtector _protector;
+    private readonly ISecretProtector _protector;
 
-    public OpenSubsonicSecretProtectorTests()
+    public SecretProtectorTests()
     {
-        var mockConfig = new Mock<IConfiguration>();
-        var mockSection = new Mock<IConfigurationSection>();
-        mockSection.Setup(s => s.Value).Returns(TestSecretKey);
-        mockConfig.Setup(c => c["Security:OpenSubsonicSecretKey"]).Returns(TestSecretKey);
-        mockConfig.Setup(c => c.GetSection("Security")).Returns(new Mock<IConfigurationSection>().Object);
-        mockConfig.Setup(c => c.GetSection("Security:OpenSubsonicSecretKey")).Returns(mockSection.Object);
-        _protector = new OpenSubsonicSecretProtector(mockConfig.Object);
+        var mockConfiguration = new Mock<IMelodeeConfiguration>();
+        mockConfiguration.Setup(c => c.GetValue<string>(SettingRegistry.SecuritySecretKey, null))
+            .Returns(TestSecretKey);
+
+        var mockConfigFactory = new Mock<IMelodeeConfigurationFactory>();
+        mockConfigFactory.Setup(f => f.GetConfigurationAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockConfiguration.Object);
+
+        _protector = new SecretProtector(mockConfigFactory.Object);
     }
 
     [Fact]

@@ -41,7 +41,7 @@ public sealed class UserProfileService(
     PodcastService podcastService,
     IBus bus,
     IPasswordHashService passwordHashService,
-    IOpenSubsonicSecretProtector openSubsonicSecretProtector)
+    ISecretProtector secretProtector)
 : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:user:apikey:{0}";
@@ -59,7 +59,7 @@ public sealed class UserProfileService(
     private readonly PodcastService _podcastService = podcastService;
     private readonly IBus _bus = bus;
     private readonly IPasswordHashService _passwordHashService = passwordHashService;
-    private readonly IOpenSubsonicSecretProtector _openSubsonicSecretProtector = openSubsonicSecretProtector;
+    private readonly ISecretProtector _secretProtector = secretProtector;
 
     public IDbContextFactory<MelodeeDbContext> GetContextFactory() => ContextFactory;
 
@@ -593,7 +593,7 @@ public sealed class UserProfileService(
                         plainTextPassword, usersPublicKey),
                 PasswordHash = _passwordHashService.Hash(plainTextPassword),
                 PasswordHashAlgorithm = "bcrypt",
-                OpenSubsonicSecretProtected = _openSubsonicSecretProtector.Protect(UserAuthenticationService.GenerateOpenSubsonicSecretStatic()),
+                OpenSubsonicSecretProtected = _secretProtector.Protect(UserAuthenticationService.GenerateOpenSubsonicSecretStatic()),
                 CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
             };
             scopedContext.Users.Add(newUser);
@@ -627,7 +627,7 @@ public sealed class UserProfileService(
             await new UserAuthenticationService(
                 _logger,
                 _passwordHashService,
-                _openSubsonicSecretProtector,
+                _secretProtector,
                 _bus,
                 this,
                 _configurationFactory).LoginUserAsync(emailAddress, plainTextPassword, cancellationToken).ConfigureAwait(false);

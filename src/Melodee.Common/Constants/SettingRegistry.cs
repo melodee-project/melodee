@@ -188,6 +188,7 @@ public static class SettingRegistry
     public const string EmailResetPasswordHtmlBodyTemplate = "email.resetPassword.htmlBodyTemplate";
 
     // Security settings
+    public const string SecuritySecretKey = "security.secretKey";
     public const string SecurityPasswordResetTokenExpiryMinutes = "security.passwordResetTokenExpiryMinutes";
 
     // Jellyfin API settings

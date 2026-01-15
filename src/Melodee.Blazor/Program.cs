@@ -530,7 +530,7 @@ builder.Services
     .AddScoped<UserAuthenticationService>()
     .AddScoped<UserProfileService>()
     .AddSingleton<IPasswordHashService, PasswordHashService>()
-    .AddSingleton<IOpenSubsonicSecretProtector, OpenSubsonicSecretProtector>()
+    .AddSingleton<ISecretProtector, SecretProtector>()
     .AddScoped<AlbumDiscoveryService>()
     .AddScoped<MediaEditService>()
     .AddScoped<DirectoryProcessorToStagingService>()

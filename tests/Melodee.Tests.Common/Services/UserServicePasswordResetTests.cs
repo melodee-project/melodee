@@ -22,7 +22,7 @@ public class UserServicePasswordResetTests : ServiceTestBase
     private UserService CreateUserService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
     {
         var passwordHashService = new Mock<IPasswordHashService>().Object;
-        var openSubsonicSecretProtector = new Mock<IOpenSubsonicSecretProtector>().Object;
+        var secretProtector = new Mock<ISecretProtector>().Object;
         var actualConfigFactory = configFactory ?? MockConfigurationFactory();
         var actualBus = bus ?? MockBus();
 
@@ -39,11 +39,11 @@ public class UserServicePasswordResetTests : ServiceTestBase
             GetPodcastService(),
             actualBus,
             passwordHashService,
-            openSubsonicSecretProtector);
+            secretProtector);
         var userAuthenticationService = new UserAuthenticationService(
             Logger,
             passwordHashService,
-            openSubsonicSecretProtector,
+            secretProtector,
             actualBus,
             userProfileService,
             actualConfigFactory);

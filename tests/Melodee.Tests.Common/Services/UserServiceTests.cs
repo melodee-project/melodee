@@ -57,7 +57,7 @@ public class UserServiceTests : ServiceTestBase
             GetPodcastService(),
             actualBus,
             MockPasswordHashService(),
-            MockOpenSubsonicSecretProtector());
+            MockSecretProtector());
     }
 
     private UserAuthenticationService CreateUserAuthenticationService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
@@ -68,7 +68,7 @@ public class UserServiceTests : ServiceTestBase
         return new UserAuthenticationService(
             Logger,
             MockPasswordHashService(),
-            MockOpenSubsonicSecretProtector(),
+            MockSecretProtector(),
             actualBus,
             CreateUserProfileService(actualConfigFactory, actualBus),
             actualConfigFactory);
