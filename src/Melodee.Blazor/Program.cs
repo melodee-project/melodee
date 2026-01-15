@@ -345,6 +345,16 @@ builder.Services.AddSingleton<Melodee.Blazor.Services.CustomBlocks.IHtmlSanitize
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        var correlationId = context.HttpContext.TraceIdentifier;
+        var error = new Melodee.Blazor.Controllers.Melodee.Models.ApiError(
+            Melodee.Blazor.Controllers.Melodee.Models.ApiError.Codes.TooManyRequests,
+            "Rate limit exceeded. Please try again later.",
+            correlationId);
+        await context.HttpContext.Response.WriteAsJsonAsync(error, token);
+    };
 
     var apiTokenLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:TokenLimit", 30);
     var apiQueueLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:QueueLimit", 10);

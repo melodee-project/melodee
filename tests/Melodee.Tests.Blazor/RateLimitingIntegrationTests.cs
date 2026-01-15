@@ -55,10 +55,10 @@ public class RateLimitingIntegrationTests : IAsyncLifetime
                         ["RateLimiting:MelodeeApi:TokensPerPeriod"] = "10",
                         ["RateLimiting:MelodeeApi:AutoReplenishment"] = "true",
                         ["RateLimiting:MelodeeAuth:TokenLimit"] = "3", // Low limit for auth endpoint testing
-                        ["RateLimiting:MelodeeAuth:QueueLimit"] = "2",
-                        ["RateLimiting:MelodeeAuth:ReplenishmentPeriodSeconds"] = "60",
-                        ["RateLimiting:MelodeeAuth:TokensPerPeriod"] = "3",
-                        ["RateLimiting:MelodeeAuth:AutoReplenishment"] = "true"
+                        ["RateLimiting:MelodeeAuth:QueueLimit"] = "0", // No queuing to make rate limiting predictable
+                        ["RateLimiting:MelodeeAuth:ReplenishmentPeriodSeconds"] = "3600", // 1 hour - effectively no replenishment during test
+                        ["RateLimiting:MelodeeAuth:TokensPerPeriod"] = "1",
+                        ["RateLimiting:MelodeeAuth:AutoReplenishment"] = "false" // Disable auto-replenishment for predictable testing
                     };
 
                     config.AddInMemoryCollection(settings);
@@ -130,33 +130,31 @@ public class RateLimitingIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task AuthEndpoint_ExceedsRateLimit_Returns429()
     {
-        // Arrange
-        var loginData = new
+        // With TokenLimit=3 and QueueLimit=0, the 4th request should be rate limited
+        // Act - Make 3 requests to exhaust the token limit
+        for (int i = 0; i < 3; i++)
         {
-            userName = _userName,
-            password = _password
-        };
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/authenticate");
+            request.Headers.Add("REMOTE_ADDR", "127.0.0.1");
+            request.Content = JsonContent.Create(new { userName = _userName, password = _password });
+            var response = await _client.SendAsync(request);
 
-        // Act - Make multiple requests to exceed the rate limit
-        for (int i = 0; i < 5; i++) // Exceed the 3-token limit
-        {
-            var response = await _client.PostAsJsonAsync("/api/v1/auth/authenticate", loginData);
-            // First few should succeed, last one should be rate limited
-            if (i < 3)
-            {
-                response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized);
-            }
+            // These should succeed with OK (valid credentials) or Unauthorized (if something else is wrong)
+            response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Unauthorized);
         }
 
-        // The next request should be rate limited
-        var finalResponse = await _client.PostAsJsonAsync("/api/v1/auth/authenticate", loginData);
+        // The 4th request should be rate limited
+        using var finalRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/authenticate");
+        finalRequest.Headers.Add("REMOTE_ADDR", "127.0.0.1");
+        finalRequest.Content = JsonContent.Create(new { userName = _userName, password = _password });
+        var finalResponse = await _client.SendAsync(finalRequest);
 
         // Assert
         finalResponse.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
 
         var error = await finalResponse.Content.ReadFromJsonAsync<ApiError>();
         error.Should().NotBeNull();
-        error!.Code.Should().Be("TooManyRequests");
+        error!.Code.Should().Be("TOO_MANY_REQUESTS");
         error.CorrelationId.Should().NotBeNullOrEmpty();
     }
 }
