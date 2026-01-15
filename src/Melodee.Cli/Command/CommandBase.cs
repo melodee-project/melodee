@@ -124,6 +124,15 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<PlaylistService>();
         services.AddScoped<PodcastService>();
         services.AddScoped<UserService>();
+        services.AddScoped<UserRatingService>();
+        services.AddScoped<UserBookmarkService>();
+        services.AddScoped<UserShareService>();
+        services.AddScoped<UserPinService>();
+        services.AddScoped<UserPreferenceService>();
+        services.AddScoped<UserPasswordResetService>();
+        services.AddScoped<UserSocialLoginService>();
+        services.AddScoped<UserStarService>();
+        services.AddScoped<UserFavoriteService>();
         services.AddScoped<UserAuthenticationService>();
         services.AddScoped<UserProfileService>();
         services.AddSingleton<IPasswordHashService, PasswordHashService>();

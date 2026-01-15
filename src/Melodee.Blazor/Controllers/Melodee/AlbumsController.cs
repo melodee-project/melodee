@@ -38,7 +38,9 @@ public sealed class AlbumsController(
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    ILogger<AlbumsController> logger) : ControllerBase(
+    ILogger<AlbumsController> logger,
+    UserRatingService userRatingService,
+    UserStarService userStarService) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -428,7 +430,7 @@ public sealed class AlbumsController(
             return ApiBlacklisted();
         }
 
-        var toggleStarredResult = await userService.ToggleAlbumStarAsync(user.Id, apiKey, isStarred, cancellationToken).ConfigureAwait(false);
+        var toggleStarredResult = await userStarService.ToggleAlbumStarAsync(user.Id, apiKey, isStarred, cancellationToken).ConfigureAwait(false);
         if (toggleStarredResult.IsSuccess)
         {
             return Ok();
@@ -469,7 +471,7 @@ public sealed class AlbumsController(
             return ApiBlacklisted();
         }
 
-        var setRatingResult = await userService.SetAlbumRatingAsync(user.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
+        var setRatingResult = await userRatingService.SetAlbumRatingAsync(user.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
         if (setRatingResult.IsSuccess)
         {
             return Ok();
@@ -510,7 +512,7 @@ public sealed class AlbumsController(
             return ApiBlacklisted();
         }
 
-        var toggleHatedResult = await userService.ToggleAlbumHatedAsync(user.Id, apiKey, isHated, cancellationToken).ConfigureAwait(false);
+        var toggleHatedResult = await userStarService.ToggleAlbumHatedAsync(user.Id, apiKey, isHated, cancellationToken).ConfigureAwait(false);
         if (toggleHatedResult.IsSuccess)
         {
             return Ok();

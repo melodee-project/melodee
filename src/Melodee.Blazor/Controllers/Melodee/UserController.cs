@@ -39,7 +39,8 @@ public class UserController(
     IGoogleTokenService googleTokenService,
     IOptions<GoogleAuthOptions> googleAuthOptions,
     IConfiguration configuration,
-    IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
+    IMelodeeConfigurationFactory configurationFactory,
+    UserSocialLoginService userSocialLoginService) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -893,7 +894,8 @@ public class UserController(
         var payload = validationResult.Payload;
 
         // Try to link
-        var linkResult = await userService.LinkSocialLoginAsync(
+        var linkResult = await userSocialLoginService.LinkSocialLoginAsync(
+
             user.Id,
             "Google",
             payload.Subject,
@@ -943,7 +945,7 @@ public class UserController(
             return ApiUnauthorized();
         }
 
-        var unlinkResult = await userService.UnlinkSocialLoginAsync(user.Id, "Google", cancellationToken).ConfigureAwait(false);
+        var unlinkResult = await userSocialLoginService.UnlinkSocialLoginAsync(user.Id, "Google", cancellationToken).ConfigureAwait(false);
 
         if (!unlinkResult.IsSuccess)
         {

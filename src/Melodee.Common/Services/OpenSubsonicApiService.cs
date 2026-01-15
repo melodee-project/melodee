@@ -67,8 +67,10 @@ public class OpenSubsonicApiService(
     StatisticsService statisticsService,
     IBus bus,
     ILyricPlugin lyricPlugin,
-    PodcastPlaybackService podcastPlaybackService
-)
+    PodcastPlaybackService podcastPlaybackService,
+    UserRatingService userRatingService,
+    UserBookmarkService userBookmarkService)
+
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     public const string ImageCacheRegion = "urn:openSubsonic:artist-and-album-images";
@@ -207,7 +209,7 @@ public class OpenSubsonicApiService(
         var data = new List<Share>();
 
         var dbSharesResult = await userService.UserSharesAsync(authResponse.UserInfo.Id, cancellationToken)
-            .ConfigureAwait(false);
+           .ConfigureAwait(false);
         foreach (var dbShare in dbSharesResult ?? [])
         {
             Child[] shareEntries = [];
@@ -2678,15 +2680,15 @@ public class OpenSubsonicApiService(
 
         if (IsApiIdForSong(id))
         {
-            result = await userService.SetSongRatingAsync(authResponse.UserInfo.Id, apiKey.Value, rating, cancellationToken);
+            result = await userRatingService.SetSongRatingAsync(authResponse.UserInfo.Id, apiKey.Value, rating, cancellationToken);
         }
         else if (IsApiIdForAlbum(id))
         {
-            result = await userService.SetAlbumRatingAsync(authResponse.UserInfo.Id, apiKey.Value, rating, cancellationToken);
+            result = await userRatingService.SetAlbumRatingAsync(authResponse.UserInfo.Id, apiKey.Value, rating, cancellationToken);
         }
         else if (IsApiIdForArtist(id))
         {
-            result = await userService.SetArtistRatingAsync(authResponse.UserInfo.Id, apiKey.Value, rating, cancellationToken);
+            result = await userRatingService.SetArtistRatingAsync(authResponse.UserInfo.Id, apiKey.Value, rating, cancellationToken);
         }
         else
         {
@@ -3054,7 +3056,7 @@ public class OpenSubsonicApiService(
 
         var data = new List<Bookmark>();
 
-        var bookmarksResult = await userService.GetBookmarksAsync(authResponse.UserInfo.Id, cancellationToken).ConfigureAwait(false);
+        var bookmarksResult = await userBookmarkService.GetBookmarksAsync(authResponse.UserInfo.Id, cancellationToken).ConfigureAwait(false);
         if (bookmarksResult.IsSuccess && bookmarksResult.Data != null)
         {
             data.AddRange(bookmarksResult.Data.Select(x => x.ToApiBookmark()));
@@ -3169,7 +3171,7 @@ public class OpenSubsonicApiService(
             };
         }
 
-        var bookmarkResult = await userService.CreateBookmarkAsync(authResponse.UserInfo.Id, apiKey.Value, position, comment, cancellationToken).ConfigureAwait(false);
+        var bookmarkResult = await userBookmarkService.CreateBookmarkAsync(authResponse.UserInfo.Id, apiKey.Value, position, comment, cancellationToken).ConfigureAwait(false);
 
         return new ResponseModel
         {
@@ -3215,7 +3217,7 @@ public class OpenSubsonicApiService(
             };
         }
 
-        var deleteResult = await userService.DeleteBookmarkAsync(authResponse.UserInfo.Id, apiKey.Value, cancellationToken).ConfigureAwait(false);
+        var deleteResult = await userBookmarkService.DeleteBookmarkAsync(authResponse.UserInfo.Id, apiKey.Value, cancellationToken).ConfigureAwait(false);
 
         return new ResponseModel
         {

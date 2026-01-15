@@ -39,14 +39,15 @@ public class AuthController(
     UserAuthenticationService userAuthenticationService,
     UserProfileService userProfileService,
     IConfiguration configuration,
-    IBlacklistService blacklistService,
     IMelodeeConfigurationFactory configurationFactory,
+    IBlacklistService blacklistService,
     IGoogleTokenService googleTokenService,
     IRefreshTokenService refreshTokenService,
-    IOptions<GoogleAuthOptions> googleAuthOptions,
     IOptions<AuthPolicyOptions> authPolicyOptions,
     IOptions<TokenOptions> tokenOptions,
-    ILogger<AuthController> logger) : ControllerBase(
+    IOptions<GoogleAuthOptions> googleAuthOptions,
+    ILogger<AuthController> logger,
+    UserPasswordResetService userPasswordResetService) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -378,7 +379,7 @@ public class AuthController(
             return ApiValidationError("Email is required");
         }
 
-        var result = await userService.GeneratePasswordResetTokenAsync(request.Email, cancellationToken).ConfigureAwait(false);
+        var result = await userPasswordResetService.GeneratePasswordResetTokenAsync(request.Email, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
         {
@@ -413,7 +414,7 @@ public class AuthController(
             return ApiValidationError("Token is required");
         }
 
-        var result = await userService.ValidatePasswordResetTokenAsync(token, cancellationToken).ConfigureAwait(false);
+        var result = await userPasswordResetService.ValidatePasswordResetTokenAsync(token, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
         {
@@ -449,7 +450,7 @@ public class AuthController(
             return ApiValidationError("Password must be at least 8 characters");
         }
 
-        var result = await userService.ResetPasswordWithTokenAsync(request.Token, request.NewPassword, cancellationToken).ConfigureAwait(false);
+        var result = await userPasswordResetService.ResetPasswordWithTokenAsync(request.Token, request.NewPassword, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
         {

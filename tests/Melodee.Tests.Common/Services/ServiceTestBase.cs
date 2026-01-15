@@ -258,7 +258,9 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetStatisticsService(),
             MockBus(),
             GetLyricPlugin(),
-            GetPodcastPlaybackService());
+            GetPodcastPlaybackService(),
+            GetUserRatingService(),
+            GetUserBookmarkService());
     }
 
     protected ISchedulerFactory CreateMockSchedulerFactory()
@@ -313,6 +315,16 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     protected ShareService GetShareService()
     {
         return new ShareService(Logger, CacheManager, MockFactory());
+    }
+
+    protected UserBookmarkService GetUserBookmarkService()
+    {
+        return new UserBookmarkService(Logger, CacheManager, MockFactory());
+    }
+
+    protected UserRatingService GetUserRatingService()
+    {
+        return new UserRatingService(Logger, CacheManager, MockFactory(), GetArtistService(), GetAlbumService(), GetSongService(), GetUserProfileService());
     }
 
     protected SongService GetSongService()

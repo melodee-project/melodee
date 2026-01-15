@@ -36,13 +36,10 @@ public sealed class UserService : ServiceBase
     private const string CacheKeyDetailByUsernameTemplate = "urn:user:username:{0}";
     private const string CacheKeyDetailTemplate = "urn:user:{0}";
 
-    private readonly UserAuthenticationService _userAuthenticationService;
     private readonly UserProfileService _userProfileService;
-    private readonly LibraryService _libraryService;
     private readonly ArtistService _artistService;
     private readonly AlbumService _albumService;
     private readonly SongService _songService;
-    private readonly PlaylistService _playlistService;
     private readonly PodcastService _podcastService;
     private readonly IBus _bus;
     private readonly IMelodeeConfigurationFactory _configurationFactory;
@@ -63,15 +60,12 @@ public sealed class UserService : ServiceBase
         UserProfileService userProfileService)
         : base(logger, cacheManager, contextFactory)
     {
-        _libraryService = libraryService;
         _artistService = artistService;
         _albumService = albumService;
         _songService = songService;
-        _playlistService = playlistService;
         _podcastService = podcastService;
         _bus = bus;
         _configurationFactory = configurationFactory;
-        _userAuthenticationService = userAuthenticationService;
         _userProfileService = userProfileService;
     }
 
@@ -234,18 +228,7 @@ public sealed class UserService : ServiceBase
         return rs.ToString();
     }
 
-    public async Task<bool> IsPinned(int userId, UserPinType pinType, int pinId,
-        CancellationToken cancellationToken = default)
-    {
-        Guard.Against.Expression(x => x < 1, userId, nameof(userId));
 
-        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-
-        return await scopedContext.UserPins
-            .Where(up => up.UserId == userId && up.PinId == pinId && up.PinType == (int)pinType)
-            .AnyAsync(cancellationToken)
-            .ConfigureAwait(false);
-    }
 
     public async Task<MelodeeModels.OperationResult<bool>> SetAlbumRatingAsync(int userId, int albumId, int rating,
         CancellationToken cancellationToken = default)
@@ -1196,10 +1179,24 @@ public sealed class UserService : ServiceBase
             }
         }
 
+
         return new MelodeeModels.OperationResult<bool>
         {
             Data = result
         };
+    }
+
+    public async Task<bool> IsPinned(int userId, UserPinType pinType, int pinId, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, userId, nameof(userId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var userPinTypeValue = (int)pinType;
+        return await scopedContext.UserPins
+            .Where(x => x.UserId == userId && x.PinId == pinId && x.PinType == userPinTypeValue)
+            .AnyAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<MelodeeModels.OperationResult<bool>> TogglePinnedAsync(int userId, UserPinType pinType, int pinId,
