@@ -8,6 +8,7 @@
 @inherits MelodeeComponentBase
 @inject NotificationService NotificationService
 @inject DialogService DialogService
+@inject IUserProfileService UserProfileService
 @inject UserService UserService
 @inject IOptions<GoogleAuthOptions> GoogleAuthOptions
 @inject IJSRuntime JsRuntime
@@ -200,7 +201,7 @@
         _timeZoneIds = DateTimeZoneProviders.Tzdb.Ids.OrderBy(x => x).ToArray();
         _googleAuthEnabled = GoogleAuthOptions.Value.Enabled && !string.IsNullOrEmpty(GoogleAuthOptions.Value.ClientId);
 
-        var user = await UserService.GetAsync(CurrentUser!.UserId());
+        var user = await UserProfileService.GetAsync(CurrentUser!.UserId());
         UserProfile = new UserProfileModel
         {
             Username = user.Data!.UserName,
@@ -401,7 +402,7 @@
             UserProfile.PreferredTheme = newTheme;
 
             // Save theme to database immediately
-            var user = await UserService.GetAsync(CurrentUser!.UserId());
+            var user = await UserProfileService.GetAsync(CurrentUser!.UserId());
             if (!user.IsSuccess || user.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage
@@ -415,7 +416,7 @@
             }
 
             user.Data.PreferredTheme = newTheme;
-            var saveResult = await UserService.UpdateAsync(user.Data, user.Data);
+            var saveResult = await UserProfileService.UpdateAsync(user.Data, user.Data);
             if (!saveResult.IsSuccess || !saveResult.Data)
             {
                 NotificationService.Notify(new NotificationMessage
@@ -456,7 +457,7 @@
         {
             _isSaving = true;
 
-            var user = await UserService.GetAsync(CurrentUser!.UserId());
+            var user = await UserProfileService.GetAsync(CurrentUser!.UserId());
 
             var tz = string.IsNullOrWhiteSpace(model.TimeZoneId) ? "UTC" : model.TimeZoneId.Trim();
             if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(tz) == null)
@@ -482,7 +483,7 @@
             user.Data!.PreferredLanguage = newLanguage;
             user.Data!.PreferredTheme = UserProfile.PreferredTheme ?? "default";
 
-            var saveResult = await UserService.UpdateAsync(user.Data, user.Data);
+            var saveResult = await UserProfileService.UpdateAsync(user.Data, user.Data);
             if (!saveResult.IsSuccess || !saveResult.Data)
             {
                 NotificationService.Notify(new NotificationMessage
@@ -496,11 +497,11 @@
             }
 
             // Ensure server-side cache is refreshed and UI will re-read the updated timezone on next load.
-            await UserService.GetAsync(user.Data.Id);
+            await UserProfileService.GetAsync(user.Data.Id);
 
             if (_newSelectedProfileImage?.ImageBytes != null)
             {
-                await UserService.SaveProfileImageAsync(user.Data.Id, _newSelectedProfileImage.ImageBytes);
+                await UserProfileService.SaveProfileImageAsync(user.Data.Id, _newSelectedProfileImage.ImageBytes);
             }
 
             NotificationService.Notify(new NotificationMessage

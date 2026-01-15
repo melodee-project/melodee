@@ -25,6 +25,7 @@ public sealed class GenresController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
+    IUserProfileService userProfileService,
     AlbumService albumService,
     SongService songService,
     IConfiguration configuration,
@@ -66,7 +67,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -151,7 +152,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -220,7 +221,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -271,7 +272,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -321,7 +322,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -349,7 +350,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

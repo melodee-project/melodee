@@ -14,9 +14,9 @@ public class UserDeleteCommand : CommandBase<UserDeleteSettings>
     public override async Task<int> ExecuteAsync(CommandContext context, UserDeleteSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
-        var userService = scope.ServiceProvider.GetRequiredService<UserService>();
+        var userProfileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
 
-        var userResult = await userService.GetAsync(settings.UserId, cancellationToken);
+        var userResult = await userProfileService.GetAsync(settings.UserId, cancellationToken);
         if (!userResult.IsSuccess || userResult.Data == null)
         {
             AnsiConsole.MarkupLine($"[red]User not found with ID:[/] {settings.UserId}");
@@ -44,7 +44,7 @@ public class UserDeleteCommand : CommandBase<UserDeleteSettings>
             }
         }
 
-        var deleteResult = await userService.DeleteAsync([settings.UserId], cancellationToken);
+        var deleteResult = await userProfileService.DeleteAsync([settings.UserId], cancellationToken);
 
         if (!deleteResult.IsSuccess || !deleteResult.Data)
         {

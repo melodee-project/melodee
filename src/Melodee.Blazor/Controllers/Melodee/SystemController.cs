@@ -23,7 +23,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class SystemController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    IUserProfileService userProfileService,
     StatisticsService statisticsService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
@@ -65,7 +65,7 @@ public sealed class SystemController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetSystemStatsAsync(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

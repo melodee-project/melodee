@@ -27,7 +27,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class PlaybackSettingsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    IUserProfileService userProfileService,
     PlaybackSettingsService playbackSettingsService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
@@ -46,7 +46,7 @@ public class PlaybackSettingsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -87,7 +87,7 @@ public class PlaybackSettingsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> UpdateSettingsAsync([FromBody] UpdatePlaybackSettingsRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

@@ -27,7 +27,7 @@ public class UsersController(
     IDbContextFactory<MelodeeDbContext> dbContextFactory,
     IClock clock,
     ILoggerFactory loggerFactory,
-    UserService userService,
+    IUserAuthenticationService userAuthenticationService,
     ILogger<UsersController> logger) : JellyfinControllerBase(etagRepository, serializer, configuration, configurationFactory, dbContextFactory, clock, loggerFactory)
 {
     /// <summary>
@@ -56,7 +56,7 @@ public class UsersController(
             return JellyfinBadRequest("Username and password are required.");
         }
 
-        var authenticateResult = await userService.LoginUserByUsernameAsync(request.Username, request.Pw, cancellationToken);
+        var authenticateResult = await userAuthenticationService.LoginUserByUsernameAsync(request.Username, request.Pw, cancellationToken);
         if (!authenticateResult.IsSuccess || authenticateResult.Data == null)
         {
             logger.LogWarning("JellyfinAuthFailed UserName={UserName} RemoteIp={RemoteIp} Reason={Reason}",

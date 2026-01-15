@@ -12,10 +12,8 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.MessageBus.Events;
-using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Importing;
 using Melodee.Common.Services.Caching;
-using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -61,39 +59,8 @@ public sealed class UserService : ServiceBase
         PlaylistService playlistService,
         PodcastService podcastService,
         IBus bus,
-        IPasswordHashService? passwordHashService = null,
-        IOpenSubsonicSecretProtector? openSubsonicSecretProtector = null)
-        : this(logger, cacheManager, contextFactory, configurationFactory, libraryService, artistService,
-              albumService, songService, playlistService, podcastService, bus, passwordHashService,
-              openSubsonicSecretProtector, null, null)
-    {
-        // Legacy constructor - create services
-        _libraryService = libraryService;
-        _artistService = artistService;
-        _albumService = albumService;
-        _songService = songService;
-        _playlistService = playlistService;
-        _podcastService = podcastService;
-        _bus = bus;
-        _configurationFactory = configurationFactory;
-    }
-
-    public UserService(
-        ILogger logger,
-        ICacheManager cacheManager,
-        IDbContextFactory<MelodeeDbContext> contextFactory,
-        IMelodeeConfigurationFactory configurationFactory,
-        LibraryService libraryService,
-        ArtistService artistService,
-        AlbumService albumService,
-        SongService songService,
-        PlaylistService playlistService,
-        PodcastService podcastService,
-        IBus bus,
-        IPasswordHashService? passwordHashService,
-        IOpenSubsonicSecretProtector? openSubsonicSecretProtector,
-        IUserAuthenticationService? userAuthenticationService,
-        IUserProfileService? userProfileService)
+        IUserAuthenticationService userAuthenticationService,
+        IUserProfileService userProfileService)
         : base(logger, cacheManager, contextFactory)
     {
         _libraryService = libraryService;
@@ -104,24 +71,8 @@ public sealed class UserService : ServiceBase
         _podcastService = podcastService;
         _bus = bus;
         _configurationFactory = configurationFactory;
-
-        _userAuthenticationService = userAuthenticationService
-            ?? (IUserAuthenticationService)new UserAuthenticationService(
-                logger, passwordHashService, openSubsonicSecretProtector, bus,
-                userProfileService ?? new UserProfileService(logger, cacheManager, contextFactory, configurationFactory,
-                    _libraryService, _artistService, _albumService, _songService, _playlistService,
-                    _podcastService, bus, passwordHashService, openSubsonicSecretProtector),
-                configurationFactory);
-        _userProfileService = userProfileService ?? new UserProfileService(logger, cacheManager, contextFactory, configurationFactory,
-            _libraryService, _artistService, _albumService, _songService, _playlistService,
-            _podcastService, bus, passwordHashService, openSubsonicSecretProtector);
-    }
-
-    public async Task<MelodeeModels.PagedResult<UserDataInfo>> ListAsync(
-        MelodeeModels.PagedRequest pagedRequest,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.ListAsync(pagedRequest, cancellationToken).ConfigureAwait(false);
+        _userAuthenticationService = userAuthenticationService;
+        _userProfileService = userProfileService;
     }
 
     public async Task<UserSong?> GetUserSongAsync(int userId, Guid songApiKey, CancellationToken cancellationToken = default)
@@ -134,41 +85,18 @@ public sealed class UserService : ServiceBase
             .ConfigureAwait(false);
     }
 
-
-
-    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(
-        int[] userIds,
+    private async Task<MelodeeModels.OperationResult<User?>> GetAsync(
+        int id,
         CancellationToken cancellationToken = default)
     {
-        return await _userProfileService.DeleteAsync(userIds, cancellationToken).ConfigureAwait(false);
+        return await _userProfileService.GetAsync(id, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<MelodeeModels.OperationResult<User?>> GetByEmailAddressAsync(
+    private async Task<MelodeeModels.OperationResult<User?>> GetByEmailAddressAsync(
         string emailAddress,
         CancellationToken cancellationToken = default)
     {
         return await _userProfileService.GetByEmailAddressAsync(emailAddress, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<MelodeeModels.OperationResult<User?>> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<bool> IsUserAdminAsync(string username, CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.IsUserAdminAsync(username, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<MelodeeModels.OperationResult<User?>> GetByApiKeyAsync(Guid apiKey, CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<UserArtist?> UserArtistAsync(int userId, Guid artistApiKey,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.UserArtistAsync(userId, artistApiKey, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<UserAlbum?> UserAlbumAsync(int userId, Guid albumApiKey,
@@ -603,58 +531,6 @@ public sealed class UserService : ServiceBase
         };
     }
 
-    public async Task<MelodeeModels.OperationResult<bool>> SaveProfileImageAsync(int userId, byte[] imageBytes,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.SaveProfileImageAsync(userId, imageBytes, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<MelodeeModels.OperationResult<User?>> GetAsync(
-        int id,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.GetAsync(id, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Logs a user in using their username and password.
-    /// </summary>
-    public async Task<MelodeeModels.OperationResult<User?>> LoginUserByUsernameAsync(
-        string userName,
-        string? password,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userAuthenticationService.LoginUserByUsernameAsync(userName, password, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Logs a user in using their email address and password.
-    /// </summary>
-    public async Task<MelodeeModels.OperationResult<User?>> LoginUserAsync(
-        string emailAddress,
-        string? password,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userAuthenticationService.LoginUserAsync(emailAddress, password, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Validates credentials and applies login side effects for an identified user.
-    /// </summary>
-    private async Task<MelodeeModels.OperationResult<User?>> CompleteLoginAsync(
-        User user,
-        string password,
-        string identifier,
-        CancellationToken cancellationToken)
-    {
-        return await _userAuthenticationService.CompleteLoginAsync(user, password, identifier, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<MelodeeModels.OperationResult<User?>> ValidateTokenAsync(string username, string token, string salt, CancellationToken cancellationToken = default)
-    {
-        return await _userAuthenticationService.ValidateTokenAsync(username, token, salt, cancellationToken).ConfigureAwait(false);
-    }
-
     private static string GenerateOpenSubsonicSecret()
     {
         var bytes = new byte[32];
@@ -668,7 +544,7 @@ public sealed class UserService : ServiceBase
     {
         Guard.Against.Null(configuration, nameof(configuration));
 
-        var user = await GetByApiKeyAsync(configuration.UserApiKey, cancellationToken).ConfigureAwait(false);
+        var user = await _userProfileService.GetByApiKeyAsync(configuration.UserApiKey, cancellationToken).ConfigureAwait(false);
         if (!user.IsSuccess || user.Data == null)
         {
             return new MelodeeModels.OperationResult<int>("Unknown user")
@@ -862,21 +738,6 @@ public sealed class UserService : ServiceBase
         {
             Data = recordsCreated + recordsUpdated
         };
-    }
-
-    public async Task<MelodeeModels.OperationResult<User?>> RegisterAsync(string username,
-        string emailAddress,
-        string plainTextPassword,
-        string? registerPrivateCode,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.RegisterAsync(username, emailAddress, plainTextPassword, registerPrivateCode, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<MelodeeModels.OperationResult<bool>> UpdateAsync(User currentUser, User detailToUpdate,
-        CancellationToken cancellationToken = default)
-    {
-        return await _userProfileService.UpdateAsync(currentUser, detailToUpdate, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<MelodeeModels.OperationResult<bool>> UpdateLastLogin(UserLoginEvent eventData,

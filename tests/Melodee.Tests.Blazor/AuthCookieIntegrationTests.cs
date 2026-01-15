@@ -50,6 +50,7 @@ public class AuthCookieIntegrationTests : IAsyncLifetime
                         ["Jwt:Key"] = new string('k', 64),
                         ["Jwt:Issuer"] = "melodee-tests",
                         ["Jwt:Audience"] = "melodee-tests",
+                        ["Security:OpenSubsonicSecretKey"] = new string('s', 32),
                         ["QuartzDisabled"] = "true"
                     };
 

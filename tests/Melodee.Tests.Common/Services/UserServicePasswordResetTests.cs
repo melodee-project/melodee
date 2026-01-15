@@ -4,6 +4,7 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
+using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -20,18 +21,47 @@ public class UserServicePasswordResetTests : ServiceTestBase
 {
     private UserService CreateUserService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
     {
-        return new UserService(
+        var passwordHashService = new Mock<IPasswordHashService>().Object;
+        var openSubsonicSecretProtector = new Mock<IOpenSubsonicSecretProtector>().Object;
+        var actualConfigFactory = configFactory ?? MockConfigurationFactory();
+        var actualBus = bus ?? MockBus();
+
+        var userProfileService = new UserProfileService(
             Logger,
             CacheManager,
             MockFactory(),
-            configFactory ?? MockConfigurationFactory(),
+            actualConfigFactory,
             GetLibraryService(),
             GetArtistService(),
             GetAlbumService(),
             GetSongService(),
             GetPlaylistService(),
             GetPodcastService(),
-            bus ?? MockBus());
+            actualBus,
+            passwordHashService,
+            openSubsonicSecretProtector);
+        var userAuthenticationService = new UserAuthenticationService(
+            Logger,
+            passwordHashService,
+            openSubsonicSecretProtector,
+            actualBus,
+            userProfileService,
+            actualConfigFactory);
+
+        return new UserService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            actualConfigFactory,
+            GetLibraryService(),
+            GetArtistService(),
+            GetAlbumService(),
+            GetSongService(),
+            GetPlaylistService(),
+            GetPodcastService(),
+            actualBus,
+            userAuthenticationService,
+            userProfileService);
     }
 
     private User CreateTestUserForReset(string email)

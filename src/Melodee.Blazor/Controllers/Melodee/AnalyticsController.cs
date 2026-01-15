@@ -28,7 +28,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class AnalyticsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    IUserProfileService userProfileService,
     StatisticsService statisticsService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
@@ -55,7 +55,7 @@ public class AnalyticsController(
         string period = "week",
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -176,7 +176,7 @@ public class AnalyticsController(
         int limit = 10,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

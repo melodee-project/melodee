@@ -46,6 +46,7 @@ See: [`.github/instructions/`](./.github/instructions/)
   - [`playwright-python.instructions.md`](./.github/instructions/playwright-python.instructions.md)
   - [`code-review-generic.instructions.md`](./.github/instructions/code-review-generic.instructions.md)
 - **Architecture & Best Practices**:
+  - [`dependency-injection.instructions.md`](./.github/instructions/dependency-injection.instructions.md)
   - [`dotnet-architecture-good-practices.instructions.md`](./.github/instructions/dotnet-architecture-good-practices.instructions.md)
   - [`performance-optimization.instructions.md`](./.github/instructions/performance-optimization.instructions.md)
   - [`security-and-owasp.instructions.md`](./.github/instructions/security-and-owasp.instructions.md)

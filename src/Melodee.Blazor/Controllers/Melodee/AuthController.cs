@@ -36,6 +36,8 @@ public class AuthController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
+    IUserAuthenticationService userAuthenticationService,
+    IUserProfileService userProfileService,
     IConfiguration configuration,
     IBlacklistService blacklistService,
     IMelodeeConfigurationFactory configurationFactory,
@@ -213,7 +215,7 @@ public class AuthController(
         }
 
         // Get the user
-        var userResult = await userService.GetAsync(rotateResult.UserId!.Value, cancellationToken).ConfigureAwait(false);
+        var userResult = await userProfileService.GetAsync(rotateResult.UserId!.Value, cancellationToken).ConfigureAwait(false);
         if (!userResult.IsSuccess || userResult.Data == null)
         {
             LogAuthEvent("refresh", "user_not_found", clientIp, userId: rotateResult.UserId);
@@ -269,7 +271,7 @@ public class AuthController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RefreshTokenAsync(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -313,7 +315,7 @@ public class AuthController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> LogoutAsync(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -339,7 +341,7 @@ public class AuthController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RevokeTokenAsync([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -474,8 +476,8 @@ public class AuthController(
         // Both paths perform full credential validation - this is not a security bypass.
         var hasUsername = !string.IsNullOrWhiteSpace(model.UserName);
         var authResult = hasUsername
-            ? await userService.LoginUserByUsernameAsync(model.UserName!, model.Password, cancellationToken).ConfigureAwait(false)
-            : await userService.LoginUserAsync(model.Email ?? string.Empty, model.Password, cancellationToken).ConfigureAwait(false);
+            ? await userAuthenticationService.LoginUserByUsernameAsync(model.UserName!, model.Password, cancellationToken).ConfigureAwait(false)
+            : await userAuthenticationService.LoginUserAsync(model.Email ?? string.Empty, model.Password, cancellationToken).ConfigureAwait(false);
 
         if (!authResult.IsSuccess || authResult.Data == null)
         {
@@ -568,7 +570,7 @@ public class AuthController(
         {
             if (_googleAuthOptions.AutoLinkEnabled && !string.IsNullOrEmpty(googleEmail))
             {
-                var userByEmail = await userService.GetByEmailAddressAsync(googleEmail, cancellationToken).ConfigureAwait(false);
+                var userByEmail = await userProfileService.GetByEmailAddressAsync(googleEmail, cancellationToken).ConfigureAwait(false);
                 if (userByEmail.IsSuccess && userByEmail.Data != null)
                 {
                     user = userByEmail.Data;

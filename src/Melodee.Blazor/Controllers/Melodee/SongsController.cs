@@ -40,6 +40,7 @@ public class SongsController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
+    IUserProfileService userProfileService,
     SongService songService,
     StreamingLimiter streamingLimiter,
     IConfiguration configuration,
@@ -81,7 +82,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -132,7 +133,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -223,7 +224,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -446,7 +447,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -498,7 +499,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -539,7 +540,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -579,7 +580,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -618,7 +619,7 @@ public class SongsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> StreamSong(Guid apiKey, Guid userApiKey, string authToken, CancellationToken cancellationToken = default)
     {
-        var userResult = await userService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
+        var userResult = await userProfileService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
         if (!userResult.IsSuccess || userResult.Data == null)
         {
             return ApiUnauthorized();
@@ -793,7 +794,7 @@ public class SongsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

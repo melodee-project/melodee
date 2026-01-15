@@ -20,18 +20,58 @@ public class UserServiceTests : ServiceTestBase
 {
     private UserService CreateUserService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
     {
+        var actualConfigFactory = configFactory ?? MockConfigurationFactory();
+        var actualBus = bus ?? MockBus();
+
         return new UserService(
             Logger,
             CacheManager,
             MockFactory(),
-            configFactory ?? MockConfigurationFactory(),
+            actualConfigFactory,
             GetLibraryService(),
             GetArtistService(),
             GetAlbumService(),
             GetSongService(),
             GetPlaylistService(),
             GetPodcastService(),
-            bus ?? MockBus());
+            actualBus,
+            CreateUserAuthenticationService(actualConfigFactory, actualBus),
+            CreateUserProfileService(actualConfigFactory, actualBus));
+    }
+
+    private IUserProfileService CreateUserProfileService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
+    {
+        var actualConfigFactory = configFactory ?? MockConfigurationFactory();
+        var actualBus = bus ?? MockBus();
+
+        return new UserProfileService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            actualConfigFactory,
+            GetLibraryService(),
+            GetArtistService(),
+            GetAlbumService(),
+            GetSongService(),
+            GetPlaylistService(),
+            GetPodcastService(),
+            actualBus,
+            MockPasswordHashService(),
+            MockOpenSubsonicSecretProtector());
+    }
+
+    private IUserAuthenticationService CreateUserAuthenticationService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
+    {
+        var actualConfigFactory = configFactory ?? MockConfigurationFactory();
+        var actualBus = bus ?? MockBus();
+
+        return new UserAuthenticationService(
+            Logger,
+            MockPasswordHashService(),
+            MockOpenSubsonicSecretProtector(),
+            actualBus,
+            CreateUserProfileService(actualConfigFactory, actualBus),
+            actualConfigFactory);
     }
 
     [Fact]
@@ -49,9 +89,11 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -84,6 +126,8 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var pagedRequest = new PagedRequest
         {
             Page = 1,
@@ -92,7 +136,7 @@ public class UserServiceTests : ServiceTestBase
         };
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -117,6 +161,8 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var pagedRequest = new PagedRequest
         {
             Page = 1,
@@ -125,7 +171,7 @@ public class UserServiceTests : ServiceTestBase
         };
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -153,6 +199,8 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var pagedRequest = new PagedRequest
         {
             Page = 1,
@@ -161,7 +209,7 @@ public class UserServiceTests : ServiceTestBase
         };
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -189,6 +237,8 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var pagedRequest = new PagedRequest
         {
             Page = 1,
@@ -197,7 +247,7 @@ public class UserServiceTests : ServiceTestBase
         };
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -222,6 +272,8 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var pagedRequest = new PagedRequest
         {
             Page = 1,
@@ -230,7 +282,7 @@ public class UserServiceTests : ServiceTestBase
         };
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -258,6 +310,8 @@ public class UserServiceTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         // Multiple filters use OR logic
         var pagedRequest = new PagedRequest
         {
@@ -270,7 +324,7 @@ public class UserServiceTests : ServiceTestBase
         };
 
         // Act
-        var result = await userService.ListAsync(pagedRequest);
+        var result = await userProfileService.ListAsync(pagedRequest);
 
         // Assert
         Assert.NotNull(result);
@@ -282,9 +336,11 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => userService.DeleteAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => userProfileService.DeleteAsync(null!));
     }
 
     [Fact]
@@ -292,10 +348,12 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userIds = Array.Empty<int>();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => userService.DeleteAsync(userIds));
+        await Assert.ThrowsAsync<ArgumentException>(() => userProfileService.DeleteAsync(userIds));
     }
 
     [Fact]
@@ -303,6 +361,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -329,7 +389,7 @@ public class UserServiceTests : ServiceTestBase
         var userIds = new[] { 1 };
 
         // Act
-        var result = await userService.DeleteAsync(userIds);
+        var result = await userProfileService.DeleteAsync(userIds);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -341,9 +401,11 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act
-        var result = await userService.DeleteAsync([999]);
+        var result = await userProfileService.DeleteAsync([999]);
 
         // Assert
         Assert.False(result.Data);
@@ -355,9 +417,11 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => userService.GetByEmailAddressAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => userProfileService.GetByEmailAddressAsync(null!));
     }
 
     [Fact]
@@ -366,6 +430,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var email = "test@example.com";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -375,7 +441,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.GetByEmailAddressAsync(email);
+        var result = await userProfileService.GetByEmailAddressAsync(email);
 
         // Assert
         Assert.NotNull(result);
@@ -396,9 +462,11 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => userService.GetByUsernameAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => userProfileService.GetByUsernameAsync(null!));
     }
 
     [Fact]
@@ -407,6 +475,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var username = "testuser";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -416,7 +486,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.GetByUsernameAsync(username);
+        var result = await userProfileService.GetByUsernameAsync(username);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -430,6 +500,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var username = "adminuser";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -440,7 +512,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.IsUserAdminAsync(username);
+        var result = await userProfileService.IsUserAdminAsync(username);
 
         // Assert
         Assert.True(result);
@@ -452,6 +524,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var username = "regularuser";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -462,7 +536,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.IsUserAdminAsync(username);
+        var result = await userProfileService.IsUserAdminAsync(username);
 
         // Assert
         Assert.False(result);
@@ -473,10 +547,12 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var apiKey = Guid.Empty;
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => userService.GetByApiKeyAsync(apiKey));
+        await Assert.ThrowsAsync<ArgumentException>(() => userProfileService.GetByApiKeyAsync(apiKey));
     }
 
     [Fact]
@@ -485,6 +561,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var apiKey = Guid.NewGuid();
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -495,7 +573,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.GetByApiKeyAsync(apiKey);
+        var result = await userProfileService.GetByApiKeyAsync(apiKey);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -508,10 +586,12 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var id = 0;
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => userService.GetAsync(id));
+        await Assert.ThrowsAsync<ArgumentException>(() => userProfileService.GetAsync(id));
     }
 
     [Fact]
@@ -520,6 +600,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var id = 1;
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -529,7 +611,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.GetAsync(id);
+        var result = await userProfileService.GetAsync(id);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -542,10 +624,12 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var password = "testpassword";
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => userService.LoginUserAsync(null!, password));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => userAuthenticationService.LoginUserAsync(null!, password));
     }
 
     [Fact]
@@ -554,9 +638,11 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var emailAddress = "test@example.com";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act
-        var result = await userService.LoginUserAsync(emailAddress, null);
+        var result = await userAuthenticationService.LoginUserAsync(emailAddress, null);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -569,6 +655,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var plainPassword = "Sup3rSecret!";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var configuration = TestsBase.NewPluginsConfiguration();
         var user = CreateTestUser(5, "loginuser", "loginuser@example.com");
         user.PublicKey = EncryptionHelper.GenerateRandomPublicKeyBase64();
@@ -584,7 +672,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.LoginUserAsync(user.Email, plainPassword);
+        var result = await userAuthenticationService.LoginUserAsync(user.Email, plainPassword);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -598,6 +686,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var configuration = TestsBase.NewPluginsConfiguration();
         var user = CreateTestUser(6, "wrongpassword", "wrongpassword@example.com");
         user.PublicKey = EncryptionHelper.GenerateRandomPublicKeyBase64();
@@ -613,7 +703,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.LoginUserAsync(user.Email, "incorrect-password");
+        var result = await userAuthenticationService.LoginUserAsync(user.Email, "incorrect-password");
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -629,6 +719,8 @@ public class UserServiceTests : ServiceTestBase
         var salt = "123";
         var config = TestsBase.NewPluginsConfiguration();
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var publicKey = EncryptionHelper.GenerateRandomPublicKeyBase64();
         var encryptedPassword = EncryptionHelper.Encrypt(
             config.GetValue<string>(SettingRegistry.EncryptionPrivateKey)!,
@@ -647,7 +739,7 @@ public class UserServiceTests : ServiceTestBase
         var token = HashHelper.CreateMd5($"{password}{salt}");
 
         // Act
-        var result = await userService.ValidateTokenAsync("tokenuser", token!, salt);
+        var result = await userAuthenticationService.ValidateTokenAsync("tokenuser", token!, salt);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -663,6 +755,8 @@ public class UserServiceTests : ServiceTestBase
         var salt = "456";
         var config = TestsBase.NewPluginsConfiguration();
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var publicKey = EncryptionHelper.GenerateRandomPublicKeyBase64();
         var encryptedPassword = EncryptionHelper.Encrypt(
             config.GetValue<string>(SettingRegistry.EncryptionPrivateKey)!,
@@ -682,7 +776,7 @@ public class UserServiceTests : ServiceTestBase
         var token = HashHelper.CreateMd5($"{password}{salt}");
 
         // Act
-        var result = await userService.ValidateTokenAsync("lockeduser", token!, salt);
+        var result = await userAuthenticationService.ValidateTokenAsync("lockeduser", token!, salt);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -696,6 +790,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var email = "duplicate@example.com";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -705,7 +801,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.RegisterAsync("newuser", email, "P@ssword1", null);
+        var result = await userProfileService.RegisterAsync("newuser", email, "P@ssword1", null);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -717,8 +813,7 @@ public class UserServiceTests : ServiceTestBase
     public async Task RegisterAsync_FirstUserBecomesAdmin()
     {
         // Arrange
-        var configFactory = MockConfigurationFactory();
-        var userService = CreateUserService(configFactory);
+        var userProfileService = GetUserProfileService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -727,7 +822,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.RegisterAsync("first", "first@example.com", "P@ssw0rd!", null);
+        var result = await userProfileService.RegisterAsync("first", "first@example.com", "P@ssw0rd!", null);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -745,7 +840,7 @@ public class UserServiceTests : ServiceTestBase
         configFactory.Setup(x => x.GetConfigurationAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MelodeeConfiguration(settings));
 
-        var userService = CreateUserService(configFactory.Object);
+        var userProfileService = CreateUserProfileService(configFactory.Object);
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -754,7 +849,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act
-        var result = await userService.RegisterAsync("user", "code@example.com", "Password!", "wrong");
+        var result = await userProfileService.RegisterAsync("user", "code@example.com", "Password!", "wrong");
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -767,6 +862,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() => userService.ImportUserFavoriteSongs(null!));
@@ -777,6 +874,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var apiKey = Guid.NewGuid();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
@@ -808,11 +907,13 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var currentUser = CreateTestUser(1, "current", "current@example.com");
         var detailToUpdate = CreateTestUser(0, "invalid", "invalid@example.com"); // Invalid ID
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => userService.UpdateAsync(currentUser, detailToUpdate));
+        await Assert.ThrowsAsync<ArgumentException>(() => userProfileService.UpdateAsync(currentUser, detailToUpdate));
     }
 
     [Fact]
@@ -820,6 +921,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var currentUser = CreateTestUser(8, "before", "before@example.com");
 
         await using (var context = await MockFactory().CreateDbContextAsync())
@@ -838,7 +941,7 @@ public class UserServiceTests : ServiceTestBase
         detailToUpdate.IsLocked = true;
 
         // Act
-        var result = await userService.UpdateAsync(currentUser, detailToUpdate);
+        var result = await userProfileService.UpdateAsync(currentUser, detailToUpdate);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -860,6 +963,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var genre = "Rock";
 
@@ -872,6 +977,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var artistApiKey = Guid.NewGuid();
         var isHated = true;
@@ -885,6 +992,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var albumId = 1;
         var rating = 5;
@@ -898,6 +1007,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var songId = 1;
         var rating = 5;
@@ -911,6 +1022,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var artistApiKey = Guid.NewGuid();
         var isStarred = true;
@@ -924,6 +1037,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var albumApiKey = Guid.NewGuid();
         var isHated = true;
@@ -937,6 +1052,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var albumApiKey = Guid.NewGuid();
         var isStarred = true;
@@ -950,6 +1067,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var artistApiKey = Guid.NewGuid();
         var rating = 5;
@@ -963,6 +1082,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var albumApiKey = Guid.NewGuid();
         var rating = 5;
@@ -976,6 +1097,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var songApiKey = Guid.NewGuid();
         var isStarred = true;
@@ -989,6 +1112,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var songApiKey = Guid.NewGuid();
         var isHated = true;
@@ -1002,6 +1127,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -1026,6 +1153,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var username = "cacheuser";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
             var user = CreateTestUser(2, username, "cacheuser@example.com");
@@ -1033,8 +1162,8 @@ public class UserServiceTests : ServiceTestBase
             await context.SaveChangesAsync();
         }
         // Act
-        var result1 = await userService.GetByUsernameAsync(username);
-        var result2 = await userService.GetByUsernameAsync(username);
+        var result1 = await userProfileService.GetByUsernameAsync(username);
+        var result2 = await userProfileService.GetByUsernameAsync(username);
         // Assert
         Assert.True(result1.IsSuccess);
         Assert.True(result2.IsSuccess);
@@ -1048,6 +1177,8 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
             var user = CreateTestUser(3, "eventuser", "eventuser@example.com");
@@ -1079,19 +1210,8 @@ public class UserServiceTests : ServiceTestBase
         busMock.Setup(b => b.SendLocal(It.IsAny<object>(), It.IsAny<Dictionary<string, string>>()))
             .Returns(Task.CompletedTask);
 
-        // Create user service with the verifiable bus mock
-        var userService = new UserService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            GetArtistService(),
-            GetAlbumService(),
-            GetSongService(),
-            GetPlaylistService(),
-            GetPodcastService(),
-            busMock.Object);
+        // Create user authentication service with the verifiable bus mock
+        var userAuthenticationService = CreateUserAuthenticationService(bus: busMock.Object);
 
         // Create test user with known encrypted password
         // Using "enc:" prefix pattern which bypasses encryption in LoginUserAsync
@@ -1104,7 +1224,7 @@ public class UserServiceTests : ServiceTestBase
         }
 
         // Act - Use "enc:" prefix to match the encrypted password directly
-        var result = await userService.LoginUserAsync("logintest@example.com", "enc:testencryptedpassword123");
+        var result = await userAuthenticationService.LoginUserAsync("logintest@example.com", "enc:testencryptedpassword123");
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -1124,6 +1244,8 @@ public class UserServiceTests : ServiceTestBase
         // Arrange
         var email = "üñîçødë@example.com";
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
             var user = CreateTestUser(4, "unicodeuser", email);
@@ -1131,7 +1253,7 @@ public class UserServiceTests : ServiceTestBase
             await context.SaveChangesAsync();
         }
         // Act
-        var result = await userService.GetByEmailAddressAsync(email);
+        var result = await userProfileService.GetByEmailAddressAsync(email);
         // Assert
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
@@ -1143,9 +1265,11 @@ public class UserServiceTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var username = "nonexistentuser";
         // Act
-        var result = await userService.IsUserAdminAsync(username);
+        var result = await userProfileService.IsUserAdminAsync(username);
         // Assert
         Assert.False(result);
     }
@@ -1174,6 +1298,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task IsPinned_WithInvalidUserId_ThrowsArgumentException()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var pinId = 1;
 
@@ -1185,6 +1311,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task IsPinned_WithPodcastChannel_WhenNotPinned_ReturnsFalse()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -1202,6 +1330,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task IsPinned_WithPodcastChannel_WhenPinned_ReturnsTrue()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
 
         await using (var context = await MockFactory().CreateDbContextAsync())
@@ -1230,6 +1360,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task TogglePinnedAsync_WithInvalidUserId_ThrowsArgumentException()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var userId = 0;
         var pinId = 1;
 
@@ -1241,6 +1373,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task TogglePinnedAsync_WithPodcastChannel_WhenNotPinned_CreatesPin()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -1266,6 +1400,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task TogglePinnedAsync_WithPodcastChannel_WhenAlreadyPinned_RemovesPin()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
 
         await using (var context = await MockFactory().CreateDbContextAsync())
@@ -1302,6 +1438,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task TogglePinnedAsync_WithPodcastChannel_TogglesCorrectly()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -1327,6 +1465,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task IsPinned_WithDifferentPinTypes_ReturnsCorrectResults()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
 
         await using (var context = await MockFactory().CreateDbContextAsync())
@@ -1359,6 +1499,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task TogglePinnedAsync_WithMultiplePodcastChannels_PinsIndependently()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
@@ -1394,6 +1536,8 @@ public class UserServiceTests : ServiceTestBase
     public async Task TogglePinnedAsync_WithDifferentUsers_PinsIndependently()
     {
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
+        var userAuthenticationService = GetUserAuthenticationService();
 
         await using (var context = await MockFactory().CreateDbContextAsync())
         {

@@ -28,7 +28,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class EqualizerPresetsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    IUserProfileService userProfileService,
     EqualizerPresetService equalizerPresetService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
@@ -50,7 +50,7 @@ public class EqualizerPresetsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ListPresetsAsync(int page = 1, int limit = 20, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -95,7 +95,7 @@ public class EqualizerPresetsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> UpsertPresetAsync([FromBody] CreateEqualizerPresetRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -156,7 +156,7 @@ public class EqualizerPresetsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeletePresetAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

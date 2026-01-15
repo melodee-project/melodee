@@ -24,7 +24,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class ArtistLookupController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    IUserProfileService userProfileService,
     ArtistSearchEngineService artistSearchEngineService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
@@ -61,7 +61,7 @@ public sealed class ArtistLookupController(
             return BadRequest(new ApiError(ApiError.Codes.ValidationError, validationError!, GetCorrelationId()));
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -128,7 +128,7 @@ public sealed class ArtistLookupController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetProviders(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

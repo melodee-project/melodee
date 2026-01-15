@@ -7,6 +7,7 @@
 @using Microsoft.EntityFrameworkCore
 @inherits MelodeeComponentBase
 
+@inject IUserProfileService UserProfileService
 @inject UserService UserService
 @inject NavigationManager NavigationManager
 @inject ILogger Logger
@@ -214,7 +215,7 @@
                 return;
             }
 
-            var userResult = await UserService.GetByApiKeyAsync(apiKey.Value);
+            var userResult = await UserProfileService.GetByApiKeyAsync(apiKey.Value);
             if (!userResult.IsSuccess || userResult.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.UserNotFound") });

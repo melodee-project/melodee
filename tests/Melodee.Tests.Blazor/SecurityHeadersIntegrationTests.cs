@@ -1,7 +1,6 @@
 using System.Net;
 using FluentAssertions;
 using Melodee.Common.Data;
-using Melodee.Common.Services.Security;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -37,6 +36,7 @@ public class SecurityHeadersIntegrationTests : IAsyncLifetime
                         ["Jwt:Key"] = new string('k', 64),
                         ["Jwt:Issuer"] = "melodee-tests",
                         ["Jwt:Audience"] = "melodee-tests",
+                        ["Security:OpenSubsonicSecretKey"] = new string('s', 32),
                         ["QuartzDisabled"] = "true",
                         ["RateLimiting:MelodeeApi:TokenLimit"] = "30",
                         ["RateLimiting:MelodeeApi:QueueLimit"] = "10",
@@ -72,8 +72,6 @@ public class SecurityHeadersIntegrationTests : IAsyncLifetime
                         options.UseInMemoryDatabase("SecurityHeadersTests");
                         options.UseInternalServiceProvider(_inMemoryProvider);
                     });
-
-                    services.AddSingleton<IPasswordHashService, PasswordHashService>();
                 });
             });
 
@@ -103,8 +101,9 @@ public class SecurityHeadersIntegrationTests : IAsyncLifetime
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/system/info");
         var response = await _client.SendAsync(request);
+        var content = await response.Content.ReadAsStringAsync();
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, $"Response body: {content}");
 
         response.Headers.Should().ContainKey("X-Content-Type-Options");
         response.Headers.GetValues("X-Content-Type-Options").Should().Contain("nosniff");

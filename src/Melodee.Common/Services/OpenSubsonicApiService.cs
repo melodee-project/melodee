@@ -49,6 +49,8 @@ public class OpenSubsonicApiService(
     DefaultImages defaultImages,
     IMelodeeConfigurationFactory configurationFactory,
     UserService userService,
+    IUserAuthenticationService userAuthenticationService,
+    IUserProfileService userProfileService,
     ArtistService artistService,
     AlbumService albumService,
     SongService songService,
@@ -290,7 +292,7 @@ public class OpenSubsonicApiService(
         }
 
         // The user must be authorized to share
-        var user = await userService.GetAsync(authResponse.UserInfo.Id, cancellationToken).ConfigureAwait(false);
+        var user = await userProfileService.GetAsync(authResponse.UserInfo.Id, cancellationToken).ConfigureAwait(false);
         if (!user.Data?.CanShare() ?? false)
         {
             return new ResponseModel
@@ -1323,7 +1325,7 @@ public class OpenSubsonicApiService(
                 }
                 else if (isUserImageRequest)
                 {
-                    var userResult = await userService.GetByApiKeyAsync(apiKey.Value, cancellationToken)
+                    var userResult = await userProfileService.GetByApiKeyAsync(apiKey.Value, cancellationToken)
                         .ConfigureAwait(false);
                     var userImageLibrary = await libraryService.GetUserImagesLibraryAsync(cancellationToken)
                         .ConfigureAwait(false);
@@ -1576,7 +1578,7 @@ public class OpenSubsonicApiService(
         {
             var user = apiRequest.Username == null
                 ? null
-                : await userService.GetByUsernameAsync(apiRequest.Username, cancellationToken).ConfigureAwait(false);
+                : await userProfileService.GetByUsernameAsync(apiRequest.Username, cancellationToken).ConfigureAwait(false);
 
             var userInfo = user?.Data?.ToUserInfo() ?? UserInfo.BlankUserInfo;
 
@@ -1661,11 +1663,11 @@ public class OpenSubsonicApiService(
                         OperationResult<Data.Models.User?> jwtUserResult;
                         if (Guid.TryParse(sid, out var apiKeyGuid) && apiKeyGuid != Guid.Empty)
                         {
-                            jwtUserResult = await userService.GetByApiKeyAsync(apiKeyGuid, cancellationToken).ConfigureAwait(false);
+                            jwtUserResult = await userProfileService.GetByApiKeyAsync(apiKeyGuid, cancellationToken).ConfigureAwait(false);
                         }
                         else if (!string.IsNullOrWhiteSpace(username))
                         {
-                            jwtUserResult = await userService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
+                            jwtUserResult = await userProfileService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
                         }
                         else
                         {
@@ -1699,7 +1701,7 @@ public class OpenSubsonicApiService(
                 if (apiRequest.Token?.Nullify() != null && apiRequest.Salt?.Nullify() != null)
                 {
                     // Use existing token validation method
-                    loginResult = await userService.ValidateTokenAsync(apiRequest.Username, apiRequest.Token, apiRequest.Salt, cancellationToken);
+                    loginResult = await userAuthenticationService.ValidateTokenAsync(apiRequest.Username, apiRequest.Token, apiRequest.Salt, cancellationToken);
                 }
                 else
                 {
@@ -1710,7 +1712,7 @@ public class OpenSubsonicApiService(
                         password = password?.FromHexString();
                     }
 
-                    loginResult = await userService.LoginUserByUsernameAsync(apiRequest.Username, password, cancellationToken);
+                    loginResult = await userAuthenticationService.LoginUserByUsernameAsync(apiRequest.Username, password, cancellationToken);
                 }
 
                 return new ResponseModel
@@ -1819,7 +1821,7 @@ public class OpenSubsonicApiService(
             };
         }
 
-        var registerResult = await userService
+        var registerResult = await userProfileService
             .RegisterAsync(request.Username, request.Email, request.Password, null, cancellationToken)
             .ConfigureAwait(false);
         var result = registerResult.IsSuccess;
@@ -3359,7 +3361,7 @@ public class OpenSubsonicApiService(
         }
 
         // Only users with admin privileges are allowed to call this method.
-        var isUserAdmin = await userService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
+        var isUserAdmin = await userProfileService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
             .ConfigureAwait(false);
         if (!isUserAdmin)
         {
@@ -3372,7 +3374,7 @@ public class OpenSubsonicApiService(
         }
 
         User? data = null;
-        var user = await userService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
+        var user = await userProfileService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
         if (user.IsSuccess)
         {
             data = user.Data!.ToApiUser();
@@ -3469,7 +3471,7 @@ public class OpenSubsonicApiService(
         var result = false;
 
         // Only users with admin privileges are allowed to call this method.
-        var isUserAdmin = await userService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
+        var isUserAdmin = await userProfileService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
             .ConfigureAwait(false);
         if (!isUserAdmin)
         {
@@ -3507,7 +3509,7 @@ public class OpenSubsonicApiService(
         }
 
         // Only users with admin privileges are allowed to call this method.
-        var isUserAdmin = await userService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
+        var isUserAdmin = await userProfileService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
             .ConfigureAwait(false);
         if (!isUserAdmin)
         {
@@ -3550,7 +3552,7 @@ public class OpenSubsonicApiService(
         var result = false;
 
         // Only users with admin privileges are allowed to call this method.
-        var isUserAdmin = await userService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
+        var isUserAdmin = await userProfileService.IsUserAdminAsync(authResponse.UserInfo.UserName, cancellationToken)
             .ConfigureAwait(false);
         if (!isUserAdmin)
         {

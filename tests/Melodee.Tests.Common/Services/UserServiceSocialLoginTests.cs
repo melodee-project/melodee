@@ -16,6 +16,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
     {
         // Arrange
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act
         var result = await userService.GetUserBySocialLoginAsync("Google", "nonexistent_subject");
@@ -37,9 +38,10 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Get the user to obtain their ID
-        var userResult = await userService.GetByUsernameAsync("testuser");
+        var userResult = await userProfileService.GetByUsernameAsync("testuser");
         userResult.IsSuccess.Should().BeTrue();
         var userId = userResult.Data!.Id;
 
@@ -85,6 +87,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act - Try to link same subject to second user
         var result = await userService.LinkSocialLoginAsync(
@@ -126,6 +129,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act
         var result = await userService.UnlinkSocialLoginAsync(userId, "Google");
@@ -149,6 +153,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act
         var result = await userService.UnlinkSocialLoginAsync(userId, "Google");
@@ -183,6 +188,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act
         var result = await userService.GetUserSocialLoginsAsync(userId);
@@ -221,6 +227,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act
         var result = await userService.UpdateSocialLoginLastLoginAsync("Google", "google_subject_123");
@@ -253,6 +260,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act
         var result = await userService.GetUserBySocialLoginAsync("Google", "google_subject_found");
@@ -288,6 +296,7 @@ public class UserServiceSocialLoginTests : ServiceTestBase
         }
 
         var userService = GetUserService();
+        var userProfileService = GetUserProfileService();
 
         // Act - Same user relinking same Google account
         var result = await userService.LinkSocialLoginAsync(

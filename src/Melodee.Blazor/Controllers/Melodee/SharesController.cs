@@ -27,7 +27,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class SharesController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    IUserProfileService userProfileService,
     ShareService shareService,
     ArtistService artistService,
     AlbumService albumService,
@@ -55,7 +55,7 @@ public sealed class SharesController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -103,7 +103,7 @@ public sealed class SharesController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -169,7 +169,7 @@ public sealed class SharesController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -254,7 +254,7 @@ public sealed class SharesController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -347,7 +347,7 @@ public sealed class SharesController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

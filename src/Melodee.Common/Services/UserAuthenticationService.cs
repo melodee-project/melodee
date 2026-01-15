@@ -21,15 +21,15 @@ namespace Melodee.Common.Services;
 /// </summary>
 public sealed class UserAuthenticationService(
     ILogger logger,
-    IPasswordHashService? passwordHashService,
-    IOpenSubsonicSecretProtector? openSubsonicSecretProtector,
+    IPasswordHashService passwordHashService,
+    IOpenSubsonicSecretProtector openSubsonicSecretProtector,
     IBus bus,
     IUserProfileService userProfileService,
     IMelodeeConfigurationFactory configurationFactory) : IUserAuthenticationService
 {
     private readonly ILogger _logger = logger;
-    private readonly IPasswordHashService? _passwordHashService = passwordHashService;
-    private readonly IOpenSubsonicSecretProtector? _openSubsonicSecretProtector = openSubsonicSecretProtector;
+    private readonly IPasswordHashService _passwordHashService = passwordHashService;
+    private readonly IOpenSubsonicSecretProtector _openSubsonicSecretProtector = openSubsonicSecretProtector;
     private readonly IBus _bus = bus;
     private readonly IUserProfileService _userProfileService = userProfileService;
     private readonly IMelodeeConfigurationFactory _configurationFactory = configurationFactory;
@@ -110,7 +110,7 @@ public sealed class UserAuthenticationService(
         var authenticated = false;
         var shouldMigrate = false;
 
-        if (_passwordHashService != null && !string.IsNullOrEmpty(user.PasswordHash))
+        if (!string.IsNullOrEmpty(user.PasswordHash))
         {
             authenticated = _passwordHashService.Verify(password, user.PasswordHash);
         }
@@ -149,7 +149,7 @@ public sealed class UserAuthenticationService(
 
         await _bus.SendLocal(new UserLoginEvent(user.Id, user.UserName)).ConfigureAwait(false);
 
-        if (shouldMigrate && _passwordHashService != null)
+        if (shouldMigrate)
         {
             await using var scopedContext = await _userProfileService.GetContextFactory().CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Id, cancellationToken).ConfigureAwait(false);
@@ -208,7 +208,7 @@ public sealed class UserAuthenticationService(
         var usersPassword = string.Empty;
         var shouldMigrateToSecret = false;
 
-        if (_openSubsonicSecretProtector != null && !string.IsNullOrEmpty(user.OpenSubsonicSecretProtected))
+        if (!string.IsNullOrEmpty(user.OpenSubsonicSecretProtected))
         {
             usersPassword = _openSubsonicSecretProtector.Unprotect(user.OpenSubsonicSecretProtected);
         }
@@ -218,7 +218,7 @@ public sealed class UserAuthenticationService(
                 configuration.GetValue<string>(SettingRegistry.EncryptionPrivateKey)!,
                 user.PasswordEncrypted,
                 user.PublicKey);
-            shouldMigrateToSecret = _openSubsonicSecretProtector != null;
+            shouldMigrateToSecret = true;
         }
 
         // NOTE: MD5 is required here by the OpenSubsonic API specification for token-based authentication.
@@ -239,7 +239,7 @@ public sealed class UserAuthenticationService(
             };
         }
 
-        if (shouldMigrateToSecret && _openSubsonicSecretProtector != null)
+        if (shouldMigrateToSecret)
         {
             await using var scopedContext = await _userProfileService.GetContextFactory().CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             var dbUser = await scopedContext.Users.FirstAsync(x => x.Id == user.Id, cancellationToken).ConfigureAwait(false);

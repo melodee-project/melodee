@@ -8,6 +8,7 @@
 @using Microsoft.Extensions.Options
 
 @inject UserService UserService
+@inject IUserProfileService UserProfileService
 @inject NotificationService NotificationService
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -419,7 +420,7 @@ else
                 var authResponse = await response.Content.ReadFromJsonAsync<GoogleAuthResponse>();
                 if (authResponse?.User != null)
                 {
-                    var user = await UserService.GetByApiKeyAsync(Guid.Parse(authResponse.User.ApiKey!));
+                    var user = await UserProfileService.GetByApiKeyAsync(Guid.Parse(authResponse.User.ApiKey!));
                     if (user.IsSuccess && user.Data != null)
                     {
                         await ApplyUserThemeAsync(user.Data);
@@ -502,7 +503,7 @@ else
                 return;
             }
 
-            var user = await UserService.GetByUsernameAsync(model.Username);
+            var user = await UserProfileService.GetByUsernameAsync(model.Username);
             if (user.IsSuccess && user.Data != null)
             {
                 await ApplyUserThemeAsync(user.Data);
@@ -540,7 +541,7 @@ else
             else
             {
                 user.PreferredTheme = null;
-                await UserService.UpdateAsync(user, user);
+                await UserProfileService.UpdateAsync(user, user);
             }
         }
 

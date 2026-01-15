@@ -47,6 +47,7 @@ public class RateLimitingIntegrationTests : IAsyncLifetime
                         ["Jwt:Key"] = new string('k', 64),
                         ["Jwt:Issuer"] = "melodee-tests",
                         ["Jwt:Audience"] = "melodee-tests",
+                        ["Security:OpenSubsonicSecretKey"] = new string('s', 32),
                         ["QuartzDisabled"] = "true",
                         // Set low limits for testing
                         ["RateLimiting:MelodeeApi:TokenLimit"] = "10",

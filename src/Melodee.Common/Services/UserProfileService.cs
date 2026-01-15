@@ -40,8 +40,8 @@ public sealed class UserProfileService(
     PlaylistService playlistService,
     PodcastService podcastService,
     IBus bus,
-    IPasswordHashService? passwordHashService = null,
-    IOpenSubsonicSecretProtector? openSubsonicSecretProtector = null)
+    IPasswordHashService passwordHashService,
+    IOpenSubsonicSecretProtector openSubsonicSecretProtector)
 : ServiceBase(logger, cacheManager, contextFactory), IUserProfileService
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:user:apikey:{0}";
@@ -58,8 +58,8 @@ public sealed class UserProfileService(
     private readonly PlaylistService _playlistService = playlistService;
     private readonly PodcastService _podcastService = podcastService;
     private readonly IBus _bus = bus;
-    private readonly IPasswordHashService? _passwordHashService = passwordHashService;
-    private readonly IOpenSubsonicSecretProtector? _openSubsonicSecretProtector = openSubsonicSecretProtector;
+    private readonly IPasswordHashService _passwordHashService = passwordHashService;
+    private readonly IOpenSubsonicSecretProtector _openSubsonicSecretProtector = openSubsonicSecretProtector;
 
     public IDbContextFactory<MelodeeDbContext> GetContextFactory() => ContextFactory;
 
@@ -591,9 +591,9 @@ public sealed class UserProfileService(
                 PasswordEncrypted =
                     EncryptionHelper.Encrypt(configuration.GetValue<string>(SettingRegistry.EncryptionPrivateKey)!,
                         plainTextPassword, usersPublicKey),
-                PasswordHash = _passwordHashService?.Hash(plainTextPassword),
-                PasswordHashAlgorithm = _passwordHashService != null ? "bcrypt" : null,
-                OpenSubsonicSecretProtected = _openSubsonicSecretProtector?.Protect(UserAuthenticationService.GenerateOpenSubsonicSecretStatic()),
+                PasswordHash = _passwordHashService.Hash(plainTextPassword),
+                PasswordHashAlgorithm = "bcrypt",
+                OpenSubsonicSecretProtected = _openSubsonicSecretProtector.Protect(UserAuthenticationService.GenerateOpenSubsonicSecretStatic()),
                 CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
             };
             scopedContext.Users.Add(newUser);

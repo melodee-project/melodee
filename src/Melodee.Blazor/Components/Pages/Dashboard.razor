@@ -12,7 +12,7 @@
 @using Request = Melodee.Common.Data.Models.Request
 @inherits MelodeeComponentBase
 
-@inject UserService UserService
+@inject IUserProfileService UserProfileService
 @inject ArtistService ArtistService
 @inject AlbumService AlbumService
 @inject StatisticsService StatisticsService
@@ -337,7 +337,7 @@
             }
         });
 
-        var userTask = UserService.GetAsync(CurrentUser?.UserId() ?? 0);
+        var userTask = UserProfileService.GetAsync(CurrentUser?.UserId() ?? 0);
         var kpiTask = StatisticsService.GetUserKpisAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
         var playsTask = StatisticsService.GetUserSongPlaysPerDayAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
         var topSongsTask = StatisticsService.GetUserTopPlayedSongsAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId, 10);

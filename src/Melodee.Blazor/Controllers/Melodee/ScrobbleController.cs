@@ -30,6 +30,7 @@ public class ScrobbleController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
+    IUserProfileService userProfileService,
     SongService songService,
     ScrobbleService scrobbleService,
     IConfiguration configuration,
@@ -79,7 +80,7 @@ public class ScrobbleController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -195,7 +196,7 @@ public class ScrobbleController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -231,7 +232,7 @@ public class ScrobbleController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

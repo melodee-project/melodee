@@ -13,6 +13,7 @@
 
 @inject ArtistService ArtistService
 @inject AlbumService AlbumService
+@inject IUserProfileService UserProfileService
 @inject UserService UserService
 @inject SettingService SettingService
 @inject NotificationService NotificationService
@@ -648,7 +649,7 @@
             {
                 _artist = artistResult.Data;
 
-                _userArtist = await UserService.UserArtistAsync(CurrentUsersId, _artist.ApiKey) ?? new UserArtist
+                _userArtist = await UserProfileService.UserArtistAsync(CurrentUsersId, _artist.ApiKey) ?? new UserArtist
                 {
                     UserId = 0,
                     ArtistId = 0,

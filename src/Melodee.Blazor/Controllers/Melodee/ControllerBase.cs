@@ -105,7 +105,7 @@ public abstract class ControllerBase(
         return resolved;
     }
 
-    protected async Task<Common.Data.Models.User?> ResolveUserAsync(UserService userService, CancellationToken cancellationToken)
+    protected async Task<Common.Data.Models.User?> ResolveUserAsync(IUserProfileService userProfileService, CancellationToken cancellationToken)
     {
         if (HttpContext.Items.TryGetValue(CachedUserKey, out var cachedUser) && cachedUser is Common.Data.Models.User cached)
         {
@@ -118,7 +118,7 @@ public abstract class ControllerBase(
             return null;
         }
 
-        var result = await userService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        var result = await userProfileService.GetByApiKeyAsync(apiKey, cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess || result.Data == null)
         {
             return null;

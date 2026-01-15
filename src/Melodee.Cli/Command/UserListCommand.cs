@@ -15,7 +15,7 @@ public class UserListCommand : CommandBase<UserListSettings>
     public override async Task<int> ExecuteAsync(CommandContext context, UserListSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
-        var userService = scope.ServiceProvider.GetRequiredService<UserService>();
+        var userProfileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
 
         var pagedRequest = new PagedRequest
         {
@@ -23,7 +23,7 @@ public class UserListCommand : CommandBase<UserListSettings>
             OrderBy = new Dictionary<string, string> { { "UserName", "ASC" } }
         };
 
-        var result = await userService.ListAsync(pagedRequest, cancellationToken);
+        var result = await userProfileService.ListAsync(pagedRequest, cancellationToken);
 
         if (!result.IsSuccess || result.Data == null || !result.Data.Any())
         {

@@ -240,6 +240,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             },
             MockConfigurationFactory(),
             GetUserService(),
+            GetUserAuthenticationService(),
+            GetUserProfileService(),
             GetArtistService(),
             GetAlbumService(),
             GetSongService(),
@@ -320,7 +322,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 
     protected SearchService GetSearchService()
     {
-        return new SearchService(Logger, CacheManager, MockFactory(), MockConfigurationFactory(), GetUserService(), GetArtistService(), GetAlbumService(), GetSongService(), GetPodcastService(), MockMusicBrainzRepository(), MockBus());
+        return new SearchService(Logger, CacheManager, MockFactory(), MockConfigurationFactory(), GetUserProfileService(), GetArtistService(), GetAlbumService(), GetSongService(), GetPodcastService(), MockMusicBrainzRepository(), MockBus());
     }
 
     protected PodcastService GetPodcastService()
@@ -439,6 +441,45 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         return mock.Object;
     }
 
+    protected IPasswordHashService MockPasswordHashService()
+    {
+        return new Mock<IPasswordHashService>().Object;
+    }
+
+    protected IOpenSubsonicSecretProtector MockOpenSubsonicSecretProtector()
+    {
+        return new Mock<IOpenSubsonicSecretProtector>().Object;
+    }
+
+    protected IUserProfileService GetUserProfileService()
+    {
+        return new UserProfileService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            GetLibraryService(),
+            GetArtistService(),
+            GetAlbumService(),
+            GetSongService(),
+            GetPlaylistService(),
+            GetPodcastService(),
+            MockBus(),
+            MockPasswordHashService(),
+            MockOpenSubsonicSecretProtector());
+    }
+
+    protected IUserAuthenticationService GetUserAuthenticationService()
+    {
+        return new UserAuthenticationService(
+            Logger,
+            MockPasswordHashService(),
+            MockOpenSubsonicSecretProtector(),
+            MockBus(),
+            GetUserProfileService(),
+            MockConfigurationFactory());
+    }
+
     protected UserService GetUserService()
     {
         return new UserService(
@@ -452,7 +493,9 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetSongService(),
             GetPlaylistService(),
             GetPodcastService(),
-            MockBus());
+            MockBus(),
+            GetUserAuthenticationService(),
+            GetUserProfileService());
     }
 
     protected IBus MockBus()
@@ -506,7 +549,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             Logger,
             CacheManager,
             MockFactory(),
-            GetUserService());
+            GetUserProfileService());
     }
 
     protected PodcastPlaybackService GetPodcastPlaybackService()

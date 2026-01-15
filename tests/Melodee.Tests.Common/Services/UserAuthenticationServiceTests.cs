@@ -34,22 +34,6 @@ public class UserAuthenticationServiceTests : ServiceTestBase
             configFactory ?? MockConfigurationFactory());
     }
 
-    private IUserProfileService GetUserProfileService()
-    {
-        return new UserProfileService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            GetArtistService(),
-            GetAlbumService(),
-            GetSongService(),
-            GetPlaylistService(),
-            GetPodcastService(),
-            MockBus());
-    }
-
     [Fact]
     public async Task LoginUserByUsernameAsync_WithValidCredentials_ReturnsUser()
     {

@@ -4,7 +4,7 @@
 @attribute [AllowAnonymous]
 
 @inject NavigationManager NavigationManager
-@inject UserService UserService
+@inject IUserProfileService UserProfileService
 @inject NotificationService NotificationService
 @inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject ILocalizationService LocalizationService
@@ -275,7 +275,7 @@
         _isLoading = true;
         try
         {
-            var result = await UserService.RegisterAsync(
+            var result = await UserProfileService.RegisterAsync(
                 model.Username ?? string.Empty,
                 model.EmailAddress ?? string.Empty,
                 model.Password ?? string.Empty,
