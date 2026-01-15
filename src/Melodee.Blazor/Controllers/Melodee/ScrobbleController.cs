@@ -30,7 +30,7 @@ public class ScrobbleController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     SongService songService,
     ScrobbleService scrobbleService,
     IConfiguration configuration,

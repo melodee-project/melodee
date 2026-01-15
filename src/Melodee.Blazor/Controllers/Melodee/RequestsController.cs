@@ -24,7 +24,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class RequestsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     RequestService requestService,
     RequestCommentService commentService,
     RequestActivityService activityService,

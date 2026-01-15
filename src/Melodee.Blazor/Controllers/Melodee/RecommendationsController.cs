@@ -28,7 +28,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class RecommendationsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     SongService songService,
     AlbumService albumService,
     ArtistService artistService,

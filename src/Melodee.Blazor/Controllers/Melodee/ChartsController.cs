@@ -25,7 +25,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class ChartsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     ChartService chartService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

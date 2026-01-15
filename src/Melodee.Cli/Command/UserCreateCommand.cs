@@ -14,7 +14,7 @@ public class UserCreateCommand : CommandBase<UserCreateSettings>
     public override async Task<int> ExecuteAsync(CommandContext context, UserCreateSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
-        var userProfileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
+        var userProfileService = scope.ServiceProvider.GetRequiredService<UserProfileService>();
 
         var existingUser = await userProfileService.GetByUsernameAsync(settings.Username, cancellationToken);
         if (existingUser.IsSuccess && existingUser.Data != null)

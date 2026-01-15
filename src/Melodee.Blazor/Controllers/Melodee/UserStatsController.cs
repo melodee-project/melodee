@@ -24,7 +24,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class UserStatsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     StatisticsService statisticsService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

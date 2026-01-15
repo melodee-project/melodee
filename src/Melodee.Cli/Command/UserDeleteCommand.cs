@@ -14,7 +14,7 @@ public class UserDeleteCommand : CommandBase<UserDeleteSettings>
     public override async Task<int> ExecuteAsync(CommandContext context, UserDeleteSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
-        var userProfileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
+        var userProfileService = scope.ServiceProvider.GetRequiredService<UserProfileService>();
 
         var userResult = await userProfileService.GetAsync(settings.UserId, cancellationToken);
         if (!userResult.IsSuccess || userResult.Data == null)

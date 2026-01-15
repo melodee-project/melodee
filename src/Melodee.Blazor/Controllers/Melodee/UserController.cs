@@ -31,7 +31,7 @@ public class UserController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     SongService songService,
     AlbumService albumService,
     ArtistService artistService,

@@ -451,7 +451,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         return new Mock<IOpenSubsonicSecretProtector>().Object;
     }
 
-    protected IUserProfileService GetUserProfileService()
+    protected UserProfileService GetUserProfileService()
     {
         return new UserProfileService(
             Logger,
@@ -469,7 +469,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             MockOpenSubsonicSecretProtector());
     }
 
-    protected IUserAuthenticationService GetUserAuthenticationService()
+    protected UserAuthenticationService GetUserAuthenticationService()
     {
         return new UserAuthenticationService(
             Logger,

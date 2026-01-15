@@ -24,7 +24,7 @@ public sealed class SearchService(
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IMelodeeConfigurationFactory configurationFactory,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     ArtistService artistService,
     AlbumService albumService,
     SongService songService,

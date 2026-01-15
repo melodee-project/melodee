@@ -24,7 +24,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class SmartPlaylistsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     ISmartPlaylistService smartPlaylistService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

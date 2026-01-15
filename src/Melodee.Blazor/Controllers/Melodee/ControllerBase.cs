@@ -105,7 +105,7 @@ public abstract class ControllerBase(
         return resolved;
     }
 
-    protected async Task<Common.Data.Models.User?> ResolveUserAsync(IUserProfileService userProfileService, CancellationToken cancellationToken)
+    protected async Task<Common.Data.Models.User?> ResolveUserAsync(UserProfileService userProfileService, CancellationToken cancellationToken)
     {
         if (HttpContext.Items.TryGetValue(CachedUserKey, out var cachedUser) && cachedUser is Common.Data.Models.User cached)
         {

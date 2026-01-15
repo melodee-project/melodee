@@ -27,7 +27,7 @@ public class UsersController(
     IDbContextFactory<MelodeeDbContext> dbContextFactory,
     IClock clock,
     ILoggerFactory loggerFactory,
-    IUserAuthenticationService userAuthenticationService,
+    UserAuthenticationService userAuthenticationService,
     ILogger<UsersController> logger) : JellyfinControllerBase(etagRepository, serializer, configuration, configurationFactory, dbContextFactory, clock, loggerFactory)
 {
     /// <summary>

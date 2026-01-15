@@ -24,7 +24,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class QueueController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     UserQueueService userQueueService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

@@ -124,12 +124,12 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<PlaylistService>();
         services.AddScoped<PodcastService>();
         services.AddScoped<UserService>();
-        services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
-        services.AddScoped<IUserProfileService, UserProfileService>();
+        services.AddScoped<UserAuthenticationService>();
+        services.AddScoped<UserProfileService>();
         services.AddSingleton<IPasswordHashService, PasswordHashService>();
         services.AddSingleton<IOpenSubsonicSecretProtector, OpenSubsonicSecretProtector>();
         services.AddScoped<UserQueueService>();
-        services.AddScoped<IArtistDuplicateFinder, ArtistDuplicateFinder>();
+        services.AddScoped<ArtistDuplicateFinder>();
         services.AddSingleton<ISsrfValidator, SsrfValidator>();
         services.AddSingleton<PodcastHttpClient>();
         services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();

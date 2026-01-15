@@ -9,6 +9,130 @@ applyTo: '**/*.cs'
 
 This project uses .NET's built-in dependency injection. All services must be properly registered and injected - never manually instantiated within consuming classes.
 
+## Concrete Classes vs Interfaces for Melodee.Common.Services
+
+### Prefer Concrete Classes Over Interfaces
+
+**IMPORTANT**: For internal application services in `Melodee.Common.Services`, prefer injecting concrete classes directly rather than creating interfaces.
+
+✅ **PREFERRED - Concrete Class:**
+```csharp
+// Service definition - no interface needed
+public class UserService
+{
+    public UserService(
+        ILogger logger,
+        AlbumService albumService,      // Concrete class
+        SongService songService)        // Concrete class
+    {
+        _albumService = albumService;
+        _songService = songService;
+    }
+}
+
+// DI Registration
+services.AddScoped<UserService>();
+services.AddScoped<AlbumService>();
+services.AddScoped<SongService>();
+```
+
+❌ **AVOID - Unnecessary Interface:**
+```csharp
+// Don't create interfaces for single-implementation internal services
+public interface IUserService { /* mirrors UserService exactly */ }
+public class UserService : IUserService { }
+
+services.AddScoped<IUserService, UserService>();  // Unnecessary abstraction
+```
+
+### When Interfaces ARE Appropriate
+
+Create interfaces only when there's a genuine reason:
+
+| Use Interface When | Example |
+|-------------------|---------|
+| Multiple implementations exist | `ISerializer` → `JsonSerializer`, `XmlSerializer` |
+| External plugin/extension point | `ILyricPlugin`, `IMetaTagPlugin` |
+| .NET framework requirement | `IHostedService`, `IDisposable` |
+| Genuinely different behaviors | `IPasswordHashService` (could have Argon2, BCrypt variants) |
+| Third-party library contracts | `ILogger<T>`, `IConfiguration` |
+
+### Why Concrete Classes for Internal Services?
+
+1. **KISS Principle**: One class = one file to maintain, not two
+2. **IDE Navigation**: Go directly to implementation, no extra hop
+3. **Refactoring**: Change one file, not interface + implementation
+4. **Honest Design**: Interface with single implementation is speculative abstraction
+5. **Testing**: Modern .NET supports mocking concrete classes with virtual methods, or use real services with in-memory databases
+
+### Services Using Concrete Classes (No Interfaces)
+
+These `Melodee.Common.Services` classes are registered directly without interfaces:
+
+- `UserService`
+- `UserProfileService`
+- `UserAuthenticationService`
+- `UserQueueService`
+- `AlbumService`
+- `ArtistService`
+- `ArtistDuplicateFinder`
+- `SongService`
+- `LibraryService`
+- `PlaylistService`
+- `PodcastService`
+- `StatisticsService`
+- `ScrobbleService`
+- `PartySessionService`
+- `PartyQueueService`
+- `PartyPlaybackService`
+- `PartySessionEndpointRegistryService`
+
+### Existing Interfaces That Are Appropriate
+
+These interfaces are justified because they represent genuine abstractions:
+
+- `ISerializer` - Multiple formats (JSON, XML)
+- `IPasswordHashService` - Security implementations may vary
+- `IOpenSubsonicSecretProtector` - Security abstraction
+- `IMelodeeConfigurationFactory` - Configuration abstraction
+- `IBlacklistService` - Could have different storage backends
+- `IPartyNotificationService` - Cross-project abstraction (defined in Common, implemented in Blazor)
+- `ICacheManager` - Infrastructure abstraction with factory pattern
+- `IFileSystemService` - Infrastructure/testability abstraction
+- `IPlaybackBackend` - Plugin/extension interface
+- Plugin interfaces (`ILyricPlugin`, `IMetaTagPlugin`, etc.)
+
+### Testing Without Interfaces
+
+**Option 1: Use Real Services with In-Memory Database (Preferred)**
+```csharp
+[Fact]
+public async Task GetUser_WithValidId_ReturnsUser()
+{
+    // Real service, real behavior, in-memory database
+    var userService = new UserService(
+        logger,
+        inMemoryDbContextFactory,
+        configFactory,
+        /* real dependencies */);
+    
+    var result = await userService.GetAsync(1);
+    Assert.True(result.IsSuccess);
+}
+```
+
+**Option 2: Virtual Methods for Partial Mocking**
+```csharp
+public class UserService
+{
+    public virtual async Task<User?> GetAsync(int id) { /* ... */ }
+}
+
+// In tests - mock specific methods if needed
+var mockService = Substitute.ForPartsOf<UserService>(/* args */);
+mockService.GetAsync(Arg.Any<int>()).Returns(testUser);
+```
+
 ## CRITICAL RULES - NEVER VIOLATE
 
 ### 1. NEVER Use Nullable Constructor Parameters for Dependencies
@@ -21,8 +145,8 @@ public class UserService
 {
     public UserService(
         ILogger logger,
-        IPasswordHashService? passwordHashService = null,  // WRONG!
-        IEmailService? emailService = null)                // WRONG!
+        PasswordHashService? passwordHashService = null,  // WRONG!
+        EmailService? emailService = null)                // WRONG!
     {
         // Creating fallback instances - NEVER DO THIS
         _passwordHashService = passwordHashService ?? new PasswordHashService();
@@ -37,8 +161,8 @@ public class UserService
 {
     public UserService(
         ILogger logger,
-        IPasswordHashService passwordHashService,  // Required, non-nullable
-        IEmailService emailService)                // Required, non-nullable
+        PasswordHashService passwordHashService,  // Required, non-nullable
+        EmailService emailService)                // Required, non-nullable
     {
         _passwordHashService = passwordHashService;
         _emailService = emailService;
@@ -49,7 +173,7 @@ public class UserService
 **Why?**:
 - Nullable dependencies hide the true requirements of a class
 - Manual instantiation violates the Dependency Inversion Principle
-- Makes unit testing difficult - can't easily mock dependencies
+- Makes unit testing difficult - can't easily substitute dependencies
 - Creates hidden coupling between classes
 - DI container should fail fast if a service isn't registered
 
@@ -61,9 +185,9 @@ public class UserService
 ```csharp
 public class OrderService
 {
-    private readonly IPaymentService _paymentService;
+    private readonly PaymentService _paymentService;
     
-    public OrderService(IPaymentService? paymentService = null)
+    public OrderService(PaymentService? paymentService = null)
     {
         // WRONG: Manual instantiation
         _paymentService = paymentService ?? new PaymentService(
@@ -78,16 +202,16 @@ public class OrderService
 ```csharp
 public class OrderService
 {
-    private readonly IPaymentService _paymentService;
+    private readonly PaymentService _paymentService;
     
-    public OrderService(IPaymentService paymentService)
+    public OrderService(PaymentService paymentService)
     {
         _paymentService = paymentService;
     }
 }
 
 // In Program.cs or service registration:
-services.AddScoped<IPaymentService, PaymentService>();
+services.AddScoped<PaymentService>();
 services.AddScoped<OrderService>();
 ```
 
@@ -99,7 +223,7 @@ services.AddScoped<OrderService>();
 
 ### 3. ALL Services Must Be Registered in DI Container
 
-**ABSOLUTE RULE**: Every service interface and implementation must be registered in the DI composition roots.
+**ABSOLUTE RULE**: Every service must be registered in the DI composition roots.
 
 **Melodee has TWO composition roots that must be kept in sync:**
 
@@ -112,10 +236,10 @@ When adding a new service to `Melodee.Common.Services`, you **MUST** register it
 
 ```csharp
 // In BOTH Program.cs (Blazor) AND CommandBase.cs (CLI)
-services.AddScoped<IPasswordHashService, PasswordHashService>();
-services.AddScoped<IOpenSubsonicSecretProtector, OpenSubsonicSecretProtector>();
-services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
-services.AddScoped<IUserProfileService, UserProfileService>();
+services.AddScoped<UserService>();
+services.AddScoped<AlbumService>();
+services.AddScoped<ArtistService>();
+services.AddSingleton<IPasswordHashService, PasswordHashService>();  // Interface justified
 ```
 
 **Why both?**
@@ -131,9 +255,9 @@ services.AddScoped<IUserProfileService, UserProfileService>();
 ```csharp
 public class UserService
 {
-    private readonly IPasswordHashService _passwordHashService;
+    private readonly PasswordHashService _passwordHashService;
     
-    public UserService(IPasswordHashService passwordHashService)
+    public UserService(PasswordHashService passwordHashService)
     {
         _passwordHashService = Guard.Against.Null(passwordHashService);
     }
@@ -159,68 +283,8 @@ public class UserService
 ```csharp
 // Examples
 services.AddSingleton<ICacheManager, CacheManager>();
-services.AddScoped<IUserService, UserService>();
+services.AddScoped<UserService>();
 services.AddTransient<IPasswordHashService, PasswordHashService>();
-```
-
-## Interface Segregation
-
-### Define Interfaces for All Services
-
-Every service should have an interface:
-
-```csharp
-// Interface in Melodee.Common/Services/Interfaces or alongside the service
-public interface IPasswordHashService
-{
-    string Hash(string password);
-    bool Verify(string password, string hash);
-}
-
-// Implementation
-public sealed class PasswordHashService : IPasswordHashService
-{
-    public string Hash(string password) { /* ... */ }
-    public bool Verify(string password, string hash) { /* ... */ }
-}
-```
-
-### Inject Interfaces, Not Implementations
-
-❌ **AVOID:**
-```csharp
-public UserService(PasswordHashService passwordHashService)  // Concrete type
-```
-
-✅ **PREFER:**
-```csharp
-public UserService(IPasswordHashService passwordHashService)  // Interface
-```
-
-## Testing Implications
-
-Proper DI enables easy mocking:
-
-```csharp
-[Fact]
-public async Task LoginUser_WithValidPassword_ReturnsUser()
-{
-    // Arrange
-    var mockPasswordHash = Substitute.For<IPasswordHashService>();
-    mockPasswordHash.Verify(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-    
-    var service = new UserAuthenticationService(
-        logger,
-        mockPasswordHash,  // Easy to mock when not nullable
-        mockSecretProtector,
-        bus,
-        userProfileService,
-        configFactory);
-    
-    // Act & Assert
-    var result = await service.LoginUserAsync("test@test.com", "password");
-    Assert.True(result.IsSuccess);
-}
 ```
 
 ## Code Review Checklist
@@ -232,11 +296,19 @@ Before approving any PR, verify:
 - [ ] All new services are registered in **BOTH** DI composition roots:
   - [ ] `src/Melodee.Blazor/Program.cs`
   - [ ] `src/Melodee.Cli/Command/CommandBase.cs`
-- [ ] Services depend on interfaces, not concrete implementations
+- [ ] Concrete classes used for single-implementation internal services
+- [ ] Interfaces only created when genuinely needed (multiple implementations, plugins, external contracts)
 - [ ] Appropriate lifetime (Singleton/Scoped/Transient) is chosen
 - [ ] Guard clauses used for constructor parameters where appropriate
 
 ## Common Anti-Patterns to Reject
+
+### Speculative Interface
+```csharp
+// WRONG: Interface with single implementation "just in case"
+public interface IUserService { /* exact copy of UserService */ }
+public class UserService : IUserService { }
+```
 
 ### Service Locator Pattern
 ```csharp
@@ -245,7 +317,7 @@ public class BadService
 {
     public void DoWork()
     {
-        var service = ServiceLocator.Get<IPasswordHashService>();  // Anti-pattern!
+        var service = ServiceLocator.Get<UserService>();  // Anti-pattern!
     }
 }
 ```
@@ -265,36 +337,26 @@ public class BadService
 ### Optional Dependencies via Null
 ```csharp
 // WRONG: Don't make dependencies optional
-public BadService(ILogger logger, ICache? cache = null)
+public BadService(ILogger logger, AlbumService? albumService = null)
 {
-    _cache = cache;  // Now you need null checks everywhere
+    _albumService = albumService;  // Now you need null checks everywhere
 }
 ```
 
-## Migration Strategy for Existing Code
-
-When fixing existing nullable DI patterns:
-
-1. Register the service in **BOTH** DI composition roots:
-   - `src/Melodee.Blazor/Program.cs`
-   - `src/Melodee.Cli/Command/CommandBase.cs`
-2. Remove the `?` and `= null` from constructor parameter
-3. Remove any fallback instantiation code (`?? new ServiceName()`)
-4. Remove null checks when using the service
-5. Update all callers if manually constructing the service
-6. Add/update unit tests to verify proper injection
-
 ## Summary
 
-**The Golden Rule**: 
-> If a class needs a service to function, that service must be a required constructor parameter and registered in the DI container. No exceptions.
+**The Golden Rules**: 
+> 1. If a class needs a service to function, that service must be a required constructor parameter and registered in the DI container.
+> 2. Use concrete classes for internal single-implementation services. Interfaces are for genuine abstractions.
 
-**Three Cardinal Sins**:
+**Four Cardinal Sins**:
 1. ❌ Nullable service parameters with defaults
 2. ❌ Manual `new Service()` inside constructors
 3. ❌ Service locator or static service access
+4. ❌ Creating interfaces for single-implementation internal services
 
 **Always Remember**:
 - DI container is the single source of truth for service resolution
 - Constructor parameters declare the contract - make dependencies explicit
-- Fail fast at startup if dependencies aren't registered, not at runtime with NullReferenceException
+- Fail fast at startup if dependencies aren't registered
+- Interfaces should earn their place - don't create them speculatively

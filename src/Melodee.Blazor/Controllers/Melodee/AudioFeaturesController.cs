@@ -28,7 +28,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class AudioFeaturesController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     SongService songService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

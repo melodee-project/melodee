@@ -24,14 +24,14 @@ public sealed class UserAuthenticationService(
     IPasswordHashService passwordHashService,
     IOpenSubsonicSecretProtector openSubsonicSecretProtector,
     IBus bus,
-    IUserProfileService userProfileService,
-    IMelodeeConfigurationFactory configurationFactory) : IUserAuthenticationService
+    UserProfileService userProfileService,
+    IMelodeeConfigurationFactory configurationFactory)
 {
     private readonly ILogger _logger = logger;
     private readonly IPasswordHashService _passwordHashService = passwordHashService;
     private readonly IOpenSubsonicSecretProtector _openSubsonicSecretProtector = openSubsonicSecretProtector;
     private readonly IBus _bus = bus;
-    private readonly IUserProfileService _userProfileService = userProfileService;
+    private readonly UserProfileService _userProfileService = userProfileService;
     private readonly IMelodeeConfigurationFactory _configurationFactory = configurationFactory;
 
     /// <summary>

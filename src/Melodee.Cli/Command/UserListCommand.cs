@@ -15,7 +15,7 @@ public class UserListCommand : CommandBase<UserListSettings>
     public override async Task<int> ExecuteAsync(CommandContext context, UserListSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
-        var userProfileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
+        var userProfileService = scope.ServiceProvider.GetRequiredService<UserProfileService>();
 
         var pagedRequest = new PagedRequest
         {

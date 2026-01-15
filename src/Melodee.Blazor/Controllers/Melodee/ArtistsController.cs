@@ -35,7 +35,7 @@ public sealed class ArtistsController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     ArtistService artistService,
     AlbumService albumService,
     SongService songService,

@@ -20,7 +20,7 @@ public class UserQueueService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    IUserProfileService userProfileService)
+    UserProfileService userProfileService)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     public async Task<PlayQueue?> GetPlayQueueForUserAsync(string username,

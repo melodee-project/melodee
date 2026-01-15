@@ -25,7 +25,7 @@ public class ArtistFindDuplicatesCommand : CommandBase<ArtistFindDuplicatesSetti
         }
 
         using var scope = CreateServiceProvider().CreateScope();
-        var duplicateFinder = scope.ServiceProvider.GetRequiredService<IArtistDuplicateFinder>();
+        var duplicateFinder = scope.ServiceProvider.GetRequiredService<ArtistDuplicateFinder>();
 
         var criteria = new ArtistDuplicateSearchCriteria(
             MinScore: settings.MinScore,

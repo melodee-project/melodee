@@ -40,7 +40,7 @@ public class SongsController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     SongService songService,
     StreamingLimiter streamingLimiter,
     IConfiguration configuration,

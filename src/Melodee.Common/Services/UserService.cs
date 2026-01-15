@@ -36,8 +36,8 @@ public sealed class UserService : ServiceBase
     private const string CacheKeyDetailByUsernameTemplate = "urn:user:username:{0}";
     private const string CacheKeyDetailTemplate = "urn:user:{0}";
 
-    private readonly IUserAuthenticationService _userAuthenticationService;
-    private readonly IUserProfileService _userProfileService;
+    private readonly UserAuthenticationService _userAuthenticationService;
+    private readonly UserProfileService _userProfileService;
     private readonly LibraryService _libraryService;
     private readonly ArtistService _artistService;
     private readonly AlbumService _albumService;
@@ -59,8 +59,8 @@ public sealed class UserService : ServiceBase
         PlaylistService playlistService,
         PodcastService podcastService,
         IBus bus,
-        IUserAuthenticationService userAuthenticationService,
-        IUserProfileService userProfileService)
+        UserAuthenticationService userAuthenticationService,
+        UserProfileService userProfileService)
         : base(logger, cacheManager, contextFactory)
     {
         _libraryService = libraryService;

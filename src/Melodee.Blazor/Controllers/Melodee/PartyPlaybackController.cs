@@ -4,6 +4,7 @@ using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
+using Melodee.Common.Enums.PartyMode;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
@@ -26,8 +27,8 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PartyPlaybackController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IPartySessionService partySessionService,
-    IPartyPlaybackService partyPlaybackService,
+    PartySessionService partySessionService,
+    PartyPlaybackService partyPlaybackService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,

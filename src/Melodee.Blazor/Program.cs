@@ -518,8 +518,8 @@ builder.Services
     .AddScoped<ScrobbleService>()
     .AddScoped<LibraryService>()
     .AddScoped<UserService>()
-    .AddScoped<IUserAuthenticationService, UserAuthenticationService>()
-    .AddScoped<IUserProfileService, UserProfileService>()
+    .AddScoped<UserAuthenticationService>()
+    .AddScoped<UserProfileService>()
     .AddSingleton<IPasswordHashService, PasswordHashService>()
     .AddSingleton<IOpenSubsonicSecretProtector, OpenSubsonicSecretProtector>()
     .AddScoped<AlbumDiscoveryService>()
@@ -555,11 +555,11 @@ builder.Services
     .AddScoped<PodcastPlaybackService>()
     .AddScoped<PodcastOpmlService>()
     .AddScoped<PodcastDiscoveryService>()
-    .AddScoped<IPartySessionService, PartySessionService>()
-    .AddScoped<IPartyQueueService, PartyQueueService>()
-    .AddScoped<IPartyPlaybackService, PartyPlaybackService>()
+    .AddScoped<PartySessionService>()
+    .AddScoped<PartyQueueService>()
+    .AddScoped<PartyPlaybackService>()
     .AddScoped<IPartyNotificationService, PartyNotificationService>()
-    .AddScoped<IPartySessionEndpointRegistryService, PartySessionEndpointRegistryService>();
+    .AddScoped<PartySessionEndpointRegistryService>();
 
 // Configure HttpClient for podcast discovery
 builder.Services.AddHttpClient("PodcastDiscovery", client =>

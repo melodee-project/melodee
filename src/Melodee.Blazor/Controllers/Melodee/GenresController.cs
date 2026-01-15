@@ -25,7 +25,7 @@ public sealed class GenresController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     AlbumService albumService,
     SongService songService,
     IConfiguration configuration,

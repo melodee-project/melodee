@@ -28,7 +28,7 @@ public enum UserCapability
 /// Centralizes authentication, blacklist, lock, and capability enforcement for Melodee API controllers.
 /// </summary>
 public sealed class MelodeeApiAuthFilter(
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     IBlacklistService blacklistService,
     ILogger<MelodeeApiAuthFilter> logger) : IAsyncActionFilter
 {

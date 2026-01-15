@@ -28,7 +28,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class EqualizerPresetsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     EqualizerPresetService equalizerPresetService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

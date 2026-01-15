@@ -42,7 +42,7 @@ public sealed class UserProfileService(
     IBus bus,
     IPasswordHashService passwordHashService,
     IOpenSubsonicSecretProtector openSubsonicSecretProtector)
-: ServiceBase(logger, cacheManager, contextFactory), IUserProfileService
+: ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:user:apikey:{0}";
     private const string CacheKeyDetailByEmailAddressKeyTemplate = "urn:user:emailaddress:{0}";

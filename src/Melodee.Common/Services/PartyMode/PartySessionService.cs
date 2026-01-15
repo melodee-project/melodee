@@ -23,7 +23,7 @@ public sealed class PartySessionService(
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IMelodeeConfigurationFactory configurationFactory,
     IPartyNotificationService notificationService)
-    : ServiceBase(logger, cacheManager, contextFactory), IPartySessionService
+    : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string SessionCacheKeyTemplate = "urn:party:session:{0}";
     private readonly IPartyNotificationService _notificationService = notificationService;

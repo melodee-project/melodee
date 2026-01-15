@@ -27,7 +27,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class PlaybackSettingsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     PlaybackSettingsService playbackSettingsService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(

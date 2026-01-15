@@ -19,7 +19,7 @@ namespace Melodee.Tests.Common.Services;
 public class UserAuthenticationServiceTests : ServiceTestBase
 {
     private UserAuthenticationService CreateUserAuthenticationService(
-        IUserProfileService? userProfileService = null,
+        UserProfileService? userProfileService = null,
         IMelodeeConfigurationFactory? configFactory = null,
         IBus? bus = null,
         IPasswordHashService? passwordHashService = null,

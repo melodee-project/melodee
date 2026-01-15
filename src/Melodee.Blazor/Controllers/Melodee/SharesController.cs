@@ -27,7 +27,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class SharesController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     ShareService shareService,
     ArtistService artistService,
     AlbumService albumService,

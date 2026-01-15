@@ -39,7 +39,7 @@ public class UserServiceTests : ServiceTestBase
             CreateUserProfileService(actualConfigFactory, actualBus));
     }
 
-    private IUserProfileService CreateUserProfileService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
+    private UserProfileService CreateUserProfileService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
     {
         var actualConfigFactory = configFactory ?? MockConfigurationFactory();
         var actualBus = bus ?? MockBus();
@@ -60,7 +60,7 @@ public class UserServiceTests : ServiceTestBase
             MockOpenSubsonicSecretProtector());
     }
 
-    private IUserAuthenticationService CreateUserAuthenticationService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
+    private UserAuthenticationService CreateUserAuthenticationService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
     {
         var actualConfigFactory = configFactory ?? MockConfigurationFactory();
         var actualBus = bus ?? MockBus();

@@ -24,7 +24,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class ArtistLookupController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     ArtistSearchEngineService artistSearchEngineService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,

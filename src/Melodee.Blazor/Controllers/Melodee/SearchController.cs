@@ -31,7 +31,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class SearchController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     SearchService searchService,
     SongService songService,
     AlbumService albumService,

@@ -32,7 +32,7 @@ public sealed class AlbumsController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     AlbumService albumService,
     IBlacklistService blacklistService,
     IConfiguration configuration,

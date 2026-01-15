@@ -25,7 +25,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PodcastsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IUserProfileService userProfileService,
+    UserProfileService userProfileService,
     PodcastService podcastService,
     PodcastPlaybackService? podcastPlaybackService,
     PodcastOpmlService? podcastOpmlService,
