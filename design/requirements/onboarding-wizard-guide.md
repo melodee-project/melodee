@@ -18,7 +18,7 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 5 — Implement onboarding wizard UI skeleton (COMPLETED)
 - [x] Phase 6 — Implement wizard steps (branding, security, paths, admin) (COMPLETED)
 - [x] Phase 7 — Download checklist + final verification (COMPLETED)
-- [ ] Phase 8 — Admin Dashboard JSON export/import
+- [x] Phase 8 — Admin Dashboard JSON export/import (COMPLETED)
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
 - [ ] Phase 10 — Tests + "definition of done" hardening
 ~~~~
@@ -26,7 +26,7 @@ definition-of-done criteria to minimize design work during implementation.
 
 ## Phase 0 — Baseline + inventory required items (COMPLETED)
 
-### Deliverables
+### Deliverables~~~~
 - [x] Create a definitive list of:
   - [x] required Settings keys (blocking) for onboarding completion~~~~
   - [x] required library types (blocking) for onboarding completion
@@ -371,6 +371,31 @@ Checklist includes:
 - The import reports counts of updated/added/skipped items with reasons.
 - Import is transactional (all changes apply or none apply).
 - Schema version mismatches are rejected with clear error message.
+
+**Implementation**: Created shared import/export services and updated Admin Dashboard:
+
+- Created `src/Melodee.Common/Services/SystemExportService.cs`: Shared export service that generates JSON with schema version, exported timestamp, settings (sorted by key), and libraries (sorted by type then name)
+- Created `src/Melodee.Common/Services/SystemImportService.cs`: Shared import service for transactional import of settings and libraries (already created in Phase 6)
+- Updated `src/Melodee.Cli/Command/BackupExportCommand.cs`: Refactored to use shared SystemExportService
+- Updated `src/Melodee.Blazor/Components/Pages/Admin/Dashboard.razor`: Added export/import section with:
+  - Export button with warning about secrets
+  - File upload for JSON import with schema version validation
+  - Preview showing settings and libraries count
+  - Options: overwrite existing values, skip null values
+  - Import summary with skipped reasons
+
+Export format:
+- Schema version: "1.0"
+- Exported timestamp (UTC ISO 8601)
+- Settings: key, value, comment, category (sorted alphabetically by key)
+- Libraries: name, type, path, apiKey, description (sorted by type then name)
+
+Import behavior:
+- Validates schema version (rejects mismatch)
+- Skips settings set via environment variables
+- Skips locked settings/libraries
+- Reports skipped reasons for each skipped item
+- Wraps all changes in database transaction
 
 ---
 

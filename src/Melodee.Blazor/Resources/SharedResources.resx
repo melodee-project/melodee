@@ -2687,6 +2687,66 @@
   <data name="AdminDashboard.APIDocs" xml:space="preserve">
     <value>API Docs</value>
   </data>
+  <data name="AdminDashboard.ConfigurationImportExport" xml:space="preserve">
+    <value>Configuration Import/Export</value>
+  </data>
+  <data name="AdminDashboard.ExportMayContainSecrets" xml:space="preserve">
+    <value>Export file may contain sensitive settings like API keys. Handle with care.</value>
+  </data>
+  <data name="AdminDashboard.ExportConfiguration" xml:space="preserve">
+    <value>Export Configuration</value>
+  </data>
+  <data name="AdminDashboard.ChooseFile" xml:space="preserve">
+    <value>Choose File</value>
+  </data>
+  <data name="AdminDashboard.ImportPreview" xml:space="preserve">
+    <value>Import Preview</value>
+  </data>
+  <data name="AdminDashboard.SettingsCount" xml:space="preserve">
+    <value>Settings: {0}</value>
+  </data>
+  <data name="AdminDashboard.LibrariesCount" xml:space="preserve">
+    <value>Libraries: {0}</value>
+  </data>
+  <data name="AdminDashboard.ImportContainsSecrets" xml:space="preserve">
+    <value>Import contains sensitive settings. These will be imported as-is.</value>
+  </data>
+  <data name="AdminDashboard.OverwriteExisting" xml:space="preserve">
+    <value>Overwrite existing values</value>
+  </data>
+  <data name="AdminDashboard.SkipNullValues" xml:space="preserve">
+    <value>Skip null values</value>
+  </data>
+  <data name="AdminDashboard.ApplyImport" xml:space="preserve">
+    <value>Apply Import</value>
+  </data>
+  <data name="AdminDashboard.ExportSuccess" xml:space="preserve">
+    <value>Exported {0} settings and {1} libraries</value>
+  </data>
+  <data name="AdminDashboard.ExportError" xml:space="preserve">
+    <value>Export failed: {0}</value>
+  </data>
+  <data name="AdminDashboard.ImportPreviewReady" xml:space="preserve">
+    <value>Ready to import {0} settings and {1} libraries</value>
+  </data>
+  <data name="AdminDashboard.ImportSchemaMismatch" xml:space="preserve">
+    <value>Schema version mismatch. Expected 1.0, got {0}</value>
+  </data>
+  <data name="AdminDashboard.ImportInvalid" xml:space="preserve">
+    <value>Invalid import file</value>
+  </data>
+  <data name="AdminDashboard.ImportSuccess" xml:space="preserve">
+    <value>Imported {0} settings and {1} libraries</value>
+  </data>
+  <data name="AdminDashboard.ImportFailed" xml:space="preserve">
+    <value>Import failed</value>
+  </data>
+  <data name="AdminDashboard.SkippedReasons" xml:space="preserve">
+    <value>Skipped items</value>
+  </data>
+  <data name="AdminDashboard.ImportError" xml:space="preserve">
+    <value>Import error: {0}</value>
+  </data>
   <data name="AdminJobs.PageTitle" xml:space="preserve">
     <value>Background Jobs</value>
   </data>

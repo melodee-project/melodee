@@ -5,6 +5,8 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
+using Melodee.Common.Services;
+using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -14,39 +16,27 @@ namespace Melodee.Cli.Command;
 
 public sealed class BackupExportCommand : CommandBase<BackupExportSettings>
 {
-    private static readonly string[] SecretPatterns = { "secret", "token", "password" };
-
     public override async Task<int> ExecuteAsync(CommandContext context, BackupExportSettings settings, CancellationToken cancellationToken)
     {
         var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
+        var logger = scope.ServiceProvider.GetRequiredService<Serilog.ILogger>();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();
+        var cacheManager = scope.ServiceProvider.GetRequiredService<ICacheManager>();
+        var configFactory = scope.ServiceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
 
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var exportService = new SystemExportService(logger, cacheManager, configFactory, dbFactory);
+        var result = await exportService.ExportAsync(settings.RedactSecrets, cancellationToken);
 
-        var settingsList = await db.Settings
-            .OrderBy(s => s.Key)
-            .ToListAsync(cancellationToken);
-
-        var librariesList = await db.Libraries
-            .OrderBy(l => l.Type)
-            .ThenBy(l => l.Name)
-            .ToListAsync(cancellationToken);
-
-        var exportData = CreateExportData(settingsList, librariesList, settings.RedactSecrets);
-
-        var jsonOptions = new JsonSerializerOptions
+        if (!result.Success)
         {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
-
-        var json = JsonSerializer.Serialize(exportData, jsonOptions);
+            AnsiConsole.MarkupLine($"[red]Error: {result.ErrorMessage}[/]");
+            return 1;
+        }
 
         if (settings.WriteToStdout || settings.ReturnRaw)
         {
-            Console.WriteLine(json);
+            Console.WriteLine(result.Json);
             return 0;
         }
 
@@ -58,80 +48,13 @@ public sealed class BackupExportCommand : CommandBase<BackupExportSettings>
                 Directory.CreateDirectory(outputDir);
             }
 
-            await File.WriteAllTextAsync(settings.OutputPath, json, cancellationToken);
+            await File.WriteAllTextAsync(settings.OutputPath, result.Json!, cancellationToken);
             AnsiConsole.MarkupLine($"[green]Export written to:[/] {settings.OutputPath}");
-            AnsiConsole.MarkupLine($"[grey]Settings: {settingsList.Count}, Libraries: {librariesList.Count}[/]");
+            AnsiConsole.MarkupLine($"[grey]Settings: {result.SettingsCount}, Libraries: {result.LibrariesCount}[/]");
             return 0;
         }
 
         AnsiConsole.MarkupLine("[yellow]No output specified. Use --output <path> or --stdout.[/]");
         return 1;
-    }
-
-    private static object CreateExportData(List<Setting> settings, List<Library> libraries, bool redactSecrets)
-    {
-        var exportedSettings = settings.Select(s => new ExportedSetting
-        {
-            Key = s.Key,
-            Value = ShouldRedact(s.Key) && redactSecrets ? "[REDACTED]" : s.Value,
-            Comment = s.Comment,
-            Category = s.Category
-        }).ToList();
-
-        var exportedLibraries = libraries.Select(l => new ExportedLibrary
-        {
-            Name = l.Name,
-            Type = l.TypeValue.ToString(),
-            Path = l.Path,
-            ApiKey = l.ApiKey.ToString(),
-            Description = l.Description
-        }).ToList();
-
-        return new
-        {
-            schemaVersion = "1.0",
-            exportedAt = DateTime.UtcNow.ToString("O"),
-            settings = exportedSettings,
-            libraries = exportedLibraries
-        };
-    }
-
-    private static bool ShouldRedact(string key)
-    {
-        var lowerKey = key.ToLowerInvariant();
-        return SecretPatterns.Any(pattern => lowerKey.Contains(pattern));
-    }
-
-    private sealed class ExportedSetting
-    {
-        [JsonPropertyName("key")]
-        public string Key { get; init; } = string.Empty;
-
-        [JsonPropertyName("value")]
-        public string Value { get; init; } = string.Empty;
-
-        [JsonPropertyName("comment")]
-        public string? Comment { get; init; }
-
-        [JsonPropertyName("category")]
-        public int? Category { get; init; }
-    }
-
-    private sealed class ExportedLibrary
-    {
-        [JsonPropertyName("name")]
-        public string Name { get; init; } = string.Empty;
-
-        [JsonPropertyName("type")]
-        public string Type { get; init; } = string.Empty;
-
-        [JsonPropertyName("path")]
-        public string Path { get; init; } = string.Empty;
-
-        [JsonPropertyName("apiKey")]
-        public string ApiKey { get; init; } = string.Empty;
-
-        [JsonPropertyName("description")]
-        public string? Description { get; init; }
     }
 }
