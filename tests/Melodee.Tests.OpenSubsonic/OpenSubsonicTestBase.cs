@@ -165,6 +165,17 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
             PublicKey = publicKey,
             PasswordEncrypted = encryptedPassword,
             IsAdmin = true,
+            HasSettingsRole = true,
+            HasDownloadRole = true,
+            HasUploadRole = true,
+            HasPlaylistRole = true,
+            HasCoverArtRole = true,
+            HasCommentRole = true,
+            HasPodcastRole = true,
+            HasStreamRole = true,
+            HasJukeboxRole = true,
+            HasShareRole = true,
+            IsScrobblingEnabled = true,
             CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
         };
 
