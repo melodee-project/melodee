@@ -1,0 +1,288 @@
+# Phased Implementation Guide (Onboarding Wizard + Unified Doctor)
+
+This guide breaks implementation into discrete phases meant for coding agents. Each phase has explicit deliverables and
+definition-of-done criteria to minimize design work during implementation.
+
+> Principle: **One Doctor, many UIs**. The check engine and definitions live in a shared project; Blazor and CLI are
+> presentation layers.
+
+---
+
+## Phase Map
+
+- [ ] Phase 0 — Baseline + inventory required items
+- [ ] Phase 1 — CLI system export (backup)
+- [ ] Phase 2 — Extract/standardize Doctor into shared service
+- [ ] Phase 3 — Add shared SetupCheck API + models
+- [ ] Phase 4 — Blazor startup gating + route guard
+- [ ] Phase 5 — Implement onboarding wizard UI skeleton
+- [ ] Phase 6 — Implement wizard steps (branding, security, paths)
+- [ ] Phase 7 — Download checklist + final verification
+- [ ] Phase 8 — Admin Dashboard JSON export/import
+- [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
+- [ ] Phase 10 — Tests + “definition of done” hardening
+
+---
+
+## Phase 0 — Baseline + inventory required items
+
+### Deliverables
+- Create a definitive list of:
+  - required Settings keys (blocking) for onboarding completion
+  - required library types (blocking) for onboarding completion
+- Confirm current defaults/seed values:
+  - `system.baseUrl` default: `MelodeeConfiguration.RequiredNotSetValue`
+  - `system.siteName` default: `"Melodee"`
+  - library defaults: `/app/inbound`, `/app/staging`, `/app/storage` (and others)
+
+### Implementation notes (no design work)
+- Required placeholder rule: any `Settings.Value == MelodeeConfiguration.RequiredNotSetValue` is required+blocking.
+- Explicit required keys (even if not placeholder-based):
+  - `security.secretKey`
+  - `system.onboardingCompletedAt` (completion marker)
+
+### Definition of done
+- The required key/type list is captured in code as constants/definitions (not a wiki decision).
+
+---
+
+## Phase 1 — CLI system export (backup)
+
+### Deliverables
+- Add a new CLI command to generate a system export (exact naming fixed to avoid churn):
+  - `mcli backup export`
+- Export format is JSON and must match the UI/onboarding import schema exactly (same schema version + JSON shape).
+- Export includes, at minimum:
+  - Settings (all rows)
+  - Libraries (all rows)
+- Export supports:
+  - `--output <path>` to write to a file
+  - `--stdout` to write to stdout (machine-friendly)
+  - `--redact-secrets` (explicit) to replace secret values with a sentinel marker
+- Export output must be deterministic for diffing:
+  - stable ordering (e.g., Settings by key; Libraries by type then name)
+  - consistent indentation and casing
+
+### Implementation notes
+- This phase must be completed before onboarding wizard phases to enable snapshot-based testing.
+- Redaction rules (fixed):
+  - redact `security.secretKey`
+  - redact any key containing `secret`, `token`, or `password` (case-insensitive) unless explicitly allow-listed
+- Add a CLI help section explaining that this is not a SQL backup and may include secrets.
+
+### Definition of done
+- `mcli backup export --output export.json` produces a valid JSON export that the UI/onboarding import can consume.
+
+---
+
+## Phase 2 — Extract/standardize Doctor into shared service
+
+### Deliverables
+- Move Doctor models/interfaces out of `src/Melodee.Blazor/Services` into a shared location (target suggestion):
+  - `src/Melodee.Common/Services/Doctor/`
+- Create a single shared interface used by both hosts:
+  - `IDoctorService` (shared)
+  - `DoctorCheckResults`, `DoctorCheckResult`, and any supporting records/enums (shared)
+- Update `Melodee.Blazor` to reference the shared types and wire DI to the shared implementation.
+
+### Implementation notes
+- Split checks into:
+  - **Core checks** (DB + settings + libraries): must not depend on ASP.NET or Blazor types.
+  - **Host checks** (optional): can use `IWebHostEnvironment`, `IHttpContextAccessor`, `ISchedulerFactory`, Serilog
+    config. These may live in `Melodee.Blazor` but must reuse shared result models and IDs.
+- Use stable check IDs/names. Do not change semantics between CLI and Blazor for shared checks.
+
+### Definition of done
+- `Melodee.Blazor` compiles using the shared doctor types.
+- Shared doctor service can run core checks without ASP.NET dependencies.
+
+---
+
+## Phase 3 — Add shared SetupCheck API + models
+
+### Deliverables
+- Add a shared “setup readiness” API surface (names fixed to avoid design churn):
+  - `Task<SetupStatus> SetupCheckAsync(...)`
+  - `SetupStatus` includes `IsReady`, `Items`, and `BlockingItems`
+  - `SetupItem` includes `Id`, `Name`, `Severity`, `Success`, `Details`, `Remediation`, `FixRoute` (e.g., `/onboarding/...`)
+- Implement SetupCheck blocking rules exactly as in `design/requirements/onboarding-wizard.md`.
+
+### Implementation notes
+- Compute missing required settings by querying `Settings`:
+  - any row where `Value == MelodeeConfiguration.RequiredNotSetValue`
+  - plus required explicit keys: `system.baseUrl`, `system.siteName`, `security.secretKey`
+- Compute library readiness using `LibraryService`:
+  - verify Inbound + Staging exist and are writable
+  - verify at least one Storage exists and is writable
+  - normalize and check overlap (case-insensitive, directory separators normalized)
+- Never include secrets in `Details`. Use masked values where needed.
+
+### Definition of done
+- SetupCheck returns deterministic results for all required setup checks and can be consumed by UI/CLI.
+
+---
+
+## Phase 4 — Blazor startup gating + route guard
+
+### Deliverables
+- Add onboarding routing:
+  - `/onboarding` (wizard entry)
+  - `/onboarding/blocking` (cannot compute setup status)
+- Implement onboarding required detection:
+  - `OnboardingRequired = !HasOnboardingCompletedAt || !SetupCheck.IsReady`
+- Implement an “unmissable” guard:
+  - If onboarding required, force navigation to `/onboarding` and hide normal navigation chrome.
+
+### Implementation notes
+- Integrate guard in a single place that affects all routes:
+  - `src/Melodee.Blazor/Components/Layout/MainLayout.razor` (or an equivalent top-level layout component)
+  - or adjust `src/Melodee.Blazor/Components/Routes.razor` to include an `OnNavigateAsync` guard (if refactoring Router)
+- Guard must avoid redirect loops:
+  - allow `/account/login`, `/account/logout`, `/onboarding`, `/onboarding/blocking`
+- Compute SetupCheck once per app start and cache (scoped state) with a “refresh” action the wizard can invoke.
+
+### Definition of done
+- A failing SetupCheck reliably redirects to onboarding without flicker/loop.
+- A passing SetupCheck and completed marker reliably routes to the normal home/dashboard.
+
+---
+
+## Phase 5 — Implement onboarding wizard UI skeleton
+
+### Deliverables
+- Create onboarding components/pages under `src/Melodee.Blazor/Components/Pages/Onboarding/`.
+- Implement:
+  - stepper/progress indicator
+  - shared wizard state model (current step, setup status snapshot, validation errors)
+  - Back/Next navigation
+
+### Implementation notes
+- Use existing UI library patterns (Radzen components, localization via `L("...")` pattern used elsewhere).
+- Persist changes immediately per step (no giant “Save at end”), but validate before allowing Next.
+
+### Definition of done
+- Wizard renders and can navigate across placeholder steps without implementing mutations yet.
+
+---
+
+## Phase 6 — Implement wizard steps (branding, security, paths)
+
+### Deliverables
+Implement these steps with exact behaviors:
+
+0) Import system export (optional fast path)
+- Add an optional “Import existing system export” action in the onboarding wizard Welcome step.
+- The import consumes the same JSON schema produced by `mcli backup export` and the Admin Dashboard export.
+- Import applies Settings + Libraries and then re-runs SetupCheck:
+  - on success, auto-skip satisfied steps
+  - on partial success, show a summary and continue with remaining steps
+
+1) Branding
+- Uses `SettingService.UpdateAsync(...)` (or existing setting editing patterns) to update:
+  - `system.siteName`
+  - `system.baseUrl` (trimmed; validated as absolute http/https)
+
+2) Security secret key
+- If `security.secretKey` missing/invalid, generate and persist.
+- Generation algorithm (fixed):
+  - `RandomNumberGenerator.GetBytes(48)` then Base64 encode (yields 64 chars) OR equivalent strong generation.
+- Store key in `Settings` table key `security.secretKey`.
+- UI shows key only once at creation time and then masks it.
+
+3) Library paths
+- Use `LibraryService` to update:
+  - Inbound path
+  - Staging path
+  - Storage path (first storage library or prompt to create one if none exist)
+- Provide “Create directory” + “Test write” actions.
+- Enforce overlap rules before allowing Next.
+
+### Definition of done
+- Running the wizard end-to-end can satisfy all blocking requirements except the final completion marker.
+
+---
+
+## Phase 7 — Download checklist + final verification
+
+### Deliverables
+- Add “Inbound/Staging/Storage explained” step:
+  - single screen description + progress bar derived from current SetupStatus items
+- Add “Final verification” step:
+  - re-run SetupCheck and display blocking items
+  - on success, set `system.onboardingCompletedAt` and navigate away
+- Add “Download checklist”:
+  - Implement a server-side endpoint or Blazor download mechanism that returns a generated `.md` or `.txt` file.
+  - Checklist content must be legally safe and reference Melodee pages/commands without providing music sources.
+
+### Definition of done
+- Wizard completion writes the completion marker and stops forcing onboarding on restart (while requirements remain valid).
+
+---
+
+## Phase 8 — Admin Dashboard JSON export/import
+
+### Deliverables
+- Add export/download on `src/Melodee.Blazor/Components/Pages/Admin/Dashboard.razor`:
+  - downloads a JSON “backup” containing schema version, exported timestamp (UTC), Settings rows (key+value), and Libraries (type+name+path+apiKey)
+  - displays a warning that the file may contain secrets
+- Add import/upload on `src/Melodee.Blazor/Components/Pages/Admin/Dashboard.razor`:
+  - upload JSON file, validate, preview summary, and apply changes
+  - options:
+    - overwrite existing values
+    - skip null values
+- Implement shared import/export helpers in `Melodee.Common` (preferred) so UIs are thin and CLI/onboarding stay compatible.
+
+### Implementation notes
+- Import must:
+  - validate JSON shape and schema version
+  - only apply allowed keys (SettingRegistry keys and/or existing DB keys)
+  - skip keys set via environment variables (`MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(key)`)
+  - skip locked keys (`Setting.IsLocked`) by default
+  - skip locked libraries (`Library.IsLocked`) by default
+  - never log or display secret values
+- After import, refresh the cached configuration (`IMelodeeConfigurationFactory.Reset()`).
+
+### Definition of done
+- An admin can export configuration to JSON, change servers, and import to apply the same values.
+- The import reports counts of updated/added/skipped items with reasons.
+
+---
+
+## Phase 9 — Refactor `mcli doctor` to use shared Doctor
+
+### Deliverables
+- Replace `src/Melodee.Cli/Command/DoctorCommand.cs` bespoke checks with the shared Doctor service.
+- Keep CLI UX stable:
+  - human-readable table output
+  - `--raw` JSON output (ensure it uses the shared model, not a second schema)
+
+### Implementation notes
+- CLI should report the same check IDs/names and severities for:
+  - baseUrl
+  - siteName
+  - placeholder required settings
+  - security.secretKey presence/strength (masked)
+  - required library path checks + overlap
+- Avoid re-implementing check logic in CLI; only map results to Spectre.Console rendering.
+
+### Definition of done
+- `mcli doctor` output matches Blazor Doctor semantics for all shared checks.
+
+---
+
+## Phase 10 — Tests + “definition of done” hardening
+
+### Deliverables
+- Unit tests for shared SetupCheck logic:
+  - missing baseUrl placeholder -> blocking
+  - missing/weak `security.secretKey` -> blocking
+  - overlapping paths -> blocking
+  - missing/inaccessible required library -> blocking
+- Basic UI test coverage (choose the smallest existing test harness in the repo):
+  - Guard redirects to `/onboarding` when required.
+  - Completion marker prevents redirect when setup remains valid.
+
+### Definition of done
+- All new tests pass.
+- No secrets are logged or included in raw outputs.
+- Wizard meets acceptance criteria in `design/requirements/onboarding-wizard.md`.
