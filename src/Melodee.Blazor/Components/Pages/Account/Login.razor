@@ -3,6 +3,7 @@
 @using System.Diagnostics
 @using System.Net.Http.Json
 @using Melodee.Blazor.Components
+@using Melodee.Blazor.Services
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Options
@@ -506,6 +507,11 @@ else
             var user = await UserProfileService.GetByUsernameAsync(model.Username);
             if (user.IsSuccess && user.Data != null)
             {
+                // If admin logs in, invalidate onboarding cache to check for config changes
+                if (user.Data.IsAdmin)
+                {
+                    OnboardingStateService.InvalidateCacheOnAdminLogin();
+                }
                 await ApplyUserThemeAsync(user.Data);
             }
 

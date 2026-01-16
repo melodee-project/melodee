@@ -1,6 +1,8 @@
 @using Melodee.Common.Services.Setup
+@using Microsoft.AspNetCore.Components
 @inject NavigationManager NavigationManager
 @inject OnboardingStateService OnboardingStateService
+@inject Serilog.ILogger Logger
 
 @code {
     [Parameter] public bool ForceBlocking { get; set; }
@@ -9,25 +11,41 @@
     {
         try
         {
+            Logger.Debug("[OnboardingRedirect] ForceBlocking={ForceBlocking}", ForceBlocking);
+            
             if (ForceBlocking)
             {
+                Logger.Debug("[OnboardingRedirect] Redirecting to /onboarding/blocking (ForceBlocking=true)");
                 NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
                 return;
             }
 
             var blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+            Logger.Debug("[OnboardingRedirect] Got {Count} blocking items", blockingItems.Count);
 
             if (blockingItems.Count > 0)
             {
+                foreach (var item in blockingItems)
+                {
+                    Logger.Debug("[OnboardingRedirect] Blocking item: {Id} - {Name} - {Details}", item.Id, item.Name, item.Details);
+                }
                 NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
             }
             else
             {
+                Logger.Debug("[OnboardingRedirect] No blocking items, redirecting to /onboarding");
                 NavigationManager.NavigateTo("/onboarding", forceLoad: true);
             }
         }
-        catch
+        catch (NavigationException)
         {
+            // NavigationException is expected when NavigateTo is called with forceLoad: true
+            // during server-side rendering. Let it propagate.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "[OnboardingRedirect] Exception during redirect check");
             NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
         }
     }

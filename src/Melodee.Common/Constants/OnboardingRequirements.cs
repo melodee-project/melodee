@@ -27,8 +27,8 @@ public static class OnboardingRequirements
     {
         SettingRegistry.SystemBaseUrl,
         SettingRegistry.SystemSiteName,
-        SettingRegistry.SecuritySecretKey,
-        SettingRegistry.SystemOnboardingCompletedAt
+        SettingRegistry.SecuritySecretKey
+        // Note: SystemOnboardingCompletedAt is NOT required - it's SET when onboarding completes
     };
 
     /// <summary>

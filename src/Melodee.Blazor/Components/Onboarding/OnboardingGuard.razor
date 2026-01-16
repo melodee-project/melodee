@@ -3,6 +3,7 @@
 @using Melodee.Common.Services.Setup
 @inject OnboardingStateService OnboardingStateService
 @inject NavigationManager NavigationManager
+@inject Serilog.ILogger Logger
 
 @implements IDisposable
 
@@ -62,8 +63,9 @@
             _isOnboardingRequired = await OnboardingStateService.IsOnboardingRequiredAsync();
             _hasBlockingError = false;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Error(ex, "[OnboardingGuard] Exception while checking onboarding status");
             _isOnboardingRequired = true;
             _hasBlockingError = true;
         }
