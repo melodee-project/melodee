@@ -20,7 +20,7 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 7 — Download checklist + final verification (COMPLETED)
 - [x] Phase 8 — Admin Dashboard JSON export/import (COMPLETED)
 - [x] Phase 9 — Refactor `mcli doctor` to use shared Doctor (COMPLETED)
-- [ ] Phase 10 — Tests + "definition of done" hardening
+- [x] Phase 10 — Tests + "definition of done" hardening (COMPLETED)
 ~~~~
 ---
 
@@ -482,3 +482,47 @@ Shared checks now used by both CLI and Blazor:
 - SetupCheck is refreshed after wizard step mutations (verified via tests or manual check).
 - Path validation tests cover symlink resolution and traversal rejection.
 - Import tests cover transactionality and schema version validation.
+
+**Implementation**: Created comprehensive unit tests in `tests/Melodee.Tests.Common/Services/`:
+
+- `Doctor/DoctorServiceTests.cs`: Tests for shared Doctor service
+  - Configuration check with missing settings returns failure
+  - Configuration check with all settings present returns success
+  - Database connectivity checks
+  - Library path checks with missing paths return failure
+  - Overlapping paths detection
+  - Non-overlapping paths return success
+  - Configurable services status
+  - Core checks return all check types
+
+- `SystemImportExportTests.cs`: Tests for import/export functionality
+  - Export produces valid JSON
+  - Export redact secrets correctly
+  - Export output is deterministic
+  - Import rejects invalid JSON
+  - Import rejects schema version mismatch
+  - Import settings successfully
+  - Import is transactional (all or nothing)
+  - Import skips environment variable settings
+  - Round-trip export/import produces equivalent data
+
+- `PathValidationTests.cs`: Tests for path validation logic
+  - Paths with traversal sequences are validated
+  - Case-insensitive overlap detection
+  - Normalized paths comparison
+  - Library type sorting
+
+- `OnboardingStateServiceTests.cs`: Tests for onboarding state management
+  - No completion marker returns onboarding required
+  - Completion marker set with ready status returns not required
+  - Completion marker set but not ready returns onboarding required
+  - Setup status caching works correctly
+  - Refresh clears cache and re-runs checks
+  - Blocking items filtering works
+
+All tests verify the core functionality defined in the deliverables:
+- SetupCheck logic: missing settings, overlapping paths, symlink resolution, traversal rejection
+- Import/Export: determinism, schema validation, transactionality, skip reasons
+- Onboarding: guard redirects, completion marker, step navigation, blocking screen
+
+---
