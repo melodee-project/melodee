@@ -21,6 +21,15 @@ public class SecurityHeadersMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        var path = context.Request.Path.Value ?? string.Empty;
+
+        if (path.StartsWith("/scalar", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         var response = context.Response;
 
         response.Headers["X-Content-Type-Options"] = "nosniff";
@@ -39,7 +48,7 @@ public class SecurityHeadersMiddleware
             "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net; " +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
             "img-src 'self' data: blob:; " +
-            "font-src 'self' https://fonts.gstatic.com data:; " +
+            "font-src 'self' https://fonts.gstatic.com https://rsms.me https://cdn.jsdelivr.net data:; " +
             "connect-src 'self' wss: ws:; " +
             "media-src 'self'; " +
             "object-src 'none'; " +

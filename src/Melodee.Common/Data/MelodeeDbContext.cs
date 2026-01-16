@@ -1979,6 +1979,12 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
             ps.HasIndex(x => x.OwnerUserId);
             ps.HasIndex(x => x.Status);
             ps.HasIndex(x => x.ActiveEndpointId);
+
+            ps.HasOne(x => x.ActiveEndpoint)
+                .WithMany()
+                .HasForeignKey(x => x.ActiveEndpointId)
+                .HasPrincipalKey(x => x.ApiKey)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PartySessionParticipant>(psp =>
@@ -2090,7 +2096,10 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
-        optionsBuilder.EnableSensitiveDataLogging();
+        optionsBuilder.ConfigureWarnings(w =>
+        {
+            w.Ignore(RelationalEventId.PendingModelChangesWarning);
+            w.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning);
+        });
     }
 }

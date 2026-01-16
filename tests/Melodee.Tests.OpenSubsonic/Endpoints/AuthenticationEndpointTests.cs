@@ -16,16 +16,16 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
         // Use wrong token to test unauthorized access
         var fakeToken = "invalidtoken12345";
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={fakeToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         // Depending on implementation, could return 401 or just an error in the response
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Either the status should be "failed" or the response code should indicate error
         var status = root.GetProperty("status").GetString();
         status.Should().BeOneOf("ok", "failed"); // "failed" indicates authentication error
-        
+
         if (status == "failed")
         {
             root.TryGetProperty("error", out var errorElement).Should().BeTrue();
@@ -43,11 +43,11 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
         // Use wrong token to test unauthorized access
         var fakeToken = "invalidtoken12345";
         var response = await Client.GetAsync($"/rest/getLicense?u={TestUserName}&t={fakeToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         var status = root.GetProperty("status").GetString();
         status.Should().BeOneOf("ok", "failed");
     }
@@ -57,11 +57,11 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
     {
         // Call without user parameter
         var response = await Client.GetAsync($"/rest/ping?t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         var status = root.GetProperty("status").GetString();
         status.Should().BeOneOf("ok", "failed");
     }
@@ -71,11 +71,11 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
     {
         // Call without token parameter
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         var status = root.GetProperty("status").GetString();
         status.Should().BeOneOf("ok", "failed");
     }
@@ -86,7 +86,7 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
         // Test an endpoint that requires specific permissions
         // For example, podcast endpoints might require podcastRole
         var response = await Client.GetAsync($"/rest/getPodcasts?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         // Could be OK if user has permission, or Forbidden if they don't
         response.StatusCode.Should().BeOneOf(
             System.Net.HttpStatusCode.OK,
@@ -100,11 +100,11 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
         // This test verifies that our existing token generation works
         var response = await GetAsync("ping");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
     }
 
@@ -115,11 +115,11 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
         // For now, we'll test with an obviously invalid token
         var expiredToken = "expired_token_12345";
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={expiredToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         var status = root.GetProperty("status").GetString();
         status.Should().BeOneOf("ok", "failed");
     }
@@ -148,11 +148,11 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
     {
         // Test with malformed authentication parameters
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={AuthToken}=malformed&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         var status = root.GetProperty("status").GetString();
         status.Should().BeOneOf("ok", "failed");
     }
@@ -163,7 +163,7 @@ public class AuthenticationEndpointTests : OpenSubsonicTestBase
         // Test that parameters are handled consistently regardless of case
         var response1 = await GetAsync("ping");
         var response2 = await Client.GetAsync($"/rest/PING?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         response1.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         response2.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
     }

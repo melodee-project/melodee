@@ -1,7 +1,4 @@
-using Xunit;
 using FluentAssertions;
-using Melodee.Cli.CommandSettings;
-using Melodee.Cli.Command;
 
 namespace Melodee.Tests.Cli;
 

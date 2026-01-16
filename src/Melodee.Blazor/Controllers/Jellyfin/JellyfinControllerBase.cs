@@ -12,6 +12,7 @@ using NodaTime;
 
 namespace Melodee.Blazor.Controllers.Jellyfin;
 
+[ApiExplorerSettings(IgnoreApi = true)]
 public abstract class JellyfinControllerBase(
     EtagRepository etagRepository,
     ISerializer serializer,

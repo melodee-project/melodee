@@ -100,6 +100,14 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.MaxDepth = 128;
 });
 
+// Configure JSON options for minimal APIs and OpenAPI generation
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    // Handle circular references in API responses
+    options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.SerializerOptions.MaxDepth = 128;
+});
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Register single OpenAPI document that contains all endpoints
@@ -934,7 +942,25 @@ if (!isQuartzDisabled)
 app.UseCookiePolicy(new CookiePolicyOptions
 {
     Secure = CookieSecurePolicy.Always,
-    MinimumSameSitePolicy = SameSiteMode.Strict
+    MinimumSameSitePolicy = SameSiteMode.Strict,
+    OnAppendCookie = cookieContext =>
+    {
+        var path = cookieContext.Context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/scalar", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase))
+        {
+            cookieContext.CookieOptions.SameSite = SameSiteMode.Lax;
+        }
+    },
+    OnDeleteCookie = cookieContext =>
+    {
+        var path = cookieContext.Context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/scalar", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase))
+        {
+            cookieContext.CookieOptions.SameSite = SameSiteMode.Lax;
+        }
+    }
 });
 
 app.UseSerilogRequestLogging(options =>
@@ -988,3 +1014,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+public partial class Program { }

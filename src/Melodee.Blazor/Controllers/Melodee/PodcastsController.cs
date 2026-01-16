@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
+[ApiExplorerSettings(IgnoreApi = true)]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 [ServiceFilter(typeof(MelodeeApiAuthFilter))]

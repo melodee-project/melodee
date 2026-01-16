@@ -1,4 +1,3 @@
-using System.Text.Json;
 using FluentAssertions;
 using Xunit.Abstractions;
 
@@ -16,10 +15,10 @@ public class StreamingEndpointTests : OpenSubsonicTestBase
         // Since we don't have actual audio files in the test database, 
         // we'll test with a mock ID and expect a proper error response
         var response = await GetAsync("stream?id=song:1");
-        
+
         // Could be 200 OK with audio content, or 404/400 with error depending on implementation
         response.StatusCode.Should().BeOneOf(
-            System.Net.HttpStatusCode.OK, 
+            System.Net.HttpStatusCode.OK,
             System.Net.HttpStatusCode.NotFound,
             System.Net.HttpStatusCode.BadRequest);
     }
@@ -30,10 +29,10 @@ public class StreamingEndpointTests : OpenSubsonicTestBase
         // Create a client that supports range requests
         using var client = new HttpClient();
         client.DefaultRequestHeaders.Add("Range", "bytes=0-1023");
-        
+
         var response = await client.GetAsync(
             $"http://localhost/rest/stream?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json&id=song:1");
-        
+
         // Could be 206 Partial Content if range is supported, or 200/404/400 depending on implementation
         response.StatusCode.Should().BeOneOf(
             System.Net.HttpStatusCode.PartialContent,
@@ -57,7 +56,7 @@ public class StreamingEndpointTests : OpenSubsonicTestBase
     {
         // Test download endpoint with mock ID
         var response = await GetAsync("download?id=song:1");
-        
+
         response.StatusCode.Should().BeOneOf(
             System.Net.HttpStatusCode.OK,
             System.Net.HttpStatusCode.NotFound,
@@ -69,7 +68,7 @@ public class StreamingEndpointTests : OpenSubsonicTestBase
     {
         // Test podcast streaming with mock ID
         var response = await GetAsync("streamPodcastEpisode?id=podcast:episode:1");
-        
+
         response.StatusCode.Should().BeOneOf(
             System.Net.HttpStatusCode.OK,
             System.Net.HttpStatusCode.NotFound,
@@ -81,7 +80,7 @@ public class StreamingEndpointTests : OpenSubsonicTestBase
     {
         // Test with a mock large file ID
         var response = await GetAsync("stream?id=song:largefile");
-        
+
         response.StatusCode.Should().BeOneOf(
             System.Net.HttpStatusCode.OK,
             System.Net.HttpStatusCode.NotFound,

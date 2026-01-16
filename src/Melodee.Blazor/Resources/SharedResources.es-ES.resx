@@ -333,7 +333,7 @@
     <value>Acerca de {0}</value>
   </data>
   <data name="About.ApiDocs" xml:space="preserve">
-    <value>Documentación API (Swagger OpenAPI)</value>
+    <value>Documentación API (Scalar OpenAPI)</value>
   </data>
   <data name="About.ServerTime" xml:space="preserve">
     <value>Hora del Servidor</value>

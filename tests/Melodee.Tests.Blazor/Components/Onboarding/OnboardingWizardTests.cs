@@ -4,7 +4,6 @@ using Bunit;
 using FluentAssertions;
 using Melodee.Blazor.Components.Onboarding;
 using Melodee.Blazor.Components.Pages.Onboarding;
-using Melodee.Blazor.Services;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
@@ -37,7 +36,7 @@ public class OnboardingWizardTests : BunitContext, IDisposable
     {
         // Reset static cache before each test to ensure clean state
         OnboardingStateService.ResetOnboardingCache();
-        
+
         _setupCheckServiceMock = new Mock<ISetupCheckService>();
         _configFactoryMock = new Mock<IMelodeeConfigurationFactory>();
         _dbContextFactoryMock = new Mock<IDbContextFactory<MelodeeDbContext>>();

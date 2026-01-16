@@ -16,25 +16,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
         // Use wrong token to test unauthorized access
         var fakeToken = "invalidtoken12345";
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={fakeToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range (typically 40 for authentication errors)
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -46,25 +45,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
         // Use wrong token to test unauthorized access
         var fakeToken = "invalidtoken12345";
         var response = await Client.GetAsync($"/rest/getLicense?u={TestUserName}&t={fakeToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -75,25 +73,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
     {
         // Call without user parameter
         var response = await Client.GetAsync($"/rest/ping?t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -104,25 +101,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
     {
         // Call without token parameter
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -133,25 +129,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
     {
         // Use obviously invalid token
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t=invalidtokenformat&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -162,25 +157,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
     {
         // Use obviously invalid salt
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={AuthToken}&s=invalidsalt&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -193,25 +187,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
         // For now, we'll test with an obviously invalid token that should trigger auth failure
         var expiredToken = "expired_token_12345";
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={expiredToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -229,27 +222,26 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
         };
 
         var responses = await Task.WhenAll(tasks);
-        
+
         foreach (var response in responses)
         {
             var content = await response.Content.ReadAsStringAsync();
             var json = JsonDocument.Parse(content);
             var root = json.RootElement.GetProperty("subsonic-response");
-            
+
             // Verify response structure
             var status = root.GetProperty("status").GetString();
             status.Should().Be("failed");
-            
+
             // Verify error element exists with correct structure
             root.TryGetProperty("error", out var errorElement).Should().BeTrue();
             errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
             errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-            
+
             // Verify error code is in expected range
-            var codeValue = errorCode.GetInt16();
-            codeValue.Should().BeGreaterOrEqualTo((short)10);
-            codeValue.Should().BeLessOrEqualTo((short)80);
-            
+            int codeValue = errorCode.GetInt16();
+            codeValue.Should().BeInRange(10, 80);
+
             // Verify error message is not empty
             var messageValue = errorMessage.GetString();
             messageValue.Should().NotBeNullOrWhiteSpace();
@@ -261,25 +253,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
     {
         // Test with malformed authentication parameters
         var response = await Client.GetAsync($"/rest/ping?u={TestUserName}&t={AuthToken}=malformed&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();
@@ -290,25 +281,24 @@ public class AuthenticationErrorTests : OpenSubsonicTestBase
     {
         // Test that authentication is properly handled regardless of case sensitivity in params
         var response = await Client.GetAsync($"/rest/PING?u={TestUserName}&t=invalidtoken&s={AuthSalt}&v=1.16.1&c=test&f=json");
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         // Verify response structure
         var status = root.GetProperty("status").GetString();
         status.Should().Be("failed");
-        
+
         // Verify error element exists with correct structure
         root.TryGetProperty("error", out var errorElement).Should().BeTrue();
         errorElement.TryGetProperty("code", out var errorCode).Should().BeTrue();
         errorElement.TryGetProperty("message", out var errorMessage).Should().BeTrue();
-        
+
         // Verify error code is in expected range
-        var codeValue = errorCode.GetInt16();
-        codeValue.Should().BeGreaterOrEqualTo((short)10);
-        codeValue.Should().BeLessOrEqualTo((short)80);
-        
+        int codeValue = errorCode.GetInt16();
+        codeValue.Should().BeInRange(10, 80);
+
         // Verify error message is not empty
         var messageValue = errorMessage.GetString();
         messageValue.Should().NotBeNullOrWhiteSpace();

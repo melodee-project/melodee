@@ -25,16 +25,16 @@ public sealed class OnboardingStateService
     private readonly IDbContextFactory<MelodeeDbContext> _contextFactory;
     private readonly Serilog.ILogger _logger;
     private readonly ICacheManager _cacheManager;
-    
+
     // Static cache for onboarding completion - shared across all requests
     // Once onboarding is complete, we don't need to check the database again until cache expires
     private static bool? _isOnboardingComplete;
     private static DateTimeOffset _onboardingCacheExpiry = DateTimeOffset.MinValue;
     private static readonly object _lockObject = new();
-    
+
     // Cache duration for onboarding completion check (1 hour default, reset on admin login or doctor failure)
     private static readonly TimeSpan OnboardingCacheDuration = TimeSpan.FromHours(1);
-    
+
     // Instance-level cache for setup status (within same request scope)
     private SetupStatus? _cachedStatus;
     private DateTimeOffset _lastCheck = DateTimeOffset.MinValue;
@@ -92,10 +92,10 @@ public sealed class OnboardingStateService
                 _isOnboardingComplete = true;
                 _onboardingCacheExpiry = DateTimeOffset.UtcNow.Add(OnboardingCacheDuration);
             }
-            
+
             _logger.Debug("[OnboardingStateService] Onboarding is complete, checking setup status...");
             var status = await GetSetupStatusAsync(cancellationToken);
-            _logger.Debug("[OnboardingStateService] Setup status IsReady={IsReady}, BlockingItems={BlockingCount}", 
+            _logger.Debug("[OnboardingStateService] Setup status IsReady={IsReady}, BlockingItems={BlockingCount}",
                 status.IsReady, status.BlockingItems.Count);
             return !status.IsReady;
         }
@@ -168,24 +168,24 @@ public sealed class OnboardingStateService
     public async Task MarkOnboardingCompletedAsync(CancellationToken cancellationToken = default)
     {
         _logger.Debug("[OnboardingStateService] MarkOnboardingCompletedAsync called");
-        
+
         var settingService = new SettingService(_logger, _cacheManager, _configurationFactory, _contextFactory);
         var instant = SystemClock.Instance.GetCurrentInstant();
         var serialized = InstantPattern.ExtendedIso.Format(instant);
-        
+
         _logger.Debug("[OnboardingStateService] Setting {Key} to {Value}", SettingRegistry.SystemOnboardingCompletedAt, serialized);
-        
+
         var result = await settingService.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, serialized, cancellationToken);
-        
+
         if (!result.IsSuccess)
         {
-            _logger.Error("[OnboardingStateService] Failed to save onboarding completion setting: {Messages}", 
+            _logger.Error("[OnboardingStateService] Failed to save onboarding completion setting: {Messages}",
                 string.Join(", ", result.Messages ?? []));
             return;
         }
-        
+
         _logger.Debug("[OnboardingStateService] Setting saved successfully, resetting configuration factory");
-        
+
         // Reset the configuration factory to pick up the new setting
         _configurationFactory.Reset();
 
@@ -196,10 +196,10 @@ public sealed class OnboardingStateService
             _onboardingCacheExpiry = DateTimeOffset.UtcNow.Add(OnboardingCacheDuration);
         }
         _cachedStatus = null;
-        
+
         _logger.Information("[OnboardingStateService] Onboarding marked as completed at {Timestamp}", serialized);
     }
-    
+
     /// <summary>
     /// Resets the static onboarding completion cache. Used for testing or when settings are reset.
     /// </summary>
@@ -211,7 +211,7 @@ public sealed class OnboardingStateService
             _onboardingCacheExpiry = DateTimeOffset.MinValue;
         }
     }
-    
+
     /// <summary>
     /// Called when an admin logs in to force re-evaluation of system health.
     /// This ensures any configuration changes are detected promptly.
@@ -223,7 +223,7 @@ public sealed class OnboardingStateService
             _onboardingCacheExpiry = DateTimeOffset.MinValue;
         }
     }
-    
+
     /// <summary>
     /// Called when doctor check fails to force re-evaluation on next request.
     /// </summary>

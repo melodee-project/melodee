@@ -315,7 +315,7 @@
     <value>关于 {0}</value>
   </data>
   <data name="About.ApiDocs" xml:space="preserve">
-    <value>API 文档 (Swagger OpenAPI)</value>
+    <value>API 文档 (Scalar OpenAPI)</value>
   </data>
   <data name="About.ServerTime" xml:space="preserve">
     <value>服务器时间</value>

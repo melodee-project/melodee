@@ -28,12 +28,12 @@ public class SettingServiceTests : IDisposable
         _loggerMock = new Mock<ILogger>();
         _cacheManagerMock = new Mock<ICacheManager>();
         _configFactoryMock = new Mock<IMelodeeConfigurationFactory>();
-        
+
         // Setup cache manager to actually call the factory function (no caching in tests)
         _cacheManagerMock
             .Setup(c => c.GetAsync(
-                It.IsAny<string>(), 
-                It.IsAny<Func<Task<Setting?>>>(), 
+                It.IsAny<string>(),
+                It.IsAny<Func<Task<Setting?>>>(),
                 It.IsAny<CancellationToken>(),
                 It.IsAny<TimeSpan?>(),
                 It.IsAny<string?>()))

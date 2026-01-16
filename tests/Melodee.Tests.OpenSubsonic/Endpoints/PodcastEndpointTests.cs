@@ -15,14 +15,14 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     {
         var response = await GetAsync("getPodcasts");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
         root.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
-        
+
         // Check if podcasts element exists
         if (root.TryGetProperty("podcasts", out var podcastsElement))
         {
@@ -35,11 +35,11 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     {
         var response = await GetAsync("getPodcasts?includeEpisodes=false");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
     }
 
@@ -48,13 +48,13 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     {
         var response = await GetAsync("getNewestPodcasts");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
-        
+
         // Check if newestPodcasts element exists
         if (root.TryGetProperty("newestPodcasts", out var newestPodcastsElement))
         {
@@ -67,11 +67,11 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     {
         var response = await GetAsync("getNewestPodcasts?count=5&offset=0");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
     }
 
@@ -80,11 +80,11 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     {
         var response = await GetAsync("refreshPodcasts");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
     }
 
@@ -95,11 +95,11 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
         var response = await Client.GetAsync(
             $"/rest/createPodcastChannel?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json&url=https://feeds.feedburner.com/aspnetpodcast");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
     }
 
@@ -118,12 +118,12 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
         var createResponse = await Client.GetAsync(
             $"/rest/createPodcastChannel?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json&url=https://feeds.feedburner.com/aspnetpodcast");
         createResponse.EnsureSuccessStatusCode();
-        
+
         // Get the podcast to get its ID
         var getResponse = await GetAsync("getPodcasts");
         getResponse.EnsureSuccessStatusCode();
         var getContent = await getResponse.Content.ReadAsStringAsync();
-        
+
         // Note: In a real scenario, we would parse the response to get the actual ID
         // For now, we'll test with a mock ID since we don't have actual podcast data
         var response = await Client.GetAsync(
@@ -137,11 +137,11 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     {
         var response = await GetAsync("getPodcasts?id=invalid-id");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK); // Still returns OK but with empty results
-        
+
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
-        
+
         root.GetProperty("status").GetString().Should().Be("ok");
     }
 }
