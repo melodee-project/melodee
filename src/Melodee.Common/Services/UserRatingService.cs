@@ -66,12 +66,28 @@ public sealed class UserRatingService(
                     .AverageAsync(ua => (decimal?)ua.Rating, cancellationToken)
                     .ConfigureAwait(false) ?? 0;
 
-                await scopedContext.Albums
-                    .Where(a => a.Id == userAlbum.AlbumId)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(a => a.LastUpdatedAt, now)
-                        .SetProperty(a => a.CalculatedRating, avgRating), cancellationToken)
-                    .ConfigureAwait(false);
+                var isInMemory = scopedContext.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) == true;
+                if (isInMemory)
+                {
+                    var albumToUpdate = await scopedContext.Albums
+                        .FirstOrDefaultAsync(a => a.Id == userAlbum.AlbumId, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (albumToUpdate != null)
+                    {
+                        albumToUpdate.LastUpdatedAt = now;
+                        albumToUpdate.CalculatedRating = avgRating;
+                        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    await scopedContext.Albums
+                        .Where(a => a.Id == userAlbum.AlbumId)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(a => a.LastUpdatedAt, now)
+                            .SetProperty(a => a.CalculatedRating, avgRating), cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 await _albumService.ClearCacheAsync(userAlbum.AlbumId, cancellationToken).ConfigureAwait(false);
 
@@ -122,12 +138,28 @@ public sealed class UserRatingService(
                     .AverageAsync(us => (decimal?)us.Rating, cancellationToken)
                     .ConfigureAwait(false) ?? 0;
 
-                await scopedContext.Songs
-                    .Where(s => s.Id == userSong.SongId)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(s => s.LastUpdatedAt, now)
-                        .SetProperty(s => s.CalculatedRating, avgRating), cancellationToken)
-                    .ConfigureAwait(false);
+                var isInMemory = scopedContext.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) == true;
+                if (isInMemory)
+                {
+                    var songToUpdate = await scopedContext.Songs
+                        .FirstOrDefaultAsync(s => s.Id == userSong.SongId, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (songToUpdate != null)
+                    {
+                        songToUpdate.LastUpdatedAt = now;
+                        songToUpdate.CalculatedRating = avgRating;
+                        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    await scopedContext.Songs
+                        .Where(s => s.Id == userSong.SongId)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(s => s.LastUpdatedAt, now)
+                            .SetProperty(s => s.CalculatedRating, avgRating), cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 await _songService.ClearCacheAsync(userSong.SongId, cancellationToken).ConfigureAwait(false);
 
@@ -178,12 +210,28 @@ public sealed class UserRatingService(
                     .AverageAsync(ua => (decimal?)ua.Rating, cancellationToken)
                     .ConfigureAwait(false) ?? 0;
 
-                await scopedContext.Artists
-                    .Where(a => a.Id == userArtist.ArtistId)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(a => a.LastUpdatedAt, now)
-                        .SetProperty(a => a.CalculatedRating, avgRating), cancellationToken)
-                    .ConfigureAwait(false);
+                var isInMemory = scopedContext.Database.ProviderName?.Contains("InMemory", StringComparison.OrdinalIgnoreCase) == true;
+                if (isInMemory)
+                {
+                    var artistToUpdate = await scopedContext.Artists
+                        .FirstOrDefaultAsync(a => a.Id == userArtist.ArtistId, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (artistToUpdate != null)
+                    {
+                        artistToUpdate.LastUpdatedAt = now;
+                        artistToUpdate.CalculatedRating = avgRating;
+                        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    await scopedContext.Artists
+                        .Where(a => a.Id == userArtist.ArtistId)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(a => a.LastUpdatedAt, now)
+                            .SetProperty(a => a.CalculatedRating, avgRating), cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 await _artistService.ClearCacheAsync(userArtist.ArtistId, cancellationToken).ConfigureAwait(false);
 

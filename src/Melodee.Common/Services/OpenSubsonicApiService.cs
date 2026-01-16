@@ -3694,6 +3694,13 @@ public class OpenSubsonicApiService(
             }
         }
 
+        data ??= new Lyrics
+        {
+            Value = string.Empty,
+            Artist = artist ?? string.Empty,
+            Title = title ?? string.Empty
+        };
+
         return new ResponseModel
         {
             UserInfo = authResponse.UserInfo,

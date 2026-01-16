@@ -619,15 +619,17 @@ public class PodcastController(
     {
         var isError = data is Error;
         var dataPropertyName = "podcasts";
+        var dataToSerialize = data;
         if (isError)
         {
             dataPropertyName = "error";
+            dataToSerialize = null;
         }
         else if (data is StatusResponse statusResponse)
         {
             dataPropertyName = "status";
-            var dataDetailPropertyName = "status";
-            var dataToSerialize = statusResponse.Status;
+            var dataDetailPropertyName = string.Empty;
+            dataToSerialize = statusResponse.Status;
 
             return new ResponseModel
             {
@@ -639,6 +641,16 @@ public class PodcastController(
                     isError ? (Error)data : null,
                     dataToSerialize).ConfigureAwait(false)
             };
+        }
+        else if (data is NewestPodcastsResponse newestPodcastsResponse)
+        {
+            dataPropertyName = "newestPodcasts";
+            dataToSerialize = newestPodcastsResponse.NewestPodcasts;
+        }
+        else if (data is PodcastsResponse podcastsResponse)
+        {
+            dataPropertyName = "podcasts";
+            dataToSerialize = podcastsResponse.Podcasts;
         }
         else if (data.GetType().Name.Contains("Channel"))
         {
@@ -657,7 +669,7 @@ public class PodcastController(
                 dataPropertyName,
                 string.Empty,
                 isError ? (Error)data : null,
-                isError ? null : data).ConfigureAwait(false)
+                isError ? null : dataToSerialize).ConfigureAwait(false)
         };
     }
 
@@ -676,4 +688,3 @@ public class PodcastController(
         return StatusCode((int)HttpStatusCode.BadRequest, await CreateResponseAsync(Error.GenericError("Podcasts are currently disabled.")).ConfigureAwait(false));
     }
 }
-
