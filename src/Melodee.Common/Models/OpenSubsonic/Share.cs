@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Melodee.Common.Extensions;
 
 namespace Melodee.Common.Models.OpenSubsonic;
@@ -23,6 +24,7 @@ public record Share : IOpenSubsonicToXml
     /// <summary>
     ///     The username
     /// </summary>
+    [JsonPropertyName("username")]
     public required string UserName { get; init; }
 
     /// <summary>

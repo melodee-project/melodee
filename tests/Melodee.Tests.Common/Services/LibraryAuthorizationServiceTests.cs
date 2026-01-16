@@ -38,7 +38,7 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
             var user = new User { Id = 2, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group = new UserGroup { Id = 201, Name = "Allowed Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var library = new Library { Id = 101, Name = "Restricted Library", Path = "/music/restricted", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            
+
             context.Users.Add(user);
             context.UserGroups.Add(group);
             context.Libraries.Add(library);
@@ -62,7 +62,7 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
             var user = new User { Id = 4, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group = new UserGroup { Id = 401, Name = "Restricted Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var library = new Library { Id = 103, Name = "Restricted Library", Path = "/music/restricted", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            
+
             context.Users.Add(user);
             context.UserGroups.Add(group);
             context.Libraries.Add(library);
@@ -120,7 +120,7 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
             var unrestrictedLib = new Library { Id = 801, Name = "Public", Path = "/public", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var restrictedAccessibleLib = new Library { Id = 802, Name = "Restricted Accessible", Path = "/restricted-ok", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var restrictedInaccessibleLib = new Library { Id = 803, Name = "Restricted Blocked", Path = "/restricted-no", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            
+
             context.Users.Add(user);
             context.UserGroups.Add(group);
             context.Libraries.AddRange(unrestrictedLib, restrictedAccessibleLib, restrictedInaccessibleLib);
@@ -155,7 +155,7 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
             var groupB = new UserGroup { Id = 2002, Name = "Group B", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var libraryA = new Library { Id = 2001, Name = "Library A", Path = "/lib-a", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var libraryB = new Library { Id = 2002, Name = "Library B", Path = "/lib-b", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            
+
             context.Users.AddRange(user1, user2);
             context.UserGroups.AddRange(groupA, groupB);
             context.Libraries.AddRange(libraryA, libraryB);

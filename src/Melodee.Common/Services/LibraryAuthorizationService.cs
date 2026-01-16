@@ -1,6 +1,5 @@
 using Ardalis.GuardClauses;
 using Melodee.Common.Data;
-using Melodee.Common.Extensions;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -36,14 +35,14 @@ public sealed class LibraryAuthorizationService : ServiceBase
         Guard.Against.Expression(x => x < 1, libraryId, nameof(libraryId));
 
         var cacheKey = CacheKeyUserCanAccessLibraryTemplate.FormatSmart(userId, libraryId);
-        
+
         return await CacheManager.GetAsync(cacheKey, async () =>
         {
             await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
             // Check if library has any access controls
             var hasRestrictions = await LibraryHasRestrictionsAsync(libraryId, scopedContext, cancellationToken).ConfigureAwait(false);
-            
+
             if (!hasRestrictions)
             {
                 // No restrictions = accessible to all authenticated users
@@ -75,7 +74,7 @@ public sealed class LibraryAuthorizationService : ServiceBase
         Guard.Against.Expression(x => x < 1, userId, nameof(userId));
 
         var cacheKey = CacheKeyUserAccessibleLibrariesTemplate.FormatSmart(userId);
-        
+
         return await CacheManager.GetAsync(cacheKey, async () =>
         {
             await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -117,7 +116,7 @@ public sealed class LibraryAuthorizationService : ServiceBase
     private async Task<bool> LibraryHasRestrictionsAsync(int libraryId, MelodeeDbContext context, CancellationToken cancellationToken)
     {
         var cacheKey = CacheKeyLibraryHasRestrictionsTemplate.FormatSmart(libraryId);
-        
+
         return await CacheManager.GetAsync(cacheKey, async () =>
         {
             return await context.LibraryAccessControls

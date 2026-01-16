@@ -1,7 +1,6 @@
 using Ardalis.GuardClauses;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
-using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
@@ -123,7 +122,7 @@ public sealed class UserGroupService : ServiceBase
         Guard.Against.Null(userGroup, nameof(userGroup));
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        
+
         var existing = await scopedContext.UserGroups
             .FirstOrDefaultAsync(x => x.Name == userGroup.Name, cancellationToken)
             .ConfigureAwait(false);
@@ -136,7 +135,7 @@ public sealed class UserGroupService : ServiceBase
                 Data = existing
             };
         }
-        
+
         scopedContext.UserGroups.Add(userGroup);
         await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -154,7 +153,7 @@ public sealed class UserGroupService : ServiceBase
         Guard.Against.Expression(x => x < 1, userGroup.Id, nameof(userGroup.Id));
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        
+
         var existing = await scopedContext.UserGroups
             .FirstOrDefaultAsync(x => x.Id == userGroup.Id, cancellationToken)
             .ConfigureAwait(false);
@@ -187,7 +186,7 @@ public sealed class UserGroupService : ServiceBase
         Guard.Against.Expression(x => x < 1, id, nameof(id));
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        
+
         var userGroup = await scopedContext.UserGroups
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             .ConfigureAwait(false);

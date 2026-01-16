@@ -23,6 +23,7 @@ public sealed class UserBookmarkService(
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var bookmarks = await scopedContext.Bookmarks
+            .Include(x => x.User)
             .Include(x => x.Song).ThenInclude(x => x.Album).ThenInclude(x => x.Artist)
             .Include(x => x.Song).ThenInclude(x => x.UserSongs.Where(ua => ua.UserId == userId))
             .Where(x => x.UserId == userId)

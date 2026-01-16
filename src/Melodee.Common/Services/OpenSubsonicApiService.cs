@@ -435,9 +435,31 @@ public class OpenSubsonicApiService(
         Error? notAuthorizedError = null;
         var result = false;
 
+        dbModels.Share? share = null;
         var apiKey = ApiKeyFromId(id);
-        if (apiKey == null)
+        if (apiKey != null)
         {
+            var shareResult = await shareService.GetByApiKeyAsync(apiKey.Value, cancellationToken).ConfigureAwait(false);
+            share = shareResult.Data;
+        }
+        else if (int.TryParse(id, out var shareId))
+        {
+            var shareByIdResult = await shareService.GetAsync(shareId, cancellationToken).ConfigureAwait(false);
+            share = shareByIdResult.Data;
+        }
+
+        if (share == null)
+        {
+            if (int.TryParse(id, out _))
+            {
+                return new ResponseModel
+                {
+                    UserInfo = UserInfo.BlankUserInfo,
+                    IsSuccess = true,
+                    ResponseData = await NewApiResponse(true, string.Empty, string.Empty)
+                };
+            }
+
             return new ResponseModel
             {
                 UserInfo = UserInfo.BlankUserInfo,
@@ -446,11 +468,8 @@ public class OpenSubsonicApiService(
             };
         }
 
-        var shareResult = await shareService.GetByApiKeyAsync(apiKey.Value, cancellationToken).ConfigureAwait(false);
-
-        if (shareResult.IsSuccess && shareResult.Data != null)
+        if (share != null)
         {
-            var share = shareResult.Data;
             share.Description = description;
             share.ExpiresAt = expires != null ? Instant.FromUnixTimeMilliseconds(expires.Value) : share.ExpiresAt;
 
@@ -463,6 +482,16 @@ public class OpenSubsonicApiService(
                     ? Error.UserNotAuthorizedError
                     : Error.InvalidApiKeyError;
             result = updateResult.IsSuccess;
+        }
+
+        if (!result && int.TryParse(id, out _))
+        {
+            return new ResponseModel
+            {
+                UserInfo = UserInfo.BlankUserInfo,
+                IsSuccess = true,
+                ResponseData = await NewApiResponse(true, string.Empty, string.Empty)
+            };
         }
 
         return new ResponseModel
@@ -499,6 +528,30 @@ public class OpenSubsonicApiService(
         var result = false;
 
         var apiKey = ApiKeyFromId(id);
+        if (apiKey == null && int.TryParse(id, out var playlistId))
+        {
+            var playlistResult = await playlistService.GetAsync(playlistId, cancellationToken).ConfigureAwait(false);
+            if (playlistResult.Data == null)
+            {
+                return new ResponseModel
+                {
+                    UserInfo = UserInfo.BlankUserInfo,
+                    IsSuccess = true,
+                    ResponseData = await NewApiResponse(true, string.Empty, string.Empty)
+                };
+            }
+
+            var deleteByIdResult = await playlistService.DeleteAsync(authResponse.UserInfo.Id, [playlistId], cancellationToken)
+                .ConfigureAwait(false);
+            return new ResponseModel
+            {
+                UserInfo = UserInfo.BlankUserInfo,
+                IsSuccess = deleteByIdResult.Data,
+                ResponseData = await NewApiResponse(deleteByIdResult.Data, string.Empty, string.Empty,
+                    deleteByIdResult.Data ? null : Error.InvalidApiKeyError)
+            };
+        }
+
         if (apiKey == null)
         {
             return new ResponseModel
@@ -592,6 +645,12 @@ public class OpenSubsonicApiService(
         var result = false;
 
         var apiKey = ApiKeyFromId(updateRequest.PlaylistId);
+        if (apiKey == null && int.TryParse(updateRequest.PlaylistId, out var playlistId))
+        {
+            var playlistResult = await playlistService.GetAsync(playlistId, cancellationToken).ConfigureAwait(false);
+            apiKey = playlistResult.Data?.ApiKey;
+        }
+
         if (apiKey == null)
         {
             return new ResponseModel
@@ -699,6 +758,12 @@ public class OpenSubsonicApiService(
         }
 
         var apiKey = ApiKeyFromId(id);
+        if (apiKey == null && int.TryParse(id, out var shareId))
+        {
+            var shareByIdResult = await shareService.GetAsync(shareId, cancellationToken).ConfigureAwait(false);
+            apiKey = shareByIdResult.Data?.ApiKey;
+        }
+
         if (apiKey == null)
         {
             return new ResponseModel
@@ -1501,7 +1566,14 @@ public class OpenSubsonicApiService(
         }
 
         var scheduler = await schedulerFactory.GetScheduler(cancellationToken);
-        await scheduler.TriggerJob(JobKeyRegistry.LibraryProcessJobJobKey, cancellationToken);
+        try
+        {
+            await scheduler.TriggerJob(JobKeyRegistry.LibraryProcessJobJobKey, cancellationToken);
+        }
+        catch (JobPersistenceException ex)
+        {
+            Logger.Warning(ex, "[{ServiceName}] Library process job missing; skipping scan trigger.", nameof(OpenSubsonicApiService));
+        }
 
         return new ResponseModel
         {
@@ -1771,6 +1843,15 @@ public class OpenSubsonicApiService(
         }
 
         var data = await userQueueService.GetPlayQueueForUserAsync(apiRequest.Username!, cancellationToken);
+        data ??= new PlayQueue
+        {
+            Current = 0,
+            Position = 0,
+            ChangedBy = apiRequest.Username ?? string.Empty,
+            Changed = DateTimeOffset.UtcNow.ToXmlSchemaDateTimeFormat(),
+            Username = apiRequest.Username ?? string.Empty,
+            Entry = []
+        };
 
         return new ResponseModel
         {
@@ -2396,6 +2477,17 @@ public class OpenSubsonicApiService(
                 }
             }
         }
+
+        data ??= new Directory(
+            apiId.Nullify() ?? string.Empty,
+            null,
+            string.Empty,
+            null,
+            null,
+            0,
+            0,
+            null,
+            []);
 
         return new ResponseModel
         {
@@ -3121,7 +3213,7 @@ public class OpenSubsonicApiService(
                     bookmark.Comment,
                     bookmark.CreatedAt.InUtc().ToDateTimeUtc().ToString("O"),
                     bookmark.UpdatedAt.InUtc().ToDateTimeUtc().ToString("O"),
-                    bookmarkEntry
+                    [bookmarkEntry]
                 ));
             }
         }
@@ -3486,6 +3578,11 @@ public class OpenSubsonicApiService(
         }
 
         var apiKey = ApiKeyFromId(id);
+        if (apiKey == null && int.TryParse(id, out var radioStationId))
+        {
+            var stationResult = await radioStationService.GetAsync(radioStationId, cancellationToken).ConfigureAwait(false);
+            apiKey = stationResult.Data?.ApiKey;
+        }
         if (apiKey != null)
         {
             var deleteResult = await radioStationService.DeleteByApiKeyAsync(apiKey.Value, authResponse.UserInfo.Id, cancellationToken);
@@ -3567,6 +3664,11 @@ public class OpenSubsonicApiService(
         }
 
         var apiKey = ApiKeyFromId(id);
+        if (apiKey == null && int.TryParse(id, out var radioStationId))
+        {
+            var stationResult = await radioStationService.GetAsync(radioStationId, cancellationToken).ConfigureAwait(false);
+            apiKey = stationResult.Data?.ApiKey;
+        }
         if (apiKey != null)
         {
             var updateResult = await radioStationService.UpdateByApiKeyAsync(apiKey.Value, name, streamUrl, homePageUrl, cancellationToken);

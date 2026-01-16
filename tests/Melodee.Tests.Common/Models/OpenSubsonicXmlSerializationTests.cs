@@ -298,7 +298,7 @@ public class OpenSubsonicXmlSerializationTests(ITestOutputHelper testOutputHelpe
                 DataPropertyName = "bookmarks",
                 Data = new[]
                 {
-                    new Bookmark(0, "username1", null, Instant.FromDateTimeUtc(DateTime.UtcNow).ToString(), Instant.FromDateTimeUtc(DateTime.UtcNow).ToString(), NewChild())
+                    new Bookmark(0, "username1", null, Instant.FromDateTimeUtc(DateTime.UtcNow).ToString(), Instant.FromDateTimeUtc(DateTime.UtcNow).ToString(), [NewChild()])
                 }
             }
         };

@@ -1,5 +1,4 @@
 using Melodee.Common.Data.Models;
-using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Microsoft.EntityFrameworkCore;
@@ -267,7 +266,7 @@ public class UserGroupServiceTests : ServiceTestBase
             };
             var group1 = new UserGroup { Id = 301, Name = "Group 1", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group2 = new UserGroup { Id = 302, Name = "Group 2", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            
+
             context.Users.Add(user);
             context.UserGroups.AddRange(group1, group2);
             await context.SaveChangesAsync();
@@ -866,10 +865,10 @@ public class UserGroupServiceTests : ServiceTestBase
     {
         // Arrange
         var service = CreateUserGroupService();
-        
+
         // Populate cache
         await service.GetAllAsync();
-        
+
         // Act
         var newGroup = new UserGroup
         {

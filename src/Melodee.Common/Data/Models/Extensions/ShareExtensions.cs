@@ -25,7 +25,7 @@ public static class ShareExtensions
             Id = share.ToApiKey(),
             Url = url,
             Description = share.Description,
-            UserName = share.User.UserName,
+            UserName = share.User?.UserName ?? string.Empty,
             Created = share.CreatedAt.ToString(),
             Expires = share.ExpiresAt?.ToString(),
             LastVisited = share.LastVisitedAt?.ToString(),

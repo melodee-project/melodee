@@ -316,6 +316,7 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
             {
                 var playlist = new Playlist
                 {
+                    Id = 1,
                     ApiKey = TestPlaylistApiKey,
                     Name = "Test Playlist",
                     UserId = user.Id,
@@ -333,9 +334,12 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
             {
                 var share = new Share
                 {
+                    Id = 1,
                     ApiKey = TestShareApiKey,
                     UserId = user.Id,
                     ShareId = song.Id,  // Share a song
+                    ShareUniqueId = Guid.NewGuid().ToString("N"),
+                    ShareType = (int)ShareType.Song,
                     ExpiresAt = Instant.FromDateTimeUtc(DateTime.UtcNow.AddDays(30)),
                     CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
                 };

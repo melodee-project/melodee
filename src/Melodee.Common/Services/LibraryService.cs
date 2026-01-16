@@ -2440,7 +2440,7 @@ public class LibraryService : ServiceBase
         Guard.Against.Expression(x => x < 1, libraryId, nameof(libraryId));
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        
+
         var groupIds = await scopedContext.LibraryAccessControls
             .AsNoTracking()
             .Where(lac => lac.LibraryId == libraryId)
@@ -2482,7 +2482,7 @@ public class LibraryService : ServiceBase
         if (userGroupIds.Length > 0)
         {
             var now = SystemClock.Instance.GetCurrentInstant();
-            
+
             var accessControls = userGroupIds.Distinct().Select(groupId => new LibraryAccessControl
             {
                 LibraryId = libraryId,
@@ -2490,7 +2490,7 @@ public class LibraryService : ServiceBase
                 ApiKey = Guid.NewGuid(),
                 CreatedAt = now
             }).ToList();
-            
+
             scopedContext.LibraryAccessControls.AddRange(accessControls);
         }
 
