@@ -1,4 +1,3 @@
-using System.IO;
 using FluentAssertions;
 using Melodee.Common.Utility;
 
