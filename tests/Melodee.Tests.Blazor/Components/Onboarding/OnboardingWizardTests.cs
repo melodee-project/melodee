@@ -30,6 +30,7 @@ public class OnboardingWizardTests : BunitContext, IDisposable
     private readonly Mock<ICacheManager> _cacheManagerMock;
     private readonly TestLocalizationService _localizationService;
     private readonly DbContextOptions<MelodeeDbContext> _dbOptions;
+    private readonly Bunit.TestDoubles.BunitAuthorizationContext _authContext;
 
     public OnboardingWizardTests()
     {
@@ -53,6 +54,15 @@ public class OnboardingWizardTests : BunitContext, IDisposable
         Services.AddSingleton<Radzen.DialogService>();
         Services.AddSingleton<Radzen.NotificationService>();
         Services.AddSingleton<OnboardingStateService>(CreateOnboardingStateService());
+
+        // Add bUnit authorization support for AuthorizeView component
+        _authContext = this.AddAuthorization();
+        // Set user as authorized for tests that need it
+        _authContext.SetAuthorized("TestUser");
+
+        // Add mock SettingService required by OnboardingBranding component
+        var mockSettingService = new Mock<SettingService>();
+        Services.AddSingleton(mockSettingService.Object);
 
         Services.AddSingleton<NavigationManager>(new TestNavigationManager());
 

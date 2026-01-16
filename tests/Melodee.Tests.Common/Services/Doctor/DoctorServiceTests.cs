@@ -20,6 +20,7 @@ public class DoctorServiceTests : IDisposable
     private readonly Mock<ILogger> _loggerMock;
     private readonly Mock<ICacheManager> _cacheManagerMock;
     private readonly Mock<IMelodeeConfigurationFactory> _configFactoryMock;
+    private readonly IDbContextFactory<MelodeeDbContext> _contextFactory;
 
     public DoctorServiceTests()
     {
@@ -30,6 +31,13 @@ public class DoctorServiceTests : IDisposable
         _loggerMock = new Mock<ILogger>();
         _cacheManagerMock = new Mock<ICacheManager>();
         _configFactoryMock = new Mock<IMelodeeConfigurationFactory>();
+
+        var factory = new Mock<IDbContextFactory<MelodeeDbContext>>();
+        factory.Setup(x => x.CreateDbContext())
+            .Returns(() => new MelodeeDbContext(_dbContextOptions));
+        factory.Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken _) => Task.FromResult(new MelodeeDbContext(_dbContextOptions)));
+        _contextFactory = factory.Object;
     }
 
     public void Dispose()
@@ -39,22 +47,13 @@ public class DoctorServiceTests : IDisposable
     }
 
     private MelodeeDbContext CreateContext() => new(_dbContextOptions);
-    private IDbContextFactory<MelodeeDbContext> CreateContextFactory()
-    {
-        var factory = new Mock<IDbContextFactory<MelodeeDbContext>>();
-        factory.Setup(x => x.CreateDbContext())
-            .Returns(CreateContext);
-        factory.Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
-            .Returns((CancellationToken _) => Task.FromResult(CreateContext()));
-        return factory.Object;
-    }
 
     private LibraryService CreateLibraryService()
     {
         return new LibraryService(
             _loggerMock.Object,
             _cacheManagerMock.Object,
-            CreateContextFactory(),
+            _contextFactory,
             _configFactoryMock.Object,
             null!,
             null!);
@@ -63,7 +62,7 @@ public class DoctorServiceTests : IDisposable
     private TestDoctorService CreateDoctorService()
     {
         return new TestDoctorService(
-            CreateContextFactory(),
+            _contextFactory,
             CreateLibraryService(),
             _configFactoryMock.Object);
     }
@@ -139,32 +138,63 @@ public class DoctorServiceTests : IDisposable
     [Fact]
     public async Task RunLibraryPathCheckAsync_OverlappingPaths_ReturnsFailure()
     {
-        await SeedTestLibraryAsync("/test/inbound");
-        await SeedTestLibraryAsync("/test/inbound/subfolder");
+        // Create real temp directories for overlap test
+        var basePath = Path.Combine(Path.GetTempPath(), $"doctor-test-{Guid.NewGuid():N}");
+        var subPath = Path.Combine(basePath, "subfolder");
+        Directory.CreateDirectory(subPath); // Creates both basePath and subPath
 
-        var service = CreateDoctorService();
-        var (check, paths, overlaps) = await service.RunLibraryPathCheckAsync(false);
+        try
+        {
+            await SeedTestLibraryAsync(basePath);
+            await SeedTestLibraryAsync(subPath);
 
-        check.Success.Should().BeFalse();
-        overlaps.Should().NotBeEmpty();
+            var service = CreateDoctorService();
+            var (check, paths, overlaps) = await service.RunLibraryPathCheckAsync(false);
+
+            check.Success.Should().BeFalse();
+            overlaps.Should().NotBeEmpty();
+        }
+        finally
+        {
+            Directory.Delete(basePath, true);
+        }
     }
 
     [Fact]
     public async Task RunLibraryPathCheckAsync_NonOverlappingPaths_ReturnsSuccess()
     {
-        await SeedTestLibraryAsync("/test/inbound");
-        await SeedTestLibraryAsync("/test/storage");
+        // Create real temp directories that don't overlap
+        var path1 = Path.Combine(Path.GetTempPath(), $"doctor-test-a-{Guid.NewGuid():N}");
+        var path2 = Path.Combine(Path.GetTempPath(), $"doctor-test-b-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path1);
+        Directory.CreateDirectory(path2);
 
-        var service = CreateDoctorService();
-        var (check, paths, overlaps) = await service.RunLibraryPathCheckAsync(false);
+        try
+        {
+            await SeedTestLibraryAsync(path1);
+            await SeedTestLibraryAsync(path2);
 
-        check.Success.Should().BeTrue();
-        overlaps.Should().BeEmpty();
+            var service = CreateDoctorService();
+            var (check, paths, overlaps) = await service.RunLibraryPathCheckAsync(false);
+
+            check.Success.Should().BeTrue();
+            overlaps.Should().BeEmpty();
+        }
+        finally
+        {
+            Directory.Delete(path1, true);
+            Directory.Delete(path2, true);
+        }
     }
 
     [Fact]
     public async Task RunConfigurableServicesCheckAsync_ReturnsServicesList()
     {
+        var config = new Mock<IMelodeeConfiguration>();
+        config.Setup(x => x.GetValue<string>(It.IsAny<string>())).Returns("true");
+        _configFactoryMock.Setup(x => x.GetConfigurationAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config.Object);
+
         var service = CreateDoctorService();
         var (check, services) = await service.RunConfigurableServicesCheckAsync();
 

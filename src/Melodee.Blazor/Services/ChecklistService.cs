@@ -3,8 +3,6 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
-using Melodee.Common.Models;
-using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,8 +12,7 @@ public sealed class ChecklistService
 {
     private readonly IMelodeeConfigurationFactory _configurationFactory;
     private readonly ICacheManager _cacheManager;
-    private readonly SettingService _settingService;
-    private readonly LibraryService _libraryService;
+    private readonly IDbContextFactory<MelodeeDbContext> _contextFactory;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly ILocalizationService _localizationService;
 
@@ -28,8 +25,7 @@ public sealed class ChecklistService
     {
         _configurationFactory = configurationFactory;
         _cacheManager = cacheManager;
-        _settingService = new SettingService(null!, cacheManager, configurationFactory, contextFactory);
-        _libraryService = new LibraryService(null!, cacheManager, contextFactory, configurationFactory, null!, null!);
+        _contextFactory = contextFactory;
         _hostEnvironment = hostEnvironment;
         _localizationService = localizationService;
     }
@@ -40,8 +36,8 @@ public sealed class ChecklistService
         var siteName = config.GetValue<string>(SettingRegistry.SystemSiteName) ?? "Melodee";
         var baseUrl = config.GetValue<string>(SettingRegistry.SystemBaseUrl) ?? "http://localhost:5000";
 
-        var librariesResult = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
-        var libraries = librariesResult.Data.ToList();
+        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        var libraries = await db.Libraries.ToListAsync(cancellationToken);
 
         var inboundLib = libraries.FirstOrDefault(l => l.TypeValue == LibraryType.Inbound);
         var stagingLib = libraries.FirstOrDefault(l => l.TypeValue == LibraryType.Staging);

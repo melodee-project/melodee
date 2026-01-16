@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
 using NodaTime;
 
 namespace Melodee.Tests.Blazor;
@@ -78,6 +79,17 @@ public class AuthCookieIntegrationTests : IAsyncLifetime
                     });
 
                     services.AddSingleton<IPasswordHashService, PasswordHashService>();
+
+                    // Replace SecretProtector with a mock that doesn't require configuration
+                    var secretProtectorDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISecretProtector));
+                    if (secretProtectorDescriptor != null)
+                    {
+                        services.Remove(secretProtectorDescriptor);
+                    }
+                    var mockSecretProtector = new Mock<ISecretProtector>();
+                    mockSecretProtector.Setup(x => x.Protect(It.IsAny<string>())).Returns<string>(s => $"protected:{s}");
+                    mockSecretProtector.Setup(x => x.Unprotect(It.IsAny<string>())).Returns<string>(s => s.Replace("protected:", ""));
+                    services.AddSingleton(mockSecretProtector.Object);
                 });
             });
 

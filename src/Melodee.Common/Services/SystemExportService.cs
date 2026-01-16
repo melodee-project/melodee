@@ -16,8 +16,6 @@ public sealed class SystemExportService
     private readonly ICacheManager _cacheManager;
     private readonly IMelodeeConfigurationFactory _configurationFactory;
     private readonly IDbContextFactory<MelodeeDbContext> _contextFactory;
-    private readonly SettingService _settingService;
-    private readonly LibraryService _libraryService;
 
     public SystemExportService(
         ILogger logger,
@@ -29,8 +27,6 @@ public sealed class SystemExportService
         _cacheManager = cacheManager;
         _configurationFactory = configurationFactory;
         _contextFactory = contextFactory;
-        _settingService = new SettingService(logger, cacheManager, configurationFactory, contextFactory);
-        _libraryService = new LibraryService(logger, cacheManager, contextFactory, configurationFactory, null!, null!);
     }
 
     public async Task<ExportResult> ExportAsync(bool redactSecrets = true, CancellationToken cancellationToken = default)

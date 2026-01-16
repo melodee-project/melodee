@@ -1,12 +1,14 @@
 using System.Net;
 using FluentAssertions;
 using Melodee.Common.Data;
+using Melodee.Common.Services.Security;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace Melodee.Tests.Blazor;
 
@@ -72,6 +74,17 @@ public class SecurityHeadersIntegrationTests : IAsyncLifetime
                         options.UseInMemoryDatabase("SecurityHeadersTests");
                         options.UseInternalServiceProvider(_inMemoryProvider);
                     });
+
+                    // Replace SecretProtector with a mock that doesn't require configuration
+                    var secretProtectorDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISecretProtector));
+                    if (secretProtectorDescriptor != null)
+                    {
+                        services.Remove(secretProtectorDescriptor);
+                    }
+                    var mockSecretProtector = new Mock<ISecretProtector>();
+                    mockSecretProtector.Setup(x => x.Protect(It.IsAny<string>())).Returns<string>(s => $"protected:{s}");
+                    mockSecretProtector.Setup(x => x.Unprotect(It.IsAny<string>())).Returns<string>(s => s.Replace("protected:", ""));
+                    services.AddSingleton(mockSecretProtector.Object);
                 });
             });
 

@@ -4,7 +4,6 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
-using Melodee.Common.Models;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -19,8 +18,6 @@ public sealed class SystemImportService
     private readonly ICacheManager _cacheManager;
     private readonly IMelodeeConfigurationFactory _configurationFactory;
     private readonly IDbContextFactory<MelodeeDbContext> _contextFactory;
-    private readonly SettingService _settingService;
-    private readonly LibraryService _libraryService;
 
     public SystemImportService(
         ILogger logger,
@@ -32,8 +29,6 @@ public sealed class SystemImportService
         _cacheManager = cacheManager;
         _configurationFactory = configurationFactory;
         _contextFactory = contextFactory;
-        _settingService = new SettingService(logger, cacheManager, configurationFactory, contextFactory);
-        _libraryService = new LibraryService(logger, cacheManager, contextFactory, configurationFactory, null!, null!);
     }
 
     public async Task<ImportResult> ImportAsync(string jsonContent, CancellationToken cancellationToken = default)
@@ -79,12 +74,11 @@ public sealed class SystemImportService
             Success = true
         };
 
-        await using var transaction = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await transaction.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            var existingSettings = await _settingService.GetAllKeysAsync(cancellationToken).ConfigureAwait(false);
             var environmentVariableKeys = MelodeeConfigurationFactory.EnvironmentVariablesSettings()
                 .Select(x => x.Key.Replace("_", "."))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -104,19 +98,22 @@ public sealed class SystemImportService
                     continue;
                 }
 
-                var existingSetting = await _settingService.GetAsync(setting.Key, cancellationToken).ConfigureAwait(false);
-                if (existingSetting.Data != null)
+                var existingSetting = await db.Settings
+                    .FirstOrDefaultAsync(s => s.Key == setting.Key, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (existingSetting != null)
                 {
-                    if (existingSetting.Data.IsLocked)
+                    if (existingSetting.IsLocked)
                     {
                         result.SettingsSkipped++;
                         result.SkippedReasons.Add($"Setting '{setting.Key}' is locked");
                         continue;
                     }
 
-                    existingSetting.Data.Value = setting.Value;
-                    existingSetting.Data.Comment = setting.Comment ?? existingSetting.Data.Comment;
-                    await _settingService.UpdateAsync(existingSetting.Data, cancellationToken).ConfigureAwait(false);
+                    existingSetting.Value = setting.Value;
+                    existingSetting.Comment = setting.Comment ?? existingSetting.Comment;
+                    db.Settings.Update(existingSetting);
                     result.SettingsImported++;
                 }
                 else
@@ -130,12 +127,12 @@ public sealed class SystemImportService
                         CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow),
                         ApiKey = Guid.NewGuid()
                     };
-                    await _settingService.AddAsync(newSetting, cancellationToken).ConfigureAwait(false);
+                    await db.Settings.AddAsync(newSetting, cancellationToken).ConfigureAwait(false);
                     result.SettingsImported++;
                 }
             }
 
-            var existingLibraries = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken).ConfigureAwait(false);
+            var existingLibraries = await db.Libraries.ToListAsync(cancellationToken).ConfigureAwait(false);
             var libraryTypeMap = new Dictionary<string, LibraryType>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Inbound", LibraryType.Inbound },
@@ -163,7 +160,7 @@ public sealed class SystemImportService
                     continue;
                 }
 
-                var existingLibrary = existingLibraries.Data.FirstOrDefault(l =>
+                var existingLibrary = existingLibraries.FirstOrDefault(l =>
                     l.Name.Equals(lib.Name, StringComparison.OrdinalIgnoreCase) ||
                     (l.TypeValue == libraryType && l.Path.Equals(lib.Path, StringComparison.OrdinalIgnoreCase)));
 
@@ -179,7 +176,7 @@ public sealed class SystemImportService
                     existingLibrary.Path = lib.Path;
                     existingLibrary.ApiKey = string.IsNullOrEmpty(lib.ApiKey) ? existingLibrary.ApiKey : Guid.Parse(lib.ApiKey);
                     existingLibrary.Description = lib.Description ?? existingLibrary.Description;
-                    await _libraryService.UpdateAsync(existingLibrary, cancellationToken).ConfigureAwait(false);
+                    db.Libraries.Update(existingLibrary);
                     result.LibrariesImported++;
                 }
                 else
@@ -194,12 +191,13 @@ public sealed class SystemImportService
                         SortOrder = 0,
                         CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
                     };
-                    await _libraryService.CreateAsync(newLibrary, cancellationToken).ConfigureAwait(false);
+                    await db.Libraries.AddAsync(newLibrary, cancellationToken).ConfigureAwait(false);
                     result.LibrariesImported++;
                 }
             }
 
-            await transaction.Database.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
             _configurationFactory.Reset();
             _cacheManager.Clear();
@@ -208,7 +206,7 @@ public sealed class SystemImportService
         }
         catch (Exception ex)
         {
-            await transaction.Database.RollbackTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             _logger.Error(ex, "Failed to import system data");
             return new ImportResult
             {
