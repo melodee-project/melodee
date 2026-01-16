@@ -5786,4 +5786,161 @@
   <data name="Common.Success" xml:space="preserve">
     <value>Success</value>
   </data>
+  <data name="Common.Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Common.Next" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="Common.Loading" xml:space="preserve">
+    <value>Loading...</value>
+  </data>
+  <data name="Common.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Common.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Common.Error" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Onboarding.WizardTitle" xml:space="preserve">
+    <value>Setup Wizard</value>
+  </data>
+  <data name="Onboarding.WelcomeHeading" xml:space="preserve">
+    <value>Welcome to Melodee</value>
+  </data>
+  <data name="Onboarding.WelcomeDescription" xml:space="preserve">
+    <value>Let's get your music server set up. This wizard will guide you through the initial configuration.</value>
+  </data>
+  <data name="Onboarding.ImportExistingLabel" xml:space="preserve">
+    <value>Import existing configuration (optional)</value>
+  </data>
+  <data name="Onboarding.ChooseFile" xml:space="preserve">
+    <value>Choose File</value>
+  </data>
+  <data name="Onboarding.BrandingHeading" xml:space="preserve">
+    <value>Site Branding</value>
+  </data>
+  <data name="Onboarding.SiteNameLabel" xml:space="preserve">
+    <value>Site Name</value>
+  </data>
+  <data name="Onboarding.BaseUrlLabel" xml:space="preserve">
+    <value>Base URL</value>
+  </data>
+  <data name="Onboarding.SecurityHeading" xml:space="preserve">
+    <value>Security Configuration</value>
+  </data>
+  <data name="Onboarding.SecuritySecretDescription" xml:space="preserve">
+    <value>Melodee requires a secret key for secure operations. This key is stored securely in your database.</value>
+  </data>
+  <data name="Onboarding.SecuritySecretLabel" xml:space="preserve">
+    <value>Secret Key</value>
+  </data>
+  <data name="Onboarding.GenerateSecretKey" xml:space="preserve">
+    <value>Generate Secret Key</value>
+  </data>
+  <data name="Onboarding.RegenerateKey" xml:space="preserve">
+    <value>Regenerate Key</value>
+  </data>
+  <data name="Onboarding.PathsHeading" xml:space="preserve">
+    <value>Library Paths</value>
+  </data>
+  <data name="Onboarding.PathsDescription" xml:space="preserve">
+    <value>Configure the paths where Melodee will store and process your media files.</value>
+  </data>
+  <data name="Onboarding.PathLabel" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="Onboarding.TestPath" xml:space="preserve">
+    <value>Test Path</value>
+  </data>
+  <data name="Onboarding.CreateDirectory" xml:space="preserve">
+    <value>Create Directory</value>
+  </data>
+  <data name="Onboarding.AdminHeading" xml:space="preserve">
+    <value>Admin Account</value>
+  </data>
+  <data name="Onboarding.AdminDescription" xml:space="preserve">
+    <value>Create an administrator account to manage your Melodee server.</value>
+  </data>
+  <data name="Onboarding.AdminExists" xml:space="preserve">
+    <value>An administrator account already exists.</value>
+  </data>
+  <data name="Onboarding.UsernameLabel" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="Onboarding.PasswordLabel" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Onboarding.ConfirmPasswordLabel" xml:space="preserve">
+    <value>Confirm Password</value>
+  </data>
+  <data name="Onboarding.VerifyHeading" xml:space="preserve">
+    <value>Ready to Complete</value>
+  </data>
+  <data name="Onboarding.VerifyDescription" xml:space="preserve">
+    <value>Review your configuration and complete the setup.</value>
+  </data>
+  <data name="Onboarding.ReadyToComplete" xml:space="preserve">
+    <value>Your server is configured and ready to use!</value>
+  </data>
+  <data name="Onboarding.CompleteSetup" xml:space="preserve">
+    <value>Complete Setup</value>
+  </data>
+  <data name="Onboarding.BlockingPageTitle" xml:space="preserve">
+    <value>Setup Required</value>
+  </data>
+  <data name="Onboarding.CannotDetermineStatus" xml:space="preserve">
+    <value>Cannot Determine Setup Status</value>
+  </data>
+  <data name="Onboarding.BlockingDescription" xml:space="preserve">
+    <value>Unable to verify your server's configuration. Please check the following issues:</value>
+  </data>
+  <data name="Onboarding.RetryButton" xml:space="preserve">
+    <value>Retry</value>
+  </data>
+  <data name="Onboarding.ImportSuccess" xml:space="preserve">
+    <value>Successfully imported {0} settings and {1} libraries.</value>
+  </data>
+  <data name="Onboarding.ImportError" xml:space="preserve">
+    <value>Failed to parse import file. Please ensure it's a valid Melodee export file.</value>
+  </data>
+  <data name="Onboarding.ImportInvalid" xml:space="preserve">
+    <value>The import file is empty or invalid.</value>
+  </data>
+  <data name="Onboarding.ImportSettingsCount" xml:space="preserve">
+    <value>{0} settings</value>
+  </data>
+  <data name="Onboarding.ImportLibrariesCount" xml:space="preserve">
+    <value>{0} libraries</value>
+  </data>
+  <data name="Onboarding.BaseUrlInvalid" xml:space="preserve">
+    <value>Please enter a valid URL (e.g., https://your-server.com)</value>
+  </data>
+  <data name="Onboarding.BaseUrlUnreachable" xml:space="preserve">
+    <value>Unable to reach the base URL. Please verify it is correct and accessible.</value>
+  </data>
+  <data name="Onboarding.RegenerateKeyConfirm" xml:space="preserve">
+    <value>Are you sure you want to regenerate the secret key? This will invalidate any existing encrypted data.</value>
+  </data>
+  <data name="Onboarding.RegenerateKeyTitle" xml:space="preserve">
+    <value>Regenerate Secret Key</value>
+  </data>
+  <data name="Onboarding.PasswordTooShort" xml:space="preserve">
+    <value>Password must be at least {0} characters long.</value>
+  </data>
+  <data name="Onboarding.PasswordNoMatch" xml:space="preserve">
+    <value>Passwords do not match.</value>
+  </data>
+  <data name="Onboarding.UsernameRequired" xml:space="preserve">
+    <value>Username is required.</value>
+  </data>
+  <data name="Onboarding.TestUrl" xml:space="preserve">
+    <value>Test URL</value>
+  </data>
+  <data name="Onboarding.UrlTestSuccess" xml:space="preserve">
+    <value>URL is reachable</value>
+  </data>
+
 </root>

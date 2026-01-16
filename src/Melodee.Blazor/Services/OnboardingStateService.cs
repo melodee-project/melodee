@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -23,6 +25,8 @@ public sealed class OnboardingStateService
     private SetupStatus? _cachedStatus;
     private DateTimeOffset _lastCheck = DateTimeOffset.MinValue;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
+
+    private ImportData? _importData;
 
     public OnboardingStateService(
         ISetupCheckService setupCheckService,
@@ -98,4 +102,70 @@ public sealed class OnboardingStateService
 
         _cachedStatus = null;
     }
+
+    /// <summary>
+    /// Stores imported settings and libraries for use in the onboarding wizard.
+    /// </summary>
+    public void StoreImportData(ImportData data)
+    {
+        _importData = data;
+    }
+
+    /// <summary>
+    /// Gets any stored import data.
+    /// </summary>
+    public ImportData? GetImportData() => _importData;
+
+    /// <summary>
+    /// Clears stored import data.
+    /// </summary>
+    public void ClearImportData() => _importData = null;
+}
+
+public sealed class ImportData
+{
+    [JsonPropertyName("schemaVersion")]
+    public string SchemaVersion { get; init; } = string.Empty;
+
+    [JsonPropertyName("exportedAt")]
+    public string ExportedAt { get; init; } = string.Empty;
+
+    [JsonPropertyName("settings")]
+    public List<ImportedSetting> Settings { get; init; } = new();
+
+    [JsonPropertyName("libraries")]
+    public List<ImportedLibrary> Libraries { get; init; } = new();
+}
+
+public sealed class ImportedSetting
+{
+    [JsonPropertyName("key")]
+    public string Key { get; init; } = string.Empty;
+
+    [JsonPropertyName("value")]
+    public string Value { get; init; } = string.Empty;
+
+    [JsonPropertyName("comment")]
+    public string? Comment { get; init; }
+
+    [JsonPropertyName("category")]
+    public int? Category { get; init; }
+}
+
+public sealed class ImportedLibrary
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = string.Empty;
+
+    [JsonPropertyName("path")]
+    public string Path { get; init; } = string.Empty;
+
+    [JsonPropertyName("apiKey")]
+    public string ApiKey { get; init; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string? Description { get; init; }
 }

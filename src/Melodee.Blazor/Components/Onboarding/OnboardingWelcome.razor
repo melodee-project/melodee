@@ -1,3 +1,4 @@
+@using System.Text.Json
 @using Melodee.Blazor.Components.Pages
 @inherits MelodeeComponentBase
 
@@ -9,11 +10,13 @@
     <RadzenCard>
         <RadzenStack Gap="1rem">
             <RadzenText Text="@L("Onboarding.ImportExistingLabel")" TextStyle="TextStyle.Subtitle2"/>
-            <RadzenFileInput @bind-Value="@_importFile"
+            <RadzenFileInput @bind-Value="_importFile"
                              ChooseText="@L("Onboarding.ChooseFile")"
                              Accept=".json"
                              MaxFileSize="10485760"
-                             Style="width: 100%;"/>
+                             Style="width: 100%;"
+                             TValue="string"
+                             Change="@OnFileChanged"/>
 
             @if (!string.IsNullOrEmpty(_importMessage))
             {
@@ -22,6 +25,14 @@
                              Icon="@(_importSuccess ? "check_circle" : "error")">
                     <RadzenText Text="@_importMessage"/>
                 </RadzenAlert>
+            }
+
+            @if (_importData != null)
+            {
+                <RadzenText TextStyle="TextStyle.Caption">
+                    @L("Onboarding.ImportSettingsCount", _importData.Settings.Count) |
+                    @L("Onboarding.ImportLibrariesCount", _importData.Libraries.Count)
+                </RadzenText>
             }
         </RadzenStack>
     </RadzenCard>
@@ -32,13 +43,52 @@
 </RadzenStack>
 
 @code {
-    private byte[]? _importFile;
-#pragma warning disable CS0649
+    private string? _importFile;
     private string? _importMessage;
     private bool _importSuccess;
-#pragma warning restore CS0649
+    private ImportData? _importData;
+
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
     [Parameter] public EventCallback OnNext { get; set; }
+
+    private async Task OnFileChanged(string value)
+    {
+        _importMessage = null;
+        _importSuccess = false;
+        _importData = null;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        try
+        {
+            var jsonBytes = Convert.FromBase64String(value);
+            var json = System.Text.Encoding.UTF8.GetString(jsonBytes);
+            _importData = JsonSerializer.Deserialize<ImportData>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (_importData != null)
+            {
+                OnboardingStateService.StoreImportData(_importData);
+                _importSuccess = true;
+                _importMessage = L("Onboarding.ImportSuccess", _importData.Settings.Count, _importData.Libraries.Count);
+            }
+            else
+            {
+                _importMessage = L("Onboarding.ImportInvalid");
+            }
+        }
+        catch
+        {
+            _importSuccess = false;
+            _importMessage = L("Onboarding.ImportError");
+        }
+    }
 
     private async Task Next()
     {

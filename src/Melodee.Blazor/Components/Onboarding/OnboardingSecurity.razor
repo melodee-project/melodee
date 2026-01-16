@@ -23,7 +23,7 @@
         </RadzenFormField>
 
         <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
-            <RadzenButton Click="@GenerateKey" Text="@L("Onboarding.RegenerateKey")" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"/>
+            <RadzenButton Click="@ConfirmRegenerateKey" Text="@L("Onboarding.RegenerateKey")" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"/>
         </RadzenStack>
     }
 
@@ -33,12 +33,16 @@
     </RadzenStack>
 </RadzenStack>
 
+<RadzenDialog/>
+
 @code {
     private string _secretKey = "";
     private bool _isSaving;
 
     [Inject] private SettingService SettingService { get; set; } = null!;
     [Inject] private IMelodeeConfigurationFactory ConfigurationFactory { get; set; } = null!;
+    [Inject] private DialogService DialogService { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnNext { get; set; }
@@ -47,11 +51,39 @@
     {
         var config = await ConfigurationFactory.GetConfigurationAsync();
         _secretKey = config.GetValue<string>(SettingRegistry.SecuritySecretKey) ?? "";
+
+        var importData = OnboardingStateService.GetImportData();
+        if (importData != null && string.IsNullOrEmpty(_secretKey))
+        {
+            var secretKeySetting = importData.Settings.FirstOrDefault(s => s.Key == SettingRegistry.SecuritySecretKey);
+            if (secretKeySetting != null && !string.IsNullOrEmpty(secretKeySetting.Value))
+            {
+                _secretKey = secretKeySetting.Value;
+            }
+        }
+
+        if (string.IsNullOrEmpty(_secretKey))
+        {
+            GenerateKey();
+        }
     }
 
     private void GenerateKey()
     {
         _secretKey = GenerateSecureKey();
+    }
+
+    private async Task ConfirmRegenerateKey()
+    {
+        var result = await DialogService.Confirm(
+            L("Onboarding.RegenerateKeyConfirm"),
+            L("Onboarding.RegenerateKeyTitle"),
+            new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+
+        if (result == true)
+        {
+            GenerateKey();
+        }
     }
 
     private static string GenerateSecureKey()

@@ -13,10 +13,10 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 0 — Baseline + inventory required items
 - [x] Phase 1 — CLI system export (backup)
 - [x] Phase 2 — Extract/standardize Doctor into shared service
-- [x] Phase 3 — Add shared SetupCheck API + models~~~~
-- [x] Phase 4 — Blazor startup gating + route guard (COMPLETED)
-- [ ] Phase 5 — Implement onboarding wizard UI skeleton (in progress)
-- [ ] Phase 6 — Implement wizard steps (branding, security, paths, admin)
+- [x] Phase 3 — Add shared SetupCheck API + models
+- [x] Phase 4 — Blazor startup gating + route guard
+- [x] Phase 5 — Implement onboarding wizard UI skeleton (COMPLETED)
+- [ ] Phase 6 — Implement wizard steps (branding, security, paths, admin) (in progress)
 - [ ] Phase 7 — Download checklist + final verification
 - [ ] Phase 8 — Admin Dashboard JSON export/import
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
@@ -201,6 +201,24 @@ Updated `IDoctorService.cs` in Blazor to extend the shared interface and add Bla
 ### Definition of done
 - Wizard renders and can navigate across placeholder steps without implementing mutations yet.
 - All wizard text uses localization pattern.
+
+**Implementation**: Created wizard components under `src/Melodee.Blazor/Components/Pages/Onboarding/`:
+- `Index.razor` - Main wizard page with stepper navigation, progress bar, and auto-advance logic
+- `Blocking.razor` - Blocking screen for when setup status cannot be determined
+
+Created step components under `src/Melodee.Blazor/Components/Onboarding/`:
+- `OnboardingWelcome.razor` - Welcome step with optional import functionality
+- `OnboardingBranding.razor` - Branding step (site name, base URL)
+- `OnboardingSecurity.razor` - Security step (secret key generation)
+- `OnboardingPaths.razor` - Library paths step (Inbound, Staging, Storage)
+- `OnboardingAdmin.razor` - Admin account creation step
+- `OnboardingVerify.razor` - Verification step before completion
+- `OnboardingGuard.razor` - Route guard that redirects to onboarding if required
+- `OnboardingRedirect.razor` - Redirect component for onboarding flow
+
+Added `OnboardingStateService.cs` for managing wizard state and setup checks.
+
+Added all localization strings to `SharedResources.resx`.
 
 ---
 

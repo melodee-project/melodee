@@ -1,3 +1,5 @@
+@using System.Net.Http
+@using System.Text.Json
 @using Melodee.Blazor.Components.Pages
 @using Melodee.Common.Configuration
 @using Melodee.Common.Constants
@@ -12,12 +14,31 @@
     </RadzenFormField>
 
     <RadzenFormField Text="@L("Onboarding.BaseUrlLabel")">
-        <RadzenTextBox @bind-Value="_baseUrl" Style="width: 100%;" Placeholder="https://your-server.com"/>
+        <RadzenTextBox @bind-Value="_baseUrl" Style="width: 100%;" Placeholder="https://your-server.com" Change="@ValidateUrl"/>
     </RadzenFormField>
+
+    @if (!string.IsNullOrEmpty(_urlError))
+    {
+        <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+            <RadzenText Text="@_urlError"/>
+        </RadzenAlert>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+        <RadzenButton Click="@TestUrl" Text="@L("Onboarding.TestUrl")" Icon="link" ButtonStyle="ButtonStyle.Secondary" Disabled="@_isUrlTestDisabled"/>
+        @if (_urlTestResult != null)
+        {
+            <RadzenAlert Variant="@(_urlTestResult.Value ? Variant.Outlined : Variant.Filled)"
+                         AlertStyle="@(_urlTestResult.Value ? AlertStyle.Success : AlertStyle.Warning)"
+                         Icon="@(_urlTestResult.Value ? "check_circle" : "warning")">
+                <RadzenText Text="@(_urlTestResult.Value ? L("Onboarding.UrlTestSuccess") : L("Onboarding.BaseUrlUnreachable"))"/>
+            </RadzenAlert>
+        }
+    </RadzenStack>
 
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
         <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
-        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving" Disabled="@_hasErrors"/>
     </RadzenStack>
 </RadzenStack>
 
@@ -25,9 +46,17 @@
     private string _siteName = "Melodee";
     private string _baseUrl = "";
     private bool _isSaving;
+    private bool _hasErrors;
+    private string? _urlError;
+    private bool? _urlTestResult;
+    private bool _isTestingUrl;
+
+    private bool _isUrlTestDisabled => !string.IsNullOrEmpty(_urlError) || _isTestingUrl;
 
     [Inject] private IMelodeeConfigurationFactory ConfigurationFactory { get; set; } = null!;
     [Inject] private SettingService SettingService { get; set; } = null!;
+    [Inject] private HttpClient HttpClient { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnNext { get; set; }
@@ -37,6 +66,68 @@
         var config = await ConfigurationFactory.GetConfigurationAsync();
         _siteName = config.GetValue<string>(SettingRegistry.SystemSiteName) ?? "Melodee";
         _baseUrl = config.GetValue<string>(SettingRegistry.SystemBaseUrl) ?? "";
+
+        var importData = OnboardingStateService.GetImportData();
+        if (importData != null)
+        {
+            var siteNameSetting = importData.Settings.FirstOrDefault(s => s.Key == SettingRegistry.SystemSiteName);
+            if (siteNameSetting != null)
+            {
+                _siteName = siteNameSetting.Value;
+            }
+
+            var baseUrlSetting = importData.Settings.FirstOrDefault(s => s.Key == SettingRegistry.SystemBaseUrl);
+            if (baseUrlSetting != null)
+            {
+                _baseUrl = baseUrlSetting.Value;
+            }
+        }
+    }
+
+    private void ValidateUrl(string value)
+    {
+        _urlError = null;
+        _urlTestResult = null;
+        _hasErrors = false;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+        {
+            _urlError = L("Onboarding.BaseUrlInvalid");
+            _hasErrors = true;
+        }
+    }
+
+    private async Task TestUrl()
+    {
+        if (string.IsNullOrWhiteSpace(_baseUrl))
+        {
+            return;
+        }
+
+        _isTestingUrl = true;
+        try
+        {
+            var testUrl = _baseUrl.TrimEnd('/');
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var response = await HttpClient.GetAsync(testUrl, cts.Token);
+                _urlTestResult = response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                _urlTestResult = false;
+            }
+        }
+        finally
+        {
+            _isTestingUrl = false;
+        }
     }
 
     private async Task Back() => await OnBack.InvokeAsync();

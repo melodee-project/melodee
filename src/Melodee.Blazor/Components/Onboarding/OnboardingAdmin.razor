@@ -19,23 +19,30 @@
     else
     {
         <RadzenFormField Text="@L("Onboarding.UsernameLabel")">
-            <RadzenTextBox @bind-Value="_username" Style="width: 100%;"/>
+            <RadzenTextBox @bind-Value="_username" Style="width: 100%;" Change="@ValidateForm"/>
         </RadzenFormField>
 
         <RadzenFormField Text="@L("Onboarding.PasswordLabel")">
-            <RadzenPassword @bind-Value="_password" Style="width: 100%;"/>
+            <RadzenPassword @bind-Value="_password" Style="width: 100%;" Change="@ValidateForm"/>
         </RadzenFormField>
 
         <RadzenFormField Text="@L("Onboarding.ConfirmPasswordLabel")">
-            <RadzenPassword @bind-Value="_confirmPassword" Style="width: 100%;"/>
+            <RadzenPassword @bind-Value="_confirmPassword" Style="width: 100%;" Change="@ValidateForm"/>
         </RadzenFormField>
+
+        @if (!string.IsNullOrEmpty(_validationError))
+        {
+            <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                <RadzenText Text="@_validationError"/>
+            </RadzenAlert>
+        }
     }
 
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
         <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
         @if (!_adminExists)
         {
-            <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
+            <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving" Disabled="@_hasErrors"/>
         }
         else
         {
@@ -50,17 +57,64 @@
     private string _confirmPassword = "";
     private bool _adminExists;
     private bool _isSaving;
+    private bool _hasErrors;
+    private string? _validationError;
+
+    private const int MinimumPasswordLength = 8;
 
     [Inject] private UserProfileService UserService { get; set; } = null!;
     [Inject] private IPasswordHashService PasswordHashService { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnNext { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
+        var importData = OnboardingStateService.GetImportData();
+        if (importData != null)
+        {
+            var adminUser = importData.Settings.FirstOrDefault(s => s.Key == "System.Admin.Username");
+            if (adminUser != null)
+            {
+                _username = adminUser.Value;
+            }
+        }
+
         var result = await UserService.ListAsync(new PagedRequest { PageSize = 1 }, CancellationToken.None);
         _adminExists = result.IsSuccess && result.Data.Any(u => u.IsAdmin);
+    }
+
+    private void ValidateForm(string value)
+    {
+        _validationError = null;
+        _hasErrors = false;
+
+        if (string.IsNullOrWhiteSpace(_username))
+        {
+            _validationError = L("Onboarding.UsernameRequired");
+            _hasErrors = true;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_password))
+        {
+            _hasErrors = true;
+            return;
+        }
+
+        if (_password.Length < MinimumPasswordLength)
+        {
+            _validationError = L("Onboarding.PasswordTooShort", MinimumPasswordLength);
+            _hasErrors = true;
+            return;
+        }
+
+        if (_password != _confirmPassword)
+        {
+            _validationError = L("Onboarding.PasswordNoMatch");
+            _hasErrors = true;
+        }
     }
 
     private async Task Back() => await OnBack.InvokeAsync();
@@ -69,7 +123,8 @@
     {
         if (!_adminExists)
         {
-            if (string.IsNullOrEmpty(_password) || _password != _confirmPassword)
+            ValidateForm(string.Empty);
+            if (_hasErrors)
             {
                 return;
             }

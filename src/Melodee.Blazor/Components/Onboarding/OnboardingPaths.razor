@@ -15,61 +15,165 @@
             <RadzenStack Gap="0.5rem">
                 <RadzenText Text="@lib.Name" TextStyle="TextStyle.Subtitle2"/>
                 <RadzenFormField Text="@L("Onboarding.PathLabel")">
-                    <RadzenTextBox @bind-Value="lib.Path" Style="width: 100%;"/>
+                    <RadzenTextBox @bind-Value="lib.Path" Style="width: 100%;" Change="@(() => ValidatePath(lib))"/>
                 </RadzenFormField>
+                @if (!string.IsNullOrEmpty(_pathErrors.GetValueOrDefault(lib.Id)))
+                {
+                    <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                        <RadzenText Text="@_pathErrors.GetValueOrDefault(lib.Id)"/>
+                    </RadzenAlert>
+                }
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
                     <RadzenButton Click="@(() => TestPath(lib))"
                                   Text="@L("Onboarding.TestPath")"
                                   Icon="folder"
-                                  ButtonStyle="ButtonStyle.Secondary"/>
+                                  ButtonStyle="ButtonStyle.Secondary"
+                                  Disabled="@string.IsNullOrEmpty(lib.Path)"/>
                     <RadzenButton Click="@(() => CreateDirectory(lib))"
                                   Text="@L("Onboarding.CreateDirectory")"
                                   Icon="create_new_folder"
                                   ButtonStyle="ButtonStyle.Secondary"/>
                 </RadzenStack>
+                @if (_pathTestResults.TryGetValue(lib.Id, out var testResult))
+                {
+                    <RadzenAlert Variant="@(testResult.Exists && testResult.Writable ? Variant.Outlined : Variant.Filled)"
+                                 AlertStyle="@(testResult.Exists && testResult.Writable ? AlertStyle.Success : AlertStyle.Warning)"
+                                 Icon="@(testResult.Exists && testResult.Writable ? "check_circle" : "warning")">
+                        <RadzenText Text="@(testResult.Exists && testResult.Writable ? "Path exists and is writable" : (testResult.Exists ? "Path exists but is not writable" : "Path does not exist"))"/>
+                    </RadzenAlert>
+                }
             </RadzenStack>
         </RadzenCard>
     }
 
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
         <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
-        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving" Disabled="@_hasErrors"/>
     </RadzenStack>
 </RadzenStack>
 
 @code {
     private List<Library> _libraries = new();
     private bool _isSaving;
+    private bool _hasErrors;
+    private Dictionary<int, string> _pathErrors = new();
+    private Dictionary<int, (bool Exists, bool Writable)> _pathTestResults = new();
 
     [Inject] private LibraryService LibraryService { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnNext { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
+        var importData = OnboardingStateService.GetImportData();
         var result = await LibraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue });
         if (result.IsSuccess)
         {
             _libraries = result.Data.Where(l => l.TypeValue is LibraryType.Inbound or LibraryType.Staging or LibraryType.Storage).ToList();
+
+            if (importData != null)
+            {
+                foreach (var lib in _libraries)
+                {
+                    var importedLib = importData.Libraries.FirstOrDefault(l =>
+                        l.Name.Equals(lib.Name, StringComparison.OrdinalIgnoreCase) ||
+                        l.Type.Equals(lib.TypeValue.ToString(), StringComparison.OrdinalIgnoreCase));
+                    if (importedLib != null && !string.IsNullOrEmpty(importedLib.Path))
+                    {
+                        lib.Path = importedLib.Path;
+                        ValidatePath(lib);
+                    }
+                }
+            }
         }
+    }
+
+    private void ValidatePath(Library lib)
+    {
+        var path = lib.Path;
+        _pathErrors.Remove(lib.Id);
+        _pathTestResults.Remove(lib.Id);
+        _hasErrors = false;
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            _pathErrors[lib.Id] = "Path is required";
+            _hasErrors = true;
+            return;
+        }
+
+        if (path.Contains("..") || path.Contains("./") || path.Contains(".\\"))
+        {
+            _pathErrors[lib.Id] = "Path cannot contain traversal sequences (.. or .)";
+            _hasErrors = true;
+            return;
+        }
+
+        var normalizedPath = Path.GetFullPath(path);
+        _pathErrors[lib.Id] = string.Empty;
     }
 
     private void TestPath(Library lib)
     {
         var path = lib.Path;
-        var exists = Directory.Exists(path);
-        if (exists)
+        if (string.IsNullOrWhiteSpace(path))
         {
-            // Additional test for writability
+            return;
+        }
+
+        try
+        {
+            var resolvedPath = Path.GetFullPath(path);
+            var exists = Directory.Exists(resolvedPath);
+            var writable = false;
+
+            if (exists)
+            {
+                try
+                {
+                    var testFile = Path.Combine(resolvedPath, $".melodee-write-test-{Guid.NewGuid():N}");
+                    File.WriteAllText(testFile, "test");
+                    File.Delete(testFile);
+                    writable = true;
+                }
+                catch
+                {
+                    writable = false;
+                }
+            }
+
+            _pathTestResults[lib.Id] = (exists, writable);
+        }
+        catch
+        {
+            _pathTestResults[lib.Id] = (false, false);
         }
     }
 
     private void CreateDirectory(Library lib)
     {
-        if (!Directory.Exists(lib.Path))
+        var path = lib.Path;
+        if (string.IsNullOrWhiteSpace(path))
         {
-            Directory.CreateDirectory(lib.Path);
+            return;
+        }
+
+        try
+        {
+            var resolvedPath = Path.GetFullPath(path);
+            if (!Directory.Exists(resolvedPath))
+            {
+                Directory.CreateDirectory(resolvedPath);
+            }
+            _pathTestResults[lib.Id] = (true, true);
+            _pathErrors.Remove(lib.Id);
+        }
+        catch (Exception ex)
+        {
+            _pathErrors[lib.Id] = $"Failed to create directory: {ex.Message}";
+            _hasErrors = true;
         }
     }
 
@@ -82,7 +186,12 @@
         {
             foreach (var lib in _libraries)
             {
-                await LibraryService.UpdateAsync(lib, CancellationToken.None);
+                var result = await LibraryService.UpdateAsync(lib, CancellationToken.None);
+                if (!result.IsSuccess)
+                {
+                    _hasErrors = true;
+                    return;
+                }
             }
             await OnNext.InvokeAsync();
         }
