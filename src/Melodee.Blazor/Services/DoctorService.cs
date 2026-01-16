@@ -18,6 +18,11 @@ namespace Melodee.Blazor.Services;
 /// Blazor-specific Doctor service that extends the shared DoctorServiceBase
 /// with additional host-specific checks.
 /// </summary>
+/// <summary>
+/// Blazor-specific Doctor service that extends the shared DoctorServiceBase
+/// with additional host-specific checks.
+/// </summary>
+#pragma warning disable CS9124 // Suppress warning - parameters are intentionally captured for derived class use
 public sealed class DoctorService(
     IConfiguration configuration,
     IDbContextFactory<MelodeeDbContext> dbContextFactory,
@@ -29,6 +34,11 @@ public sealed class DoctorService(
     IHttpContextAccessor httpContextAccessor,
     ISchedulerFactory schedulerFactory) : DoctorServiceBase(dbContextFactory, libraryService, configurationFactory), Melodee.Blazor.Services.IDoctorService
 {
+    private readonly IDbContextFactory<MelodeeDbContext> _dbContextFactory = dbContextFactory;
+    private readonly IDbContextFactory<MusicBrainzDbContext> _musicBrainzDbContextFactory = musicBrainzDbContextFactory;
+    private readonly IDbContextFactory<ArtistSearchEngineServiceDbContext> _artistSearchEngineDbContextFactory = artistSearchEngineDbContextFactory;
+    private readonly LibraryService _libraryService = libraryService;
+#pragma warning restore CS9124
     private static readonly string[] RequiredConnectionStrings =
     [
         "DefaultConnection",
@@ -59,7 +69,7 @@ public sealed class DoctorService(
         // Check main database connectivity
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
             if (!await db.Database.CanConnectAsync(cancellationToken))
             {
                 return true;
@@ -302,7 +312,7 @@ public sealed class DoctorService(
     {
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return true;
@@ -601,7 +611,7 @@ public sealed class DoctorService(
     {
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return false;
@@ -639,7 +649,7 @@ public sealed class DoctorService(
     {
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess || libs.Data.Count() < 2)
             {
                 return false;
@@ -671,7 +681,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -709,7 +719,7 @@ public sealed class DoctorService(
 
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return (new DoctorCheckResult("DiskSpace", false, "Failed to list libraries", sw.Elapsed), diskInfo);
@@ -857,7 +867,7 @@ public sealed class DoctorService(
 
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return (new DoctorCheckResult("LibraryPathOverlap", false, "Failed to list libraries", sw.Elapsed), overlaps);
@@ -899,7 +909,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var searchEngineDefinitions = new (string Name, string EnabledKey, string? ApiKeyKey, string? SecretKey)[]
             {
@@ -981,7 +991,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1019,7 +1029,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1164,7 +1174,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var adminUser = await db.Users
                 .Where(u => u.IsAdmin && u.UserNameNormalized == "ADMIN")
@@ -1189,7 +1199,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var adminUser = await db.Users
                 .Where(u => u.IsAdmin && u.UserNameNormalized == "ADMIN")
@@ -1554,7 +1564,7 @@ public sealed class DoctorService(
         {
             var queryStart = Stopwatch.StartNew();
 
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             // Simple query to measure latency
             _ = await db.Settings.Take(1).CountAsync(cancellationToken);
@@ -1585,7 +1595,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1662,7 +1672,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1793,7 +1803,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1854,7 +1864,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {

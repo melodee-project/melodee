@@ -1,3 +1,4 @@
+using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
@@ -20,6 +21,7 @@ public class DoctorServiceTests
     private readonly Mock<IDbContextFactory<MusicBrainzDbContext>> _musicBrainzDbContextFactory;
     private readonly Mock<IDbContextFactory<ArtistSearchEngineServiceDbContext>> _artistSearchEngineDbContextFactory;
     private readonly Mock<LibraryService> _libraryService;
+    private readonly Mock<IMelodeeConfigurationFactory> _configurationFactory;
     private readonly Mock<IWebHostEnvironment> _webHostEnvironment;
     private readonly Mock<IHttpContextAccessor> _httpContextAccessor;
     private readonly Mock<ISchedulerFactory> _schedulerFactory;
@@ -30,6 +32,7 @@ public class DoctorServiceTests
         _musicBrainzDbContextFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
         _artistSearchEngineDbContextFactory = new Mock<IDbContextFactory<ArtistSearchEngineServiceDbContext>>();
         _libraryService = new Mock<LibraryService>();
+        _configurationFactory = new Mock<IMelodeeConfigurationFactory>();
         _webHostEnvironment = new Mock<IWebHostEnvironment>();
         _webHostEnvironment.Setup(x => x.EnvironmentName).Returns("Test");
         _webHostEnvironment.Setup(x => x.ContentRootPath).Returns("/test/path");
@@ -277,6 +280,7 @@ public class DoctorServiceTests
             _musicBrainzDbContextFactory.Object,
             _artistSearchEngineDbContextFactory.Object,
             _libraryService.Object,
+            _configurationFactory.Object,
             _webHostEnvironment.Object,
             _httpContextAccessor.Object,
             _schedulerFactory.Object);

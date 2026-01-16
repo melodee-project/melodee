@@ -1,0 +1,19 @@
+@using Melodee.Common.Services.Setup
+@inject NavigationManager NavigationManager
+@inject OnboardingStateService OnboardingStateService
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+
+        if (blockingItems.Count > 0)
+        {
+            NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/onboarding", forceLoad: true);
+        }
+    }
+}

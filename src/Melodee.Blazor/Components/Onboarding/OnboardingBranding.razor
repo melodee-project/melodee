@@ -1,0 +1,58 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Configuration
+@using Melodee.Common.Constants
+@using Melodee.Blazor.Services
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.BrandingHeading")"/>
+
+    <RadzenFormField Text="@L("Onboarding.SiteNameLabel")">
+        <RadzenTextBox @bind-Value="_siteName" Style="width: 100%;"/>
+    </RadzenFormField>
+
+    <RadzenFormField Text="@L("Onboarding.BaseUrlLabel")">
+        <RadzenTextBox @bind-Value="_baseUrl" Style="width: 100%;" Placeholder="https://your-server.com"/>
+    </RadzenFormField>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private string _siteName = "Melodee";
+    private string _baseUrl = "";
+    private bool _isSaving;
+
+    [Inject] private IMelodeeConfigurationFactory ConfigurationFactory { get; set; } = null!;
+    [Inject] private SettingService SettingService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var config = await ConfigurationFactory.GetConfigurationAsync();
+        _siteName = config.GetValue<string>(SettingRegistry.SystemSiteName) ?? "Melodee";
+        _baseUrl = config.GetValue<string>(SettingRegistry.SystemBaseUrl) ?? "";
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next()
+    {
+        _isSaving = true;
+        try
+        {
+            await SettingService.SetAsync(SettingRegistry.SystemSiteName, _siteName, CancellationToken.None);
+            await SettingService.SetAsync(SettingRegistry.SystemBaseUrl, _baseUrl.TrimEnd('/'), CancellationToken.None);
+            await OnNext.InvokeAsync();
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

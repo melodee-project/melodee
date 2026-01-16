@@ -1,0 +1,94 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Enums
+@using Melodee.Common.Services
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.PathsHeading")"/>
+
+    <RadzenText Text="@L("Onboarding.PathsDescription")"/>
+
+    @foreach (var lib in _libraries)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="0.5rem">
+                <RadzenText Text="@lib.Name" TextStyle="TextStyle.Subtitle2"/>
+                <RadzenFormField Text="@L("Onboarding.PathLabel")">
+                    <RadzenTextBox @bind-Value="lib.Path" Style="width: 100%;"/>
+                </RadzenFormField>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenButton Click="@(() => TestPath(lib))"
+                                  Text="@L("Onboarding.TestPath")"
+                                  Icon="folder"
+                                  ButtonStyle="ButtonStyle.Secondary"/>
+                    <RadzenButton Click="@(() => CreateDirectory(lib))"
+                                  Text="@L("Onboarding.CreateDirectory")"
+                                  Icon="create_new_folder"
+                                  ButtonStyle="ButtonStyle.Secondary"/>
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private List<Library> _libraries = new();
+    private bool _isSaving;
+
+    [Inject] private LibraryService LibraryService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await LibraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue });
+        if (result.IsSuccess)
+        {
+            _libraries = result.Data.Where(l => l.TypeValue is LibraryType.Inbound or LibraryType.Staging or LibraryType.Storage).ToList();
+        }
+    }
+
+    private void TestPath(Library lib)
+    {
+        var path = lib.Path;
+        var exists = Directory.Exists(path);
+        if (exists)
+        {
+            // Additional test for writability
+        }
+    }
+
+    private void CreateDirectory(Library lib)
+    {
+        if (!Directory.Exists(lib.Path))
+        {
+            Directory.CreateDirectory(lib.Path);
+        }
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next()
+    {
+        _isSaving = true;
+        try
+        {
+            foreach (var lib in _libraries)
+            {
+                await LibraryService.UpdateAsync(lib, CancellationToken.None);
+            }
+            await OnNext.InvokeAsync();
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

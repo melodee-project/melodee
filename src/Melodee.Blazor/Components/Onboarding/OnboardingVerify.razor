@@ -1,0 +1,78 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Services.Setup
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.VerifyHeading")"/>
+
+    <RadzenText Text="@L("Onboarding.VerifyDescription")"/>
+
+    <RadzenProgressBar Value="@_readyCount" Max="@_totalCount" ShowValue="true" Style="width: 100%;"/>
+
+    <RadzenCard>
+        <RadzenStack Gap="0.5rem">
+            @foreach (var item in _items)
+            {
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="@(item.Success ? "check_circle" : "error")"
+                                 IconColor="@(item.Success ? Radzen.Colors.Success : Radzen.Colors.Danger)"/>
+                    <RadzenText Text="@item.Name"/>
+                    <RadzenText Text="@item.Details" TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);"/>
+                </RadzenStack>
+            }
+        </RadzenStack>
+    </RadzenCard>
+
+    @if (_isReady)
+    {
+        <RadzenAlert Variant="Variant.Filled" AlertStyle="AlertStyle.Success" Icon="check_circle">
+            <RadzenText Text="@L("Onboarding.ReadyToComplete")"/>
+        </RadzenAlert>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Complete"
+                      Text="@L("Onboarding.CompleteSetup")"
+                      Icon="check"
+                      IsBusy="@_isCompleting"
+                      Disabled="@(!_isReady)"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private List<SetupItem> _items = new();
+    private int _readyCount;
+    private int _totalCount;
+    private bool _isReady;
+    private bool _isCompleting;
+
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnComplete { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var status = await OnboardingStateService.GetSetupStatusAsync();
+        _items = status.Items.ToList();
+        _readyCount = _items.Count(i => i.Success);
+        _totalCount = _items.Count;
+        _isReady = status.IsReady;
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Complete()
+    {
+        _isCompleting = true;
+        try
+        {
+            await OnComplete.InvokeAsync();
+        }
+        finally
+        {
+            _isCompleting = false;
+        }
+    }
+}

@@ -13,12 +13,12 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 0 — Baseline + inventory required items
 - [x] Phase 1 — CLI system export (backup)
 - [x] Phase 2 — Extract/standardize Doctor into shared service
-- [ ] Phase 3 — Add shared SetupCheck API + models
-- [ ] Phase 4 — Blazor startup gating + route guard
-- [ ] Phase 5 — Implement onboarding wizard UI skeleton
+- [x] Phase 3 — Add shared SetupCheck API + models~~~~
+- [x] Phase 4 — Blazor startup gating + route guard (COMPLETED)
+- [ ] Phase 5 — Implement onboarding wizard UI skeleton (in progress)
 - [ ] Phase 6 — Implement wizard steps (branding, security, paths, admin)
-- [ ] Phase 7 — Download checklist + final verification~~~~
-- [ ] Phase 8 — Admin Dashboard JSON export/impor~~~~t
+- [ ] Phase 7 — Download checklist + final verification
+- [ ] Phase 8 — Admin Dashboard JSON export/import
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
 - [ ] Phase 10 — Tests + "definition of done" hardening
 
@@ -123,14 +123,14 @@ Updated `IDoctorService.cs` in Blazor to extend the shared interface and add Bla
 
 ---
 
-## Phase 3 — Add shared SetupCheck API + models
+## Phase 3 — Add shared SetupCheck API + models (COMPLETED)
 
 ### Deliverables
-- Add a shared "setup readiness" API surface (names fixed to avoid design churn):
-  - `Task<SetupStatus> SetupCheckAsync(...)`
-  - `SetupStatus` includes `IsReady`, `Items`, and `BlockingItems`
-  - `SetupItem` includes `Id`, `Name`, `Severity`, `Success`, `Details`, `Remediation`, `FixRoute` (e.g., `/onboarding/...`)
-- Implement SetupCheck blocking rules exactly as in `design/requirements/onboarding-wizard.md`.
+- [x] Add a shared "setup readiness" API surface (names fixed to avoid design churn):
+  - [x] `Task<SetupStatus> SetupCheckAsync(...)`
+  - [x] `SetupStatus` includes `IsReady`, `Items`, and `BlockingItems`
+  - [x] `SetupItem` includes `Id`, `Name`, `Severity`, `Success`, `Details`, `Remediation`, `FixRoute` (e.g., `/onboarding/...`)
+- [x] Implement SetupCheck blocking rules exactly as in `design/requirements/onboarding-wizard.md`.
 
 ### Implementation notes
 - Compute missing required settings by querying `Settings`:

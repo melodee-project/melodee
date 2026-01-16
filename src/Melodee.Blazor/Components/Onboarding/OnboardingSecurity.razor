@@ -1,0 +1,78 @@
+@using System.Security.Cryptography
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Constants
+@using Melodee.Common.Utility
+@using Melodee.Blazor.Services
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.SecurityHeading")"/>
+
+    <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Warning" Icon="info">
+        <RadzenText Text="@L("Onboarding.SecuritySecretDescription")"/>
+    </RadzenAlert>
+
+    @if (string.IsNullOrEmpty(_secretKey))
+    {
+        <RadzenButton Click="@GenerateKey" Text="@L("Onboarding.GenerateSecretKey")" Icon="key"/>
+    }
+    else
+    {
+        <RadzenFormField Text="@L("Onboarding.SecuritySecretLabel")">
+            <RadzenTextBox @bind-Value="_secretKey" Type="password" Style="width: 100%;"/>
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+            <RadzenButton Click="@GenerateKey" Text="@L("Onboarding.RegenerateKey")" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"/>
+        </RadzenStack>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private string _secretKey = "";
+    private bool _isSaving;
+
+    [Inject] private SettingService SettingService { get; set; } = null!;
+    [Inject] private IMelodeeConfigurationFactory ConfigurationFactory { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var config = await ConfigurationFactory.GetConfigurationAsync();
+        _secretKey = config.GetValue<string>(SettingRegistry.SecuritySecretKey) ?? "";
+    }
+
+    private void GenerateKey()
+    {
+        _secretKey = GenerateSecureKey();
+    }
+
+    private static string GenerateSecureKey()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(48);
+        return Convert.ToBase64String(bytes);
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next()
+    {
+        _isSaving = true;
+        try
+        {
+            await SettingService.SetAsync(SettingRegistry.SecuritySecretKey, _secretKey, CancellationToken.None);
+            await OnNext.InvokeAsync();
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

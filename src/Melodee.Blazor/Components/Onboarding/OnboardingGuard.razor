@@ -1,0 +1,84 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
+@using Melodee.Common.Services.Setup
+@inject OnboardingStateService OnboardingStateService
+@inject NavigationManager NavigationManager
+
+@implements IDisposable
+
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            @if (_isOnboardingRequired)
+            {
+                var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+
+                @if (IsOnboardingRoute(currentPath))
+                {
+                    @ChildContent
+                }
+                else if (IsBlockedRoute(currentPath))
+                {
+                    @ChildContent
+                }
+                else
+                {
+                    // Redirect to onboarding wizard
+                    <OnboardingRedirect />
+                }
+            }
+            else
+            {
+                @ChildContent
+            }
+        </Authorized>
+        <NotAuthorized>
+            @ChildContent
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
+
+@code {
+    private bool _isOnboardingRequired;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private static readonly string[] AllowedRoutes =
+    {
+        "/onboarding",
+        "/onboarding/",
+        "/onboarding/blocking",
+        "/account/login",
+        "/account/logout",
+        "/login",
+        "/logout"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _isOnboardingRequired = await OnboardingStateService.IsOnboardingRequiredAsync();
+        }
+        catch
+        {
+            // If we can't determine onboarding status, assume it's not required
+            // to allow the app to function
+            _isOnboardingRequired = false;
+        }
+    }
+
+    private static bool IsOnboardingRoute(string path)
+    {
+        return path.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBlockedRoute(string path)
+    {
+        return path.StartsWith("/onboarding/blocking", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void Dispose()
+    {
+    }
+}
