@@ -5954,5 +5954,47 @@
   <data name="Onboarding.PathOverlap" xml:space="preserve">
     <value>Path overlaps with {0} library</value>
   </data>
+  <data name="Onboarding.ExplainHeading" xml:space="preserve">
+    <value>Understanding Library Types</value>
+  </data>
+  <data name="Onboarding.ExplainDescription" xml:space="preserve">
+    <value>Melodee uses three main library types to organize your media collection. Here's how they work together.</value>
+  </data>
+  <data name="Onboarding.InboundLibraryTitle" xml:space="preserve">
+    <value>Inbound Library</value>
+  </data>
+  <data name="Onboarding.InboundLibraryDescription" xml:space="preserve">
+    <value>The Inbound library is where you drop new music files. Melodee scans this location for new content, validates file formats, and fetches metadata. Files are processed here before being moved to staging.</value>
+  </data>
+  <data name="Onboarding.StagingLibraryTitle" xml:space="preserve">
+    <value>Staging Library</value>
+  </data>
+  <data name="Onboarding.StagingLibraryDescription" xml:space="preserve">
+    <value>The Staging library holds processed music files that have been organized but not yet finalized. Review albums here before they are moved to your permanent storage library.</value>
+  </data>
+  <data name="Onboarding.StorageLibraryTitle" xml:space="preserve">
+    <value>Storage Library</value>
+  </data>
+  <data name="Onboarding.StorageLibraryDescription" xml:space="preserve">
+    <value>The Storage library is your permanent music collection. Files here are organized by artist and album, ready for playback and streaming. You can have multiple storage libraries.</value>
+  </data>
+  <data name="Onboarding.SetupProgress" xml:space="preserve">
+    <value>Your Setup Progress</value>
+  </data>
+  <data name="Onboarding.ItemsCompleted" xml:space="preserve">
+    <value>{0} of {1} setup items completed</value>
+  </data>
+  <data name="Onboarding.RefreshStatus" xml:space="preserve">
+    <value>Refresh Status</value>
+  </data>
+  <data name="Onboarding.DownloadChecklist" xml:space="preserve">
+    <value>Getting Started Checklist</value>
+  </data>
+  <data name="Onboarding.DownloadChecklistButton" xml:space="preserve">
+    <value>Download Checklist (Markdown)</value>
+  </data>
+  <data name="Onboarding.BlockingItemsRemaining" xml:space="preserve">
+    <value>Complete the remaining {0} items to finish setup.</value>
+  </data>
 
 </root>

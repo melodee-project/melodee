@@ -17,11 +17,11 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 4 — Blazor startup gating + route guard
 - [x] Phase 5 — Implement onboarding wizard UI skeleton (COMPLETED)
 - [x] Phase 6 — Implement wizard steps (branding, security, paths, admin) (COMPLETED)
-- [ ] Phase 7 — Download checklist + final verification
+- [x] Phase 7 — Download checklist + final verification (COMPLETED)
 - [ ] Phase 8 — Admin Dashboard JSON export/import
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
 - [ ] Phase 10 — Tests + "definition of done" hardening
-
+~~~~
 ---
 
 ## Phase 0 — Baseline + inventory required items (COMPLETED)
@@ -317,6 +317,24 @@ Path validation rules implemented:
 - Wizard completion writes the completion marker and stops forcing onboarding on restart (while requirements remain valid).
 - Download checklist is in Markdown format.
 - All wizard text is localized.
+
+**Implementation**: Added new wizard step and checklist functionality:
+
+- Created `OnboardingExplain.razor`: "Inbound/Staging/Storage explained" step with library type descriptions and progress bar
+- Updated `OnboardingVerify.razor`: Added refresh status button, download checklist functionality, and blocking items count display
+- Created `ChecklistService.cs`: Generates Markdown checklist with library paths, command reference, and next steps
+- Created `wwwroot/js/downloadFile.js`: JavaScript function to trigger file downloads from base64 content
+- Added wizard step between Admin and Verify for library explanation
+- Added localization strings for all new text
+
+Checklist includes:
+- Library paths summary
+- Folder structure recommendations
+- Command reference table
+- Next steps checklist
+- Troubleshooting section with doctor command
+- Legal reminder about content compliance
+- Links to documentation and source code
 
 ---
 
