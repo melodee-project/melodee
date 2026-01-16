@@ -568,4 +568,14 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     {
         return new PodcastPlaybackService(Logger, CacheManager, MockFactory());
     }
+
+    protected UserDeviceProfileService GetUserDeviceProfileService()
+    {
+        return new UserDeviceProfileService(Logger, CacheManager, MockFactory());
+    }
+
+    protected DeviceIdentificationService GetDeviceIdentificationService()
+    {
+        return new DeviceIdentificationService(Logger, CacheManager, MockFactory());
+    }
 }
