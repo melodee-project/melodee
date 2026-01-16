@@ -2,28 +2,28 @@
 
 ## Problem statement
 
-Melodee’s first-run experience is currently “discoverable” rather than “guided”. New administrators must infer required
+Melodee's first-run experience is currently "discoverable" rather than "guided". New administrators must infer required
 configuration and filesystem setup from errors, documentation, and the Doctor page. This increases stress and increases
 time-to-first-stream.
 
 ## Goals
 
 - Make first-run setup unmissable and low-stress.
-- Provide a single onboarding wizard that guides a new admin to a “ready to ingest and stream” system state.
-- Reuse and standardize Doctor checks across `Melodee.Blazor` and `Melodee.Cli` so “Doctor” is uniform across the
+- Provide a single onboarding wizard that guides a new admin to a "ready to ingest and stream" system state.
+- Reuse and standardize Doctor checks across `Melodee.Blazor` and `Melodee.Cli` so "Doctor" is uniform across the
   solution.
 - Ensure that missing critical configuration results in a deterministic, recoverable UX (wizard shown; user can fix).
 
 ## Non-goals
 
 - Provide sample music or any content that implies distribution rights.
-- Auto-download copyrighted music, provide “example” sources, or enable any legally ambiguous workflows.
+- Auto-download copyrighted music, provide "example" sources, or enable any legally ambiguous workflows.
 - Replace the existing Admin Settings / Libraries pages; the wizard may re-use their services and components.
 
 ## Definitions
 
 - **Doctor**: The system-wide health checking mechanism and its set of checks, results, and severities.
-- **SetupCheck**: A doctor check group that answers: “Is the instance configured enough to run safely and ingest media?”
+- **SetupCheck**: A doctor check group that answers: "Is the instance configured enough to run safely and ingest media?"
 - **DoctorWizard**: A lightweight startup orchestrator that calls `SetupCheck()` on each app start and decides whether the
   onboarding wizard must be shown.
 - **Blocking (Critical) issue**: A failing requirement that prevents setup completion and triggers onboarding.
@@ -44,7 +44,13 @@ Notes:
 - If onboarding was previously completed but later a critical setup requirement becomes invalid (e.g., paths removed,
   required settings cleared), onboarding must be shown again so the admin can fix it.
 - If the system cannot reach the DB/configuration required to compute `SetupCheck`, show a dedicated blocking screen
-  that explains the failure and how to resolve it (no “blank page” or redirect loops).
+  that explains the failure and how to resolve it. This screen must include:
+  - Clear error message (e.g., "Cannot connect to database")
+  - Retry button (re-attempt connection)
+  - Link to relevant documentation or support resources
+  - No "blank page" or redirect loops.
+- All wizard changes are saved immediately per step, so abandoning the wizard mid-process is safe. The user can return
+  to onboarding at any time if requirements become invalid.
 
 ## Required setup checks (blocking)
 
@@ -69,7 +75,7 @@ Notes:
   - missing row
   - `null`/empty/whitespace
 - Default seed value `"Melodee"` is acceptable, but the wizard must explicitly present this step and let the admin confirm
-  or change it (to make branding “unmissable”).
+  or change it (to make branding "unmissable").
 
 ### Critical configuration (Settings table)
 
@@ -83,10 +89,12 @@ Notes:
   - missing row
   - `null`/empty/whitespace
   - length < 32 characters
+- Generation algorithm: `RandomNumberGenerator.GetBytes(48)` followed by Base64 encoding (yields 64 characters).
 - Wizard behavior:
-  - Provide a “Generate secure key” action that generates a cryptographically secure value and stores it in the DB.
-  - Provide a “Regenerate” action with explicit confirmation and a warning about invalidating existing protected data.
-  - Never display the full key after it has been saved; show masked value and “copy new key” only at creation time.
+  - Provide a "Generate secure key" action that uses the algorithm above and stores it in the DB.
+  - Provide a "Regenerate" action with explicit confirmation and a warning about invalidating existing protected data.
+    This action is primarily for future use after initial setup.
+  - Never display the full key after it has been saved; show masked value and "copy new key" only at creation time.
 
 ### Library paths (filesystem + Libraries table)
 
@@ -99,10 +107,16 @@ Notes:
 - Each required library must pass:
   - The directory exists OR the wizard can create it (admin choice).
   - The directory is writable by the running process (wizard uses a safe write test file).
+- Path validation rules:
+  - Resolve symbolic links to canonical paths before validation (to prevent overlap bypass).
+  - Reject paths containing path traversal sequences (e.g., `..`, `.`) relative to allowed roots.
+  - Support UNC paths on Windows (e.g., `\\server\share\path`) and absolute paths on all platforms.
+  - Validate path length: recommend staying under 255 characters for cross-platform compatibility.
 
 6) Inbound/Staging/Storage must not overlap:
 - Paths must not be equal and must not be parent/child of each other (case-insensitive, normalized).
 - Overlap is blocking because it can cause destructive moves or confusing processing behavior.
+- Normalization must handle directory separators consistently across platforms before comparison.
 
 ## Recommended setup checks (non-blocking)
 
@@ -121,31 +135,33 @@ These should be visible in onboarding (as warnings) but must not prevent complet
 - Route: `/onboarding` (exact path).
 - Always shows:
   - stepper/progress indicator (X of Y)
-  - “Back”/“Next” controls
-  - clear “Blocking” vs “Recommended” labeling
+  - "Back"/"Next" controls
+  - clear "Blocking" vs "Recommended" labeling
 - Navigation:
   - When `OnboardingRequired == true`, users must not be able to navigate to other pages (hard redirect/guard).
   - The only allowed routes while onboarding is required:
     - `/onboarding` and its child routes
     - `/account/login` (if authentication is required before onboarding)
     - `/account/logout`
-    - a dedicated `/onboarding/blocking` page for “cannot compute setup status” failures (DB unreachable, etc.)
+    - a dedicated `/onboarding/blocking` page for "cannot compute setup status" failures (DB unreachable, etc.)
+- Back button allows revisiting and changing previous steps; all changes are saved immediately.
 
 ### Authentication/authorization
 
 - Onboarding must be actionable only by admins (users with Admin role/claim).
 - If no admin exists in the database:
-  - onboarding must provide a “Create first admin” step, or
-  - onboarding must provide a blocking screen instructing how to create an admin via CLI (if implemented later).
+  - onboarding MUST provide a "Create first admin" step (wizard must be self-contained).
+  - This ensures the onboarding flow works without requiring CLI admin creation first.
 - All mutations performed by the wizard must use existing domain services (`SettingService`, `LibraryService`, etc.) and
   respect authorization checks already present in those services/pages.
+- Onboarding wizard must support localization using the existing `L("...")` pattern used in the Blazor application.
 
 ### Step requirements (minimum set)
 
 1) **Welcome / context**
 - Explain what the wizard will do and that it can be re-entered if critical checks fail later.
 - Show a summary of current blocking items detected by `SetupCheck()`.
-- Provide an optional “Import existing system export” action that allows uploading the JSON system export (created by the
+- Provide an optional "Import existing system export" action that allows uploading the JSON system export (created by the
   UI or `mcli`) to pre-fill Settings + Libraries. If import succeeds, the wizard should re-run `SetupCheck()` and skip
   completed steps.
 
@@ -153,19 +169,21 @@ These should be visible in onboarding (as warnings) but must not prevent complet
 - Inputs:
   - `system.siteName` (text)
   - `system.baseUrl` (URL)
-- Validations per “Required setup checks”.
+- Validations per "Required setup checks".
 - Copy should mention where these values are used (emails, shareable links, image URLs).
 
 3) **Security key**
 - Detect whether `security.secretKey` is configured.
-- Provide “Generate key” with local generation.
+- Provide "Generate key" with local generation using the specified algorithm.
 - Show warnings about regeneration.
 
 4) **Library paths (wizard + defaults)**
 - Show the required libraries and their current configured paths.
 - Provide recommended defaults based on runtime environment:
   - If running in container with default mount patterns: `/app/inbound`, `/app/staging`, `/app/storage`
-  - Otherwise: suggest platform-appropriate defaults (agents will implement OS detection)
+  - Otherwise: suggest platform-appropriate absolute paths:
+    - Windows: `C:\Melodee\Inbound`, `C:\Melodee\Staging`, `C:\Melodee\Storage`
+    - Linux/macOS: `/var/lib/melodee/inbound`, `/var/lib/melodee/staging`, `/var/lib/melodee/storage`
 - Provide actions:
   - Browse/select path (if supported) or manual entry
   - Create directory
@@ -174,10 +192,10 @@ These should be visible in onboarding (as warnings) but must not prevent complet
 
 5) **Inbound/Staging/Storage explained (single screen + progress bar)**
 - Single informational step describing the lifecycle:
-  - Inbound: “drop new media here”
-  - Staging: “processed/normalized metadata”
-  - Storage: “final library for streaming”
-- Show a progress bar that reflects “setup readiness for ingestion”, derived from:
+  - Inbound: "drop new media here"
+  - Staging: "processed/normalized metadata"
+  - Storage: "final library for streaming"
+- Show a progress bar that reflects "setup readiness for ingestion", derived from:
   - configured paths
   - writeability
   - overlap check
@@ -185,16 +203,16 @@ These should be visible in onboarding (as warnings) but must not prevent complet
 
 6) **Final verification**
 - Re-run `SetupCheck()` and show a compact success/failure list.
-- “Complete setup” button is enabled only when all blocking checks pass.
+- "Complete setup" button is enabled only when all blocking checks pass.
 - On completion:
   - set `system.onboardingCompletedAt` in `Settings` with UTC timestamp (`Instant` serialized consistently with existing
     settings conventions).
   - navigate to Admin dashboard (or main dashboard depending on role).
 
 7) **Download next-steps checklist**
-- Provide a “Download checklist” action that downloads a text/markdown file generated server-side.
+- Provide a "Download checklist" action that downloads a Markdown file generated server-side.
 - Content requirements:
-  - A clear, legally-safe statement: “Add only media you own/are licensed to use.”
+  - A clear, legally-safe statement: "Add only media you own/are licensed to use."
   - Steps to add music without providing sources:
     - choose a folder structure
     - copy/rip/purchase/import your own files into Inbound
@@ -202,6 +220,7 @@ These should be visible in onboarding (as warnings) but must not prevent complet
     - verify in UI
     - optionally configure podcasts (RSS you control/subscribe to)
   - References to relevant Melodee pages (e.g., Libraries page, Admin Settings, Jobs).
+  - Note: Legal team should review this text to ensure compliance with applicable laws and regulations.
 
 ## Doctor standardization requirements
 
@@ -228,7 +247,7 @@ At minimum, each setup item must include:
 - `Details` (safe to show in UI; never include secrets)
 - `Remediation` (short guidance)
 
-## System export/import requirements (JSON “backup”)
+## System export/import requirements (JSON "backup")
 
 Provide an export/import experience on `/admin/dashboard` to help:
 
@@ -239,37 +258,41 @@ This is an export/import of **configuration data** (at minimum: Settings + Libra
 
 ### Export (download)
 
-- The `/admin/dashboard` page must provide an action to download a JSON “backup” of configuration.
+- The `/admin/dashboard` page must provide an action to download a JSON "backup" of configuration.
 - Export content includes:
-  - schema version
+  - schema version (must be validated on import; reject if version mismatch)
   - exported timestamp (UTC)
   - all Settings rows (`key` + `value` at minimum)
   - all Libraries rows needed to recreate library setup (at minimum: `type`, `name`, `path`, and a stable identifier such as `apiKey`)
 - Export must clearly warn that the file may contain secrets and should be stored securely.
+- Export ordering must be deterministic (Settings sorted alphabetically by key; Libraries sorted by type then name).
 
 ### Import (upload)
 
-- The `/admin/dashboard` page must provide an action to upload a previously exported JSON “backup”.
+- The `/admin/dashboard` page must provide an action to upload a previously exported JSON "backup".
+- Import must validate schema version before processing; reject with clear error if version mismatch.
+- Import must be transactional: either all changes are applied successfully, or none are applied. This prevents partial
+  configuration states that could leave the system in an inconsistent state.
 - Import must:
   - validate schema version and JSON shape
   - only apply allowed keys (known SettingRegistry keys and/or existing keys in the DB)
   - skip settings that are set via environment variables on the current host (cannot be overridden via DB)
   - respect `Setting.IsLocked` by default (skip locked keys and report)
-  - provide an “overwrite existing values” option
-  - provide a “skip null values” option (null values are otherwise treated as empty string)
+  - provide an "overwrite existing values" option
+  - provide a "skip null values" option (null values are otherwise treated as empty string)
 - Import must also support Libraries:
   - match existing libraries by stable identifier (`apiKey`), else fall back to `type` for unique types
   - respect `Library.IsLocked` by default (skip locked libraries and report)
-  - provide an “overwrite existing values” option controlling whether paths/names are updated
+  - provide an "overwrite existing values" option controlling whether paths/names are updated
 - Import must show a results summary:
   - updated count
   - added count
-  - skipped count (with reasons: unknown key, env override, locked, null-skipped, validation failure)
+  - skipped count (with reasons: unknown key, env override, locked, null-skipped, validation failure, schema version mismatch)
 - Import must never log or display secret values; logs may include counts and key names only if safe.
 
 ### CLI export (commandline)
 
-- Melodee.Cli must provide a command to create the same system “export” from the command line.
+- Melodee.Cli must provide a command to create the same system "export" from the command line.
 - The CLI-generated export must be **byte-for-byte compatible in schema** with the UI/onboarding import (same schema
   version, same JSON shape, same field meanings).
 - The CLI export is intended for snapshots and migration; it must support writing to a file and/or stdout.
@@ -284,10 +307,14 @@ This is an export/import of **configuration data** (at minimum: Settings + Libra
 - The wizard can successfully set:
   - `system.baseUrl`
   - `system.siteName`
-  - `security.secretKey` (generated)
+  - `security.secretKey` (generated using `RandomNumberGenerator.GetBytes(48)` + Base64)
   - Inbound/Staging/Storage library paths (validated and writable)
   - `system.onboardingCompletedAt`
-- The Blazor Doctor page and `mcli doctor` share the same checks for all items listed under “Required setup checks”.
+- The Blazor Doctor page and `mcli doctor` share the same checks for all items listed under "Required setup checks".
 - No secrets are logged or rendered in raw output; sensitive values are masked in all views.
-- `/admin/dashboard` supports downloading and uploading the JSON “backup” to export/import system configuration.
+- `/admin/dashboard` supports downloading and uploading the JSON "backup" to export/import system configuration.
 - `mcli` can generate the same JSON export for snapshots and migration.
+- Wizard is fully localized using the existing `L("...")` pattern.
+- Import is transactional: all changes apply or none apply (no partial state).
+- Path validation resolves symlinks and rejects traversal sequences.
+- Wizard includes "Create first admin" step when no admin exists.

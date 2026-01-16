@@ -16,11 +16,11 @@ definition-of-done criteria to minimize design work during implementation.
 - [ ] Phase 3 — Add shared SetupCheck API + models
 - [ ] Phase 4 — Blazor startup gating + route guard
 - [ ] Phase 5 — Implement onboarding wizard UI skeleton
-- [ ] Phase 6 — Implement wizard steps (branding, security, paths)
+- [ ] Phase 6 — Implement wizard steps (branding, security, paths, admin)
 - [ ] Phase 7 — Download checklist + final verification
 - [ ] Phase 8 — Admin Dashboard JSON export/import
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
-- [ ] Phase 10 — Tests + “definition of done” hardening
+- [ ] Phase 10 — Tests + "definition of done" hardening
 
 ---
 
@@ -60,11 +60,12 @@ definition-of-done criteria to minimize design work during implementation.
   - `--stdout` to write to stdout (machine-friendly)
   - `--redact-secrets` (explicit) to replace secret values with a sentinel marker
 - Export output must be deterministic for diffing:
-  - stable ordering (e.g., Settings by key; Libraries by type then name)
+  - Settings sorted alphabetically by key
+  - Libraries sorted by type then name (alphabetical)
   - consistent indentation and casing
 
 ### Implementation notes
-- This phase must be completed before onboarding wizard phases to enable snapshot-based testing.
+- This phase can be parallelized with Phase 0.
 - Redaction rules (fixed):
   - redact `security.secretKey`
   - redact any key containing `secret`, `token`, or `password` (case-insensitive) unless explicitly allow-listed
@@ -72,6 +73,7 @@ definition-of-done criteria to minimize design work during implementation.
 
 ### Definition of done
 - `mcli backup export --output export.json` produces a valid JSON export that the UI/onboarding import can consume.
+- Export is deterministic and produces identical output for identical input.
 
 ---
 
@@ -101,7 +103,7 @@ definition-of-done criteria to minimize design work during implementation.
 ## Phase 3 — Add shared SetupCheck API + models
 
 ### Deliverables
-- Add a shared “setup readiness” API surface (names fixed to avoid design churn):
+- Add a shared "setup readiness" API surface (names fixed to avoid design churn):
   - `Task<SetupStatus> SetupCheckAsync(...)`
   - `SetupStatus` includes `IsReady`, `Items`, and `BlockingItems`
   - `SetupItem` includes `Id`, `Name`, `Severity`, `Success`, `Details`, `Remediation`, `FixRoute` (e.g., `/onboarding/...`)
@@ -115,10 +117,13 @@ definition-of-done criteria to minimize design work during implementation.
   - verify Inbound + Staging exist and are writable
   - verify at least one Storage exists and is writable
   - normalize and check overlap (case-insensitive, directory separators normalized)
+  - resolve symbolic links before overlap check
+  - reject paths containing traversal sequences (`..`, `.`)
 - Never include secrets in `Details`. Use masked values where needed.
 
 ### Definition of done
 - SetupCheck returns deterministic results for all required setup checks and can be consumed by UI/CLI.
+- Path validation includes symlink resolution and traversal rejection.
 
 ---
 
@@ -130,8 +135,12 @@ definition-of-done criteria to minimize design work during implementation.
   - `/onboarding/blocking` (cannot compute setup status)
 - Implement onboarding required detection:
   - `OnboardingRequired = !HasOnboardingCompletedAt || !SetupCheck.IsReady`
-- Implement an “unmissable” guard:
+- Implement an "unmissable" guard:
   - If onboarding required, force navigation to `/onboarding` and hide normal navigation chrome.
+- Add blocking screen UX for `/onboarding/blocking`:
+  - Clear error message (e.g., "Cannot connect to database")
+  - Retry button (re-attempt connection)
+  - Link to relevant documentation or support resources
 
 ### Implementation notes
 - Integrate guard in a single place that affects all routes:
@@ -139,11 +148,14 @@ definition-of-done criteria to minimize design work during implementation.
   - or adjust `src/Melodee.Blazor/Components/Routes.razor` to include an `OnNavigateAsync` guard (if refactoring Router)
 - Guard must avoid redirect loops:
   - allow `/account/login`, `/account/logout`, `/onboarding`, `/onboarding/blocking`
-- Compute SetupCheck once per app start and cache (scoped state) with a “refresh” action the wizard can invoke.
+- Compute SetupCheck once per app start and cache (scoped state) with a "refresh" action the wizard can invoke.
+- Wizard must call `SetupCheckAsync` refresh after each step that mutates configuration to ensure up-to-date status.
 
 ### Definition of done
 - A failing SetupCheck reliably redirects to onboarding without flicker/loop.
 - A passing SetupCheck and completed marker reliably routes to the normal home/dashboard.
+- Blocking screen displays clear error message with retry and support link.
+- SetupCheck is refreshed after wizard step mutations.
 
 ---
 
@@ -154,28 +166,36 @@ definition-of-done criteria to minimize design work during implementation.
 - Implement:
   - stepper/progress indicator
   - shared wizard state model (current step, setup status snapshot, validation errors)
-  - Back/Next navigation
+  - Back/Next navigation (Back allows revisiting previous steps)
 
 ### Implementation notes
 - Use existing UI library patterns (Radzen components, localization via `L("...")` pattern used elsewhere).
-- Persist changes immediately per step (no giant “Save at end”), but validate before allowing Next.
+- Persist changes immediately per step (no giant "Save at end"), but validate before allowing Next.
+- Ensure all wizard strings are localized using the `L("...")` pattern.
 
 ### Definition of done
 - Wizard renders and can navigate across placeholder steps without implementing mutations yet.
+- All wizard text uses localization pattern.
 
 ---
 
-## Phase 6 — Implement wizard steps (branding, security, paths)
+## Phase 6 — Implement wizard steps (branding, security, paths, admin)
 
 ### Deliverables
 Implement these steps with exact behaviors:
 
 0) Import system export (optional fast path)
-- Add an optional “Import existing system export” action in the onboarding wizard Welcome step.
+- Add an optional "Import existing system export" action in the onboarding wizard Welcome step.
 - The import consumes the same JSON schema produced by `mcli backup export` and the Admin Dashboard export.
 - Import applies Settings + Libraries and then re-runs SetupCheck:
   - on success, auto-skip satisfied steps
   - on partial success, show a summary and continue with remaining steps
+- Import must be transactional (all or nothing).
+
+0b) Create first admin (conditional)
+- If no admin exists in the database, provide a "Create first admin" step.
+- This step collects admin credentials (username, password) and creates the admin user.
+- Uses existing user management services to ensure consistency.
 
 1) Branding
 - Uses `SettingService.UpdateAsync(...)` (or existing setting editing patterns) to update:
@@ -185,37 +205,58 @@ Implement these steps with exact behaviors:
 2) Security secret key
 - If `security.secretKey` missing/invalid, generate and persist.
 - Generation algorithm (fixed):
-  - `RandomNumberGenerator.GetBytes(48)` then Base64 encode (yields 64 chars) OR equivalent strong generation.
+  - `RandomNumberGenerator.GetBytes(48)` then Base64 encode (yields 64 chars)
 - Store key in `Settings` table key `security.secretKey`.
 - UI shows key only once at creation time and then masks it.
+- Provide "Regenerate" option with confirmation (for future use after setup).
 
 3) Library paths
 - Use `LibraryService` to update:
   - Inbound path
   - Staging path
   - Storage path (first storage library or prompt to create one if none exist)
-- Provide “Create directory” + “Test write” actions.
+- Provide recommended defaults based on environment:
+  - Container: `/app/inbound`, `/app/staging`, `/app/storage`
+  - Windows: `C:\Melodee\Inbound`, `C:\Melodee\Staging`, `C:\Melodee\Storage`
+  - Linux/macOS: `/var/lib/melodee/inbound`, `/var/lib/melodee/staging`, `/var/lib/melodee/storage`
+- Provide actions:
+  - Browse/select path (if supported) or manual entry
+  - Create directory
+  - Test write permissions
 - Enforce overlap rules before allowing Next.
+- Resolve symlinks to canonical paths before validation.
+- Reject paths containing traversal sequences (`..`, `.`).
 
 ### Definition of done
 - Running the wizard end-to-end can satisfy all blocking requirements except the final completion marker.
+- Wizard includes admin creation when no admin exists.
+- Import is transactional.
+- Path validation includes symlink resolution and traversal rejection.
 
 ---
 
 ## Phase 7 — Download checklist + final verification
 
 ### Deliverables
-- Add “Inbound/Staging/Storage explained” step:
+- Add "Inbound/Staging/Storage explained" step:
   - single screen description + progress bar derived from current SetupStatus items
-- Add “Final verification” step:
+- Add "Final verification" step:
   - re-run SetupCheck and display blocking items
   - on success, set `system.onboardingCompletedAt` and navigate away
-- Add “Download checklist”:
-  - Implement a server-side endpoint or Blazor download mechanism that returns a generated `.md` or `.txt` file.
+- Add "Download checklist":
+  - Implement a server-side endpoint or Blazor download mechanism that returns a generated `.md` file.
   - Checklist content must be legally safe and reference Melodee pages/commands without providing music sources.
+  - Format: Markdown (.md) for better readability.
+  - Include note for legal review team.
+
+### Implementation notes
+- Refresh SetupCheck before final verification to ensure current state.
+- After setting completion marker, navigate to appropriate dashboard (Admin for admins, main dashboard otherwise).
 
 ### Definition of done
 - Wizard completion writes the completion marker and stops forcing onboarding on restart (while requirements remain valid).
+- Download checklist is in Markdown format.
+- All wizard text is localized.
 
 ---
 
@@ -223,28 +264,35 @@ Implement these steps with exact behaviors:
 
 ### Deliverables
 - Add export/download on `src/Melodee.Blazor/Components/Pages/Admin/Dashboard.razor`:
-  - downloads a JSON “backup” containing schema version, exported timestamp (UTC), Settings rows (key+value), and Libraries (type+name+path+apiKey)
+  - downloads a JSON "backup" containing schema version, exported timestamp (UTC), Settings rows (key+value), and Libraries (type+name+path+apiKey)
   - displays a warning that the file may contain secrets
+  - output is deterministic (Settings sorted alphabetically by key, Libraries sorted by type then name)
 - Add import/upload on `src/Melodee.Blazor/Components/Pages/Admin/Dashboard.razor`:
-  - upload JSON file, validate, preview summary, and apply changes
+  - upload JSON file, validate schema version, preview summary, and apply changes
   - options:
     - overwrite existing values
     - skip null values
+  - import is transactional (all or nothing)
+  - reject import on schema version mismatch
 - Implement shared import/export helpers in `Melodee.Common` (preferred) so UIs are thin and CLI/onboarding stay compatible.
 
 ### Implementation notes
 - Import must:
-  - validate JSON shape and schema version
+  - validate JSON shape and schema version (reject on mismatch)
   - only apply allowed keys (SettingRegistry keys and/or existing DB keys)
   - skip keys set via environment variables (`MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(key)`)
   - skip locked keys (`Setting.IsLocked`) by default
   - skip locked libraries (`Library.IsLocked`) by default
   - never log or display secret values
+  - wrap in transaction to ensure all-or-nothing behavior
 - After import, refresh the cached configuration (`IMelodeeConfigurationFactory.Reset()`).
+- Import results summary includes reasons for skipped items, including schema version mismatch.
 
 ### Definition of done
 - An admin can export configuration to JSON, change servers, and import to apply the same values.
 - The import reports counts of updated/added/skipped items with reasons.
+- Import is transactional (all changes apply or none apply).
+- Schema version mismatches are rejected with clear error message.
 
 ---
 
@@ -263,26 +311,49 @@ Implement these steps with exact behaviors:
   - placeholder required settings
   - security.secretKey presence/strength (masked)
   - required library path checks + overlap
+  - symlink resolution in path checks
+  - traversal rejection in path checks
 - Avoid re-implementing check logic in CLI; only map results to Spectre.Console rendering.
 
 ### Definition of done
 - `mcli doctor` output matches Blazor Doctor semantics for all shared checks.
+- Path validation in CLI includes symlink resolution and traversal rejection.
 
 ---
 
-## Phase 10 — Tests + “definition of done” hardening
+## Phase 10 — Tests + "definition of done" hardening
 
 ### Deliverables
 - Unit tests for shared SetupCheck logic:
   - missing baseUrl placeholder -> blocking
   - missing/weak `security.secretKey` -> blocking
   - overlapping paths -> blocking
+  - symlink overlap detection -> blocking
+  - path traversal rejection -> blocking
   - missing/inaccessible required library -> blocking
+  - path length validation -> success/failure
+- Unit tests for import/export:
+  - export is deterministic
+  - import validates schema version (reject mismatch)
+  - import is transactional (all or nothing)
+  - import respects locked settings/libraries
+  - import respects environment variable overrides
+  - import summary includes all skip reasons
 - Basic UI test coverage (choose the smallest existing test harness in the repo):
   - Guard redirects to `/onboarding` when required.
   - Completion marker prevents redirect when setup remains valid.
+  - Wizard step navigation works (Back/Next).
+  - Blocking screen displays with retry button.
+
+### Implementation notes
+- No secrets are logged or included in raw outputs.
+- Verify wizard meets acceptance criteria in `design/requirements/onboarding-wizard.md`.
+- Ensure all new tests pass.
 
 ### Definition of done
 - All new tests pass.
 - No secrets are logged or included in raw outputs.
 - Wizard meets acceptance criteria in `design/requirements/onboarding-wizard.md`.
+- SetupCheck is refreshed after wizard step mutations (verified via tests or manual check).
+- Path validation tests cover symlink resolution and traversal rejection.
+- Import tests cover transactionality and schema version validation.
