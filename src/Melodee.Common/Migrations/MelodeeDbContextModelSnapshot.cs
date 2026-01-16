@@ -4276,6 +4276,18 @@ namespace Melodee.Common.Migrations
                             Key = "mpd.enableDebugOutput",
                             SortOrder = 0,
                             Value = "false"
+                        },
+                        new
+                        {
+                            Id = 1927,
+                            ApiKey = new Guid("df8f5291-a7c1-797c-1dea-5d302116b2c9"),
+                            Category = 11,
+                            Comment = "Enable per-user and per-device transcoding profiles.",
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(0L),
+                            IsLocked = false,
+                            Key = "userDeviceProfile.enabled",
+                            SortOrder = 0,
+                            Value = "true"
                         });
                 });
 
@@ -4955,6 +4967,86 @@ namespace Melodee.Common.Migrations
                         .IsUnique();
 
                     b.ToTable("UserArtists");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserDeviceProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<bool>("DirectPlay")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefaultProfile")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("MaxBitrate")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int?>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ResampleRate")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("TargetCodec")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("UserId", "IsDefaultProfile");
+
+                    b.HasIndex("UserId", "PlayerId")
+                        .IsUnique();
+
+                    b.ToTable("UserDeviceProfiles");
                 });
 
             modelBuilder.Entity("Melodee.Common.Data.Models.UserEqualizerPreset", b =>
@@ -5914,6 +6006,23 @@ namespace Melodee.Common.Migrations
                         .IsRequired();
 
                     b.Navigation("Artist");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserDeviceProfile", b =>
+                {
+                    b.HasOne("Melodee.Common.Data.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId");
+
+                    b.HasOne("Melodee.Common.Data.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
 
                     b.Navigation("User");
                 });

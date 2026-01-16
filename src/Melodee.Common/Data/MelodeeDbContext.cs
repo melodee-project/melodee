@@ -61,6 +61,8 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     public DbSet<UserPlaybackSettings> UserPlaybackSettings { get; set; }
 
+    public DbSet<UserDeviceProfile> UserDeviceProfiles { get; set; }
+
     public DbSet<UserEqualizerPreset> UserEqualizerPresets { get; set; }
 
     public DbSet<UserSocialLogin> UserSocialLogins { get; set; }
@@ -1775,6 +1777,16 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     Key = SettingRegistry.MpdEnableDebugOutput,
                     Comment = "Enable debug logging for MPD commands.",
                     Value = "false",
+                    CreatedAt = seedDataTimestamp
+                },
+                new Setting
+                {
+                    Id = 1927,
+                    ApiKey = SeedGuid("Setting", 1927),
+                    Category = (int)SettingCategory.System,
+                    Key = SettingRegistry.UserDeviceProfileEnabled,
+                    Comment = "Enable per-user and per-device transcoding profiles.",
+                    Value = "true",
                     CreatedAt = seedDataTimestamp
                 }
             );

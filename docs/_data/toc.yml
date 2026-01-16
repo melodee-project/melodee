@@ -47,6 +47,8 @@
       url: "shares"
     - title: "Theming"
       url: "theming"
+    - title: "User Device Profiles"
+      url: "user-device-profiles"
 
 - title: Tools & Interfaces
   links:
