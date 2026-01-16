@@ -158,6 +158,7 @@ public static class SettingRegistry
     public const string SystemSiteName = "system.siteName";
     public const string SystemIsDownloadingEnabled = "system.isDownloadingEnabled";
     public const string SystemMaxUploadSize = "system.maxUploadSize";
+    public const string SystemOnboardingCompletedAt = "system.onboardingCompletedAt";
     // Streaming settings
     public const string StreamingUseBufferedResponses = "streaming.useBufferedResponses"; // bool: fallback to buffered responses
     public const string StreamingMaxConcurrentStreamsGlobal = "streaming.maxConcurrentStreams.global"; // int: 0 or less = unlimited

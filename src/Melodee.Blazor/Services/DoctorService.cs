@@ -1,10 +1,13 @@
 using System.Diagnostics;
+using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
+using Melodee.Common.Data.Models;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
+using Melodee.Common.Services.Doctor;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
@@ -12,7 +15,8 @@ using Quartz;
 namespace Melodee.Blazor.Services;
 
 /// <summary>
-/// Service for performing system health checks and diagnostics.
+/// Blazor-specific Doctor service that extends the shared DoctorServiceBase
+/// with additional host-specific checks.
 /// </summary>
 public sealed class DoctorService(
     IConfiguration configuration,
@@ -20,9 +24,10 @@ public sealed class DoctorService(
     IDbContextFactory<MusicBrainzDbContext> musicBrainzDbContextFactory,
     IDbContextFactory<ArtistSearchEngineServiceDbContext> artistSearchEngineDbContextFactory,
     LibraryService libraryService,
+    IMelodeeConfigurationFactory configurationFactory,
     IWebHostEnvironment webHostEnvironment,
     IHttpContextAccessor httpContextAccessor,
-    ISchedulerFactory schedulerFactory) : IDoctorService
+    ISchedulerFactory schedulerFactory) : DoctorServiceBase(dbContextFactory, libraryService, configurationFactory), Melodee.Blazor.Services.IDoctorService
 {
     private static readonly string[] RequiredConnectionStrings =
     [
@@ -203,7 +208,7 @@ public sealed class DoctorService(
         }
     }
 
-    public async Task<DoctorCheckResults> RunAllChecksAsync(CancellationToken cancellationToken = default)
+    public async Task<BlazorDoctorCheckResults> RunAllChecksAsync(CancellationToken cancellationToken = default)
     {
         var checks = new List<DoctorCheckResult>();
         var libraryPaths = new List<LibraryPathResult>();
@@ -214,26 +219,21 @@ public sealed class DoctorService(
         var diskSpaceInfo = new List<DiskSpaceInfo>();
         var searchEngineApiKeys = new List<SearchEngineApiKeyInfo>();
 
-        // Run all checks
-        checks.Add(await RunConfigurationCheckAsync(cancellationToken));
-        checks.Add(await RunDatabaseCheckAsync(cancellationToken));
+        // Run core checks using base class implementation
+        var coreResults = await RunCoreChecksAsync(cancellationToken);
+        checks.AddRange(coreResults.Checks);
+        libraryPaths.AddRange(coreResults.LibraryPaths);
+        configurableServices.AddRange(coreResults.ConfigurableServices);
 
+        // Run Blazor-specific checks
         var (musicBrainzCheck, isMusicBrainzEmpty) = await RunMusicBrainzDbCheckAsync(cancellationToken);
         checks.Add(musicBrainzCheck);
 
         checks.Add(await RunArtistSearchEngineDbCheckAsync(cancellationToken));
 
-        var (libraryCheck, libPaths) = await RunLibraryPathsCheckAsync(cancellationToken);
-        checks.Add(libraryCheck);
-        libraryPaths.AddRange(libPaths);
-
         var (serilogCheck, logPaths) = RunSerilogCheckAsync();
         checks.Add(serilogCheck);
         serilogLogPaths.AddRange(logPaths);
-
-        var (servicesCheck, services) = await RunConfigurableServicesCheckAsync(cancellationToken);
-        checks.Add(servicesCheck);
-        configurableServices.AddRange(services);
 
         // Disk space and path checks
         var (diskSpaceCheck, diskInfo) = await RunDiskSpaceCheckAsync(cancellationToken);
@@ -272,7 +272,7 @@ public sealed class DoctorService(
         // Gather environment variable info
         environmentVariables.AddRange(GatherEnvironmentVariableInfo());
 
-        return new DoctorCheckResults
+        return new BlazorDoctorCheckResults
         {
             Checks = checks,
             LibraryPaths = libraryPaths,
@@ -323,47 +323,6 @@ public sealed class DoctorService(
         }
     }
 
-    private async Task<DoctorCheckResult> RunConfigurationCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            var missing = RequiredConnectionStrings
-                .Where(cs => string.IsNullOrWhiteSpace(configuration.GetConnectionString(cs)))
-                .ToList();
-
-            var success = missing.Count == 0;
-            var details = success
-                ? $"Environment={webHostEnvironment.EnvironmentName}"
-                : $"Missing: {string.Join(", ", missing)}";
-
-            return new DoctorCheckResult("Configuration", success, details, sw.Elapsed);
-        }
-        catch (Exception ex)
-        {
-            return new DoctorCheckResult("Configuration", false, ex.Message, sw.Elapsed);
-        }
-    }
-
-    private async Task<DoctorCheckResult> RunDatabaseCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            var details = canConnect
-                ? $"OK ({db.Database.ProviderName})"
-                : "Unable to connect";
-
-            return new DoctorCheckResult("PostgresDatabase", canConnect, details, sw.Elapsed);
-        }
-        catch (Exception ex)
-        {
-            return new DoctorCheckResult("PostgresDatabase", false, ex.Message, sw.Elapsed);
-        }
-    }
-
     private async Task<(DoctorCheckResult Check, bool IsEmpty)> RunMusicBrainzDbCheckAsync(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
@@ -408,54 +367,6 @@ public sealed class DoctorService(
         catch (Exception ex)
         {
             return new DoctorCheckResult("ArtistSearchEngineDatabase", false, ex.Message, sw.Elapsed);
-        }
-    }
-
-    private async Task<(DoctorCheckResult Check, List<LibraryPathResult> Paths)> RunLibraryPathsCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        var paths = new List<LibraryPathResult>();
-
-        try
-        {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
-            if (!libs.IsSuccess)
-            {
-                return (new DoctorCheckResult("LibraryPaths", false, libs.Messages?.FirstOrDefault() ?? "Failed to list libraries", sw.Elapsed), paths);
-            }
-
-            foreach (var lib in libs.Data)
-            {
-                var exists = Directory.Exists(lib.Path);
-                var writable = exists && IsDirectoryWritable(lib.Path);
-                var details = GetLibraryPathDetails(exists, writable);
-
-                paths.Add(new LibraryPathResult(
-                    lib.Name,
-                    lib.TypeValue.ToString(),
-                    lib.Path,
-                    exists,
-                    writable,
-                    details));
-            }
-
-            var anyMissing = paths.Any(l => !l.Exists);
-            var anyNotWritable = paths.Any(l => l.Exists && !l.Writable);
-            var hasIssues = anyMissing || anyNotWritable;
-
-            var detailMessage = (anyMissing, anyNotWritable) switch
-            {
-                (true, true) => "Some paths missing and some not writable",
-                (true, false) => "Some paths missing",
-                (false, true) => "Some paths not writable",
-                _ => "All library paths OK"
-            };
-
-            return (new DoctorCheckResult("LibraryPaths", !hasIssues, detailMessage, sw.Elapsed), paths);
-        }
-        catch (Exception ex)
-        {
-            return (new DoctorCheckResult("LibraryPaths", false, ex.Message, sw.Elapsed), paths);
         }
     }
 
@@ -507,55 +418,6 @@ public sealed class DoctorService(
         catch (Exception ex)
         {
             return (new DoctorCheckResult("SerilogLogging", false, ex.Message, sw.Elapsed), paths);
-        }
-    }
-
-    private async Task<(DoctorCheckResult Check, List<ConfigurableServiceResult> Services)> RunConfigurableServicesCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        var services = new List<ConfigurableServiceResult>();
-
-        try
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            var settingsDict = await db.Settings
-                .Where(s => s.Key.Contains(".enabled"))
-                .ToDictionaryAsync(s => s.Key, s => s.Value, StringComparer.OrdinalIgnoreCase, cancellationToken);
-
-            var serviceDefinitions = new (string Category, string Name, string SettingKey)[]
-            {
-                ("Search Engine", "Brave", SettingRegistry.SearchEngineBraveEnabled),
-                ("Search Engine", "Deezer", SettingRegistry.SearchEngineDeezerEnabled),
-                ("Search Engine", "iTunes", SettingRegistry.SearchEngineITunesEnabled),
-                ("Search Engine", "Last.fm", SettingRegistry.SearchEngineLastFmEnabled),
-                ("Search Engine", "MusicBrainz", SettingRegistry.SearchEngineMusicBrainzEnabled),
-                ("Search Engine", "Spotify", SettingRegistry.SearchEngineSpotifyEnabled),
-                ("Search Engine", "Metal API", SettingRegistry.SearchEngineMetalApiEnabled),
-                ("Scrobbling", "Scrobbling", SettingRegistry.ScrobblingEnabled),
-                ("Scrobbling", "Last.fm", SettingRegistry.ScrobblingLastFmEnabled),
-                ("Processing", "Conversion", SettingRegistry.ConversionEnabled),
-                ("Processing", "Magic", SettingRegistry.MagicEnabled),
-                ("Processing", "Scripting", SettingRegistry.ScriptingEnabled),
-                ("Plugins", "CueSheet", SettingRegistry.PluginEnabledCueSheet),
-                ("Plugins", "M3U", SettingRegistry.PluginEnabledM3u),
-                ("Plugins", "NFO", SettingRegistry.PluginEnabledNfo),
-                ("Plugins", "Simple File Verification", SettingRegistry.PluginEnabledSimpleFileVerification),
-                ("System", "Email", SettingRegistry.EmailEnabled),
-            };
-
-            foreach (var (category, name, settingKey) in serviceDefinitions)
-            {
-                var enabled = settingsDict.TryGetValue(settingKey, out var value)
-                    && bool.TryParse(value, out var b) && b;
-                services.Add(new ConfigurableServiceResult(category, name, settingKey, enabled));
-            }
-
-            var enabledCount = services.Count(s => s.Enabled);
-            return (new DoctorCheckResult("ConfigurableServices", true, $"{enabledCount} of {services.Count} services enabled", sw.Elapsed), services);
-        }
-        catch (Exception ex)
-        {
-            return (new DoctorCheckResult("ConfigurableServices", false, ex.Message, sw.Elapsed), services);
         }
     }
 

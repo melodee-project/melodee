@@ -65,6 +65,12 @@ public static class Program
                 add.AddCommand<ArtistStatsCommand>("stats")
                     .WithDescription("Show artist statistics including missing images and potential duplicates.");
             });
+            config.AddBranch<BackupExportSettings>("backup", add =>
+            {
+                add.SetDescription("Backup and restore system configuration");
+                add.AddCommand<BackupExportCommand>("export")
+                    .WithDescription("Export system configuration to JSON. This includes all settings and libraries. Use --redact-secrets to mask sensitive values.");
+            });
             config.AddBranch<ConfigurationSettings>("configuration", add =>
             {
                 add.SetDescription("Manage Melodee configuration settings");

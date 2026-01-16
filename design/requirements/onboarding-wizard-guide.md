@@ -10,30 +10,30 @@ definition-of-done criteria to minimize design work during implementation.
 
 ## Phase Map
 
-- [ ] Phase 0 — Baseline + inventory required items
-- [ ] Phase 1 — CLI system export (backup)
-- [ ] Phase 2 — Extract/standardize Doctor into shared service
+- [x] Phase 0 — Baseline + inventory required items
+- [x] Phase 1 — CLI system export (backup)
+- [x] Phase 2 — Extract/standardize Doctor into shared service
 - [ ] Phase 3 — Add shared SetupCheck API + models
 - [ ] Phase 4 — Blazor startup gating + route guard
 - [ ] Phase 5 — Implement onboarding wizard UI skeleton
 - [ ] Phase 6 — Implement wizard steps (branding, security, paths, admin)
-- [ ] Phase 7 — Download checklist + final verification
-- [ ] Phase 8 — Admin Dashboard JSON export/import
+- [ ] Phase 7 — Download checklist + final verification~~~~
+- [ ] Phase 8 — Admin Dashboard JSON export/impor~~~~t
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
 - [ ] Phase 10 — Tests + "definition of done" hardening
 
 ---
 
-## Phase 0 — Baseline + inventory required items
+## Phase 0 — Baseline + inventory required items (COMPLETED)
 
 ### Deliverables
-- Create a definitive list of:
-  - required Settings keys (blocking) for onboarding completion
-  - required library types (blocking) for onboarding completion
-- Confirm current defaults/seed values:
-  - `system.baseUrl` default: `MelodeeConfiguration.RequiredNotSetValue`
-  - `system.siteName` default: `"Melodee"`
-  - library defaults: `/app/inbound`, `/app/staging`, `/app/storage` (and others)
+- [x] Create a definitive list of:
+  - [x] required Settings keys (blocking) for onboarding completion
+  - [x] required library types (blocking) for onboarding completion
+- [x] Confirm current defaults/seed values:
+  - [x] `system.baseUrl` default: `MelodeeConfiguration.RequiredNotSetValue`
+  - [x] `system.siteName` default: `"Melodee"`
+  - [x] library defaults: `/app/inbound`, `/app/staging`, `/app/storage` (and others)
 
 ### Implementation notes (no design work)
 - Required placeholder rule: any `Settings.Value == MelodeeConfiguration.RequiredNotSetValue` is required+blocking.
@@ -42,27 +42,35 @@ definition-of-done criteria to minimize design work during implementation.
   - `system.onboardingCompletedAt` (completion marker)
 
 ### Definition of done
-- The required key/type list is captured in code as constants/definitions (not a wiki decision).
+- [x] The required key/type list is captured in code as constants/definitions (not a wiki decision).
+
+**Implementation**: Created `src/Melodee.Common/Constants/OnboardingRequirements.cs` containing:
+- `RequiredLibraryTypes[]`: Inbound, Staging, Storage
+- `RequiredSettingsKeys[]`: system.baseUrl, system.siteName, security.secretKey, system.onboardingCompletedAt
+- `DefaultLibraryPaths`: Default paths for all library types
+- `DefaultSettingValues`: Default values for system settings
+
+Also added `SettingRegistry.SystemOnboardingCompletedAt = "system.onboardingCompletedAt"` to SettingRegistry.cs.
 
 ---
 
-## Phase 1 — CLI system export (backup)
+## Phase 1 — CLI system export (backup) (COMPLETED)
 
 ### Deliverables
-- Add a new CLI command to generate a system export (exact naming fixed to avoid churn):
-  - `mcli backup export`
-- Export format is JSON and must match the UI/onboarding import schema exactly (same schema version + JSON shape).
-- Export includes, at minimum:
-  - Settings (all rows)
-  - Libraries (all rows)
-- Export supports:
-  - `--output <path>` to write to a file
-  - `--stdout` to write to stdout (machine-friendly)
-  - `--redact-secrets` (explicit) to replace secret values with a sentinel marker
-- Export output must be deterministic for diffing:
-  - Settings sorted alphabetically by key
-  - Libraries sorted by type then name (alphabetical)
-  - consistent indentation and casing
+- [x] Add a new CLI command to generate a system export (exact naming fixed to avoid churn):
+  - [x] `mcli backup export`
+- [x] Export format is JSON and must match the UI/onboarding import schema exactly (same schema version + JSON shape).
+- [x] Export includes, at minimum:
+  - [x] Settings (all rows)
+  - [x] Libraries (all rows)
+- [x] Export supports:
+  - [x] `--output <path>` to write to a file
+  - [x] `--stdout` to write to stdout (machine-friendly)
+  - [x] `--redact-secrets` (explicit) to replace secret values with a sentinel marker
+- [x] Export output must be deterministic for diffing:
+  - [x] Settings sorted alphabetically by key
+  - [x] Libraries sorted by type then name (alphabetical)
+  - [x] consistent indentation and casing
 
 ### Implementation notes
 - This phase can be parallelized with Phase 0.
@@ -72,20 +80,26 @@ definition-of-done criteria to minimize design work during implementation.
 - Add a CLI help section explaining that this is not a SQL backup and may include secrets.
 
 ### Definition of done
-- `mcli backup export --output export.json` produces a valid JSON export that the UI/onboarding import can consume.
-- Export is deterministic and produces identical output for identical input.
+- [x] `mcli backup export --output export.json` produces a valid JSON export that the UI/onboarding import can consume.
+- [x] Export is deterministic and produces identical output for identical input.
+
+**Implementation**: Created `src/Melodee.Cli/Command/BackupExportCommand.cs` with:
+- `mcli backup export` command supporting `--output`, `--stdout`, `--redact-secrets`, and `--raw` options
+- JSON export with schema version, exportedAt timestamp, settings (sorted by key), and libraries (sorted by type then name)
+- Secret redaction for keys containing "secret", "token", or "password" (case-insensitive)
+- Settings class: `src/Melodee.Cli/CommandSettings/BackupExportSettings.cs`
 
 ---
 
-## Phase 2 — Extract/standardize Doctor into shared service
+## Phase 2 — Extract/standardize Doctor into shared service (COMPLETED)
 
 ### Deliverables
-- Move Doctor models/interfaces out of `src/Melodee.Blazor/Services` into a shared location (target suggestion):
-  - `src/Melodee.Common/Services/Doctor/`
-- Create a single shared interface used by both hosts:
-  - `IDoctorService` (shared)
-  - `DoctorCheckResults`, `DoctorCheckResult`, and any supporting records/enums (shared)
-- Update `Melodee.Blazor` to reference the shared types and wire DI to the shared implementation.
+- [x] Move Doctor models/interfaces out of `src/Melodee.Blazor/Services` into a shared location (target suggestion):
+  - [x] `src/Melodee.Common/Services/Doctor/`
+- [x] Create a single shared interface used by both hosts:
+  - [x] `IDoctorService` (shared)
+  - [x] `DoctorCheckResults`, `DoctorCheckResult`, and any supporting records/enums (shared)
+- [x] Update `Melodee.Blazor` to reference the shared types and wire DI to the shared implementation.
 
 ### Implementation notes
 - Split checks into:
@@ -95,8 +109,17 @@ definition-of-done criteria to minimize design work during implementation.
 - Use stable check IDs/names. Do not change semantics between CLI and Blazor for shared checks.
 
 ### Definition of done
-- `Melodee.Blazor` compiles using the shared doctor types.
-- Shared doctor service can run core checks without ASP.NET dependencies.
+- [x] `Melodee.Blazor` compiles using the shared doctor types.
+- [x] Shared doctor service can run core checks without ASP.NET dependencies.
+
+**Implementation**: Created shared Doctor types in `src/Melodee.Common/Services/Doctor/`:
+- `IDoctorService.cs` - Core interface with `RunCoreChecksAsync`, `RunConfigurationCheckAsync`, `RunDatabaseCheckAsync`, `RunLibraryPathCheckAsync`, `RunConfigurableServicesCheckAsync`
+- `DoctorCheckModels.cs` - Shared models: `DoctorCheckResults`, `DoctorCheckResult`, `LibraryPathResult`, `ConfigurableServiceResult`, `DiskSpaceStatus`, `DiskSpaceInfo`, `SearchEngineApiKeyInfo`, `SerilogLogPathInfo`, `ConnectionStringInfo`, `EnvironmentVariableInfo`
+- `DoctorServiceBase.cs` - Base implementation with core checks (Configuration, Database, LibraryPaths, ConfigurableServices)
+
+Updated Blazor `DoctorService.cs` to inherit from `DoctorServiceBase` and add Blazor-specific checks (MusicBrainz DB, ArtistSearchEngine DB, Serilog logging, Disk space, Path overlap, Search engine API keys, SMTP, JWT, HTTPS, Admin password, Scheduler, FFmpeg, Memory, Temp directory, Database latency, Jukebox, Podcast).
+
+Updated `IDoctorService.cs` in Blazor to extend the shared interface and add Blazor-specific `BlazorDoctorCheckResults` type.
 
 ---
 
