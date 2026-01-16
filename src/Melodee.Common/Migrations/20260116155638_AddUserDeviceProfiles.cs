@@ -56,7 +56,7 @@ namespace Melodee.Common.Migrations
             migrationBuilder.InsertData(
                 table: "Settings",
                 columns: new[] { "Id", "ApiKey", "Category", "Comment", "CreatedAt", "Description", "IsLocked", "Key", "LastUpdatedAt", "Notes", "SortOrder", "Tags", "Value" },
-                values: new object[] { 1927, new Guid("df8f5291-a7c1-797c-1dea-5d302116b2c9"), 11, "Enable per-user and per-device transcoding profiles.", NodaTime.Instant.FromUnixTimeTicks(0L), null, false, "userDeviceProfile.enabled", null, null, 0, null, "true" });
+                values: new object[] { 1929, new Guid("df8f5291-a7c1-797c-1dea-5d302116b2c9"), 11, "Enable per-user and per-device transcoding profiles.", NodaTime.Instant.FromUnixTimeTicks(0L), null, false, "userDeviceProfile.enabled", null, null, 0, null, "true" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserDeviceProfiles_ApiKey",
@@ -90,7 +90,7 @@ namespace Melodee.Common.Migrations
             migrationBuilder.DeleteData(
                 table: "Settings",
                 keyColumn: "Id",
-                keyValue: 1927);
+                keyValue: 1929);
         }
     }
 }
