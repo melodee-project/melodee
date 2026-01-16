@@ -30,7 +30,7 @@ public class UserDeviceProfileServiceTests : ServiceTestBase
         // Arrange
         var service = GetUserDeviceProfileService();
         var user = await CreateTestUserAsync();
-        
+
         var userDefault = new UserDeviceProfile
         {
             UserId = user.Id,
@@ -398,7 +398,7 @@ public class UserDeviceProfileServiceTests : ServiceTestBase
         var username = $"testuser_{Guid.NewGuid():N}";
         var email = $"test_{Guid.NewGuid():N}@example.com";
         var publicKey = "test_public_key";
-        
+
         var user = new User
         {
             ApiKey = Guid.NewGuid(),

@@ -1039,9 +1039,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>یک کدک انتخاب کنید</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>حداکثر بیت ریت</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>بیت ریت را به kb/s وارد کنید</value>
   </data>

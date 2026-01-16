@@ -1039,9 +1039,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>코덱 선택</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>최대 비트레이트</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>비트레이트를 kbps 단위로 입력</value>
   </data>

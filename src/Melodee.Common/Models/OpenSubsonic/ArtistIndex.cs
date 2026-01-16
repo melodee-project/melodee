@@ -1,5 +1,5 @@
-using System.Text.Json.Serialization;
 using System.Text;
+using System.Text.Json.Serialization;
 using Melodee.Common.Extensions;
 
 namespace Melodee.Common.Models.OpenSubsonic;

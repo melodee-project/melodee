@@ -692,9 +692,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>Sélectionnez un codec</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>Débit max</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>Entrez le débit en kbps</value>
   </data>

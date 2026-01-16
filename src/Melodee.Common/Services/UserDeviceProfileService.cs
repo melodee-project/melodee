@@ -1,7 +1,6 @@
 using Ardalis.GuardClauses;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
-using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
@@ -111,14 +110,14 @@ public class UserDeviceProfileService(
     public async Task<PagedResult<UserDeviceProfile>> ListByUserAsync(int userId, PagedRequest pagedRequest, CancellationToken cancellationToken = default)
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         var query = scopedContext.UserDeviceProfiles
             .Where(p => p.UserId == userId)
             .Include(p => p.Player)
             .AsNoTracking();
 
         var totalCount = await query.CountAsync(cancellationToken);
-        
+
         var profiles = await query
             .OrderByDescending(p => p.IsDefaultProfile)
             .ThenByDescending(p => p.Priority)
@@ -182,7 +181,7 @@ public class UserDeviceProfileService(
         // Clear caches
         InvalidateCaches(profile.UserId, profile.PlayerId);
 
-        Logger.Information("[{ServiceName}] Created device profile [{ProfileId}] for user [{UserId}]", 
+        Logger.Information("[{ServiceName}] Created device profile [{ProfileId}] for user [{UserId}]",
             nameof(UserDeviceProfileService), profile.Id, profile.UserId);
 
         return new OperationResult<UserDeviceProfile> { Data = profile };
@@ -253,7 +252,7 @@ public class UserDeviceProfileService(
         // Clear caches
         InvalidateCaches(profile.UserId, profile.PlayerId);
 
-        Logger.Information("[{ServiceName}] Updated device profile [{ProfileId}] for user [{UserId}]", 
+        Logger.Information("[{ServiceName}] Updated device profile [{ProfileId}] for user [{UserId}]",
             nameof(UserDeviceProfileService), profile.Id, profile.UserId);
 
         return new OperationResult<UserDeviceProfile> { Data = existing };
@@ -285,7 +284,7 @@ public class UserDeviceProfileService(
         // Clear caches
         InvalidateCaches(userId, playerId);
 
-        Logger.Information("[{ServiceName}] Deleted device profile [{ProfileId}] for user [{UserId}]", 
+        Logger.Information("[{ServiceName}] Deleted device profile [{ProfileId}] for user [{UserId}]",
             nameof(UserDeviceProfileService), id, userId);
 
         return new OperationResult<bool> { Data = true };
@@ -321,7 +320,7 @@ public class UserDeviceProfileService(
         // 3. Fall back to global default (direct play)
         Logger.Debug("[{ServiceName}] Using global default (direct play) for user [{UserId}]",
             nameof(UserDeviceProfileService), userId);
-        
+
         return new UserDeviceProfile
         {
             UserId = userId,
@@ -336,7 +335,7 @@ public class UserDeviceProfileService(
     private void InvalidateCaches(int userId, int? playerId)
     {
         CacheManager.Remove(string.Format(CacheKeyDefaultByUserTemplate, userId), CacheRegion);
-        
+
         if (playerId.HasValue)
         {
             CacheManager.Remove(string.Format(CacheKeyByUserAndPlayerTemplate, userId, playerId.Value), CacheRegion);

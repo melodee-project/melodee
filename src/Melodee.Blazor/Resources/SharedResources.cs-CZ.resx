@@ -1039,9 +1039,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>Vyberte kodek</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>Max. datový tok</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>Zadejte datový tok v kb/s</value>
   </data>

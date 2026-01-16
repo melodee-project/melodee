@@ -27,9 +27,9 @@
     <div class="profile-container">
         <h1 class="rz-text-title">@L("Profile.YourProfile")</h1>
 
-        <RadzenTabStrip ActiveTab="@_activeTab" TabChange="@OnTabChange">
-            <RadzenTabs>
-                <RadzenTab Title="@L("Profile.ProfileInformation")" Icon="person">
+        <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
+            <Tabs>
+                <RadzenTabsItem Title="@L("Profile.ProfileInformation")" Icon="person">
                     <div class="profile-grid">
                         <div class="profile-image-section">
                             <div class="profile-image-container">
@@ -181,9 +181,9 @@
                             }
                         </div>
                     </div>
-                </RadzenTab>
+                </RadzenTabsItem>
 
-                <RadzenTab Title="@L("Profile.DeviceProfiles")" Icon="devices">
+                <RadzenTabsItem Title="@L("Profile.DeviceProfiles")" Icon="devices">
                     <div class="device-profiles-container">
                         <div class="device-profiles-header">
                             <h2>@L("Profile.ManageDeviceProfiles")</h2>
@@ -269,9 +269,9 @@
                             </Columns>
                         </RadzenDataGrid>
                     </div>
-                </RadzenTab>
-            </RadzenTabs>
-        </RadzenTabStrip>
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
     </div>
 </RadzenCard>
 
@@ -284,8 +284,8 @@
 
     // Device profiles state
     private List<UserDeviceProfile> _userDeviceProfiles = new();
-    private RadzenDataGrid<UserDeviceProfile> _deviceProfilesGrid;
-    private int _activeTab = 0;
+    private RadzenDataGrid<UserDeviceProfile>? _deviceProfilesGrid;
+    private int _selectedTabIndex = 0;
 
     // Google linking state
     private bool _googleAuthEnabled;
@@ -348,7 +348,7 @@
 
     private async Task OnTabChange(int tabIndex)
     {
-        _activeTab = tabIndex;
+        _selectedTabIndex = tabIndex;
 
         // Load device profiles when switching to the device profiles tab
         if (tabIndex == 1) // Device Profiles tab
@@ -793,7 +793,7 @@
         var confirmed = await DialogService.Confirm(
             L("Profile.DeleteDeviceProfileConfirmation", profile.Name),
             L("Profile.DeleteDeviceProfileTitle"),
-            new ConfirmOptions { OkButtonText = L("Profile.Delete"), CancelButtonText = L("Actions.Cancel"), Color = "danger" });
+            new ConfirmOptions { OkButtonText = L("Profile.Delete"), CancelButtonText = L("Actions.Cancel") });
 
         if (confirmed != true) return;
 

@@ -710,9 +710,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>Seleccione un codec</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>Tasa de bits máx.</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>Ingrese la tasa de bits en kbps</value>
   </data>

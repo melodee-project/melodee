@@ -692,9 +692,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>选择一个编解码器</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>最大比特率</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>输入比特率（kbps）</value>
   </data>

@@ -9,80 +9,78 @@
 <div class="device-profile-dialog">
     <RadzenTemplateForm TItem="UserDeviceProfileModel" Data="@FormData" Submit="@OnSubmit">
         <RadzenCard>
-            <RadzenCardContent>
-                <RadzenFieldset Text="@L("Profile.DeviceProfileDetails")" class="rz-fieldset-margin-bottom">
-                    <RadzenStack Direction="FlexDirection.Column" Gap="1rem">
-                        <RadzenFormField Text="@L("Profile.ProfileName")" LabelledBy="profileNameInput">
-                            <RadzenTextBox id="profileNameInput" @bind-Value="@FormData.Name" Style="width: 100%" 
+            <RadzenFieldset Text="@L("Profile.DeviceProfileDetails")" class="rz-fieldset-margin-bottom">
+                <RadzenStack Direction="FlexDirection.Column" Gap="1rem">
+                    <RadzenFormField Text="@L("Profile.ProfileName")" LabelledBy="profileNameInput">
+                        <RadzenTextBox id="profileNameInput" @bind-Value="@FormData.Name" Style="width: 100%"
                                           placeholder="@L("Profile.EnterProfileNamePlaceholder")" />
-                            <RadzenRequiredValidator Component="profileNameInput" Text="@L("Profile.ProfileNameRequired")" />
-                        </RadzenFormField>
+                        <RadzenRequiredValidator Component="profileNameInput" Text="@L("Profile.ProfileNameRequired")" />
+                    </RadzenFormField>
 
-                        <RadzenFormField Text="@L("Profile.DirectPlay")" LabelledBy="directPlayToggle">
-                            <RadzenCheckBox id="directPlayToggle" @bind-Value="@FormData.DirectPlay"
+                    <RadzenFormField Text="@L("Profile.DirectPlay")" LabelledBy="directPlayToggle">
+                        <RadzenCheckBox id="directPlayToggle" @bind-Value="@FormData.DirectPlay"
                                           Text="@L("Profile.EnableDirectPlay")" />
-                        </RadzenFormField>
+                    </RadzenFormField>
 
-                        @if (!FormData.DirectPlay)
-                        {
-                            <div class="transcoding-options">
-                                <RadzenFormField Text="@L("Profile.TargetCodec")" LabelledBy="targetCodecSelect">
-                                    <RadzenDropDown id="targetCodecSelect" @bind-Value="@FormData.TargetCodec" 
-                                                   Data="@_supportedCodecs"
-                                                   TextProperty="Name"
-                                                   ValueProperty="Value"
-                                                   Style="width: 100%"
-                                                   Placeholder="@L("Profile.SelectCodecPlaceholder")" />
-                                </RadzenFormField>
+                    @if (!FormData.DirectPlay)
+                    {
+                        <div class="transcoding-options">
+                            <RadzenFormField Text="@L("Profile.TargetCodec")" LabelledBy="targetCodecSelect">
+                                <RadzenDropDown id="targetCodecSelect" @bind-Value="@FormData.TargetCodec"
+                                                       Data="@_supportedCodecs"
+                                                       TextProperty="Name"
+                                                       ValueProperty="Value"
+                                                       Style="width: 100%"
+                                                       Placeholder="@L("Profile.SelectCodecPlaceholder")" />
+                            </RadzenFormField>
 
-                                <RadzenFormField Text="@L("Profile.MaxBitrate")" LabelledBy="maxBitrateInput">
-                                    <RadzenNumeric id="maxBitrateInput" @bind-Value="@FormData.MaxBitrate" 
-                                                  Min="1" Max="9999" 
-                                                  Step="1"
-                                                  Style="width: 100%"
-                                                  Placeholder="@L("Profile.EnterBitratePlaceholder")"
-                                                  Suffix="kbps" />
-                                    <RadzenText TextStyle="TextStyle.Caption">@L("Profile.BitrateHelpText")</RadzenText>
-                                </RadzenFormField>
+                            <RadzenFormField Text="@L("Profile.MaxBitrate")" LabelledBy="maxBitrateInput">
+                                <RadzenNumeric id="maxBitrateInput" @bind-Value="@FormData.MaxBitrate"
+                                                      Min="1" Max="9999"
+                                                      Step="1"
+                                                      Style="width: 100%"
+                                                      Placeholder="@L("Profile.EnterBitratePlaceholder")"
+                                                      Suffix="kbps" />
+                                <RadzenText TextStyle="TextStyle.Caption">@L("Profile.BitrateHelpText")</RadzenText>
+                            </RadzenFormField>
 
-                                <RadzenFormField Text="@L("Profile.ResampleRate")" LabelledBy="resampleRateInput">
-                                    <RadzenNumeric id="resampleRateInput" @bind-Value="@FormData.ResampleRate" 
-                                                  Min="1000" Max="192000" 
-                                                  Step="1000"
-                                                  Style="width: 100%"
-                                                  Placeholder="@L("Profile.EnterResampleRatePlaceholder")"
-                                                  Suffix="Hz" />
-                                    <RadzenText TextStyle="TextStyle.Caption">@L("Profile.ResampleRateHelpText")</RadzenText>
-                                </RadzenFormField>
-                            </div>
-                        }
+                            <RadzenFormField Text="@L("Profile.ResampleRate")" LabelledBy="resampleRateInput">
+                                <RadzenNumeric id="resampleRateInput" @bind-Value="@FormData.ResampleRate"
+                                                      Min="1000" Max="192000"
+                                                      Step="1000"
+                                                      Style="width: 100%"
+                                                      Placeholder="@L("Profile.EnterResampleRatePlaceholder")"
+                                                      Suffix="Hz" />
+                                <RadzenText TextStyle="TextStyle.Caption">@L("Profile.ResampleRateHelpText")</RadzenText>
+                            </RadzenFormField>
+                        </div>
+                    }
 
-                        <RadzenFormField Text="@L("Profile.Priority")" LabelledBy="priorityInput">
-                            <RadzenNumeric id="priorityInput" @bind-Value="@FormData.Priority" 
-                                          Min="0" Max="100" 
-                                          Step="1"
-                                          Style="width: 100%"
-                                          Placeholder="@L("Profile.EnterPriorityPlaceholder")" />
-                            <RadzenText TextStyle="TextStyle.Caption">@L("Profile.PriorityHelpText")</RadzenText>
-                        </RadzenFormField>
+                    <RadzenFormField Text="@L("Profile.Priority")" LabelledBy="priorityInput">
+                        <RadzenNumeric id="priorityInput" @bind-Value="@FormData.Priority"
+                                      Min="0" Max="100"
+                                      Step="1"
+                                      Style="width: 100%"
+                                      Placeholder="@L("Profile.EnterPriorityPlaceholder")" />
+                        <RadzenText TextStyle="TextStyle.Caption">@L("Profile.PriorityHelpText")</RadzenText>
+                    </RadzenFormField>
 
-                        <RadzenFormField Text="@L("Profile.IsDefaultProfile")" LabelledBy="isDefaultCheckbox">
-                            <RadzenCheckBox id="isDefaultCheckbox" @bind-Value="@FormData.IsDefaultProfile" 
-                                          Text="@L("Profile.MakeDefaultProfile")" />
-                        </RadzenFormField>
-                    </RadzenStack>
-                </RadzenFieldset>
-            </RadzenCardContent>
-            <RadzenCardFooter>
-                <RadzenButton ButtonStyle="ButtonStyle.Secondary" 
-                             Click="() => DialogService.Close(false)" 
+                    <RadzenFormField Text="@L("Profile.IsDefaultProfile")" LabelledBy="isDefaultCheckbox">
+                        <RadzenCheckBox id="isDefaultCheckbox" @bind-Value="@FormData.IsDefaultProfile"
+                                      Text="@L("Profile.MakeDefaultProfile")" />
+                    </RadzenFormField>
+                </RadzenStack>
+            </RadzenFieldset>
+            <div class="rz-card-footer">
+                <RadzenButton ButtonStyle="ButtonStyle.Secondary"
+                             Click="() => DialogService.Close(false)"
                              Text="@L("Actions.Cancel")" />
-                <RadzenButton ButtonStyle="ButtonStyle.Primary" 
-                             ButtonType="ButtonType.Submit" 
-                             Text="@L("Actions.Save")" 
-                             IsBusy="@_isSubmitting" 
+                <RadzenButton ButtonStyle="ButtonStyle.Primary"
+                             ButtonType="ButtonType.Submit"
+                             Text="@L("Actions.Save")"
+                             IsBusy="@_isSubmitting"
                              BusyText="@L("Profile.Saving")" />
-            </RadzenCardFooter>
+            </div>
         </RadzenCard>
     </RadzenTemplateForm>
 </div>

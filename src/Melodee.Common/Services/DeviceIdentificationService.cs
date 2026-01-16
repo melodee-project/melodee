@@ -29,7 +29,7 @@ public class DeviceIdentificationService(
     /// Identify or create a player from an OpenSubsonic API request
     /// </summary>
     public async Task<Player> GetOrCreatePlayerFromSubsonicAsync(
-        int userId, 
+        int userId,
         ApiRequest apiRequest,
         CancellationToken cancellationToken = default)
     {
@@ -56,8 +56,8 @@ public class DeviceIdentificationService(
         var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
 
         // Use deviceId + client as stable identifier
-        var clientIdentifier = string.IsNullOrWhiteSpace(deviceId) 
-            ? client 
+        var clientIdentifier = string.IsNullOrWhiteSpace(deviceId)
+            ? client
             : $"{client}-{deviceId}";
 
         var name = string.IsNullOrWhiteSpace(deviceName) ? clientIdentifier : deviceName;
@@ -110,7 +110,7 @@ public class DeviceIdentificationService(
             player.LastSeenAt = now;
             player.UserAgent = userAgent;
             player.IpAddress = ipAddress;
-            
+
             await scopedContext.SaveChangesAsync(cancellationToken);
 
             Logger.Debug("[{ServiceName}] Updated player [{PlayerId}] [{Client}] for user [{UserId}]",

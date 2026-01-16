@@ -692,9 +692,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>اختر ترميزًا</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>أقصى معدل بت</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>أدخل معدل البت بالكيلوبت في الثانية</value>
   </data>

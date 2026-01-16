@@ -1039,9 +1039,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>Виберіть кодек</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>Макс. бітрейт</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>Введіть бітрейт у кбіт/с</value>
   </data>

@@ -1039,9 +1039,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>Bir kodek seçin</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>Max Bit Hızı</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>Bit hızını kbps cinsinden girin</value>
   </data>

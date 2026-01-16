@@ -1043,9 +1043,7 @@
   <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
     <value>Einen Codec auswählen</value>
   </data>
-  <data name="Profile.MaxBitrate" xml:space="preserve">
-    <value>Max. Bitrate</value>
-  </data>
+
   <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
     <value>Bitrate in kbps eingeben</value>
   </data>
