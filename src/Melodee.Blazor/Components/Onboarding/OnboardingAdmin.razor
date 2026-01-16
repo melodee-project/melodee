@@ -81,7 +81,8 @@
             }
         }
 
-        var result = await UserService.ListAsync(new PagedRequest { PageSize = 1 }, CancellationToken.None);
+        // Check if any admin account exists
+        var result = await UserService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, CancellationToken.None);
         _adminExists = result.IsSuccess && result.Data.Any(u => u.IsAdmin);
     }
 

@@ -570,7 +570,8 @@ builder.Services
     .AddScoped<IPartyNotificationService, PartyNotificationService>()
     .AddScoped<PartySessionEndpointRegistryService>()
     .AddScoped<Melodee.Common.Services.Setup.ISetupCheckService, Melodee.Common.Services.Setup.SetupCheckService>()
-    .AddScoped<OnboardingStateService>();
+    .AddScoped<OnboardingStateService>()
+    .AddScoped<ChecklistService>();
 
 // Configure HttpClient for podcast discovery
 builder.Services.AddHttpClient("PodcastDiscovery", client =>

@@ -17,9 +17,26 @@
 
 ## 🎵 Overview
 
-Melodee is a comprehensive music management and streaming system built with .NET 10 and Blazor. It provides a complete solution for processing, organizing, and serving large music libraries through both RESTful and OpenSubsonic-compatible APIs.
+Melodee is a self-hosted music management and streaming system designed for very large libraries.
+It ingests and normalizes audio through an inbound → staging → storage pipeline, then serves a curated library via a Blazor web UI plus OpenSubsonic, Jellyfin, and native REST APIs.
+Built on .NET 10 with PostgreSQL and first-class container support, it's a great fit for homelabs (from Raspberry Pi-class hardware to full servers).
 
-Designed with homelab enthusiasts in mind, Melodee runs efficiently on a wide range of hardware from single-board computers like Raspberry Pi to full server setups, making it perfect for self-hosted music streaming in home environments.
+### Key Capabilities
+
+- **🧙 Onboarding Wizard**: Guided 8-step setup wizard for new installations with system checks
+- **📁 Smart Media Processing**: Automatically converts, cleans, and validates inbound media
+- **🎛️ Staging Workflow**: Optional manual editing before adding to production libraries
+- **⚡ Automatic Ingestion**: Drop files → play music (validated albums flow through automatically)
+- **🔄 Automated Jobs**: Cron-based scheduling with intelligent job chaining
+- **📝 User Requests**: Submit and track requests for missing albums/songs, with automatic completion when matches are detected
+- **🎙️ Podcast Support**: Subscribe to podcasts, auto-download episodes, playback tracking with resume positions
+- **🎵 OpenSubsonic API**: Compatible with popular Subsonic and OpenSubsonic clients
+- **🎬 Jellyfin API**: Compatible with Jellyfin music clients (Finamp, Feishin, Streamyfin)
+- **🌐 Melodee API**: Fast RESTful API for custom integrations
+- **🌐 Modern Web UI**: Blazor Server interface with Radzen UI components
+- **🎛️ Jukebox**: Server-side playback with queue/control support (OpenSubsonic jukeboxControl; MPV/MPD backends)
+- **🎉 Party Mode**: Shared listening sessions with a collaborative queue and DJ/Listener roles
+- **🐳 Container Ready**: Full Docker/Podman support with PostgreSQL
 
 ## 🌐 Try the Demo
 
@@ -50,24 +67,6 @@ Experience Melodee before installing! Our official demo server is available at:
 - 🔄 **24-Hour Reset**: All user accounts and data are deleted daily
 
 > **Note**: The demo server is for testing only. For production use, please [install Melodee](https://melodee.org/installing/) on your own infrastructure.
-
-### Key Capabilities
-
-- **📁 Smart Media Processing**: Automatically converts, cleans, and validates inbound media
-- **🎛️ Staging Workflow**: Optional manual editing before adding to production libraries
-- **⚡ Automatic Ingestion**: Drop files → play music (validated albums flow through automatically)
-- **🔄 Automated Jobs**: Cron-based scheduling with intelligent job chaining
-- **📝 User Requests**: Submit and track requests for missing albums/songs, with automatic completion when matches are detected
-- **🎙️ Podcast Support**: Subscribe to podcasts, auto-download episodes, playback tracking with resume positions
-- **🎵 OpenSubsonic API**: Compatible with popular Subsonic and OpenSubsonic clients
-- **🎬 Jellyfin API**: Compatible with Jellyfin music clients (Finamp, Feishin, Streamyfin)
-- **🌐 Melodee API**: Fast RESTful API for custom integrations
-- **🌐 Modern Web UI**: Blazor Server interface with Radzen UI components
-- **🎛️ Jukebox**: Server-side playback with queue/control support (OpenSubsonic jukeboxControl; MPV/MPD backends)
-- **🎉 Party Mode**: Shared listening sessions with a collaborative queue and DJ/Listener roles
-- **🐳 Container Ready**: Full Docker/Podman support with PostgreSQL
-
-![Melodee Web Interface](graphics/Snapshot_2025-02-04_23-06-24.png)
 
 ## 🎶 Music Ingestion Pipeline
 
@@ -187,6 +186,23 @@ podman volume import melodee_db_data melodee_db_backup.tar
 
 ## ✨ Features
 
+### 🧙 Onboarding Wizard
+
+New installations are guided through an 8-step setup wizard that ensures your server is properly configured:
+
+| Step | Description |
+|------|-------------|
+| **1. Welcome** | Introduction and overview of the setup process |
+| **2. Paths** | Configure library paths (inbound, staging, storage, etc.) |
+| **3. Database** | Verify database connectivity and run migrations |
+| **4. Search Engines** | Set up MusicBrainz and artist search databases |
+| **5. Settings** | Configure essential server settings |
+| **6. Admin Account** | Create or verify the administrator account |
+| **7. Pre-flight Checks** | Run system diagnostics and verify configuration |
+| **8. Verify & Complete** | Final verification and setup completion |
+
+The wizard automatically detects existing configurations and can be re-run from `/onboarding` if needed. Once setup is complete, the `system.onboardingCompletedAt` setting is updated and the wizard is bypassed for subsequent logins.
+
 ### 🎛️ Media Processing Pipeline
 
 1. **Inbound Processing**
@@ -266,15 +282,15 @@ Melodee features comprehensive localization with support for 10 languages:
 | Language | Code | Status | RTL |
 |----------|------|--------|-----|
 | English (US) | en-US | ✅ 100% | - |
-| Arabic | ar-SA | 🔄 29% | ✅ |
-| Chinese (Simplified) | zh-CN | 🔄 35% | - |
-| French | fr-FR | 🔄 34% | - |
-| German | de-DE | 🔄 39% | - |
-| Italian | it-IT | 🔄 38% | - |
-| Japanese | ja-JP | 🔄 34% | - |
-| Portuguese (Brazil) | pt-BR | 🔄 39% | - |
-| Russian | ru-RU | 🔄 35% | - |
-| Spanish | es-ES | 🔄 35% | - |
+| Arabic | ar-SA | 🔄 94% | ✅ |
+| Chinese (Simplified) | zh-CN | 🔄 94% | - |
+| French | fr-FR | 🔄 94% | - |
+| German | de-DE | 🔄 94% | - |
+| Italian | it-IT | 🔄 34% | - |
+| Japanese | ja-JP | 🔄 94% | - |
+| Portuguese (Brazil) | pt-BR | 🔄 94% | - |
+| Russian | ru-RU | 🔄 94% | - |
+| Spanish | es-ES | 🔄 94% | - |
 
 - **Language Selector**: Available in the header for quick switching
 - **User Preference**: Language choice is saved to your user profile and persists across sessions
@@ -293,7 +309,7 @@ We welcome translation contributions from the community! Strings marked with `[N
 
 Resource files are standard .NET `.resx` XML format. You can edit them with any text editor or Visual Studio's resource editor.
 
-**Current translation needs:** ~965-1,123 strings per language need native translations (out of 1,577 total). See [Contributing Guide](CONTRIBUTING.md) for details.
+**Current translation needs:** Italian needs the most work (~1,321 strings). Other languages need ~105 strings each (out of 2,025 total). See [Contributing Guide](CONTRIBUTING.md) for details.
 
 ### 🌐 OpenSubsonic API
 

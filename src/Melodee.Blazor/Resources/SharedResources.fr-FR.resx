@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <root xmlns:ns1="urn:schemas-microsoft-com:xml-msdata" xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xs:schema id="root">
     <xs:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -5786,5 +5786,479 @@
   </data>
   <data name="Common.Success" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Success</value>
+  </data>
+  <data name="AdminDashboard.ApplyImport" xml:space="preserve">
+    <value>Appliquer l'import</value>
+  </data>
+  <data name="AdminDashboard.ChooseFile" xml:space="preserve">
+    <value>Choisir un fichier</value>
+  </data>
+  <data name="AdminDashboard.ConfigurationImportExport" xml:space="preserve">
+    <value>Import/Export de configuration</value>
+  </data>
+  <data name="AdminDashboard.ExportConfiguration" xml:space="preserve">
+    <value>Exporter la configuration</value>
+  </data>
+  <data name="AdminDashboard.ExportError" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Export failed: {0}</value>
+  </data>
+  <data name="AdminDashboard.ExportMayContainSecrets" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Export file may contain sensitive settings like API keys. Handle with care.</value>
+  </data>
+  <data name="AdminDashboard.ExportSuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Exported {0} settings and {1} libraries</value>
+  </data>
+  <data name="AdminDashboard.ImportContainsSecrets" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Import contains sensitive settings. These will be imported as-is.</value>
+  </data>
+  <data name="AdminDashboard.ImportError" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Import error: {0}</value>
+  </data>
+  <data name="AdminDashboard.ImportFailed" xml:space="preserve">
+    <value>Échec de l'import</value>
+  </data>
+  <data name="AdminDashboard.ImportInvalid" xml:space="preserve">
+    <value>Fichier d'import invalide</value>
+  </data>
+  <data name="AdminDashboard.ImportPreview" xml:space="preserve">
+    <value>Aperçu de l'import</value>
+  </data>
+  <data name="AdminDashboard.ImportPreviewReady" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Ready to import {0} settings and {1} libraries</value>
+  </data>
+  <data name="AdminDashboard.ImportSchemaMismatch" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Schema version mismatch. Expected 1.0, got {0}</value>
+  </data>
+  <data name="AdminDashboard.ImportSuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Imported {0} settings and {1} libraries</value>
+  </data>
+  <data name="AdminDashboard.LibrariesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Libraries: {0}</value>
+  </data>
+  <data name="AdminDashboard.OverwriteExisting" xml:space="preserve">
+    <value>Écraser les valeurs existantes</value>
+  </data>
+  <data name="AdminDashboard.SettingsCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Settings: {0}</value>
+  </data>
+  <data name="AdminDashboard.SkipNullValues" xml:space="preserve">
+    <value>Ignorer les valeurs nulles</value>
+  </data>
+  <data name="AdminDashboard.SkippedReasons" xml:space="preserve">
+    <value>Éléments ignorés</value>
+  </data>
+  <data name="Common.Back" xml:space="preserve">
+    <value>Retour</value>
+  </data>
+  <data name="Common.Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="Common.Error" xml:space="preserve">
+    <value>Erreur</value>
+  </data>
+  <data name="Common.Loading" xml:space="preserve">
+    <value>Chargement...</value>
+  </data>
+  <data name="Common.Next" xml:space="preserve">
+    <value>Suivant</value>
+  </data>
+  <data name="Common.Save" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="Onboarding.AdminDescription" xml:space="preserve">
+    <value>Créez un compte administrateur pour gérer votre serveur Melodee.</value>
+  </data>
+  <data name="Onboarding.AdminExists" xml:space="preserve">
+    <value>Un compte administrateur existe déjà.</value>
+  </data>
+  <data name="Onboarding.AdminHeading" xml:space="preserve">
+    <value>Compte administrateur</value>
+  </data>
+  <data name="Onboarding.BaseUrlInvalid" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Please enter a valid URL (e.g., https://your-server.com)</value>
+  </data>
+  <data name="Onboarding.BaseUrlLabel" xml:space="preserve">
+    <value>URL de base</value>
+  </data>
+  <data name="Onboarding.BaseUrlPreviewHeading" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Preview URLs</value>
+  </data>
+  <data name="Onboarding.BaseUrlPreviewImage" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Image URL example: {0}</value>
+  </data>
+  <data name="Onboarding.BaseUrlPreviewShare" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Share URL example: {0}</value>
+  </data>
+  <data name="Onboarding.BaseUrlRequired" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Base URL is required.</value>
+  </data>
+  <data name="Onboarding.BaseUrlUnreachable" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Unable to reach the base URL. Please verify it is correct and accessible.</value>
+  </data>
+  <data name="Onboarding.BlockingDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Unable to verify your server's configuration. Please check the following issues:</value>
+  </data>
+  <data name="Onboarding.BlockingItemsRemaining" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Complete the remaining {0} items to finish setup.</value>
+  </data>
+  <data name="Onboarding.BlockingPageTitle" xml:space="preserve">
+    <value>Configuration requise</value>
+  </data>
+  <data name="Onboarding.BlockingSummaryHeading" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Blocking items detected</value>
+  </data>
+  <data name="Onboarding.BlockingSummaryNone" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] No blocking items detected.</value>
+  </data>
+  <data name="Onboarding.BrandingHeading" xml:space="preserve">
+    <value>Marque du site</value>
+  </data>
+  <data name="Onboarding.CannotDetermineStatus" xml:space="preserve">
+    <value>Impossible de déterminer l'état de configuration</value>
+  </data>
+  <data name="Onboarding.ChecklistFileName" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] melodee-checklist-{0:yyyy-MM-dd}.md</value>
+  </data>
+  <data name="Onboarding.ChecklistNotConfigured" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Not configured</value>
+  </data>
+  <data name="Onboarding.ChecklistTemplate" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] # Melodee Setup Checklist
+
+Generated: {0} UTC
+Site: {1}
+
+&gt; **Legal Reminder**: Add only media you own/are licensed to use.
+&gt; **Review Note**: Legal team should review this checklist text for compliance.
+
+## Overview
+
+Welcome to Melodee! This checklist will help you get your media library organized and ready for use.
+
+## Library Paths
+
+| Library Type | Path |
+|--------------|------|
+| Inbound | `{2}` |
+| Staging | `{3}` |
+| Storage | `{4}` |
+
+## Getting Started
+
+### 1. Add Media to Inbound Library
+
+Copy your music files to the **Inbound** directory. Melodee will scan and process them.
+
+**Recommended folder structure:**
+```
+{2}/
+  Artist Name/
+    Album Name/
+      01 Song Title.mp3
+      02 Another Song.flac
+      cover.jpg
+```
+
+### 2. Processing Workflow
+
+1. Files are placed in the **Inbound** directory
+2. Melodee scans and validates files
+3. Metadata is fetched from MusicBrainz
+4. Files are organized into the **Staging** area
+5. After review, files move to **Storage** for playback
+
+### 3. First Library Scan
+
+After adding media, trigger a scan:
+
+```bash
+# Scan a specific library
+mcli library scan --name Inbound
+
+# Or scan all libraries
+mcli library scan --all
+```
+
+### 4. Verify in the UI
+
+Use the Melodee admin UI to confirm libraries and settings:
+
+- Libraries page
+- Admin Settings
+- Jobs
+
+### 5. Optional Features
+
+- Configure podcasts (RSS feeds you control or subscribe to)
+- Enable search engines for artwork and metadata
+
+## Command Reference
+
+### Library Management
+
+| Command | Description |
+|---------|-------------|
+| `mcli library list` | List all configured libraries |
+| `mcli library scan --name &lt;name&gt;` | Scan a specific library |
+| `mcli library status &lt;name&gt;` | Check library scan status |
+
+### Media Operations
+
+| Command | Description |
+|---------|-------------|
+| `mcli doctor` | Run system diagnostics |
+| `mcli backup export` | Export system configuration |
+| `mcli player play` | Start playback (if configured) |
+
+### Admin Commands
+
+| Command | Description |
+|---------|-------------|
+| `mcli admin users` | Manage user accounts |
+| `mcli settings list` | View all settings |
+| `mcli settings set &lt;key&gt; &lt;value&gt;` | Update a setting |
+
+## Next Steps
+
+1. [x] Complete onboarding wizard
+2. [ ] Add media to Inbound library
+3. [ ] Run initial library scan
+4. [ ] Review and organize your collection
+5. [ ] Configure user accounts and permissions
+
+## Troubleshooting
+
+### Doctor Command
+
+Run `mcli doctor` to diagnose common issues:
+
+```bash
+mcli doctor
+```
+
+Common fixes:
+- Ensure library paths are writable
+- Check database connectivity
+- Verify disk space availability
+
+## Additional Resources
+
+- Documentation: {5}/docs
+- API Reference: {5}/swagger
+- Source Code: https://github.com/anomalyco/melodee
+
+---
+
+*Generated by Melodee {6}*</value>
+  </data>
+  <data name="Onboarding.ChooseFile" xml:space="preserve">
+    <value>Choisir un fichier</value>
+  </data>
+  <data name="Onboarding.CompleteSetup" xml:space="preserve">
+    <value>Terminer la configuration</value>
+  </data>
+  <data name="Onboarding.ConfirmPasswordLabel" xml:space="preserve">
+    <value>Confirmer le mot de passe</value>
+  </data>
+  <data name="Onboarding.CopySecretKey" xml:space="preserve">
+    <value>Copier la clé secrète</value>
+  </data>
+  <data name="Onboarding.CopySecretKeySuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Secret key copied to clipboard.</value>
+  </data>
+  <data name="Onboarding.CreateDirectory" xml:space="preserve">
+    <value>Créer le répertoire</value>
+  </data>
+  <data name="Onboarding.DownloadChecklist" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Getting Started Checklist</value>
+  </data>
+  <data name="Onboarding.DownloadChecklistButton" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Download Checklist (Markdown)</value>
+  </data>
+  <data name="Onboarding.ExplainDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Melodee uses three main library types to organize your media collection. Here's how they work together.</value>
+  </data>
+  <data name="Onboarding.ExplainHeading" xml:space="preserve">
+    <value>Comprendre les types de bibliothèques</value>
+  </data>
+  <data name="Onboarding.GenerateSecretKey" xml:space="preserve">
+    <value>Générer une clé secrète</value>
+  </data>
+  <data name="Onboarding.ImportApplied" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Imported {0} settings and {1} libraries. Continuing with remaining setup steps...</value>
+  </data>
+  <data name="Onboarding.ImportError" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Failed to parse import file. Please ensure it's a valid Melodee export file.</value>
+  </data>
+  <data name="Onboarding.ImportExistingLabel" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Import existing configuration (optional)</value>
+  </data>
+  <data name="Onboarding.ImportInvalid" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] The import file is empty or invalid.</value>
+  </data>
+  <data name="Onboarding.ImportLibrariesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] {0} libraries</value>
+  </data>
+  <data name="Onboarding.ImportSettingsCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] {0} settings</value>
+  </data>
+  <data name="Onboarding.ImportSuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Successfully imported {0} settings and {1} libraries.</value>
+  </data>
+  <data name="Onboarding.InboundLibraryDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] The Inbound library is where you drop new music files. Melodee scans this location for new content, validates file formats, and fetches metadata. Files are processed here before being moved to staging.</value>
+  </data>
+  <data name="Onboarding.InboundLibraryTitle" xml:space="preserve">
+    <value>Bibliothèque d'entrée</value>
+  </data>
+  <data name="Onboarding.ItemsCompleted" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] {0} of {1} setup items completed</value>
+  </data>
+  <data name="Onboarding.PasswordLabel" xml:space="preserve">
+    <value>Mot de passe</value>
+  </data>
+  <data name="Onboarding.PasswordNoMatch" xml:space="preserve">
+    <value>Les mots de passe ne correspondent pas.</value>
+  </data>
+  <data name="Onboarding.PasswordTooShort" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Password must be at least {0} characters long.</value>
+  </data>
+  <data name="Onboarding.PathAbsoluteRequired" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path must be absolute.</value>
+  </data>
+  <data name="Onboarding.PathCreateError" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Failed to create directory: {0}</value>
+  </data>
+  <data name="Onboarding.PathInvalid" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path is invalid.</value>
+  </data>
+  <data name="Onboarding.PathLabel" xml:space="preserve">
+    <value>Chemin</value>
+  </data>
+  <data name="Onboarding.PathOverlap" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path overlaps with {0} library</value>
+  </data>
+  <data name="Onboarding.PathRequired" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path is required</value>
+  </data>
+  <data name="Onboarding.PathTestMissing" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path does not exist.</value>
+  </data>
+  <data name="Onboarding.PathTestNotWritable" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path exists but is not writable.</value>
+  </data>
+  <data name="Onboarding.PathTestWritable" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path exists and is writable.</value>
+  </data>
+  <data name="Onboarding.PathTooLong" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path exceeds {0} characters. Consider shortening it.</value>
+  </data>
+  <data name="Onboarding.PathTraversalInvalid" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path cannot contain traversal sequences (.. or .)</value>
+  </data>
+  <data name="Onboarding.PathsDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Configure the paths where Melodee will store and process your media files.</value>
+  </data>
+  <data name="Onboarding.PathsHeading" xml:space="preserve">
+    <value>Chemins des bibliothèques</value>
+  </data>
+  <data name="Onboarding.ReadyToComplete" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Your server is configured and ready to use!</value>
+  </data>
+  <data name="Onboarding.RefreshStatus" xml:space="preserve">
+    <value>Actualiser le statut</value>
+  </data>
+  <data name="Onboarding.RegenerateKey" xml:space="preserve">
+    <value>Régénérer la clé</value>
+  </data>
+  <data name="Onboarding.RegenerateKeyConfirm" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Are you sure you want to regenerate the secret key? This will invalidate any existing encrypted data.</value>
+  </data>
+  <data name="Onboarding.RegenerateKeyTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Regenerate Secret Key</value>
+  </data>
+  <data name="Onboarding.RequiredSettingMissing" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Value is required.</value>
+  </data>
+  <data name="Onboarding.RequiredSettingValue" xml:space="preserve">
+    <value>Valeur</value>
+  </data>
+  <data name="Onboarding.RequiredSettingsDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] These settings are required for onboarding and still need values.</value>
+  </data>
+  <data name="Onboarding.RequiredSettingsHeading" xml:space="preserve">
+    <value>Paramètres requis</value>
+  </data>
+  <data name="Onboarding.RequiredSettingsNone" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] No additional required settings found.</value>
+  </data>
+  <data name="Onboarding.RetryButton" xml:space="preserve">
+    <value>Réessayer</value>
+  </data>
+  <data name="Onboarding.SecurityHeading" xml:space="preserve">
+    <value>Configuration de sécurité</value>
+  </data>
+  <data name="Onboarding.SecuritySecretDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Melodee requires a secret key for secure operations. This key is stored securely in your database.</value>
+  </data>
+  <data name="Onboarding.SecuritySecretLabel" xml:space="preserve">
+    <value>Clé secrète</value>
+  </data>
+  <data name="Onboarding.SetViaEnvironment" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Set via environment variable</value>
+  </data>
+  <data name="Onboarding.SetupProgress" xml:space="preserve">
+    <value>Votre progression de configuration</value>
+  </data>
+  <data name="Onboarding.SiteNameLabel" xml:space="preserve">
+    <value>Nom du site</value>
+  </data>
+  <data name="Onboarding.SiteNameRequired" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Site name is required.</value>
+  </data>
+  <data name="Onboarding.StagingLibraryDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] The Staging library holds processed music files that have been organized but not yet finalized. Review albums here before they are moved to your permanent storage library.</value>
+  </data>
+  <data name="Onboarding.StagingLibraryTitle" xml:space="preserve">
+    <value>Bibliothèque de préparation</value>
+  </data>
+  <data name="Onboarding.StorageLibraryDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] The Storage library is your permanent music collection. Files here are organized by artist and album, ready for playback and streaming. You can have multiple storage libraries.</value>
+  </data>
+  <data name="Onboarding.StorageLibraryTitle" xml:space="preserve">
+    <value>Bibliothèque de stockage</value>
+  </data>
+  <data name="Onboarding.SupportLink" xml:space="preserve">
+    <value>Voir la documentation</value>
+  </data>
+  <data name="Onboarding.TestPath" xml:space="preserve">
+    <value>Tester le chemin</value>
+  </data>
+  <data name="Onboarding.TestUrl" xml:space="preserve">
+    <value>Tester l'URL</value>
+  </data>
+  <data name="Onboarding.UrlTestSuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] URL is reachable</value>
+  </data>
+  <data name="Onboarding.UsernameLabel" xml:space="preserve">
+    <value>Nom d'utilisateur</value>
+  </data>
+  <data name="Onboarding.UsernameRequired" xml:space="preserve">
+    <value>Le nom d'utilisateur est requis.</value>
+  </data>
+  <data name="Onboarding.VerifyDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Review your configuration and complete the setup.</value>
+  </data>
+  <data name="Onboarding.VerifyHeading" xml:space="preserve">
+    <value>Prêt à terminer</value>
+  </data>
+  <data name="Onboarding.WelcomeDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Let's get your music server set up. This wizard will guide you through the initial configuration.</value>
+  </data>
+  <data name="Onboarding.WelcomeHeading" xml:space="preserve">
+    <value>Bienvenue sur Melodee</value>
+  </data>
+  <data name="Onboarding.WizardTitle" xml:space="preserve">
+    <value>Assistant de configuration</value>
   </data>
 </root>
