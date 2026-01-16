@@ -36,6 +36,7 @@ Built on .NET 10 with PostgreSQL and first-class container support, it's a great
 - **🌐 Modern Web UI**: Blazor Server interface with Radzen UI components
 - **🎛️ Jukebox**: Server-side playback with queue/control support (OpenSubsonic jukeboxControl; MPV/MPD backends)
 - **🎉 Party Mode**: Shared listening sessions with a collaborative queue and DJ/Listener roles
+- **🎧 User Device Profiles**: Per-user and per-device transcoding profiles for automatic codec/bitrate selection
 - **🐳 Container Ready**: Full Docker/Podman support with PostgreSQL
 
 ## 🌐 Try the Demo
