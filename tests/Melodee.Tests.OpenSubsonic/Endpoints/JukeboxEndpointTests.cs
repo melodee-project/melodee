@@ -93,7 +93,7 @@ public class JukeboxEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task JukeboxControl_AddAction_AddsSongs()
     {
-        var response = await GetAsync("jukeboxControl?action=add&id=song:1");
+        var response = await GetAsync($"jukeboxControl?action=add&id=song_{TestSongApiKey}");
         // The jukebox might be disabled by default, so we accept both OK and Gone
         response.StatusCode.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.Gone);
     }

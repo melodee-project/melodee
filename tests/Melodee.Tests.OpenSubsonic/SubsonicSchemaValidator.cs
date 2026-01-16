@@ -22,7 +22,7 @@ public static class SubsonicSchemaValidator
             TypeName = "MusicFolder",
             Attributes = new Dictionary<string, FieldType>
             {
-                ["id"] = FieldType.Integer,
+                ["id"] = FieldType.String,
                 ["name"] = FieldType.String
             },
             RequiredAttributes = new[] { "id" }
@@ -196,7 +196,7 @@ public static class SubsonicSchemaValidator
             TypeName = "Playlist",
             Attributes = new Dictionary<string, FieldType>
             {
-                ["id"] = FieldType.Integer,
+                ["id"] = FieldType.String,
                 ["name"] = FieldType.String,
                 ["owner"] = FieldType.String,
                 ["public"] = FieldType.Boolean,
@@ -217,7 +217,7 @@ public static class SubsonicSchemaValidator
             TypeName = "PlaylistWithSongs",
             Attributes = new Dictionary<string, FieldType>
             {
-                ["id"] = FieldType.Integer,
+                ["id"] = FieldType.String,
                 ["name"] = FieldType.String,
                 ["owner"] = FieldType.String,
                 ["public"] = FieldType.Boolean,
@@ -475,6 +475,25 @@ public static class SubsonicSchemaValidator
             return errors;
         }
 
+        // Handle the case where the element is an array (e.g., openSubsonicExtensions returns an array directly)
+        if (element is JsonArray topLevelArray)
+        {
+            // If this element has children defined with an array type, validate each item in the array
+            if (definition.Children != null && definition.Children.Count > 0)
+            {
+                var childDef = definition.Children.First();
+                if (childDef.Value.Type == FieldType.Array && childDef.Value.ItemType != null)
+                {
+                    foreach (var item in topLevelArray)
+                    {
+                        var itemErrors = ValidateResponseElement(childDef.Value.ItemType, item);
+                        errors.AddRange(itemErrors.Select(e => $"  {e}"));
+                    }
+                }
+            }
+            return errors;
+        }
+
         if (definition.Attributes != null)
         {
             foreach (var attr in definition.Attributes)
@@ -533,24 +552,45 @@ public static class SubsonicSchemaValidator
 
     private static string? ValidateFieldType(string elementName, string fieldName, JsonNode fieldValue, FieldType expectedType)
     {
+        var kind = fieldValue.GetValueKind();
         switch (expectedType)
         {
             case FieldType.Integer:
-                if (fieldValue.GetValueKind() != JsonValueKind.Number)
+                // Accept number or string representation of integer
+                if (kind != JsonValueKind.Number)
+                {
+                    if (kind == JsonValueKind.String && int.TryParse(fieldValue.ToString(), out _))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be an integer";
+                }
                 break;
             case FieldType.Long:
-                if (fieldValue.GetValueKind() != JsonValueKind.Number)
+                // Accept number, string representation of long, or empty string (treated as 0)
+                if (kind != JsonValueKind.Number)
+                {
+                    var strVal = fieldValue.ToString();
+                    if (kind == JsonValueKind.String && (string.IsNullOrEmpty(strVal) || long.TryParse(strVal, out _)))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be a long/integer";
+                }
                 break;
             case FieldType.Boolean:
-                if (fieldValue.GetValueKind() != JsonValueKind.True &&
-                    fieldValue.GetValueKind() != JsonValueKind.False)
+                // Accept boolean or string representation ("true"/"false")
+                if (kind != JsonValueKind.True && kind != JsonValueKind.False)
+                {
+                    if (kind == JsonValueKind.String && bool.TryParse(fieldValue.ToString(), out _))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be a boolean";
+                }
                 break;
             case FieldType.Double:
-                if (fieldValue.GetValueKind() != JsonValueKind.Number)
+                // Accept number or string representation of double
+                if (kind != JsonValueKind.Number)
+                {
+                    if (kind == JsonValueKind.String && double.TryParse(fieldValue.ToString(), out _))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be a double";
+                }
                 break;
             case FieldType.DateTime:
                 var dateStr = fieldValue.ToString();

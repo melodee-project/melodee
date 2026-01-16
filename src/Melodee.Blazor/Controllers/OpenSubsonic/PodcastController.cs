@@ -109,12 +109,12 @@ public class PodcastController(
                 Podcasts = new PodcastsContainer { Channel = podcasts }
             };
 
-            return Ok(await CreateResponseAsync(response).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(response).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in GetPodcasts", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 
@@ -155,12 +155,12 @@ public class PodcastController(
                 NewestPodcasts = new NewestPodcastsContainer { Episode = episodes }
             };
 
-            return Ok(await CreateResponseAsync(response).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(response).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in GetNewestPodcasts", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 
@@ -200,12 +200,12 @@ public class PodcastController(
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return Ok(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in RefreshPodcasts", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 
@@ -257,12 +257,12 @@ public class PodcastController(
                 Url = channel.FeedUrl
             };
 
-            return Ok(await CreateResponseAsync(response).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(response).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in CreatePodcastChannel", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 
@@ -308,12 +308,12 @@ public class PodcastController(
                 return NotFound(await CreateResponseAsync(Error.GenericError(result.Messages?.FirstOrDefault() ?? "Unknown error")).ConfigureAwait(false));
             }
 
-            return Ok(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in DeletePodcastChannel", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 
@@ -357,12 +357,12 @@ public class PodcastController(
                 return NotFound(await CreateResponseAsync(Error.GenericError(result.Messages?.FirstOrDefault() ?? "Unknown error")).ConfigureAwait(false));
             }
 
-            return Ok(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in DeletePodcastEpisode", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 
@@ -406,12 +406,12 @@ public class PodcastController(
                 return BadRequest(await CreateResponseAsync(Error.GenericError(result.Messages?.FirstOrDefault() ?? "Unknown error")).ConfigureAwait(false));
             }
 
-            return Ok(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(new StatusResponse { Status = "ok" }).ConfigureAwait(false))).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[{Controller}] Error in DownloadPodcastEpisode", nameof(PodcastController));
-            return StatusCode((int)HttpStatusCode.InternalServerError, await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false));
+            return await MakeResult(Task.FromResult(await CreateResponseAsync(Error.GenericError("Internal server error")).ConfigureAwait(false))).ConfigureAwait(false);
         }
     }
 

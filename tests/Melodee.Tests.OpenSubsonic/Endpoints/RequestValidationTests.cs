@@ -38,8 +38,7 @@ public class RequestValidationTests : OpenSubsonicTestBase
     public async Task CreatePlaylist_WithoutName_HandlesGracefully(string? name)
     {
         var url = string.IsNullOrEmpty(name) ? "createPlaylist" : $"createPlaylist?name={name}";
-        var response = await Client.GetAsync(
-            $"/rest/{url}&u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json");
+        var response = await GetAsync(url);
         response.StatusCode.Should().BeOneOf(
             System.Net.HttpStatusCode.OK, // May create with default name
             System.Net.HttpStatusCode.BadRequest); // Or return error

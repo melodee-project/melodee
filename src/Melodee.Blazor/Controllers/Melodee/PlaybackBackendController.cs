@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Asp.Versioning;
+using Melodee.Blazor.Controllers.Melodee.Extensions;
 using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
@@ -10,7 +12,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -108,6 +109,7 @@ public sealed class PlaybackBackendController(
     [HttpPost]
     [Route("shutdown")]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ShutdownBackend(CancellationToken cancellationToken = default)
     {
         var result = await playbackBackendService.ShutdownBackendAsync(cancellationToken).ConfigureAwait(false);
@@ -125,7 +127,7 @@ public sealed class PlaybackBackendController(
     /// </summary>
     [HttpPost]
     [Route("register-endpoint")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartySessionEndpoint), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(EndpointDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegisterEndpoint(CancellationToken cancellationToken = default)
     {
@@ -138,7 +140,13 @@ public sealed class PlaybackBackendController(
                 : ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to register endpoint");
         }
 
-        return Ok(result.Data);
+        var user = HttpContext.User;
+        var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+        var userId = string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var parsedUserId)
+            ? null
+            : parsedUserId;
+
+        return Ok(result.Data.ToEndpointDto(userId));
     }
 
     /// <summary>
