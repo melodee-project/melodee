@@ -2115,6 +2115,9 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
         {
             ug.HasIndex(x => x.Name).IsUnique();
 
+            // NOTE: The "All Users" group is seeded as a convenience placeholder.
+            // Users are NOT automatically added to this group; membership must be managed
+            // explicitly by application logic if this group is to be used for library access control.
             ug.HasData(new UserGroup
             {
                 Id = 1,

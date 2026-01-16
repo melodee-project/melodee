@@ -15,9 +15,10 @@ namespace Melodee.Common.Services;
 /// </summary>
 public sealed class LibraryAuthorizationService : ServiceBase
 {
-    private const string CacheKeyUserCanAccessLibraryTemplate = "urn:user:{0}:library:{1}:access";
-    private const string CacheKeyUserAccessibleLibrariesTemplate = "urn:user:{0}:accessible-libraries";
-    private const string CacheKeyLibraryHasRestrictionsTemplate = "urn:library:{0}:has-restrictions";
+    public const string CacheRegion = "urn:region:library-authorization";
+    private const string CacheKeyUserCanAccessLibraryTemplate = $"{CacheRegion}:urn:user:{{0}}:library:{{1}}:access";
+    private const string CacheKeyUserAccessibleLibrariesTemplate = $"{CacheRegion}:urn:user:{{0}}:accessible-libraries";
+    private const string CacheKeyLibraryHasRestrictionsTemplate = $"{CacheRegion}:urn:library:{{0}}:has-restrictions";
 
     public LibraryAuthorizationService(
         ILogger logger,
@@ -79,13 +80,6 @@ public sealed class LibraryAuthorizationService : ServiceBase
         {
             await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-            // Get all libraries
-            var allLibraryIds = await scopedContext.Libraries
-                .AsNoTracking()
-                .Select(l => l.Id)
-                .ToArrayAsync(cancellationToken)
-                .ConfigureAwait(false);
-
             // Get libraries with no restrictions (accessible to all)
             var unrestrictedLibraryIds = await scopedContext.Libraries
                 .AsNoTracking()
@@ -138,6 +132,6 @@ public sealed class LibraryAuthorizationService : ServiceBase
     /// </summary>
     public void ClearAuthorizationCache()
     {
-        CacheManager.ClearRegion("urn:region:library-authorization");
+        CacheManager.ClearRegion(CacheRegion);
     }
 }

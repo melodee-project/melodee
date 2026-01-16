@@ -2483,23 +2483,21 @@ public class LibraryService : ServiceBase
         {
             var now = SystemClock.Instance.GetCurrentInstant();
             
-            foreach (var groupId in userGroupIds.Distinct())
+            var accessControls = userGroupIds.Distinct().Select(groupId => new LibraryAccessControl
             {
-                var accessControl = new LibraryAccessControl
-                {
-                    LibraryId = libraryId,
-                    UserGroupId = groupId,
-                    ApiKey = Guid.NewGuid(),
-                    CreatedAt = now
-                };
-                scopedContext.LibraryAccessControls.Add(accessControl);
-            }
+                LibraryId = libraryId,
+                UserGroupId = groupId,
+                ApiKey = Guid.NewGuid(),
+                CreatedAt = now
+            }).ToList();
+            
+            scopedContext.LibraryAccessControls.AddRange(accessControls);
         }
 
         await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         // Clear relevant caches
-        CacheManager.ClearRegion("urn:region:library-authorization");
+        CacheManager.ClearRegion(LibraryAuthorizationService.CacheRegion);
         CacheManager.Remove(CacheKeyDetailTemplate.FormatSmart(libraryId));
 
         return new MelodeeModels.OperationResult<bool>

@@ -13,10 +13,10 @@ namespace Melodee.Common.Services;
 
 public sealed class UserGroupService : ServiceBase
 {
-    private const string CacheKeyDetailTemplate = "urn:usergroup:{0}";
-    private const string CacheKeyDetailByApiKeyTemplate = "urn:usergroup:apikey:{0}";
-    private const string CacheKeyListAll = "urn:usergroups:all";
-    private const string CacheKeyUserGroupsForUserTemplate = "urn:user:{0}:groups";
+    private const string CacheKeyDetailTemplate = $"{UserGroup.CacheRegion}:urn:usergroup:{{0}}";
+    private const string CacheKeyDetailByApiKeyTemplate = $"{UserGroup.CacheRegion}:urn:usergroup:apikey:{{0}}";
+    private const string CacheKeyListAll = $"{UserGroup.CacheRegion}:urn:usergroups:all";
+    private const string CacheKeyUserGroupsForUserTemplate = $"{UserGroup.CacheRegion}:urn:user:{{0}}:groups";
 
     public UserGroupService(
         ILogger logger,
@@ -136,8 +136,6 @@ public sealed class UserGroupService : ServiceBase
                 Data = existing
             };
         }
-
-        userGroup.CreatedAt = SystemClock.Instance.GetCurrentInstant();
         
         scopedContext.UserGroups.Add(userGroup);
         await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -286,8 +284,6 @@ public sealed class UserGroupService : ServiceBase
 
     private void ClearCache()
     {
-        CacheManager.Remove(CacheKeyListAll);
         CacheManager.ClearRegion(UserGroup.CacheRegion);
-        CacheManager.ClearRegion(User.CacheRegion);
     }
 }
