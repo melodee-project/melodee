@@ -119,6 +119,7 @@ definition-of-done criteria to minimize design work during implementation.
   - normalize and check overlap (case-insensitive, directory separators normalized)
   - resolve symbolic links before overlap check
   - reject paths containing traversal sequences (`..`, `.`)
+- Add a "Recommended" (non-blocking) check for sufficient disk space (e.g., < 1GB) on library volumes.
 - Never include secrets in `Details`. Use masked values where needed.
 
 ### Definition of done
@@ -167,6 +168,7 @@ definition-of-done criteria to minimize design work during implementation.
   - stepper/progress indicator
   - shared wizard state model (current step, setup status snapshot, validation errors)
   - Back/Next navigation (Back allows revisiting previous steps)
+  - auto-advance logic to skip forward to the first incomplete/blocking step upon wizard entry or re-entry.
 
 ### Implementation notes
 - Use existing UI library patterns (Radzen components, localization via `L("...")` pattern used elsewhere).
@@ -201,6 +203,8 @@ Implement these steps with exact behaviors:
 - Uses `SettingService.UpdateAsync(...)` (or existing setting editing patterns) to update:
   - `system.siteName`
   - `system.baseUrl` (trimmed; validated as absolute http/https)
+- Implement an optional "Test Reachability" button for `system.baseUrl`.
+- Display settings overridden by environment variables as read-only with a "Set via Environment" indicator.
 
 2) Security secret key
 - If `security.secretKey` missing/invalid, generate and persist.
@@ -332,6 +336,8 @@ Implement these steps with exact behaviors:
   - path traversal rejection -> blocking
   - missing/inaccessible required library -> blocking
   - path length validation -> success/failure
+  - disk space check results (recommended)
+- Unit tests for validation logic must include mocks for both case-sensitive (Linux) and case-insensitive (Windows) filesystem behaviors.
 - Unit tests for import/export:
   - export is deterministic
   - import validates schema version (reject mismatch)
@@ -344,6 +350,7 @@ Implement these steps with exact behaviors:
   - Completion marker prevents redirect when setup remains valid.
   - Wizard step navigation works (Back/Next).
   - Blocking screen displays with retry button.
+  - Checklist download succeeds and is localized based on current culture.
 
 ### Implementation notes
 - No secrets are logged or included in raw outputs.

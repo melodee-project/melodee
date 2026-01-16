@@ -112,6 +112,7 @@ Notes:
   - Reject paths containing path traversal sequences (e.g., `..`, `.`) relative to allowed roots.
   - Support UNC paths on Windows (e.g., `\\server\share\path`) and absolute paths on all platforms.
   - Validate path length: recommend staying under 255 characters for cross-platform compatibility.
+  - Path validation rules must be verified to handle both case-sensitive (Linux) and case-insensitive (Windows) filesystem behaviors correctly, especially for overlap detection.
 
 6) Inbound/Staging/Storage must not overlap:
 - Paths must not be equal and must not be parent/child of each other (case-insensitive, normalized).
@@ -122,6 +123,7 @@ Notes:
 
 These should be visible in onboarding (as warnings) but must not prevent completing onboarding:
 
+- Sufficient disk space available on library volumes (e.g., warning if < 100GB).
 - MusicBrainz DB file exists and is initialized (this can be heavy; do not block first-run).
 - HTTPS enabled in production (block only if product direction changes later).
 - FFmpeg available (block only if conversion is required for the chosen workload).
@@ -139,6 +141,7 @@ These should be visible in onboarding (as warnings) but must not prevent complet
   - clear "Blocking" vs "Recommended" labeling
 - Navigation:
   - When `OnboardingRequired == true`, users must not be able to navigate to other pages (hard redirect/guard).
+  - The wizard should auto-advance to the first incomplete step upon re-entry.
   - The only allowed routes while onboarding is required:
     - `/onboarding` and its child routes
     - `/account/login` (if authentication is required before onboarding)
@@ -154,6 +157,7 @@ These should be visible in onboarding (as warnings) but must not prevent complet
   - This ensures the onboarding flow works without requiring CLI admin creation first.
 - All mutations performed by the wizard must use existing domain services (`SettingService`, `LibraryService`, etc.) and
   respect authorization checks already present in those services/pages.
+- Settings overridden by environment variables must be displayed as read-only with a "Set via Environment" indicator to avoid user confusion.
 - Onboarding wizard must support localization using the existing `L("...")` pattern used in the Blazor application.
 
 ### Step requirements (minimum set)
@@ -169,6 +173,8 @@ These should be visible in onboarding (as warnings) but must not prevent complet
 - Inputs:
   - `system.siteName` (text)
   - `system.baseUrl` (URL)
+- Actions:
+  - Optional "Test Reachability" button to verify the URL is accessible from the current network (non-blocking connectivity check).
 - Validations per "Required setup checks".
 - Copy should mention where these values are used (emails, shareable links, image URLs).
 
@@ -211,6 +217,7 @@ These should be visible in onboarding (as warnings) but must not prevent complet
 
 7) **Download next-steps checklist**
 - Provide a "Download checklist" action that downloads a Markdown file generated server-side.
+- The checklist content and file name must be localized.
 - Content requirements:
   - A clear, legally-safe statement: "Add only media you own/are licensed to use."
   - Steps to add music without providing sources:
