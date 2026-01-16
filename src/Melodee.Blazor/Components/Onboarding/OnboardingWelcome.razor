@@ -38,7 +38,7 @@
     </RadzenCard>
 
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
-        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving"/>
     </RadzenStack>
 </RadzenStack>
 
@@ -46,7 +46,8 @@
     private string? _importFile;
     private string? _importMessage;
     private bool _importSuccess;
-    private ImportData? _importData;
+    private bool _isSaving;
+    private Melodee.Common.Services.ImportData? _importData;
 
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
@@ -67,7 +68,7 @@
         {
             var jsonBytes = Convert.FromBase64String(value);
             var json = System.Text.Encoding.UTF8.GetString(jsonBytes);
-            _importData = JsonSerializer.Deserialize<ImportData>(json, new JsonSerializerOptions
+            _importData = JsonSerializer.Deserialize<Melodee.Common.Services.ImportData>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
@@ -92,6 +93,33 @@
 
     private async Task Next()
     {
+        var importData = OnboardingStateService.GetImportData();
+        if (importData != null)
+        {
+            _isSaving = true;
+            try
+            {
+                var json = JsonSerializer.Serialize(importData, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                var result = await OnboardingStateService.ImportSettingsAndLibrariesAsync(json);
+                if (!result.Success)
+                {
+                    _importSuccess = false;
+                    _importMessage = result.ErrorMessage ?? L("Onboarding.ImportError");
+                    return;
+                }
+
+                _importSuccess = true;
+                _importMessage = L("Onboarding.ImportApplied", result.SettingsImported, result.LibrariesImported);
+            }
+            finally
+            {
+                _isSaving = false;
+            }
+        }
+
         await OnNext.InvokeAsync();
     }
 }

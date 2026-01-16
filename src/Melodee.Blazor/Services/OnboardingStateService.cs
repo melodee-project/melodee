@@ -4,8 +4,8 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Services;
-using Melodee.Common.Services.Setup;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Services.Setup;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -26,7 +26,7 @@ public sealed class OnboardingStateService
     private DateTimeOffset _lastCheck = DateTimeOffset.MinValue;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
 
-    private ImportData? _importData;
+    private Melodee.Common.Services.ImportData? _importData;
 
     public OnboardingStateService(
         ISetupCheckService setupCheckService,
@@ -106,7 +106,7 @@ public sealed class OnboardingStateService
     /// <summary>
     /// Stores imported settings and libraries for use in the onboarding wizard.
     /// </summary>
-    public void StoreImportData(ImportData data)
+    public void StoreImportData(Melodee.Common.Services.ImportData data)
     {
         _importData = data;
     }
@@ -114,58 +114,25 @@ public sealed class OnboardingStateService
     /// <summary>
     /// Gets any stored import data.
     /// </summary>
-    public ImportData? GetImportData() => _importData;
+    public Melodee.Common.Services.ImportData? GetImportData() => _importData;
 
     /// <summary>
     /// Clears stored import data.
     /// </summary>
     public void ClearImportData() => _importData = null;
-}
 
-public sealed class ImportData
-{
-    [JsonPropertyName("schemaVersion")]
-    public string SchemaVersion { get; init; } = string.Empty;
-
-    [JsonPropertyName("exportedAt")]
-    public string ExportedAt { get; init; } = string.Empty;
-
-    [JsonPropertyName("settings")]
-    public List<ImportedSetting> Settings { get; init; } = new();
-
-    [JsonPropertyName("libraries")]
-    public List<ImportedLibrary> Libraries { get; init; } = new();
-}
-
-public sealed class ImportedSetting
-{
-    [JsonPropertyName("key")]
-    public string Key { get; init; } = string.Empty;
-
-    [JsonPropertyName("value")]
-    public string Value { get; init; } = string.Empty;
-
-    [JsonPropertyName("comment")]
-    public string? Comment { get; init; }
-
-    [JsonPropertyName("category")]
-    public int? Category { get; init; }
-}
-
-public sealed class ImportedLibrary
-{
-    [JsonPropertyName("name")]
-    public string Name { get; init; } = string.Empty;
-
-    [JsonPropertyName("type")]
-    public string Type { get; init; } = string.Empty;
-
-    [JsonPropertyName("path")]
-    public string Path { get; init; } = string.Empty;
-
-    [JsonPropertyName("apiKey")]
-    public string ApiKey { get; init; } = string.Empty;
-
-    [JsonPropertyName("description")]
-    public string? Description { get; init; }
+    public async Task<Melodee.Common.Services.ImportResult> ImportSettingsAndLibrariesAsync(string jsonContent, CancellationToken cancellationToken = default)
+    {
+        var importService = new SystemImportService(
+            _logger,
+            _cacheManager,
+            _configurationFactory,
+            _contextFactory);
+        var result = await importService.ImportAsync(jsonContent, cancellationToken).ConfigureAwait(false);
+        if (result.Success)
+        {
+            await RefreshSetupStatusAsync(cancellationToken);
+        }
+        return result;
+    }
 }

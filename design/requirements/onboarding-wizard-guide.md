@@ -16,7 +16,7 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 3 — Add shared SetupCheck API + models
 - [x] Phase 4 — Blazor startup gating + route guard
 - [x] Phase 5 — Implement onboarding wizard UI skeleton (COMPLETED)
-- [ ] Phase 6 — Implement wizard steps (branding, security, paths, admin) (in progress)
+- [x] Phase 6 — Implement wizard steps (branding, security, paths, admin) (COMPLETED)
 - [ ] Phase 7 — Download checklist + final verification
 - [ ] Phase 8 — Admin Dashboard JSON export/import
 - [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
@@ -28,7 +28,7 @@ definition-of-done criteria to minimize design work during implementation.
 
 ### Deliverables
 - [x] Create a definitive list of:
-  - [x] required Settings keys (blocking) for onboarding completion
+  - [x] required Settings keys (blocking) for onboarding completion~~~~
   - [x] required library types (blocking) for onboarding completion
 - [x] Confirm current defaults/seed values:
   - [x] `system.baseUrl` default: `MelodeeConfiguration.RequiredNotSetValue`
@@ -277,6 +277,21 @@ Implement these steps with exact behaviors:
 - Wizard includes admin creation when no admin exists.
 - Import is transactional.
 - Path validation includes symlink resolution and traversal rejection.
+
+**Implementation**: Created `src/Melodee.Common/Services/SystemImportService.cs` for transactional import of settings and libraries from JSON exports. Implemented wizard step functionality:
+
+- `OnboardingWelcome.razor`: Added file upload and JSON import functionality that applies import data and refreshes setup status
+- `OnboardingBranding.razor`: Implemented site name and base URL editing with URL validation and reachability testing
+- `OnboardingSecurity.razor`: Implemented secret key generation (48 bytes, Base64 encoded) with display-once and regenerate confirmation
+- `OnboardingPaths.razor`: Implemented library path configuration with path overlap detection (including symlink resolution), traversal rejection, directory creation, and write permission testing. Creates missing library records automatically.
+- `OnboardingAdmin.razor`: Implemented admin user creation with username and password validation (8+ characters, password confirmation)
+- Added `OnboardingStateService.ImportSettingsAndLibrariesAsync()` for applying imports transactionally
+- Added localization strings for path validation messages
+
+Path validation rules implemented:
+- Rejects paths containing `..`, `./`, or `.\` traversal sequences
+- Resolves symlinks to canonical paths before overlap checking
+- Detects overlaps between any library paths (case-insensitive, normalized separators)
 
 ---
 

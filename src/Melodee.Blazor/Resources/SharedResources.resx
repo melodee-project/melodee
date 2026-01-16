@@ -5942,5 +5942,17 @@
   <data name="Onboarding.UrlTestSuccess" xml:space="preserve">
     <value>URL is reachable</value>
   </data>
+  <data name="Onboarding.ImportApplied" xml:space="preserve">
+    <value>Imported {0} settings and {1} libraries. Continuing with remaining setup steps...</value>
+  </data>
+  <data name="Onboarding.PathRequired" xml:space="preserve">
+    <value>Path is required</value>
+  </data>
+  <data name="Onboarding.PathTraversalInvalid" xml:space="preserve">
+    <value>Path cannot contain traversal sequences (.. or .)</value>
+  </data>
+  <data name="Onboarding.PathOverlap" xml:space="preserve">
+    <value>Path overlaps with {0} library</value>
+  </data>
 
 </root>
