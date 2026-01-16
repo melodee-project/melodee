@@ -6043,9 +6043,9 @@ Common fixes:
 
 ## Additional Resources
 
-- Documentation: {5}/docs
-- API Reference: {5}/swagger
-- Source Code: https://github.com/anomalyco/melodee
+- Documentation: https://melodee.org
+- API Reference: {5}/scalar/v1
+- Source Code: https://github.com/melodee-project/melodee
 
 ---
 

@@ -3,7 +3,9 @@
 @using Melodee.Blazor.Services
 @using Melodee.Blazor.Components.Onboarding
 @using Melodee.Blazor.Components
+@using Serilog
 @inherits MelodeeComponentBase
+@inject ILogger Logger
 
 <PageTitle>@L("Onboarding.WizardTitle")</PageTitle>
 
@@ -101,7 +103,17 @@
 
     private async Task CompleteOnboarding()
     {
-        await OnboardingStateService.MarkOnboardingCompletedAsync();
-        NavigationManager.NavigateTo("/", forceLoad: true);
+        Logger.Debug("[Onboarding Index] CompleteOnboarding called");
+        try
+        {
+            await OnboardingStateService.MarkOnboardingCompletedAsync();
+            Logger.Debug("[Onboarding Index] MarkOnboardingCompletedAsync completed, navigating to /");
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "[Onboarding Index] Error completing onboarding");
+            throw;
+        }
     }
 }

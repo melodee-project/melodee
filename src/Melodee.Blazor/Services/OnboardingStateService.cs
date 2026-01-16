@@ -167,10 +167,17 @@ public sealed class OnboardingStateService
     /// </summary>
     public async Task MarkOnboardingCompletedAsync(CancellationToken cancellationToken = default)
     {
+        _logger.Debug("[OnboardingStateService] MarkOnboardingCompletedAsync called");
+        
         var settingService = new SettingService(_logger, _cacheManager, _configurationFactory, _contextFactory);
         var instant = SystemClock.Instance.GetCurrentInstant();
         var serialized = InstantPattern.ExtendedIso.Format(instant);
+        
+        _logger.Debug("[OnboardingStateService] Setting {Key} to {Value}", SettingRegistry.SystemOnboardingCompletedAt, serialized);
+        
         await settingService.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, serialized, cancellationToken);
+        
+        _logger.Debug("[OnboardingStateService] Setting saved successfully");
 
         // Update static cache immediately
         lock (_lockObject)
@@ -178,6 +185,8 @@ public sealed class OnboardingStateService
             _isOnboardingComplete = true;
         }
         _cachedStatus = null;
+        
+        _logger.Information("[OnboardingStateService] Onboarding marked as completed at {Timestamp}", serialized);
     }
     
     /// <summary>
