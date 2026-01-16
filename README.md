@@ -30,6 +30,7 @@ Built on .NET 10 with PostgreSQL and first-class container support, it's a great
 - **🔄 Automated Jobs**: Cron-based scheduling with intelligent job chaining
 - **📝 User Requests**: Submit and track requests for missing albums/songs, with automatic completion when matches are detected
 - **🎙️ Podcast Support**: Subscribe to podcasts, auto-download episodes, playback tracking with resume positions
+- **🔐 Fine-Grained Library Access Control**: User group-based permissions for multi-library setups with flexible access policies
 - **🎵 OpenSubsonic API**: Compatible with popular Subsonic and OpenSubsonic clients
 - **🎬 Jellyfin API**: Compatible with Jellyfin music clients (Finamp, Feishin, Streamyfin)
 - **🌐 Melodee API**: Fast RESTful API for custom integrations

@@ -4,6 +4,7 @@
 @using Library = Melodee.Common.Data.Models.Library
 
 @inject LibraryService LibraryService
+@inject UserGroupService UserGroupService
 @inject NotificationService NotificationService
 @inject NavigationManager NavigationManager
 
@@ -81,17 +82,52 @@
                     </RadzenStack>
                 </RadzenColumn>
             </RadzenRow>
-
-            <RadzenRow>
-                <RadzenColumn Size="12">
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
-                        <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Secondary" Click="@(() => NavigationManager.NavigateTo("/data/libraries"))"/>
-                        <RadzenButton Icon="save" Text="@L("Actions.Save")" ButtonType="ButtonType.Submit"/>
-                    </RadzenStack>
-                </RadzenColumn>
-            </RadzenRow>
         </RadzenStack>
     </RadzenFieldset>
+
+    <RadzenFieldset Text="@L("LibraryEdit.AccessControl")" class="rz-mt-4">
+        <RadzenStack Gap="1rem">
+            <RadzenRow>
+                <RadzenColumn Size="12">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                        <RadzenSwitch @bind-Value="_accessRestrictedToGroups" Name="AccessRestricted"/>
+                        <RadzenLabel Text="@L("LibraryEdit.RestrictAccessToGroups")" Component="AccessRestricted"/>
+                    </RadzenStack>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2">
+                        @L("LibraryEdit.AccessControlHelp")
+                    </RadzenText>
+                </RadzenColumn>
+            </RadzenRow>
+
+            @if (_accessRestrictedToGroups)
+            {
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenFormField Text="@L("LibraryEdit.AllowedGroups")" Variant="Variant.Outlined" Style="width:100%">
+                            <RadzenDropDown @bind-Value="_selectedGroupIds" 
+                                           Data="@_availableGroups" 
+                                           TextProperty="Name" 
+                                           ValueProperty="Id"
+                                           Multiple="true"
+                                           AllowClear="true"
+                                           Placeholder="@L("LibraryEdit.SelectGroupsPlaceholder")"
+                                           Chips="true"
+                                           Style="width:100%"
+                                           aria-label="@L("LibraryEdit.AllowedGroups")"/>
+                        </RadzenFormField>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2">
+                            @L("LibraryEdit.AllowedGroupsHelp")
+                        </RadzenText>
+                    </RadzenColumn>
+                </RadzenRow>
+            }
+        </RadzenStack>
+    </RadzenFieldset>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" class="rz-mt-4">
+        <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Secondary" Click="@(() => NavigationManager.NavigateTo("/data/libraries"))"/>
+        <RadzenButton Icon="save" Text="@L("Actions.Save")" ButtonType="ButtonType.Submit"/>
+    </RadzenStack>
 </RadzenTemplateForm>
 
 @code {
@@ -107,6 +143,9 @@
     };
 
     List<LibraryTypeOption> _libraryTypes = [];
+    IEnumerable<Melodee.Common.Data.Models.UserGroup> _availableGroups = [];
+    IEnumerable<int> _selectedGroupIds = [];
+    bool _accessRestrictedToGroups = false;
 
     class LibraryTypeOption
     {
@@ -122,6 +161,13 @@
             .Where(t => t != LibraryType.NotSet)
             .Select(t => new LibraryTypeOption { Value = (int)t, Text = L($"LibraryType.{t}") })
             .ToList();
+
+        // Load available user groups
+        var groupsResult = await UserGroupService.GetAllAsync();
+        if (groupsResult.IsSuccess && groupsResult.Data != null)
+        {
+            _availableGroups = groupsResult.Data;
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -132,6 +178,11 @@
             if (result.Data != null)
             {
                 _library = result.Data;
+                
+                // Load access control settings
+                var accessControlGroupIds = await LibraryService.GetLibraryAccessControlGroupIdsAsync(_library.Id);
+                _selectedGroupIds = accessControlGroupIds;
+                _accessRestrictedToGroups = accessControlGroupIds.Length > 0;
             }
         }
     }
@@ -141,6 +192,15 @@
         if (IsNew)
         {
             var result = await LibraryService.CreateAsync(_library);
+            if (result.IsSuccess && result.Data != null)
+            {
+                // Set access controls if restricted
+                if (_accessRestrictedToGroups)
+                {
+                    await LibraryService.SetLibraryAccessControlsAsync(result.Data.Id, _selectedGroupIds.ToArray());
+                }
+            }
+
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = result.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error,
@@ -155,6 +215,20 @@
         else
         {
             var result = await LibraryService.UpdateAsync(_library);
+            if (result.IsSuccess)
+            {
+                // Update access controls
+                if (_accessRestrictedToGroups)
+                {
+                    await LibraryService.SetLibraryAccessControlsAsync(_library.Id, _selectedGroupIds.ToArray());
+                }
+                else
+                {
+                    // No restrictions - clear all access controls
+                    await LibraryService.SetLibraryAccessControlsAsync(_library.Id, []);
+                }
+            }
+
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = result.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error,

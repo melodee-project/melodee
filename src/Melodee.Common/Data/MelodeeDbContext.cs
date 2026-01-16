@@ -107,6 +107,12 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     public DbSet<PartyAuditEvent> PartyAuditEvents { get; set; }
 
+    public DbSet<UserGroup> UserGroups { get; set; }
+
+    public DbSet<UserGroupMember> UserGroupMembers { get; set; }
+
+    public DbSet<LibraryAccessControl> LibraryAccessControls { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Use a fixed timestamp for seed data to prevent migration churn
@@ -2103,6 +2109,57 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
             lsh.HasIndex(x => new { x.LibraryId, x.CreatedAt });
             lsh.HasIndex(x => x.ForArtistId);
             lsh.HasIndex(x => x.ForAlbumId);
+        });
+
+        modelBuilder.Entity<UserGroup>(ug =>
+        {
+            ug.HasIndex(x => x.Name).IsUnique();
+
+            // NOTE: The "All Users" group is seeded as a convenience placeholder.
+            // Users are NOT automatically added to this group; membership must be managed
+            // explicitly by application logic if this group is to be used for library access control.
+            ug.HasData(new UserGroup
+            {
+                Id = 1,
+                ApiKey = SeedGuid("UserGroup", 1),
+                Name = "All Users",
+                Description = "Default group for all users",
+                CreatedAt = seedDataTimestamp
+            });
+        });
+
+        modelBuilder.Entity<UserGroupMember>(ugm =>
+        {
+            ugm.HasIndex(x => x.UserId);
+            ugm.HasIndex(x => x.UserGroupId);
+            ugm.HasIndex(x => new { x.UserId, x.UserGroupId }).IsUnique();
+
+            ugm.HasOne(x => x.User)
+                .WithMany(u => u.GroupMemberships)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            ugm.HasOne(x => x.UserGroup)
+                .WithMany(g => g.Members)
+                .HasForeignKey(x => x.UserGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LibraryAccessControl>(lac =>
+        {
+            lac.HasIndex(x => x.LibraryId);
+            lac.HasIndex(x => x.UserGroupId);
+            lac.HasIndex(x => new { x.LibraryId, x.UserGroupId }).IsUnique();
+
+            lac.HasOne(x => x.Library)
+                .WithMany(l => l.AccessControls)
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            lac.HasOne(x => x.UserGroup)
+                .WithMany(g => g.LibraryAccessControls)
+                .HasForeignKey(x => x.UserGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

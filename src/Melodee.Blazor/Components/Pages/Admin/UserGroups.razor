@@ -1,0 +1,198 @@
+@page "/admin/usergroups"
+@inherits MelodeeComponentBase
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Filtering
+@using FilterOperator = Melodee.Common.Filtering.FilterOperator
+
+@inject DialogService DialogService
+@inject MainLayoutProxyService MainLayoutProxyService
+@inject ILogger Logger
+@inject UserGroupService UserGroupService
+@inject NotificationService NotificationService
+
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>@L("Navigation.UserGroups")</PageTitle>
+
+<RadzenStack Style="height: 100%">
+    <RadzenBreadCrumb Class="rz-pb-5">
+        <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
+        <RadzenBreadCrumbItem Icon="group" Text="@L("Navigation.UserGroups")"/>
+    </RadzenBreadCrumb>
+    
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+        <DebounceInput class="rz-textbox"
+                   style="flex: 1"
+                   autocomplete="off"
+                   @bind-Value="@_debounceInputValue"
+                   @bind-Value:event="OnInput"
+                   DebounceTime="800"
+                   MinLength="3"
+                   OnValueChanged="@DoSearchAsync"
+                   ForceNotifyByEnter="true"
+                   ForceNotifyOnBlur="true"/>
+        <RadzenButton 
+            Text="@L("Actions.Add")"
+            Icon="add"
+            ButtonStyle="ButtonStyle.Primary"
+            Click="@OpenAddDialog"/>
+    </RadzenStack>
+
+    <RadzenDataGrid
+        @ref="_grid"
+        Style="flex: 1; overflow: hidden;"
+        IsLoading="@_isLoading"
+        Count="@_count"
+        Data="@_userGroups"
+        LoadData="@LoadData"
+        AllowSorting="true"
+        AllowFiltering="true"
+        AllowPaging="true"
+        Page="OnPage"
+        PageSize="@DefaultPageSize"
+        PagerHorizontalAlign="HorizontalAlign.Center"
+        ShowPagingSummary="true"
+        PageSizeOptions="@PageSizeOptions"
+        PagingSummaryFormat="@GridPagingSummaryFormat"
+        PageSizeText="@GridPageSizeText"
+        EmptyText="@GridEmptyText"
+        ColumnWidth="200px"
+        TItem="UserGroup">
+        <Columns>
+            <RadzenDataGridColumn Property="@nameof(UserGroup.Name)" Title="@L("Label.Name")" Width="250px">
+                <Template Context="group">
+                    <RadzenButton Style="float:right;margin-top: 7px;" Size="ButtonSize.ExtraSmall"
+                                  Click=@(_ => OpenEditDialog(group))
+                                  Icon="edit" ButtonStyle="ButtonStyle.Secondary"/>
+                    <RadzenText Text="@group.Name"/>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Property="@nameof(UserGroup.Description)" Title="@L("Label.Description")" Width="400px"/>
+            <RadzenDataGridColumn Property="@nameof(UserGroup.Members)" Title="@L("UserGroups.MemberCount")" Width="120px">
+                <Template Context="group">
+                    @(group.Members?.Count ?? 0)
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Property="@nameof(UserGroup.CreatedAt)" Title="@L("Label.Created")" Width="150px">
+                <Template Context="group">
+                    @FormatDate(group.CreatedAt)
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn 
+                Context="group"
+                Filterable="false"
+                Sortable="false"
+                TextAlign="TextAlign.Right"
+                Width="100px">
+                <Template Context="group">
+                    <RadzenButton
+                        Icon="delete"
+                        ButtonStyle="ButtonStyle.Danger"
+                        Variant="Variant.Flat"
+                        Size="ButtonSize.Medium"
+                        Click="@(_ => DeleteGroup(group))"
+                        @onclick:stopPropagation="true"
+                        title="@L("Actions.Delete")">
+                    </RadzenButton>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+@code {
+    RadzenDataGrid<UserGroup> _grid = null!;
+    int _count;
+    IEnumerable<UserGroup> _userGroups = [];
+    bool _isLoading;
+    int _currentPage = 1;
+    string _debounceInputValue = "";
+
+    void OnPage(PagerEventArgs args)
+    {
+        _currentPage = args.PageIndex + 1;
+    }
+
+    async Task LoadData(LoadDataArgs args)
+    {
+        _isLoading = true;
+        MainLayoutProxyService.ToggleSpinnerVisible();
+        try
+        {
+            var result = await UserGroupService.GetAllAsync();
+            if (result.IsSuccess && result.Data != null)
+            {
+                _userGroups = result.Data;
+                _count = _userGroups.Count();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error loading user groups");
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = L("Status.Error"),
+                Detail = ex.Message
+            });
+        }
+        finally
+        {
+            _isLoading = false;
+            MainLayoutProxyService.ToggleSpinnerVisible();
+        }
+    }
+
+    async Task DoSearchAsync(string? searchValue)
+    {
+        await _grid.FirstPage();
+    }
+
+    async Task OpenAddDialog()
+    {
+        var result = await DialogService.OpenAsync<UserGroupEditor>(L("UserGroups.AddGroup"),
+            new Dictionary<string, object>(),
+            new DialogOptions { Width = "700px", Height = "600px", Resizable = true, Draggable = true });
+        
+        if (result is bool success && success)
+        {
+            await _grid.Reload();
+        }
+    }
+
+    async Task OpenEditDialog(UserGroup group)
+    {
+        var result = await DialogService.OpenAsync<UserGroupEditor>(L("UserGroups.EditGroup"),
+            new Dictionary<string, object> { { "UserGroupId", group.Id } },
+            new DialogOptions { Width = "700px", Height = "600px", Resizable = true, Draggable = true });
+        
+        if (result is bool success && success)
+        {
+            await _grid.Reload();
+        }
+    }
+
+    async Task DeleteGroup(UserGroup group)
+    {
+        var confirmed = await DialogService.Confirm(
+            L("UserGroups.ConfirmDeleteMessage", group.Name),
+            L("UserGroups.ConfirmDeleteTitle"),
+            new ConfirmOptions { OkButtonText = L("Actions.Delete"), CancelButtonText = L("Actions.Cancel") });
+
+        if (confirmed == true)
+        {
+            var result = await UserGroupService.DeleteAsync(group.Id);
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = result.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error,
+                Summary = result.IsSuccess ? L("Status.Deleted") : L("Status.Error"),
+                Detail = result.IsSuccess ? L("UserGroups.GroupDeleted") : string.Join(";", result.Messages ?? [])
+            });
+            
+            if (result.IsSuccess)
+            {
+                await _grid.Reload();
+            }
+        }
+    }
+}
