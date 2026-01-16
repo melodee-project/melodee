@@ -3,15 +3,26 @@ using Melodee.Blazor.Controllers.Melodee.Extensions;
 using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
+using Melodee.Common.Data;
+using Melodee.Common.Enums;
+using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
+using Melodee.Common.Utility;
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using NodaTime;
+using PodcastChannelDto = Melodee.Blazor.Controllers.Melodee.Models.PodcastChannel;
+using PodcastBookmarkEntity = Melodee.Common.Data.Models.PodcastEpisodeBookmark;
+using PodcastEpisodeBookmarkDto = Melodee.Blazor.Controllers.Melodee.Models.PodcastEpisodeBookmark;
+using UserPodcastEpisodePlayHistoryEntity = Melodee.Common.Data.Models.UserPodcastEpisodePlayHistory;
+using UserPodcastEpisodePlayHistoryDto = Melodee.Blazor.Controllers.Melodee.Models.UserPodcastEpisodePlayHistory;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -98,7 +109,7 @@ public sealed class PodcastsController(
             return ApiBadRequest(result.Messages?.FirstOrDefault() ?? "Failed to create channel");
 
         var baseUrl = await GetBaseUrlAsync(cancellationToken).ConfigureAwait(false);
-        return Ok(result.Data.ToPodcastChannelModel());
+        return Ok(result.Data.ToPodcastChannelDto());
     }
 
     /// <summary>
@@ -168,7 +179,7 @@ public sealed class PodcastsController(
             return ApiBadRequest(result.Messages?.FirstOrDefault() ?? "Error updating channel");
         }
 
-        return Ok(result.Data.ToPodcastChannelModel());
+        return Ok(result.Data.ToPodcastChannelDto());
     }
 
     /// <summary>
@@ -204,25 +215,30 @@ public sealed class PodcastsController(
                 x.Id,
                 x.ApiKey,
                 x.Title,
-                x.Description,
-                x.PublishDate?.ToString("O") ?? null,
+                x.Description ?? string.Empty,
+                x.PublishDate?.ToIso8601String() ?? null,
                 x.Duration?.TotalMilliseconds,
-                x.Duration?.ToDuration() ?? string.Empty,
-                x.ChannelTitle,
-                x.ChannelApiKey,
-                x.IsDownloaded,
-                x.CreatedAt.ToString("O"),
-                x.Tags,
-                x.UserStarred,
-                x.UserRating,
+                x.Duration != null ? NodaTime.Duration.FromTimeSpan(x.Duration.Value).ToDurationString() : string.Empty,
+                x.PodcastChannel?.Title ?? string.Empty,
+                x.PodcastChannel?.ApiKey ?? Guid.Empty,
+                x.LocalPath != null,
+                x.CreatedAt.ToIso8601String(),
+                string.Empty,
+                false,
+                0,
                 x.DownloadStatus.ToString(),
                 x.DownloadError,
                 x.EnclosureUrl,
-                x.LastPlayedAt?.ToString("O") ?? null,
-                x.PlayedCount
+                null,
+                0
             )),
             TotalCount = result.AdditionalData!.TryGetValue("TotalCount", out var count) && count is int intCount ? intCount : 0
         });
+    }
+
+    private static string FormatDuration(NodaTime.Duration? duration)
+    {
+        return duration != null ? duration.Value.ToDurationString() : string.Empty;
     }
 
     /// <summary>
@@ -319,8 +335,8 @@ public sealed class PodcastsController(
             bookmarkEntity.PodcastEpisodeId,
             bookmarkEntity.PositionSeconds,
             bookmarkEntity.Comment,
-            bookmarkEntity.CreatedAt.ToString("O"),
-            bookmarkEntity.UpdatedAt.ToString("O")
+            bookmarkEntity.CreatedAt.ToIso8601String(),
+            bookmarkEntity.UpdatedAt.ToIso8601String()
         ));
     }
 
@@ -412,14 +428,14 @@ public sealed class PodcastsController(
         return Ok(historyEntities.Select(h => new UserPodcastEpisodePlayHistory(
             h.Id,
             h.PodcastEpisodeId,
-            h.PlayedAt.ToString("O"),
+            h.PlayedAt.ToIso8601String(),
             h.Client,
             h.ByUserAgent,
             h.IpAddress,
             h.SecondsPlayed,
             h.Source,
             h.IsNowPlaying,
-            h.LastHeartbeatAt?.ToString("O") ?? null
+            h.LastHeartbeatAt?.ToIso8601String() ?? null
         )).ToArray());
     }
 

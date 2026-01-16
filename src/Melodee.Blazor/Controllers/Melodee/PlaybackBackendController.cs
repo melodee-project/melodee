@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -30,14 +31,13 @@ public sealed class PlaybackBackendController(
     IPlaybackBackendService playbackBackendService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
-    IDbContextFactory<MelodeeDbContext> contextFactory,
     ILogger<PlaybackBackendController> logger) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
     configurationFactory)
 {
-    private IDbContextFactory<MelodeeDbContext> ContextFactory { get; } = contextFactory;
+
     private ILogger<PlaybackBackendController> Logger { get; } = logger;
 
     /// <summary>
@@ -143,10 +143,15 @@ public sealed class PlaybackBackendController(
         var user = HttpContext.User;
         var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
         var userId = string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var parsedUserId)
-            ? null
+            ? (int?)null
             : parsedUserId;
 
-        return Ok(result.Data.ToEndpointDto(userId));
+        if (result.Data != null && userId.HasValue)
+        {
+            return Ok(result.Data.ToEndpointDto(userId.Value));
+        }
+
+        return Ok(result.Data!.ToEndpointDto(userId));
     }
 
     /// <summary>

@@ -1,4 +1,6 @@
 using Melodee.Blazor.Controllers.Melodee.Models;
+using Melodee.Common.Data.Models;
+using Melodee.Common.Extensions;
 using NodaTime;
 using PartyPlaybackStateEntity = Melodee.Common.Data.Models.PartyPlaybackState;
 using PartyQueueItemEntity = Melodee.Common.Data.Models.PartyQueueItem;
@@ -8,34 +10,34 @@ namespace Melodee.Blazor.Controllers.Melodee.Extensions;
 
 public static class PartyExtensions
 {
-    public static PartyQueueItem ToPartyQueueItemModel(this PartyQueueItemEntity entity)
+    public static Models.PartyQueueItem ToPartyQueueItemModel(this PartyQueueItemEntity entity)
     {
-        return new PartyQueueItem(
+        return new Models.PartyQueueItem(
             entity.ApiKey,
             entity.SongApiKey,
-            entity.EnqueuedAt.ToString("O"),
+            entity.EnqueuedAt.ToIso8601String(),
             entity.SortOrder,
             entity.Source,
             entity.Note
         );
     }
 
-    public static PartyPlaybackState ToPartyPlaybackStateDto(this PartyPlaybackStateEntity entity)
+    public static Models.PartyPlaybackState ToPartyPlaybackStateDto(this PartyPlaybackStateEntity entity)
     {
-        PartyQueueItem? currentQueueItem = null;
+        Models.PartyQueueItem? currentQueueItem = null;
         if (entity.CurrentQueueItem != null)
         {
             currentQueueItem = entity.CurrentQueueItem.ToPartyQueueItemModel();
         }
 
-        return new PartyPlaybackState(
+        return new Models.PartyPlaybackState(
             entity.PartySessionId,
             entity.CurrentQueueItemApiKey,
             currentQueueItem,
             entity.PositionSeconds,
             entity.IsPlaying,
             entity.Volume,
-            entity.LastHeartbeatAt?.ToString("O"),
+            entity.LastHeartbeatAt?.ToIso8601String(),
             entity.UpdatedByUserId
         );
     }
@@ -48,7 +50,7 @@ public static class PartyExtensions
             entity.Type.ToString(),
             entity.IsShared,
             entity.Room,
-            entity.LastSeenAt?.ToString("O"),
+            entity.LastSeenAt?.ToIso8601String(),
             entity.CapabilitiesJson,
             entity.OwnerUserId == currentUserId
         );
@@ -62,7 +64,7 @@ public static class PartyExtensions
             entity.Type.ToString(),
             entity.IsShared,
             entity.Room,
-            entity.LastSeenAt?.ToString("O"),
+            entity.LastSeenAt?.ToIso8601String(),
             entity.CapabilitiesJson,
             entity.OwnerUserId == currentUserId,
             isActive,
