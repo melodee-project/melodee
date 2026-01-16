@@ -79,7 +79,7 @@ public abstract class DoctorServiceBase : IDoctorService
         }
     }
 
-    public async Task<(DoctorCheckResult Check, IReadOnlyList<LibraryPathResult> Paths, IReadOnlyList<string> Overlaps)> RunLibraryPathCheckAsync(CancellationToken cancellationToken = default)
+    public async Task<(DoctorCheckResult Check, IReadOnlyList<LibraryPathResult> Paths, IReadOnlyList<string> Overlaps)> RunLibraryPathCheckAsync(bool writeTest = true, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         var paths = new List<LibraryPathResult>();
@@ -100,7 +100,7 @@ public abstract class DoctorServiceBase : IDoctorService
                 var writable = false;
                 var details = exists ? "Path exists" : "Path missing";
 
-                if (exists)
+                if (exists && writeTest)
                 {
                     try
                     {
@@ -228,7 +228,7 @@ public abstract class DoctorServiceBase : IDoctorService
         checks.Add(await RunConfigurationCheckAsync(cancellationToken));
         checks.Add(await RunDatabaseCheckAsync(cancellationToken));
 
-        var (libCheck, paths, libOverlaps) = await RunLibraryPathCheckAsync(cancellationToken);
+        var (libCheck, paths, libOverlaps) = await RunLibraryPathCheckAsync(true, cancellationToken);
         checks.Add(libCheck);
         libraryPaths.AddRange(paths);
         overlaps.AddRange(libOverlaps);

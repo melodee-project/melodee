@@ -19,7 +19,7 @@ definition-of-done criteria to minimize design work during implementation.
 - [x] Phase 6 — Implement wizard steps (branding, security, paths, admin) (COMPLETED)
 - [x] Phase 7 — Download checklist + final verification (COMPLETED)
 - [x] Phase 8 — Admin Dashboard JSON export/import (COMPLETED)
-- [ ] Phase 9 — Refactor `mcli doctor` to use shared Doctor
+- [x] Phase 9 — Refactor `mcli doctor` to use shared Doctor (COMPLETED)
 - [ ] Phase 10 — Tests + "definition of done" hardening
 ~~~~
 ---
@@ -421,6 +421,25 @@ Import behavior:
 ### Definition of done
 - `mcli doctor` output matches Blazor Doctor semantics for all shared checks.
 - Path validation in CLI includes symlink resolution and traversal rejection.
+
+**Implementation**: Refactored CLI doctor to use shared Doctor service:
+
+- Updated `src/Melodee.Cli/Command/DoctorCommand.cs`: Complete rewrite using shared Doctor service
+- Created `CliDoctorService` class extending `DoctorServiceBase` for CLI-specific checks:
+  - MusicBrainz SQLite database connectivity
+  - ArtistSearchEngine SQLite database connectivity
+  - Configuration file path validation
+- Updated `IDoctorService.RunLibraryPathCheckAsync()` to support optional writeTest parameter
+- Updated `DoctorServiceBase.RunLibraryPathCheckAsync()` to support optional writeTest parameter
+- Maintained CLI UX with Spectre.Console table rendering
+- `--raw` JSON output uses shared DoctorCheckResult model
+- `--write-test` flag enables/disables write permission testing
+
+Shared checks now used by both CLI and Blazor:
+- Configuration check (required settings)
+- Database connectivity (PostgreSQL)
+- Library paths (existence, write permissions, overlap detection with symlink resolution)
+- Configurable services status
 
 ---
 

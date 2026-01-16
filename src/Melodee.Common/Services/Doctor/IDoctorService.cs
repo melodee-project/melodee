@@ -28,7 +28,9 @@ public interface IDoctorService
     /// <summary>
     /// Runs library path checks including existence and overlap detection
     /// </summary>
-    Task<(DoctorCheckResult Check, IReadOnlyList<LibraryPathResult> Paths, IReadOnlyList<string> Overlaps)> RunLibraryPathCheckAsync(CancellationToken cancellationToken = default);
+    /// <param name="writeTest">Whether to perform write tests on library paths</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<(DoctorCheckResult Check, IReadOnlyList<LibraryPathResult> Paths, IReadOnlyList<string> Overlaps)> RunLibraryPathCheckAsync(bool writeTest = true, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Runs checks on configurable services (enabled/disabled status)
