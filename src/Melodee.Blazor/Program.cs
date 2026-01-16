@@ -535,6 +535,7 @@ builder.Services
     .AddScoped<UserFavoriteService>()
     .AddScoped<UserAuthenticationService>()
     .AddScoped<UserProfileService>()
+    .AddScoped<UserDeviceProfileService>()
     .AddSingleton<IPasswordHashService, PasswordHashService>()
     .AddSingleton<ISecretProtector, SecretProtector>()
     .AddScoped<AlbumDiscoveryService>()
