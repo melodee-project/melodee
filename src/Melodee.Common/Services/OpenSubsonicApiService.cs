@@ -2313,8 +2313,8 @@ public class OpenSubsonicApiService(
             ResponseData = await DefaultApiResponse() with
             {
                 Data = isSearch3
-                    ? new SearchResult3(artists, albums, songs)
-                    : new SearchResult2(artists, albums, songs),
+                    ? new SearchResult3(albums, songs, artists)
+                    : new SearchResult2(albums, songs, artists),
                 DataPropertyName = apiRequest.IsXmlRequest ? string.Empty :
                 isSearch3 ? "searchResult3" : "searchResult2"
             }

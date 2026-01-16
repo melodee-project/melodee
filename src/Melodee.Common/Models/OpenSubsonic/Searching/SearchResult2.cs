@@ -2,7 +2,10 @@ using System.Text;
 
 namespace Melodee.Common.Models.OpenSubsonic.Searching;
 
-public record SearchResult2(ArtistSearchResult[] Artist, AlbumSearchResult[] Album, SongSearchResult[] Song)
+// Property order matters! System.Text.Json serializes records in declaration order,
+// and the OpenSubsonicResponseModelConvertor uses the first property as the data container.
+// We need to ensure the first property matches the expected element name.
+public record SearchResult2(AlbumSearchResult[] Album, SongSearchResult[] Song, ArtistSearchResult[] Artist)
     : IOpenSubsonicToXml
 {
     public string ToXml(string? nodeName = null)

@@ -20,13 +20,19 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
 
-        root.GetProperty("status").GetString().Should().Be("ok");
+        var statusElement = root.GetProperty("status");
+        statusElement.ValueKind.Should().Be(JsonValueKind.String);
+        statusElement.GetString().Should().Be("ok");
         root.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
 
         // Check if podcasts element exists
         if (root.TryGetProperty("podcasts", out var podcastsElement))
         {
-            podcastsElement.GetProperty("channel").EnumerateArray().Should().NotBeNull();
+            if (podcastsElement.TryGetProperty("channel", out var channelElement))
+            {
+                channelElement.ValueKind.Should().Be(JsonValueKind.Array);
+                channelElement.GetArrayLength().Should().Be(0);
+            }
         }
     }
 
@@ -85,7 +91,9 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
 
-        root.GetProperty("status").GetString().Should().Be("ok");
+        var statusElement = root.GetProperty("status");
+        statusElement.ValueKind.Should().Be(JsonValueKind.String);
+        statusElement.GetString().Should().Be("ok");
     }
 
     [Fact]
@@ -136,12 +144,15 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
     public async Task GetPodcasts_WithInvalidId_ReturnsError()
     {
         var response = await GetAsync("getPodcasts?id=invalid-id");
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK); // Still returns OK but with empty results
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest); // Invalid ID returns 400 error
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
         var root = json.RootElement.GetProperty("subsonic-response");
 
-        root.GetProperty("status").GetString().Should().Be("ok");
+        var errorElement = root.GetProperty("error");
+        errorElement.ValueKind.Should().Be(JsonValueKind.String);
+        var errorMessage = errorElement.GetString() ?? string.Empty;
+        errorMessage.Should().Contain("Invalid channel id");
     }
 }

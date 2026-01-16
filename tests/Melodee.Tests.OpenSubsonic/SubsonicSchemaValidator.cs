@@ -351,9 +351,9 @@ public static class SubsonicSchemaValidator
             },
             Children = new Dictionary<string, FieldDefinition>
             {
-                ["artist"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Artist" },
+                ["artist"] = new FieldDefinition { Type = FieldType.Array, ItemType = "artist" },
                 ["album"] = new FieldDefinition { Type = FieldType.Array, ItemType = "AlbumChild" },
-                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "song" }
             }
         },
         ["searchResult3"] = new ElementDefinition
