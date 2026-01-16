@@ -114,6 +114,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<ChartService>();
         services.AddScoped<DirectoryProcessorToStagingService>();
         services.AddScoped<LibraryService>();
+        services.AddScoped<LibraryAuthorizationService>();
         services.AddScoped<MediaEditService>();
         services.AddScoped<MelodeeMetadataMaker>();
         services.AddScoped<NowPlayingDatabaseRepository>();
@@ -124,6 +125,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<PlaylistService>();
         services.AddScoped<PodcastService>();
         services.AddScoped<UserService>();
+        services.AddScoped<UserGroupService>();
         services.AddScoped<UserRatingService>();
         services.AddScoped<UserBookmarkService>();
         services.AddScoped<UserShareService>();
