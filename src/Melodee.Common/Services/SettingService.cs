@@ -311,9 +311,19 @@ public class SettingService : ServiceBase
             return await UpdateAsync(setting.Data, cancellationToken).ConfigureAwait(false);
         }
 
-        return new MelodeeModels.OperationResult<bool>
+        // Setting doesn't exist, create it
+        var newSetting = new Setting
         {
-            Data = false
+            Key = key,
+            Value = value,
+            Comment = $"Auto-created setting for {key}",
+            CreatedAt = SystemClock.Instance.GetCurrentInstant()
+        };
+        var addResult = await AddAsync(newSetting, cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<bool>(addResult.Messages?.ToArray() ?? [])
+        {
+            Data = addResult.IsSuccess,
+            Type = addResult.Type
         };
     }
 

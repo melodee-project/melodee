@@ -2,6 +2,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
+using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,17 @@ public class SettingServiceTests : IDisposable
         _loggerMock = new Mock<ILogger>();
         _cacheManagerMock = new Mock<ICacheManager>();
         _configFactoryMock = new Mock<IMelodeeConfigurationFactory>();
+        
+        // Setup cache manager to actually call the factory function (no caching in tests)
+        _cacheManagerMock
+            .Setup(c => c.GetAsync(
+                It.IsAny<string>(), 
+                It.IsAny<Func<Task<Setting?>>>(), 
+                It.IsAny<CancellationToken>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<string?>()))
+            .Returns<string, Func<Task<Setting?>>, CancellationToken, TimeSpan?, string?>(
+                (key, factory, ct, duration, region) => factory());
     }
 
     public void Dispose()
@@ -273,6 +285,86 @@ public class SettingServiceTests : IDisposable
         // Assert
         Assert.True(eventRaised, "Event should be raised when configuration is reset");
         Assert.Equal("UI Updated Value", eventValue);
+    }
+
+    [Fact]
+    public async Task SetAsync_UpdatesExistingSetting()
+    {
+        // Arrange
+        await SeedTestSettingAsync();
+        var service = new SettingService(
+            _loggerMock.Object,
+            _cacheManagerMock.Object,
+            _configFactoryMock.Object,
+            CreateContextFactory());
+
+        // Act
+        var result = await service.SetAsync(SettingRegistry.SystemSiteName, "New Site Name");
+
+        // Assert - check result details first
+        Assert.Empty(result.Messages ?? []);
+        Assert.Equal(OperationResponseType.Ok, result.Type);
+        Assert.True(result.Data, $"Data was false. Type: {result.Type}, Messages: {string.Join(", ", result.Messages ?? [])}");
+
+        // Verify the value was actually updated
+        await using var context = new MelodeeDbContext(_dbContextOptions);
+        var setting = await context.Settings.FirstAsync(s => s.Key == SettingRegistry.SystemSiteName);
+        Assert.Equal("New Site Name", setting.Value);
+    }
+
+    [Fact]
+    public async Task SetAsync_CreatesSettingWhenNotExists()
+    {
+        // Arrange - no seeding, empty database
+        var service = new SettingService(
+            _loggerMock.Object,
+            _cacheManagerMock.Object,
+            _configFactoryMock.Object,
+            CreateContextFactory());
+
+        const string newKey = "test.new.setting";
+        const string newValue = "New Value";
+
+        // Act
+        var result = await service.SetAsync(newKey, newValue);
+
+        // Assert - check result details first
+        Assert.Empty(result.Messages ?? []);
+        Assert.Equal(OperationResponseType.Ok, result.Type);
+        Assert.True(result.Data, $"Data was false. Type: {result.Type}, Messages: {string.Join(", ", result.Messages ?? [])}");
+
+        // Verify the setting was created
+        await using var context = new MelodeeDbContext(_dbContextOptions);
+        var setting = await context.Settings.FirstOrDefaultAsync(s => s.Key == newKey);
+        Assert.NotNull(setting);
+        Assert.Equal(newValue, setting.Value);
+        Assert.Contains("Auto-created", setting.Comment);
+    }
+
+    [Fact]
+    public async Task SetAsync_CreatesOnboardingCompletedAtSetting()
+    {
+        // Arrange - this is the specific scenario that was failing
+        var service = new SettingService(
+            _loggerMock.Object,
+            _cacheManagerMock.Object,
+            _configFactoryMock.Object,
+            CreateContextFactory());
+
+        const string timestamp = "2026-01-16T14:51:21.2588713Z";
+
+        // Act
+        var result = await service.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, timestamp);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Data);
+
+        // Verify the setting was created and persisted
+        await using var context = new MelodeeDbContext(_dbContextOptions);
+        var setting = await context.Settings.FirstOrDefaultAsync(s => s.Key == SettingRegistry.SystemOnboardingCompletedAt);
+        Assert.NotNull(setting);
+        Assert.Equal(timestamp, setting.Value);
     }
 
     // IMPORTANT: Case-Insensitive Search Testing
