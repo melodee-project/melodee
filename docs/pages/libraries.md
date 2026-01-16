@@ -71,6 +71,61 @@ Benefits of multiple storage libraries:
 - Distribute capacity across NAS mounts / network paths.
 - Keep high‑resolution masters separate from compressed collections.
 - Apply different backup or snapshot policies.
+- **Control user access** with fine-grained permissions per library.
+
+## Library Access Control
+
+Melodee supports fine-grained access control for storage libraries using user groups. This enables multi-tenant deployments, family accounts with parental controls, or specialized collections restricted to specific users.
+
+### Access Control Policy
+
+- **Unrestricted Libraries**: If a library has no access controls configured, it is accessible to all authenticated users.
+- **Restricted Libraries**: If a library has one or more user groups assigned, only members of those groups can access it.
+- **Authorization Enforcement**: Access checks are enforced across all APIs (OpenSubsonic, Jellyfin, native REST) and UI endpoints.
+
+### User Groups
+
+User groups are collections of users that simplify access management:
+
+- Create groups based on your organizational needs (e.g., "Family", "Kids", "Premium Users", "Admins")
+- Assign users to one or more groups
+- Grant groups access to specific libraries
+
+### Setting Up Access Control
+
+**Admin UI Workflow:**
+
+1. **Create User Groups**: Navigate to User Management → Groups, create groups like "Adults" or "Children"
+2. **Assign Users to Groups**: Edit each user and select their group memberships
+3. **Configure Library Access**: 
+   - Edit a library (Admin → Libraries)
+   - Choose "Access: Everyone" (no restrictions) or "Restricted to groups"
+   - If restricted, select which groups can access the library
+4. **Changes Take Effect Immediately**: Access permissions are cached and invalidated on changes
+
+**Example Use Cases:**
+
+- **Family Library Segregation**: Create "Kids Music" library accessible only to "Children" group, "Adult Music" accessible to "Adults" group
+- **Multi-Tenant Deployments**: Separate libraries per tenant with access restricted to tenant-specific groups
+- **Partial Access**: User in both "Kids" and "Adults" groups can access both libraries
+
+### Security Considerations
+
+- **404 on Unauthorized Access**: API endpoints return 404 (not 403) for unauthorized content to prevent enumeration attacks
+- **Filtered Browsing**: Search, browse, and listing endpoints automatically filter results to only show accessible content
+- **Immediate Revocation**: Removing a user from a group immediately revokes access to associated libraries
+- **Playlist Handling**: Playlists automatically hide or mark unavailable tracks from inaccessible libraries
+
+### API Behavior
+
+All API clients (OpenSubsonic, Jellyfin, native REST) respect library access controls:
+
+- **Search Results**: Only return artists/albums/songs from accessible libraries
+- **Browse Endpoints**: Filter directory listings and folder views
+- **Streaming**: Verify library access before streaming audio
+- **Random/Recent/Starred Queries**: Only consider accessible libraries
+
+This ensures that Subsonic clients (DSub, Symfonium, etc.) and Jellyfin clients (Finamp, Feishin) automatically respect access controls without client-side changes.
 
 ### Library Indexing
 
