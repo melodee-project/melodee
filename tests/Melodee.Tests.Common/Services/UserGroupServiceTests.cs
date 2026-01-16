@@ -92,11 +92,10 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 1,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
-                PasswordEncrypted = string.Empty,
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
                 CreatedAt = SystemClock.Instance.GetCurrentInstant()
@@ -180,7 +179,7 @@ public class UserGroupServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
-        Assert.Contains("Unknown user group", result.Messages.First());
+        Assert.Contains("Unknown user group", result.Messages?.FirstOrDefault() ?? string.Empty);
     }
 
     [Fact]
@@ -256,9 +255,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 2,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -302,9 +301,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 3,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -346,7 +345,8 @@ public class UserGroupServiceTests : ServiceTestBase
         {
             Name = "New Group",
             Description = "New Description",
-            ApiKey = Guid.NewGuid()
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant()
         };
 
         // Act
@@ -389,7 +389,8 @@ public class UserGroupServiceTests : ServiceTestBase
         var duplicateGroup = new UserGroup
         {
             Name = "Existing Group",
-            ApiKey = Guid.NewGuid()
+            ApiKey = Guid.NewGuid(),
+            CreatedAt = SystemClock.Instance.GetCurrentInstant()
         };
 
         // Act
@@ -398,7 +399,7 @@ public class UserGroupServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(OperationResponseType.Error, result.Type);
-        Assert.Contains("already exists", result.Messages.First());
+        Assert.Contains("already exists", result.Messages?.FirstOrDefault() ?? string.Empty);
     }
 
     [Fact]
@@ -438,7 +439,8 @@ public class UserGroupServiceTests : ServiceTestBase
         {
             Id = 501,
             Name = "Updated Name",
-            Description = "Updated Description"
+            Description = "Updated Description",
+            CreatedAt = SystemClock.Instance.GetCurrentInstant()
         };
 
         // Act
@@ -469,7 +471,8 @@ public class UserGroupServiceTests : ServiceTestBase
         var nonExistentGroup = new UserGroup
         {
             Id = 999,
-            Name = "Non-existent Group"
+            Name = "Non-existent Group",
+            CreatedAt = SystemClock.Instance.GetCurrentInstant()
         };
 
         // Act
@@ -478,7 +481,7 @@ public class UserGroupServiceTests : ServiceTestBase
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(OperationResponseType.NotFound, result.Type);
-        Assert.Contains("not found", result.Messages.First());
+        Assert.Contains("not found", result.Messages?.FirstOrDefault() ?? string.Empty);
     }
 
     [Fact]
@@ -496,7 +499,7 @@ public class UserGroupServiceTests : ServiceTestBase
     {
         // Arrange
         var service = CreateUserGroupService();
-        var group = new UserGroup { Id = 0, Name = "Test" };
+        var group = new UserGroup { Id = 0, Name = "Test", CreatedAt = SystemClock.Instance.GetCurrentInstant() };
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateAsync(group));
@@ -552,7 +555,7 @@ public class UserGroupServiceTests : ServiceTestBase
         Assert.False(result.IsSuccess);
         Assert.False(result.Data);
         Assert.Equal(OperationResponseType.NotFound, result.Type);
-        Assert.Contains("not found", result.Messages.First());
+        Assert.Contains("not found", result.Messages?.FirstOrDefault() ?? string.Empty);
     }
 
     [Fact]
@@ -566,9 +569,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 4,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -625,9 +628,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 5,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -674,9 +677,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 6,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -711,7 +714,7 @@ public class UserGroupServiceTests : ServiceTestBase
         Assert.False(result.IsSuccess);
         Assert.False(result.Data);
         Assert.Equal(OperationResponseType.Error, result.Type);
-        Assert.Contains("already a member", result.Messages.First());
+        Assert.Contains("already a member", result.Messages?.FirstOrDefault() ?? string.Empty);
     }
 
     [Fact]
@@ -749,9 +752,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 7,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -806,9 +809,9 @@ public class UserGroupServiceTests : ServiceTestBase
             {
                 Id = 8,
                 UserName = "testuser",
-                UserNameNormalized = "testuser",
+                UserNameNormalized = "TESTUSER",
                 Email = "test@example.com",
-                EmailNormalized = "PasswordEncrypted = string.Empty,",
+                EmailNormalized = "TEST@EXAMPLE.COM",
                 PublicKey = Guid.NewGuid().ToString(),
                 PasswordEncrypted = string.Empty,
                 ApiKey = Guid.NewGuid(),
@@ -833,7 +836,7 @@ public class UserGroupServiceTests : ServiceTestBase
         Assert.False(result.IsSuccess);
         Assert.False(result.Data);
         Assert.Equal(OperationResponseType.NotFound, result.Type);
-        Assert.Contains("not a member", result.Messages.First());
+        Assert.Contains("not a member", result.Messages?.FirstOrDefault() ?? string.Empty);
     }
 
     [Fact]

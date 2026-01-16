@@ -18,8 +18,8 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user = new User { Id = 1, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var library = new Library { Id = 100, Name = "Public Library", Path = "/music/public", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user = new User { Id = 1, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var library = new Library { Id = 100, Name = "Public Library", Path = "/music/public", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             context.Users.Add(user);
             context.Libraries.Add(library);
             await context.SaveChangesAsync();
@@ -35,9 +35,9 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user = new User { Id = 2, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user = new User { Id = 2, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group = new UserGroup { Id = 201, Name = "Allowed Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var library = new Library { Id = 101, Name = "Restricted Library", Path = "/music/restricted", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var library = new Library { Id = 101, Name = "Restricted Library", Path = "/music/restricted", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
 
             context.Users.Add(user);
             context.UserGroups.Add(group);
@@ -59,9 +59,9 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user = new User { Id = 4, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user = new User { Id = 4, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group = new UserGroup { Id = 401, Name = "Restricted Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var library = new Library { Id = 103, Name = "Restricted Library", Path = "/music/restricted", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var library = new Library { Id = 103, Name = "Restricted Library", Path = "/music/restricted", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
 
             context.Users.Add(user);
             context.UserGroups.Add(group);
@@ -89,12 +89,12 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user = new User { Id = 7, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user = new User { Id = 7, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var libraries = new[]
             {
-                new Library { Id = 701, Name = "Lib1", Path = "/lib1", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() },
-                new Library { Id = 702, Name = "Lib2", Path = "/lib2", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() },
-                new Library { Id = 703, Name = "Lib3", Path = "/lib3", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() }
+                new Library { Id = 701, Name = "Lib1", Path = "/lib1", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() },
+                new Library { Id = 702, Name = "Lib2", Path = "/lib2", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() },
+                new Library { Id = 703, Name = "Lib3", Path = "/lib3", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() }
             };
             context.Users.Add(user);
             context.Libraries.AddRange(libraries);
@@ -115,11 +115,11 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user = new User { Id = 8, UserName = "testuser", Email = "test@example.com", EmailNormalized = "test@example.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user = new User { Id = 8, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group = new UserGroup { Id = 801, Name = "Test Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var unrestrictedLib = new Library { Id = 801, Name = "Public", Path = "/public", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var restrictedAccessibleLib = new Library { Id = 802, Name = "Restricted Accessible", Path = "/restricted-ok", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var restrictedInaccessibleLib = new Library { Id = 803, Name = "Restricted Blocked", Path = "/restricted-no", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var unrestrictedLib = new Library { Id = 801, Name = "Public", Path = "/public", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var restrictedAccessibleLib = new Library { Id = 802, Name = "Restricted Accessible", Path = "/restricted-ok", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var restrictedInaccessibleLib = new Library { Id = 803, Name = "Restricted Blocked", Path = "/restricted-no", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
 
             context.Users.Add(user);
             context.UserGroups.Add(group);
@@ -149,12 +149,12 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
-            var user1 = new User { Id = 201, UserName = "user1", Email = "user1@test.com", EmailNormalized = "user1@test.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var user2 = new User { Id = 202, UserName = "user2", Email = "user2@test.com", EmailNormalized = "user2@test.com", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user1 = new User { Id = 201, UserName = "user1", UserNameNormalized = "USER1", Email = "user1@test.com", EmailNormalized = "USER1@TEST.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var user2 = new User { Id = 202, UserName = "user2", UserNameNormalized = "USER2", Email = "user2@test.com", EmailNormalized = "USER2@TEST.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var groupA = new UserGroup { Id = 2001, Name = "Group A", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var groupB = new UserGroup { Id = 2002, Name = "Group B", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var libraryA = new Library { Id = 2001, Name = "Library A", Path = "/lib-a", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
-            var libraryB = new Library { Id = 2002, Name = "Library B", Path = "/lib-b", Type = Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var libraryA = new Library { Id = 2001, Name = "Library A", Path = "/lib-a", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
+            var libraryB = new Library { Id = 2002, Name = "Library B", Path = "/lib-b", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
 
             context.Users.AddRange(user1, user2);
             context.UserGroups.AddRange(groupA, groupB);
