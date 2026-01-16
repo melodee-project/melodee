@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using NodaTime;
 using Serilog;
@@ -87,10 +88,10 @@ public class OnboardingWizardTests : BunitContext, IDisposable
             .ReturnsAsync(status);
 
         var navManager = Services.GetRequiredService<NavigationManager>() as TestNavigationManager;
-        RenderComponent<OnboardingGuard>(parameters => parameters
+        var cut = Render<OnboardingGuard>(parameters => parameters
             .AddChildContent("<div id=\"content\"></div>"));
 
-        this.WaitForAssertion(() => navManager!.Uri.Should().EndWith("/onboarding"));
+        cut.WaitForAssertion(() => navManager!.Uri.Should().EndWith("/onboarding"));
     }
 
     [Fact]
@@ -113,7 +114,7 @@ public class OnboardingWizardTests : BunitContext, IDisposable
             .ReturnsAsync(status);
 
         var navManager = Services.GetRequiredService<NavigationManager>() as TestNavigationManager;
-        var cut = RenderComponent<OnboardingGuard>(parameters => parameters
+        var cut = Render<OnboardingGuard>(parameters => parameters
             .AddChildContent("<div id=\"content\"></div>"));
 
         cut.Markup.Should().Contain("content");
@@ -135,7 +136,7 @@ public class OnboardingWizardTests : BunitContext, IDisposable
         _setupCheckServiceMock.Setup(x => x.SetupCheckAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(status);
 
-        var cut = RenderComponent<Blocking>();
+        var cut = Render<Blocking>();
 
         cut.Markup.Should().Contain(_localizationService.Localize("Onboarding.RetryButton"));
         cut.Markup.Should().Contain(_localizationService.Localize("Onboarding.SupportLink"));
@@ -160,7 +161,7 @@ public class OnboardingWizardTests : BunitContext, IDisposable
         _setupCheckServiceMock.Setup(x => x.SetupCheckAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(status);
 
-        var cut = RenderComponent<Melodee.Blazor.Components.Pages.Onboarding.Index>();
+        var cut = Render<Melodee.Blazor.Components.Pages.Onboarding.Index>();
 
         cut.Markup.Should().Contain("Step 1 of 8");
 
@@ -206,13 +207,14 @@ public class OnboardingWizardTests : BunitContext, IDisposable
         var expectedPrefix = "melodee-checklist-";
         JSInterop.SetupVoid("downloadFile", args =>
         {
-            var fileName = args.Get<string>(0);
+            var fileName = args.Arguments[0] as string;
+            fileName.Should().NotBeNull();
             fileName.Should().StartWith(expectedPrefix);
             fileName.Should().EndWith(".md");
             return true;
         });
 
-        var cut = RenderComponent<Melodee.Blazor.Components.Onboarding.OnboardingVerify>(parameters => parameters
+        var cut = Render<Melodee.Blazor.Components.Onboarding.OnboardingVerify>(parameters => parameters
             .Add(p => p.OnBack, EventCallback.Factory.Create(this, () => { }))
             .Add(p => p.OnComplete, EventCallback.Factory.Create(this, () => { })));
 
@@ -318,5 +320,18 @@ public class OnboardingWizardTests : BunitContext, IDisposable
         public bool IsRightToLeft() => false;
 
         public string GetTextDirection() => "ltr";
+    }
+
+    private sealed class TestNavigationManager : NavigationManager
+    {
+        public TestNavigationManager()
+        {
+            Initialize("http://localhost/", "http://localhost/");
+        }
+
+        protected override void NavigateToCore(string uri, NavigationOptions options)
+        {
+            Uri = ToAbsoluteUri(uri).ToString();
+        }
     }
 }
