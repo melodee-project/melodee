@@ -36,6 +36,8 @@ public class Library : DataModelBase
 
     public ICollection<LibraryScanHistory> ScanHistories { get; set; } = new List<LibraryScanHistory>();
 
+    public ICollection<LibraryAccessControl> AccessControls { get; set; } = new List<LibraryAccessControl>();
+
     public Instant LastWriteTime()
     {
         return !Directory.Exists(Path)

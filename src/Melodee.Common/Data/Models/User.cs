@@ -157,6 +157,8 @@ public class User : DataModelBase
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
+    public ICollection<UserGroupMember> GroupMemberships { get; set; } = new List<UserGroupMember>();
+
     public static User BlankUser => new()
     {
         UserName = string.Empty,
