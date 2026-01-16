@@ -10,12 +10,26 @@
     <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.BrandingHeading")"/>
 
     <RadzenFormField Text="@L("Onboarding.SiteNameLabel")">
-        <RadzenTextBox @bind-Value="_siteName" Style="width: 100%;"/>
+        <RadzenTextBox @bind-Value="_siteName" Style="width: 100%;" Disabled="@_isSiteNameReadOnly" Change="@ValidateSiteName"/>
     </RadzenFormField>
+    @if (!string.IsNullOrEmpty(_siteNameError))
+    {
+        <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+            <RadzenText Text="@_siteNameError"/>
+        </RadzenAlert>
+    }
+    @if (_isSiteNameReadOnly)
+    {
+        <RadzenText Text="@L("Onboarding.SetViaEnvironment")" TextStyle="TextStyle.Caption"/>
+    }
 
     <RadzenFormField Text="@L("Onboarding.BaseUrlLabel")">
-        <RadzenTextBox @bind-Value="_baseUrl" Style="width: 100%;" Placeholder="https://your-server.com" Change="@ValidateUrl"/>
+        <RadzenTextBox @bind-Value="_baseUrl" Style="width: 100%;" Placeholder="https://your-server.com" Change="@ValidateUrl" Disabled="@_isBaseUrlReadOnly"/>
     </RadzenFormField>
+    @if (_isBaseUrlReadOnly)
+    {
+        <RadzenText Text="@L("Onboarding.SetViaEnvironment")" TextStyle="TextStyle.Caption"/>
+    }
 
     @if (!string.IsNullOrEmpty(_urlError))
     {
@@ -25,7 +39,7 @@
     }
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
-        <RadzenButton Click="@TestUrl" Text="@L("Onboarding.TestUrl")" Icon="link" ButtonStyle="ButtonStyle.Secondary" Disabled="@_isUrlTestDisabled"/>
+        <RadzenButton Click="@TestUrl" Text="@L("Onboarding.TestUrl")" Icon="link" ButtonStyle="ButtonStyle.Secondary" Disabled="@(_isUrlTestDisabled || _isBaseUrlReadOnly)"/>
         @if (_urlTestResult != null)
         {
             <RadzenAlert Variant="@(_urlTestResult.Value ? Variant.Outlined : Variant.Filled)"
@@ -35,6 +49,14 @@
             </RadzenAlert>
         }
     </RadzenStack>
+
+    <RadzenCard>
+        <RadzenStack Gap="0.5rem">
+            <RadzenText Text="@L("Onboarding.BaseUrlPreviewHeading")" TextStyle="TextStyle.Subtitle2"/>
+            <RadzenText Text="@L("Onboarding.BaseUrlPreviewImage", BuildPreviewUrl("images/artist-id", MelodeeConfiguration.DefaultThumbNailSize))" TextStyle="TextStyle.Caption"/>
+            <RadzenText Text="@L("Onboarding.BaseUrlPreviewShare", BuildPreviewUrl("shares/abc123", null))" TextStyle="TextStyle.Caption"/>
+        </RadzenStack>
+    </RadzenCard>
 
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
         <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
@@ -48,8 +70,11 @@
     private bool _isSaving;
     private bool _hasErrors;
     private string? _urlError;
+    private string? _siteNameError;
     private bool? _urlTestResult;
     private bool _isTestingUrl;
+    private bool _isSiteNameReadOnly;
+    private bool _isBaseUrlReadOnly;
 
     private bool _isUrlTestDisabled => !string.IsNullOrEmpty(_urlError) || _isTestingUrl;
 
@@ -66,18 +91,20 @@
         var config = await ConfigurationFactory.GetConfigurationAsync();
         _siteName = config.GetValue<string>(SettingRegistry.SystemSiteName) ?? "Melodee";
         _baseUrl = config.GetValue<string>(SettingRegistry.SystemBaseUrl) ?? "";
+        _isSiteNameReadOnly = MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(SettingRegistry.SystemSiteName);
+        _isBaseUrlReadOnly = MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(SettingRegistry.SystemBaseUrl);
 
         var importData = OnboardingStateService.GetImportData();
         if (importData != null)
         {
             var siteNameSetting = importData.Settings.FirstOrDefault(s => s.Key == SettingRegistry.SystemSiteName);
-            if (siteNameSetting != null)
+            if (siteNameSetting != null && !_isSiteNameReadOnly)
             {
                 _siteName = siteNameSetting.Value;
             }
 
             var baseUrlSetting = importData.Settings.FirstOrDefault(s => s.Key == SettingRegistry.SystemBaseUrl);
-            if (baseUrlSetting != null)
+            if (baseUrlSetting != null && !_isBaseUrlReadOnly)
             {
                 _baseUrl = baseUrlSetting.Value;
             }
@@ -86,20 +113,44 @@
 
     private void ValidateUrl(string value)
     {
+        _baseUrl = value;
+        ValidateFields();
+    }
+
+    private void ValidateSiteName(string value)
+    {
+        _siteName = value;
+        ValidateFields();
+    }
+
+    private bool ValidateFields()
+    {
         _urlError = null;
+        _siteNameError = null;
         _urlTestResult = null;
         _hasErrors = false;
 
-        if (string.IsNullOrWhiteSpace(value))
+        if (!_isSiteNameReadOnly && string.IsNullOrWhiteSpace(_siteName))
         {
-            return;
-        }
-
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
-        {
-            _urlError = L("Onboarding.BaseUrlInvalid");
+            _siteNameError = L("Onboarding.SiteNameRequired");
             _hasErrors = true;
         }
+
+        if (!_isBaseUrlReadOnly)
+        {
+            if (string.IsNullOrWhiteSpace(_baseUrl))
+            {
+                _urlError = L("Onboarding.BaseUrlRequired");
+                _hasErrors = true;
+            }
+            else if (!Uri.TryCreate(_baseUrl.Trim(), UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+            {
+                _urlError = L("Onboarding.BaseUrlInvalid");
+                _hasErrors = true;
+            }
+        }
+
+        return !_hasErrors;
     }
 
     private async Task TestUrl()
@@ -134,16 +185,39 @@
 
     private async Task Next()
     {
+        if (!ValidateFields())
+        {
+            return;
+        }
+
         _isSaving = true;
         try
         {
-            await SettingService.SetAsync(SettingRegistry.SystemSiteName, _siteName, CancellationToken.None);
-            await SettingService.SetAsync(SettingRegistry.SystemBaseUrl, _baseUrl.TrimEnd('/'), CancellationToken.None);
+            if (!_isSiteNameReadOnly)
+            {
+                await SettingService.SetAsync(SettingRegistry.SystemSiteName, _siteName, CancellationToken.None);
+            }
+
+            if (!_isBaseUrlReadOnly)
+            {
+                await SettingService.SetAsync(SettingRegistry.SystemBaseUrl, _baseUrl.TrimEnd('/'), CancellationToken.None);
+            }
             await OnNext.InvokeAsync();
         }
         finally
         {
             _isSaving = false;
         }
+    }
+
+    private string BuildPreviewUrl(string path, int? size)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_baseUrl) ? "https://example.com" : _baseUrl.TrimEnd('/');
+        if (size.HasValue)
+        {
+            return $"{baseUrl}/{path}/{size.Value}";
+        }
+
+        return $"{baseUrl}/{path}";
     }
 }

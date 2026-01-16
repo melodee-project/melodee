@@ -1,5 +1,6 @@
 @using System.Security.Cryptography
 @using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Configuration
 @using Melodee.Common.Constants
 @using Melodee.Common.Utility
 @using Melodee.Blazor.Services
@@ -14,17 +15,25 @@
 
     @if (string.IsNullOrEmpty(_secretKey))
     {
-        <RadzenButton Click="@GenerateKey" Text="@L("Onboarding.GenerateSecretKey")" Icon="key"/>
+        <RadzenButton Click="@GenerateKey" Text="@L("Onboarding.GenerateSecretKey")" Icon="key" Disabled="@_isReadOnly"/>
     }
     else
     {
         <RadzenFormField Text="@L("Onboarding.SecuritySecretLabel")">
-            <RadzenTextBox @bind-Value="_secretKey" Type="password" Style="width: 100%;"/>
+            <RadzenTextBox Value="@(_showGeneratedKey ? _secretKey : _maskedSecretKey)" Type="password" Style="width: 100%;" Disabled="true"/>
         </RadzenFormField>
 
         <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
-            <RadzenButton Click="@ConfirmRegenerateKey" Text="@L("Onboarding.RegenerateKey")" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"/>
+            @if (_showGeneratedKey)
+            {
+                <RadzenButton Click="@CopySecretKey" Text="@L("Onboarding.CopySecretKey")" Icon="content_copy" ButtonStyle="ButtonStyle.Secondary"/>
+            }
+            <RadzenButton Click="@ConfirmRegenerateKey" Text="@L("Onboarding.RegenerateKey")" Icon="refresh" ButtonStyle="ButtonStyle.Secondary" Disabled="@_isReadOnly"/>
         </RadzenStack>
+        @if (_isReadOnly)
+        {
+            <RadzenText Text="@L("Onboarding.SetViaEnvironment")" TextStyle="TextStyle.Caption"/>
+        }
     }
 
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
@@ -37,12 +46,17 @@
 
 @code {
     private string _secretKey = "";
+    private string _maskedSecretKey = "";
     private bool _isSaving;
+    private bool _isReadOnly;
+    private bool _showGeneratedKey;
 
     [Inject] private SettingService SettingService { get; set; } = null!;
     [Inject] private IMelodeeConfigurationFactory ConfigurationFactory { get; set; } = null!;
     [Inject] private DialogService DialogService { get; set; } = null!;
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+    [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
+    [Inject] private NotificationService NotificationService { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnNext { get; set; }
@@ -51,18 +65,26 @@
     {
         var config = await ConfigurationFactory.GetConfigurationAsync();
         _secretKey = config.GetValue<string>(SettingRegistry.SecuritySecretKey) ?? "";
+        _isReadOnly = MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(SettingRegistry.SecuritySecretKey);
+        _showGeneratedKey = false;
+
+        if (!string.IsNullOrWhiteSpace(_secretKey))
+        {
+            _maskedSecretKey = MaskSecretKey(_secretKey);
+        }
 
         var importData = OnboardingStateService.GetImportData();
-        if (importData != null && string.IsNullOrEmpty(_secretKey))
+        if (importData != null && string.IsNullOrEmpty(_secretKey) && !_isReadOnly)
         {
             var secretKeySetting = importData.Settings.FirstOrDefault(s => s.Key == SettingRegistry.SecuritySecretKey);
             if (secretKeySetting != null && !string.IsNullOrEmpty(secretKeySetting.Value))
             {
                 _secretKey = secretKeySetting.Value;
+                _maskedSecretKey = MaskSecretKey(_secretKey);
             }
         }
 
-        if (string.IsNullOrEmpty(_secretKey))
+        if (string.IsNullOrEmpty(_secretKey) && !_isReadOnly)
         {
             GenerateKey();
         }
@@ -71,19 +93,42 @@
     private void GenerateKey()
     {
         _secretKey = GenerateSecureKey();
+        _maskedSecretKey = MaskSecretKey(_secretKey);
+        _showGeneratedKey = true;
     }
 
     private async Task ConfirmRegenerateKey()
     {
+        if (_isReadOnly)
+        {
+            return;
+        }
+
         var result = await DialogService.Confirm(
             L("Onboarding.RegenerateKeyConfirm"),
             L("Onboarding.RegenerateKeyTitle"),
-            new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+            new ConfirmOptions { OkButtonText = L("Common.Yes"), CancelButtonText = L("Common.No") });
 
         if (result == true)
         {
             GenerateKey();
         }
+    }
+
+    private async Task CopySecretKey()
+    {
+        if (string.IsNullOrEmpty(_secretKey))
+        {
+            return;
+        }
+
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _secretKey);
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Success,
+            Summary = L("Onboarding.CopySecretKey"),
+            Detail = L("Onboarding.CopySecretKeySuccess")
+        });
     }
 
     private static string GenerateSecureKey()
@@ -99,12 +144,28 @@
         _isSaving = true;
         try
         {
-            await SettingService.SetAsync(SettingRegistry.SecuritySecretKey, _secretKey, CancellationToken.None);
+            if (!_isReadOnly)
+            {
+                await SettingService.SetAsync(SettingRegistry.SecuritySecretKey, _secretKey, CancellationToken.None);
+                _showGeneratedKey = false;
+                _maskedSecretKey = MaskSecretKey(_secretKey);
+            }
             await OnNext.InvokeAsync();
         }
         finally
         {
             _isSaving = false;
         }
+    }
+
+    private static string MaskSecretKey(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var tailLength = Math.Min(4, value.Length);
+        return $"{new string('*', Math.Max(8, value.Length - tailLength))}{value[^tailLength..]}";
     }
 }

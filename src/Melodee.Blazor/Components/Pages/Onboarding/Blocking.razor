@@ -14,6 +14,13 @@
         <RadzenStack Gap="1rem">
             <RadzenText Text="@L("Onboarding.BlockingDescription")" TextAlign="TextAlign.Center"/>
 
+            @if (!string.IsNullOrWhiteSpace(_blockingErrorMessage))
+            {
+                <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                    <RadzenText Text="@_blockingErrorMessage"/>
+                </RadzenAlert>
+            }
+
             <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem">
                 @foreach (var item in _blockingItems)
                 {
@@ -34,6 +41,10 @@
                               Icon="refresh"
                               IsBusy="@_isRetrying"
                               ButtonStyle="ButtonStyle.Primary"/>
+                <RadzenLink Path="https://melodee.org/docs"
+                            Text="@L("Onboarding.SupportLink")"
+                            Target="_blank"
+                            Style="margin-top: 0.35rem;"/>
             </RadzenStack>
         </RadzenStack>
     </RadzenCard>
@@ -42,6 +53,7 @@
 @code {
     private IReadOnlyList<SetupItem> _blockingItems = Array.Empty<SetupItem>();
     private bool _isRetrying;
+    private string? _blockingErrorMessage;
 
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
@@ -53,7 +65,16 @@
 
     private async Task LoadBlockingItemsAsync()
     {
-        _blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+        try
+        {
+            _blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+            _blockingErrorMessage = OnboardingStateService.LastSetupErrorMessage;
+        }
+        catch (Exception ex)
+        {
+            _blockingItems = Array.Empty<SetupItem>();
+            _blockingErrorMessage = OnboardingStateService.LastSetupErrorMessage ?? ex.Message;
+        }
     }
 
     private async Task RetryCheckAsync()

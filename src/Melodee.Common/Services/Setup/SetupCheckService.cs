@@ -4,6 +4,7 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
+using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Common.Services.Setup;
@@ -137,44 +138,54 @@ public sealed class SetupCheckService : ISetupCheckService
 
         foreach (var setting in settingsWithPlaceholders)
         {
+            var currentValue = config.GetValue<string>(setting.Key);
+            var isConfigured = !string.IsNullOrWhiteSpace(currentValue) &&
+                               currentValue != MelodeeConfiguration.RequiredNotSetValue;
+            var isEnvOverride = MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(setting.Key);
+            var fixRoute = isConfigured ? null : GetFixRouteForSetting(setting.Key);
             items.Add(new SetupItem(
                 Id: $"setting-{setting.Key}",
                 Name: GetSettingDisplayName(setting.Key),
                 Severity: SetupCheckSeverity.Blocking,
-                Success: false,
-                Details: $"Setting '{setting.Key}' is not configured",
-                Remediation: $"Set a value for {setting.Key}",
-                FixRoute: "/onboarding/settings"));
+                Success: isConfigured,
+                Details: isConfigured
+                    ? (isEnvOverride
+                        ? $"Setting '{setting.Key}' is configured via environment variable"
+                        : $"Setting '{setting.Key}' is configured")
+                    : $"Setting '{setting.Key}' is not configured",
+                Remediation: isConfigured ? null : $"Set a value for {setting.Key}",
+                FixRoute: fixRoute));
         }
 
         // Check explicitly required keys
-        var explicitRequiredKeys = new[]
-        {
-            (Key: SettingRegistry.SystemBaseUrl, Name: "Base URL", FixRoute: "/onboarding/branding"),
-            (Key: SettingRegistry.SystemSiteName, Name: "Site Name", FixRoute: "/onboarding/branding"),
-            (Key: SettingRegistry.SecuritySecretKey, Name: "Security Secret Key", FixRoute: "/onboarding/security")
-        };
+        items.AddRange(CheckRequiredSetting(
+            config,
+            settingsWithPlaceholders,
+            SettingRegistry.SystemBaseUrl,
+            "Base URL",
+            value => !string.IsNullOrWhiteSpace(value) && IsValidBaseUrl(value.Trim()),
+            "Base URL must be an absolute http or https URL",
+            "/onboarding/branding"));
 
-        foreach (var (key, name, fixRoute) in explicitRequiredKeys)
-        {
-            var value = config.GetValue<string>(key);
-            var isMissing = string.IsNullOrWhiteSpace(value) || value == MelodeeConfiguration.RequiredNotSetValue;
+        items.AddRange(CheckRequiredSetting(
+            config,
+            settingsWithPlaceholders,
+            SettingRegistry.SystemSiteName,
+            "Site Name",
+            value => !string.IsNullOrWhiteSpace(value) && value != MelodeeConfiguration.RequiredNotSetValue,
+            "Site Name must be configured",
+            "/onboarding/branding"));
 
-            // Skip if already flagged by placeholder check
-            if (settingsWithPlaceholders.Any(s => s.Key == key))
-            {
-                continue;
-            }
-
-            items.Add(new SetupItem(
-                Id: $"setting-{key}",
-                Name: name,
-                Severity: SetupCheckSeverity.Blocking,
-                Success: !isMissing,
-                Details: isMissing ? $"{name} is not configured" : $"{name} is configured",
-                Remediation: isMissing ? $"Set a value for {key}" : null,
-                FixRoute: isMissing ? fixRoute : null));
-        }
+        items.AddRange(CheckRequiredSetting(
+            config,
+            settingsWithPlaceholders,
+            SettingRegistry.SecuritySecretKey,
+            "Security Secret Key",
+            value => !string.IsNullOrWhiteSpace(value) &&
+                     value != MelodeeConfiguration.RequiredNotSetValue &&
+                     value.Trim().Length >= 32,
+            "Security Secret Key must be at least 32 characters",
+            "/onboarding/security"));
 
         return items;
     }
@@ -243,8 +254,34 @@ public sealed class SetupCheckService : ISetupCheckService
         // Check library paths for each required library
         foreach (var lib in libraries)
         {
+            if (string.IsNullOrWhiteSpace(lib.Path))
+            {
+                items.Add(new SetupItem(
+                    Id: $"library-missing-path-{lib.Id}",
+                    Name: $"Library Path: {lib.Name}",
+                    Severity: SetupCheckSeverity.Blocking,
+                    Success: false,
+                    Details: "Library path is empty",
+                    Remediation: $"Set a path for {lib.Name}",
+                    FixRoute: "/onboarding/paths"));
+                continue;
+            }
+
+            if (!LibraryPathValidation.IsAbsolutePath(lib.Path))
+            {
+                items.Add(new SetupItem(
+                    Id: $"library-relative-{lib.Id}",
+                    Name: $"Library Path: {lib.Name}",
+                    Severity: SetupCheckSeverity.Blocking,
+                    Success: false,
+                    Details: $"Library path is not absolute: {lib.Path}",
+                    Remediation: "Use an absolute path for library locations",
+                    FixRoute: "/onboarding/paths"));
+                continue;
+            }
+
             // Check for path traversal sequences
-            if (ContainsPathTraversal(lib.Path))
+            if (LibraryPathValidation.ContainsTraversal(lib.Path))
             {
                 items.Add(new SetupItem(
                     Id: $"library-traversal-{lib.Id}",
@@ -257,8 +294,21 @@ public sealed class SetupCheckService : ISetupCheckService
                 continue;
             }
 
+            if (!LibraryPathValidation.TryNormalizePath(lib.Path, out var normalizedPath))
+            {
+                items.Add(new SetupItem(
+                    Id: $"library-invalid-{lib.Id}",
+                    Name: $"Library Path: {lib.Name}",
+                    Severity: SetupCheckSeverity.Blocking,
+                    Success: false,
+                    Details: $"Library path '{lib.Path}' is invalid",
+                    Remediation: "Provide a valid absolute path",
+                    FixRoute: "/onboarding/paths"));
+                continue;
+            }
+
             // Resolve symlinks for further checks
-            var resolvedPath = ResolveSymlinks(lib.Path);
+            var resolvedPath = LibraryPathValidation.GetCanonicalPath(normalizedPath);
 
             var exists = Directory.Exists(resolvedPath);
             var writable = false;
@@ -302,6 +352,18 @@ public sealed class SetupCheckService : ISetupCheckService
                     Remediation: $"Check write permissions for {lib.Name}",
                     FixRoute: "/onboarding/paths"));
             }
+
+            if (!LibraryPathValidation.IsPathLengthRecommended(normalizedPath))
+            {
+                items.Add(new SetupItem(
+                    Id: $"library-path-length-{lib.Id}",
+                    Name: $"Library Path Length: {lib.Name}",
+                    Severity: SetupCheckSeverity.Recommended,
+                    Success: false,
+                    Details: $"Library path length exceeds {LibraryPathValidation.RecommendedMaxPathLength} characters",
+                    Remediation: "Shorten the path for better cross-platform compatibility",
+                    FixRoute: null));
+            }
         }
 
         // Check for path overlaps
@@ -333,7 +395,7 @@ public sealed class SetupCheckService : ISetupCheckService
 
         foreach (var lib in libsResult.Data)
         {
-            var resolvedPath = ResolveSymlinks(lib.Path);
+            var resolvedPath = LibraryPathValidation.GetCanonicalPath(lib.Path);
             if (!Directory.Exists(resolvedPath))
             {
                 continue;
@@ -369,27 +431,10 @@ public sealed class SetupCheckService : ISetupCheckService
         return key.Split('.').LastOrDefault()?.Replace('_', ' ') ?? key;
     }
 
-    private static bool ContainsPathTraversal(string path)
-    {
-        var normalized = path.Replace('\\', '/');
-        return normalized.Contains("../") || normalized.Contains("/./") || normalized.Contains("..\\");
-    }
-
-    private static string ResolveSymlinks(string path)
-    {
-        try
-        {
-            return Path.GetFullPath(path);
-        }
-        catch
-        {
-            return path;
-        }
-    }
-
     private static List<(int Library1Id, int Library2Id, string Message)> DetectPathOverlaps(List<Library> libraries)
     {
         var overlaps = new List<(int, int, string)>();
+        var comparison = LibraryPathValidation.GetPathComparison();
 
         for (var i = 0; i < libraries.Count; i++)
         {
@@ -398,17 +443,17 @@ public sealed class SetupCheckService : ISetupCheckService
                 var lib1 = libraries[i];
                 var lib2 = libraries[j];
 
-                var path1 = ResolveSymlinks(lib1.Path).TrimEnd('/');
-                var path2 = ResolveSymlinks(lib2.Path).TrimEnd('/');
+                var path1 = LibraryPathValidation.NormalizeForComparison(lib1.Path);
+                var path2 = LibraryPathValidation.NormalizeForComparison(lib2.Path);
 
-                if (path1.Equals(path2, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(path1, path2, comparison))
                 {
                     overlaps.Add((lib1.Id, lib2.Id, $"Libraries '{lib1.Name}' and '{lib2.Name}' use the same path"));
                     continue;
                 }
 
-                if (path1.StartsWith(path2 + '/', StringComparison.OrdinalIgnoreCase) ||
-                    path2.StartsWith(path1 + '/', StringComparison.OrdinalIgnoreCase))
+                if (path1.StartsWith(path2 + Path.DirectorySeparatorChar, comparison) ||
+                    path2.StartsWith(path1 + Path.DirectorySeparatorChar, comparison))
                 {
                     overlaps.Add((lib1.Id, lib2.Id, $"Library '{lib1.Name}' ({path1}) is inside '{lib2.Name}' ({path2})"));
                 }
@@ -416,6 +461,57 @@ public sealed class SetupCheckService : ISetupCheckService
         }
 
         return overlaps;
+    }
+
+    private static List<SetupItem> CheckRequiredSetting(
+        IMelodeeConfiguration config,
+        IEnumerable<Setting> settingsWithPlaceholders,
+        string key,
+        string name,
+        Func<string?, bool> isValid,
+        string invalidDetails,
+        string fixRoute)
+    {
+        if (settingsWithPlaceholders.Any(s => s.Key == key))
+        {
+            return [];
+        }
+
+        var value = config.GetValue<string>(key);
+        var isConfigured = isValid(value);
+
+        return
+        [
+            new SetupItem(
+                Id: $"setting-{key}",
+                Name: name,
+                Severity: SetupCheckSeverity.Blocking,
+                Success: isConfigured,
+                Details: isConfigured ? $"{name} is configured" : invalidDetails,
+                Remediation: isConfigured ? null : $"Set a value for {key}",
+                FixRoute: isConfigured ? null : fixRoute)
+        ];
+    }
+
+    private static string? GetFixRouteForSetting(string key)
+    {
+        return key switch
+        {
+            SettingRegistry.SystemBaseUrl => "/onboarding/branding",
+            SettingRegistry.SystemSiteName => "/onboarding/branding",
+            SettingRegistry.SecuritySecretKey => "/onboarding/security",
+            _ => "/onboarding/settings"
+        };
+    }
+
+    private static bool IsValidBaseUrl(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return uri.Scheme is "http" or "https";
     }
 
     private static (long TotalBytes, long AvailableBytes) GetDiskSpaceForPath(string path)

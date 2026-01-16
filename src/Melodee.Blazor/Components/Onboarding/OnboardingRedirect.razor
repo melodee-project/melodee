@@ -3,17 +3,32 @@
 @inject OnboardingStateService OnboardingStateService
 
 @code {
+    [Parameter] public bool ForceBlocking { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
-        var blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+        try
+        {
+            if (ForceBlocking)
+            {
+                NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
+                return;
+            }
 
-        if (blockingItems.Count > 0)
+            var blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+
+            if (blockingItems.Count > 0)
+            {
+                NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/onboarding", forceLoad: true);
+            }
+        }
+        catch
         {
             NavigationManager.NavigateTo("/onboarding/blocking", forceLoad: true);
-        }
-        else
-        {
-            NavigationManager.NavigateTo("/onboarding", forceLoad: true);
         }
     }
 }

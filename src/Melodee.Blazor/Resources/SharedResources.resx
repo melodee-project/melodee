@@ -5888,6 +5888,24 @@
   <data name="Onboarding.BaseUrlLabel" xml:space="preserve">
     <value>Base URL</value>
   </data>
+  <data name="Onboarding.SiteNameRequired" xml:space="preserve">
+    <value>Site name is required.</value>
+  </data>
+  <data name="Onboarding.BaseUrlRequired" xml:space="preserve">
+    <value>Base URL is required.</value>
+  </data>
+  <data name="Onboarding.SetViaEnvironment" xml:space="preserve">
+    <value>Set via environment variable</value>
+  </data>
+  <data name="Onboarding.BaseUrlPreviewHeading" xml:space="preserve">
+    <value>Preview URLs</value>
+  </data>
+  <data name="Onboarding.BaseUrlPreviewImage" xml:space="preserve">
+    <value>Image URL example: {0}</value>
+  </data>
+  <data name="Onboarding.BaseUrlPreviewShare" xml:space="preserve">
+    <value>Share URL example: {0}</value>
+  </data>
   <data name="Onboarding.SecurityHeading" xml:space="preserve">
     <value>Security Configuration</value>
   </data>
@@ -5902,6 +5920,12 @@
   </data>
   <data name="Onboarding.RegenerateKey" xml:space="preserve">
     <value>Regenerate Key</value>
+  </data>
+  <data name="Onboarding.CopySecretKey" xml:space="preserve">
+    <value>Copy Secret Key</value>
+  </data>
+  <data name="Onboarding.CopySecretKeySuccess" xml:space="preserve">
+    <value>Secret key copied to clipboard.</value>
   </data>
   <data name="Onboarding.PathsHeading" xml:space="preserve">
     <value>Library Paths</value>
@@ -6008,11 +6032,191 @@
   <data name="Onboarding.PathRequired" xml:space="preserve">
     <value>Path is required</value>
   </data>
+  <data name="Onboarding.PathAbsoluteRequired" xml:space="preserve">
+    <value>Path must be absolute.</value>
+  </data>
+  <data name="Onboarding.PathInvalid" xml:space="preserve">
+    <value>Path is invalid.</value>
+  </data>
+  <data name="Onboarding.PathTooLong" xml:space="preserve">
+    <value>Path exceeds {0} characters. Consider shortening it.</value>
+  </data>
   <data name="Onboarding.PathTraversalInvalid" xml:space="preserve">
     <value>Path cannot contain traversal sequences (.. or .)</value>
   </data>
   <data name="Onboarding.PathOverlap" xml:space="preserve">
     <value>Path overlaps with {0} library</value>
+  </data>
+  <data name="Onboarding.PathTestWritable" xml:space="preserve">
+    <value>Path exists and is writable.</value>
+  </data>
+  <data name="Onboarding.PathTestNotWritable" xml:space="preserve">
+    <value>Path exists but is not writable.</value>
+  </data>
+  <data name="Onboarding.PathTestMissing" xml:space="preserve">
+    <value>Path does not exist.</value>
+  </data>
+  <data name="Onboarding.PathCreateError" xml:space="preserve">
+    <value>Failed to create directory: {0}</value>
+  </data>
+  <data name="Onboarding.RequiredSettingsHeading" xml:space="preserve">
+    <value>Required Settings</value>
+  </data>
+  <data name="Onboarding.RequiredSettingsDescription" xml:space="preserve">
+    <value>These settings are required for onboarding and still need values.</value>
+  </data>
+  <data name="Onboarding.RequiredSettingsNone" xml:space="preserve">
+    <value>No additional required settings found.</value>
+  </data>
+  <data name="Onboarding.RequiredSettingValue" xml:space="preserve">
+    <value>Value</value>
+  </data>
+  <data name="Onboarding.RequiredSettingMissing" xml:space="preserve">
+    <value>Value is required.</value>
+  </data>
+  <data name="Onboarding.BlockingSummaryHeading" xml:space="preserve">
+    <value>Blocking items detected</value>
+  </data>
+  <data name="Onboarding.BlockingSummaryNone" xml:space="preserve">
+    <value>No blocking items detected.</value>
+  </data>
+  <data name="Onboarding.SupportLink" xml:space="preserve">
+    <value>View documentation</value>
+  </data>
+  <data name="Onboarding.ChecklistFileName" xml:space="preserve">
+    <value>melodee-checklist-{0:yyyy-MM-dd}.md</value>
+  </data>
+  <data name="Onboarding.ChecklistNotConfigured" xml:space="preserve">
+    <value>Not configured</value>
+  </data>
+  <data name="Onboarding.ChecklistTemplate" xml:space="preserve">
+    <value># Melodee Setup Checklist
+
+Generated: {0} UTC
+Site: {1}
+
+&gt; **Legal Reminder**: Add only media you own/are licensed to use.
+&gt; **Review Note**: Legal team should review this checklist text for compliance.
+
+## Overview
+
+Welcome to Melodee! This checklist will help you get your media library organized and ready for use.
+
+## Library Paths
+
+| Library Type | Path |
+|--------------|------|
+| Inbound | `{2}` |
+| Staging | `{3}` |
+| Storage | `{4}` |
+
+## Getting Started
+
+### 1. Add Media to Inbound Library
+
+Copy your music files to the **Inbound** directory. Melodee will scan and process them.
+
+**Recommended folder structure:**
+```
+{2}/
+  Artist Name/
+    Album Name/
+      01 Song Title.mp3
+      02 Another Song.flac
+      cover.jpg
+```
+
+### 2. Processing Workflow
+
+1. Files are placed in the **Inbound** directory
+2. Melodee scans and validates files
+3. Metadata is fetched from MusicBrainz
+4. Files are organized into the **Staging** area
+5. After review, files move to **Storage** for playback
+
+### 3. First Library Scan
+
+After adding media, trigger a scan:
+
+```bash
+# Scan a specific library
+mcli library scan --name Inbound
+
+# Or scan all libraries
+mcli library scan --all
+```
+
+### 4. Verify in the UI
+
+Use the Melodee admin UI to confirm libraries and settings:
+
+- Libraries page
+- Admin Settings
+- Jobs
+
+### 5. Optional Features
+
+- Configure podcasts (RSS feeds you control or subscribe to)
+- Enable search engines for artwork and metadata
+
+## Command Reference
+
+### Library Management
+
+| Command | Description |
+|---------|-------------|
+| `mcli library list` | List all configured libraries |
+| `mcli library scan --name &lt;name&gt;` | Scan a specific library |
+| `mcli library status &lt;name&gt;` | Check library scan status |
+
+### Media Operations
+
+| Command | Description |
+|---------|-------------|
+| `mcli doctor` | Run system diagnostics |
+| `mcli backup export` | Export system configuration |
+| `mcli player play` | Start playback (if configured) |
+
+### Admin Commands
+
+| Command | Description |
+|---------|-------------|
+| `mcli admin users` | Manage user accounts |
+| `mcli settings list` | View all settings |
+| `mcli settings set &lt;key&gt; &lt;value&gt;` | Update a setting |
+
+## Next Steps
+
+1. [x] Complete onboarding wizard
+2. [ ] Add media to Inbound library
+3. [ ] Run initial library scan
+4. [ ] Review and organize your collection
+5. [ ] Configure user accounts and permissions
+
+## Troubleshooting
+
+### Doctor Command
+
+Run `mcli doctor` to diagnose common issues:
+
+```bash
+mcli doctor
+```
+
+Common fixes:
+- Ensure library paths are writable
+- Check database connectivity
+- Verify disk space availability
+
+## Additional Resources
+
+- Documentation: {5}/docs
+- API Reference: {5}/swagger
+- Source Code: https://github.com/anomalyco/melodee
+
+---
+
+*Generated by Melodee {6}*</value>
   </data>
   <data name="Onboarding.ExplainHeading" xml:space="preserve">
     <value>Understanding Library Types</value>

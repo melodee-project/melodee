@@ -128,7 +128,7 @@
         try
         {
             var checklist = await ChecklistService.GenerateChecklistAsync();
-            var fileName = $"melodee-checklist-{DateTime.UtcNow:yyyy-MM-dd}.md";
+            var fileName = L("Onboarding.ChecklistFileName", DateTime.UtcNow);
             var bytes = System.Text.Encoding.UTF8.GetBytes(checklist);
             var base64 = Convert.ToBase64String(bytes);
 

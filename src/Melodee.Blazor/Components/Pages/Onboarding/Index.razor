@@ -27,18 +27,21 @@
                     <OnboardingBranding OnBack="PreviousStep" OnNext="NextStep"/>
                     break;
                 case 2:
-                    <OnboardingSecurity OnBack="PreviousStep" OnNext="NextStep"/>
+                    <OnboardingSettings OnBack="PreviousStep" OnNext="NextStep"/>
                     break;
                 case 3:
-                    <OnboardingPaths OnBack="PreviousStep" OnNext="NextStep"/>
+                    <OnboardingSecurity OnBack="PreviousStep" OnNext="NextStep"/>
                     break;
                 case 4:
-                    <OnboardingAdmin OnBack="PreviousStep" OnNext="NextStep"/>
+                    <OnboardingPaths OnBack="PreviousStep" OnNext="NextStep"/>
                     break;
                 case 5:
-                    <OnboardingExplain OnBack="PreviousStep" OnNext="NextStep"/>
+                    <OnboardingAdmin OnBack="PreviousStep" OnNext="NextStep"/>
                     break;
                 case 6:
+                    <OnboardingExplain OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 7:
                     <OnboardingVerify OnBack="PreviousStep" OnComplete="CompleteOnboarding"/>
                     break;
             }
@@ -49,7 +52,7 @@
 @code {
     private int _currentStep;
     private int _progressPercent;
-    private readonly string[] _steps = { "Welcome", "Branding", "Security", "Paths", "Admin", "Explain", "Verify" };
+    private readonly string[] _steps = { "Welcome", "Branding", "Settings", "Security", "Paths", "Admin", "Explain", "Verify" };
 
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;

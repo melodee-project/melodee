@@ -5,6 +5,8 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Setup;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
+using NodaTime.Text;
 
 namespace Melodee.Blazor.Services;
 
@@ -23,6 +25,8 @@ public sealed class OnboardingStateService
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
 
     private Melodee.Common.Services.ImportData? _importData;
+
+    public string? LastSetupErrorMessage { get; private set; }
 
     public OnboardingStateService(
         ISetupCheckService setupCheckService,
@@ -43,16 +47,24 @@ public sealed class OnboardingStateService
     /// </summary>
     public async Task<bool> IsOnboardingRequiredAsync(CancellationToken cancellationToken = default)
     {
-        var config = await _configurationFactory.GetConfigurationAsync(cancellationToken);
-        var onboardingCompletedAt = config.GetValue<string?>(SettingRegistry.SystemOnboardingCompletedAt);
-
-        if (string.IsNullOrWhiteSpace(onboardingCompletedAt))
+        try
         {
-            return true;
-        }
+            var config = await _configurationFactory.GetConfigurationAsync(cancellationToken);
+            var onboardingCompletedAt = config.GetValue<string?>(SettingRegistry.SystemOnboardingCompletedAt);
 
-        var status = await GetSetupStatusAsync(cancellationToken);
-        return !status.IsReady;
+            if (string.IsNullOrWhiteSpace(onboardingCompletedAt))
+            {
+                return true;
+            }
+
+            var status = await GetSetupStatusAsync(cancellationToken);
+            return !status.IsReady;
+        }
+        catch (Exception ex)
+        {
+            LastSetupErrorMessage = ex.Message;
+            throw;
+        }
     }
 
     /// <summary>
@@ -65,7 +77,16 @@ public sealed class OnboardingStateService
             return _cachedStatus;
         }
 
-        _cachedStatus = await _setupCheckService.SetupCheckAsync(cancellationToken);
+        try
+        {
+            _cachedStatus = await _setupCheckService.SetupCheckAsync(cancellationToken);
+            LastSetupErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            LastSetupErrorMessage = ex.Message;
+            throw;
+        }
         _lastCheck = DateTimeOffset.UtcNow;
         return _cachedStatus;
     }
@@ -75,7 +96,16 @@ public sealed class OnboardingStateService
     /// </summary>
     public async Task RefreshSetupStatusAsync(CancellationToken cancellationToken = default)
     {
-        _cachedStatus = await _setupCheckService.SetupCheckAsync(cancellationToken);
+        try
+        {
+            _cachedStatus = await _setupCheckService.SetupCheckAsync(cancellationToken);
+            LastSetupErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            LastSetupErrorMessage = ex.Message;
+            throw;
+        }
         _lastCheck = DateTimeOffset.UtcNow;
     }
 
@@ -94,7 +124,9 @@ public sealed class OnboardingStateService
     public async Task MarkOnboardingCompletedAsync(CancellationToken cancellationToken = default)
     {
         var settingService = new SettingService(_logger, _cacheManager, _configurationFactory, _contextFactory);
-        await settingService.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, DateTimeOffset.UtcNow.ToString("O"), cancellationToken);
+        var instant = SystemClock.Instance.GetCurrentInstant();
+        var serialized = InstantPattern.ExtendedIso.Format(instant);
+        await settingService.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, serialized, cancellationToken);
 
         _cachedStatus = null;
     }

@@ -3,7 +3,7 @@
 @using Melodee.Common.Enums
 @using Melodee.Common.Services
 @using Melodee.Blazor.Services
-@using Melodee.Common.Configuration
+@using Melodee.Common.Utility
 @using NodaTime
 @inherits MelodeeComponentBase
 
@@ -26,6 +26,12 @@
                         <RadzenText Text="@_pathErrors.GetValueOrDefault(lib.Id)"/>
                     </RadzenAlert>
                 }
+                @if (!string.IsNullOrEmpty(_pathWarnings.GetValueOrDefault(lib.Id)))
+                {
+                    <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Warning" Icon="warning">
+                        <RadzenText Text="@_pathWarnings.GetValueOrDefault(lib.Id)"/>
+                    </RadzenAlert>
+                }
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
                     <RadzenButton Click="@(() => TestPath(lib))"
                                   Text="@L("Onboarding.TestPath")"
@@ -42,7 +48,9 @@
                     <RadzenAlert Variant="@(testResult.Exists && testResult.Writable ? Variant.Outlined : Variant.Filled)"
                                  AlertStyle="@(testResult.Exists && testResult.Writable ? AlertStyle.Success : AlertStyle.Warning)"
                                  Icon="@(testResult.Exists && testResult.Writable ? "check_circle" : "warning")">
-                        <RadzenText Text="@(testResult.Exists && testResult.Writable ? "Path exists and is writable" : (testResult.Exists ? "Path exists but is not writable" : "Path does not exist"))"/>
+                        <RadzenText Text="@(testResult.Exists && testResult.Writable
+                            ? L("Onboarding.PathTestWritable")
+                            : (testResult.Exists ? L("Onboarding.PathTestNotWritable") : L("Onboarding.PathTestMissing")))"/>
                     </RadzenAlert>
                 }
             </RadzenStack>
@@ -60,12 +68,12 @@
     private bool _isSaving;
     private bool _hasErrors;
     private Dictionary<int, string> _pathErrors = new();
+    private Dictionary<int, string> _pathWarnings = new();
     private Dictionary<int, (bool Exists, bool Writable)> _pathTestResults = new();
     private readonly LibraryType[] _requiredTypes = { LibraryType.Inbound, LibraryType.Staging, LibraryType.Storage };
 
     [Inject] private LibraryService LibraryService { get; set; } = null!;
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
-    [Inject] private IMelodeeConfigurationFactory ConfigurationFactory { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnNext { get; set; }
@@ -116,123 +124,105 @@
 
     private static string GetDefaultPath(LibraryType libraryType)
     {
+        if (IsRunningInContainer())
+        {
+            return libraryType switch
+            {
+                LibraryType.Inbound => "/app/inbound",
+                LibraryType.Staging => "/app/staging",
+                LibraryType.Storage => "/app/storage",
+                _ => "/app/unknown"
+            };
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return libraryType switch
+            {
+                LibraryType.Inbound => @"C:\Melodee\Inbound",
+                LibraryType.Staging => @"C:\Melodee\Staging",
+                LibraryType.Storage => @"C:\Melodee\Storage",
+                _ => @"C:\Melodee\Unknown"
+            };
+        }
+
         return libraryType switch
         {
-            LibraryType.Inbound => "/app/inbound",
-            LibraryType.Staging => "/app/staging",
-            LibraryType.Storage => "/app/storage",
-            _ => "/app/unknown"
+            LibraryType.Inbound => "/var/lib/melodee/inbound",
+            LibraryType.Staging => "/var/lib/melodee/staging",
+            LibraryType.Storage => "/var/lib/melodee/storage",
+            _ => "/var/lib/melodee/unknown"
         };
+    }
+
+    private static bool IsRunningInContainer()
+    {
+        var value = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER");
+        return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) || value == "1";
     }
 
     private void ValidatePath(Library lib)
     {
         var path = lib.Path;
         _pathErrors.Remove(lib.Id);
+        _pathWarnings.Remove(lib.Id);
         _pathTestResults.Remove(lib.Id);
-        _hasErrors = false;
+        var hasErrors = false;
 
         if (string.IsNullOrWhiteSpace(path))
         {
             _pathErrors[lib.Id] = L("Onboarding.PathRequired");
-            _hasErrors = true;
-            return;
+            hasErrors = true;
         }
-
-        if (path.Contains("..") || path.Contains("./") || path.Contains(".\\"))
+        else if (!LibraryPathValidation.IsAbsolutePath(path))
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathAbsoluteRequired");
+            hasErrors = true;
+        }
+        else if (LibraryPathValidation.ContainsTraversal(path))
         {
             _pathErrors[lib.Id] = L("Onboarding.PathTraversalInvalid");
+            hasErrors = true;
+        }
+        else if (!LibraryPathValidation.TryNormalizePath(path, out var normalizedPath))
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathInvalid");
+            hasErrors = true;
+        }
+        else
+        {
+            if (!LibraryPathValidation.IsPathLengthRecommended(normalizedPath))
+            {
+                _pathWarnings[lib.Id] = L("Onboarding.PathTooLong", LibraryPathValidation.RecommendedMaxPathLength);
+            }
+
+            foreach (var otherLib in _libraries.Where(l => l.Id != lib.Id))
+            {
+                if (string.IsNullOrWhiteSpace(otherLib.Path))
+                {
+                    continue;
+                }
+
+                if (!LibraryPathValidation.TryNormalizePath(otherLib.Path, out var otherNormalizedPath))
+                {
+                    continue;
+                }
+
+                if (LibraryPathValidation.PathsOverlap(normalizedPath, otherNormalizedPath, LibraryPathValidation.GetPathComparison()))
+                {
+                    _pathErrors[lib.Id] = L("Onboarding.PathOverlap", otherLib.Name);
+                    hasErrors = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasErrors)
+        {
             _hasErrors = true;
-            return;
         }
 
-        var normalizedPath = Path.GetFullPath(path);
-        _pathErrors[lib.Id] = string.Empty;
-
-        foreach (var otherLib in _libraries.Where(l => l.Id != lib.Id))
-        {
-            if (string.IsNullOrWhiteSpace(otherLib.Path))
-            {
-                continue;
-            }
-
-            var otherNormalizedPath = Path.GetFullPath(otherLib.Path);
-            if (PathsOverlap(normalizedPath, otherNormalizedPath))
-            {
-                _pathErrors[lib.Id] = L("Onboarding.PathOverlap", otherLib.Name);
-                _hasErrors = true;
-                break;
-            }
-        }
-    }
-
-    private static bool PathsOverlap(string path1, string path2)
-    {
-        try
-        {
-            var realPath1 = GetRealPath(path1);
-            var realPath2 = GetRealPath(path2);
-
-            if (string.IsNullOrEmpty(realPath1) || string.IsNullOrEmpty(realPath2))
-            {
-                return false;
-            }
-
-            realPath1 = realPath1.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            realPath2 = realPath2.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-            if (realPath1.Equals(realPath2, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (realPath1.Length > realPath2.Length)
-            {
-                return realPath1.StartsWith(realPath2 + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                       realPath1.StartsWith(realPath2 + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-            }
-
-            return realPath2.StartsWith(realPath1 + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                   realPath2.StartsWith(realPath1 + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static string GetRealPath(string path)
-    {
-        try
-        {
-            var expandedPath = Environment.ExpandEnvironmentVariables(path);
-            var fullPath = Path.GetFullPath(expandedPath);
-
-            if (!Directory.Exists(fullPath) && !File.Exists(fullPath))
-            {
-                var parent = Path.GetDirectoryName(fullPath);
-                while (parent != null && !Directory.Exists(parent))
-                {
-                    parent = Path.GetDirectoryName(parent);
-                }
-
-                if (parent != null)
-                {
-                    var fileName = Path.GetFileName(fullPath);
-                    var combinedPath = Path.Combine(parent, fileName);
-                    if (Directory.Exists(combinedPath) || File.Exists(combinedPath))
-                    {
-                        fullPath = Path.GetFullPath(combinedPath);
-                    }
-                }
-            }
-
-            return Path.GetFullPath(fullPath);
-        }
-        catch
-        {
-            return path;
-        }
+        UpdateHasErrors();
     }
 
     private void TestPath(Library lib)
@@ -245,7 +235,7 @@
 
         try
         {
-            var resolvedPath = Path.GetFullPath(path);
+            var resolvedPath = LibraryPathValidation.GetCanonicalPath(path);
             var exists = Directory.Exists(resolvedPath);
             var writable = false;
 
@@ -282,7 +272,7 @@
 
         try
         {
-            var resolvedPath = Path.GetFullPath(path);
+            var resolvedPath = LibraryPathValidation.GetCanonicalPath(path);
             if (!Directory.Exists(resolvedPath))
             {
                 Directory.CreateDirectory(resolvedPath);
@@ -292,7 +282,7 @@
         }
         catch (Exception ex)
         {
-            _pathErrors[lib.Id] = $"Failed to create directory: {ex.Message}";
+            _pathErrors[lib.Id] = L("Onboarding.PathCreateError", ex.Message);
             _hasErrors = true;
         }
     }
@@ -303,16 +293,25 @@
     {
         _hasErrors = false;
         _pathErrors.Clear();
+        _pathWarnings.Clear();
 
-        var paths = _libraries.Where(l => !string.IsNullOrWhiteSpace(l.Path)).Select(l => Path.GetFullPath(l.Path)).ToList();
+        foreach (var lib in _libraries)
+        {
+            ValidatePath(lib);
+        }
+
+        var paths = _libraries
+            .Where(l => !string.IsNullOrWhiteSpace(l.Path))
+            .Select(l => LibraryPathValidation.NormalizeForComparison(l.Path))
+            .ToList();
         for (var i = 0; i < paths.Count; i++)
         {
             for (var j = i + 1; j < paths.Count; j++)
             {
-                if (PathsOverlap(paths[i], paths[j]))
+                if (LibraryPathValidation.PathsOverlap(paths[i], paths[j], LibraryPathValidation.GetPathComparison()))
                 {
-                    var lib1 = _libraries.First(l => !string.IsNullOrWhiteSpace(l.Path) && Path.GetFullPath(l.Path) == paths[i]);
-                    var lib2 = _libraries.First(l => !string.IsNullOrWhiteSpace(l.Path) && Path.GetFullPath(l.Path) == paths[j]);
+                    var lib1 = _libraries.First(l => !string.IsNullOrWhiteSpace(l.Path) && LibraryPathValidation.NormalizeForComparison(l.Path) == paths[i]);
+                    var lib2 = _libraries.First(l => !string.IsNullOrWhiteSpace(l.Path) && LibraryPathValidation.NormalizeForComparison(l.Path) == paths[j]);
                     _pathErrors[lib1.Id] = L("Onboarding.PathOverlap", lib2.Name);
                     _pathErrors[lib2.Id] = L("Onboarding.PathOverlap", lib1.Name);
                     _hasErrors = true;
@@ -355,5 +354,10 @@
         {
             _isSaving = false;
         }
+    }
+
+    private void UpdateHasErrors()
+    {
+        _hasErrors = _pathErrors.Values.Any(error => !string.IsNullOrWhiteSpace(error));
     }
 }

@@ -13,13 +13,13 @@
             {
                 var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
 
-                @if (IsOnboardingRoute(currentPath))
+                @if (IsAllowedRoute(currentPath))
                 {
                     @ChildContent
                 }
-                else if (IsBlockedRoute(currentPath))
+                else if (_hasBlockingError)
                 {
-                    @ChildContent
+                    <OnboardingRedirect ForceBlocking="true" />
                 }
                 else
                 {
@@ -40,6 +40,7 @@
 
 @code {
     private bool _isOnboardingRequired;
+    private bool _hasBlockingError;
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
@@ -59,23 +60,25 @@
         try
         {
             _isOnboardingRequired = await OnboardingStateService.IsOnboardingRequiredAsync();
+            _hasBlockingError = false;
         }
         catch
         {
-            // If we can't determine onboarding status, assume it's not required
-            // to allow the app to function
-            _isOnboardingRequired = false;
+            _isOnboardingRequired = true;
+            _hasBlockingError = true;
         }
     }
 
-    private static bool IsOnboardingRoute(string path)
+    private static bool IsAllowedRoute(string path)
     {
-        return path.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase);
-    }
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
 
-    private static bool IsBlockedRoute(string path)
-    {
-        return path.StartsWith("/onboarding/blocking", StringComparison.OrdinalIgnoreCase);
+        return AllowedRoutes.Any(allowed =>
+            path.Equals(allowed.TrimStart('/'), StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(allowed.TrimEnd('/').TrimStart('/'), StringComparison.OrdinalIgnoreCase));
     }
 
     public void Dispose()

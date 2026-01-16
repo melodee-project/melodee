@@ -1,11 +1,29 @@
 @using System.Text.Json
 @using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Services.Setup
 @inherits MelodeeComponentBase
 
 <RadzenStack Gap="1.5rem">
     <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.WelcomeHeading")"/>
 
     <RadzenText Text="@L("Onboarding.WelcomeDescription")"/>
+
+    <RadzenCard>
+        <RadzenStack Gap="0.5rem">
+            <RadzenText Text="@L("Onboarding.BlockingSummaryHeading")" TextStyle="TextStyle.Subtitle2"/>
+            @if (_blockingItems.Count == 0)
+            {
+                <RadzenText Text="@L("Onboarding.BlockingSummaryNone")" TextStyle="TextStyle.Caption"/>
+            }
+            else
+            {
+                @foreach (var item in _blockingItems)
+                {
+                    <RadzenText Text="@item.Name" TextStyle="TextStyle.Caption"/>
+                }
+            }
+        </RadzenStack>
+    </RadzenCard>
 
     <RadzenCard>
         <RadzenStack Gap="1rem">
@@ -48,10 +66,23 @@
     private bool _importSuccess;
     private bool _isSaving;
     private Melodee.Common.Services.ImportData? _importData;
+    private IReadOnlyList<SetupItem> _blockingItems = Array.Empty<SetupItem>();
 
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
 
     [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+        }
+        catch
+        {
+            _blockingItems = Array.Empty<SetupItem>();
+        }
+    }
 
     private async Task OnFileChanged(string value)
     {
