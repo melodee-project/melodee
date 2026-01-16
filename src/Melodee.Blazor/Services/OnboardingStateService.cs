@@ -175,14 +175,25 @@ public sealed class OnboardingStateService
         
         _logger.Debug("[OnboardingStateService] Setting {Key} to {Value}", SettingRegistry.SystemOnboardingCompletedAt, serialized);
         
-        await settingService.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, serialized, cancellationToken);
+        var result = await settingService.SetAsync(SettingRegistry.SystemOnboardingCompletedAt, serialized, cancellationToken);
         
-        _logger.Debug("[OnboardingStateService] Setting saved successfully");
+        if (!result.IsSuccess)
+        {
+            _logger.Error("[OnboardingStateService] Failed to save onboarding completion setting: {Messages}", 
+                string.Join(", ", result.Messages ?? []));
+            return;
+        }
+        
+        _logger.Debug("[OnboardingStateService] Setting saved successfully, resetting configuration factory");
+        
+        // Reset the configuration factory to pick up the new setting
+        _configurationFactory.Reset();
 
-        // Update static cache immediately
+        // Update static cache immediately with expiry
         lock (_lockObject)
         {
             _isOnboardingComplete = true;
+            _onboardingCacheExpiry = DateTimeOffset.UtcNow.Add(OnboardingCacheDuration);
         }
         _cachedStatus = null;
         

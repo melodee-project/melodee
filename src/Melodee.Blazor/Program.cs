@@ -92,6 +92,12 @@ builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ETagFilter>();
     options.Filters.Add<GlobalExceptionFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // Handle circular references in API responses
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.MaxDepth = 128;
 });
 
 builder.Services.AddEndpointsApiExplorer();

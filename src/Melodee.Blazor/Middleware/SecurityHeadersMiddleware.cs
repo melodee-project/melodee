@@ -36,10 +36,10 @@ public class SecurityHeadersMiddleware
 
         response.Headers["Content-Security-Policy"] =
             "default-src 'self'; " +
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline'; " +
-            "style-src 'self' 'unsafe-inline'; " +
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
             "img-src 'self' data: blob:; " +
-            "font-src 'self'; " +
+            "font-src 'self' https://fonts.gstatic.com data:; " +
             "connect-src 'self' wss: ws:; " +
             "media-src 'self'; " +
             "object-src 'none'; " +
