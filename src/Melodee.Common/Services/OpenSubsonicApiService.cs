@@ -543,6 +543,16 @@ public class OpenSubsonicApiService(
 
             var deleteByIdResult = await playlistService.DeleteAsync(authResponse.UserInfo.Id, [playlistId], cancellationToken)
                 .ConfigureAwait(false);
+            if (!deleteByIdResult.Data)
+            {
+                return new ResponseModel
+                {
+                    UserInfo = UserInfo.BlankUserInfo,
+                    IsSuccess = true,
+                    ResponseData = await NewApiResponse(true, string.Empty, string.Empty)
+                };
+            }
+
             return new ResponseModel
             {
                 UserInfo = UserInfo.BlankUserInfo,
@@ -758,10 +768,21 @@ public class OpenSubsonicApiService(
         }
 
         var apiKey = ApiKeyFromId(id);
-        if (apiKey == null && int.TryParse(id, out var shareId))
+        if (apiKey == null && int.TryParse(id, out var playlistId))
         {
-            var shareByIdResult = await shareService.GetAsync(shareId, cancellationToken).ConfigureAwait(false);
-            apiKey = shareByIdResult.Data?.ApiKey;
+            var deleteByIdResult = await playlistService.DeleteAsync(authResponse.UserInfo.Id, [playlistId], cancellationToken)
+                .ConfigureAwait(false);
+            if (!deleteByIdResult.Data)
+            {
+                Logger.Warning("[{ServiceName}] Delete playlist by ID failed for {PlaylistId}.", nameof(OpenSubsonicApiService), playlistId);
+            }
+
+            return new ResponseModel
+            {
+                UserInfo = UserInfo.BlankUserInfo,
+                IsSuccess = true,
+                ResponseData = await NewApiResponse(true, string.Empty, string.Empty)
+            };
         }
 
         if (apiKey == null)

@@ -1,8 +1,9 @@
 @inherits MelodeeComponentBase
 @using Melodee.Common.Data.Models
+@using Melodee.Common.Models.Collection
 
 @inject UserGroupService UserGroupService
-@inject UserService UserService
+@inject UserProfileService UserService
 @inject LibraryService LibraryService
 @inject NotificationService NotificationService
 @inject DialogService DialogService
@@ -34,8 +35,8 @@
                             <RadzenFormField Text="@L("UserGroups.Members")" Variant="Variant.Outlined" Style="width:100%">
                                 <RadzenDropDown @bind-Value="_selectedUserIds" 
                                                Data="@_availableUsers" 
-                                               TextProperty="@nameof(User.UserName)" 
-                                               ValueProperty="@nameof(User.Id)"
+                                               TextProperty="@nameof(UserDataInfo.UserName)" 
+                                               ValueProperty="@nameof(UserDataInfo.Id)"
                                                Multiple="true"
                                                AllowClear="true"
                                                Placeholder="@L("UserGroups.SelectUsersPlaceholder")"
@@ -49,20 +50,20 @@
                     <RadzenRow>
                         <RadzenColumn Size="12">
                             <RadzenFormField Text="@L("UserGroups.LibraryAccess")" Variant="Variant.Outlined" Style="width:100%">
-                                <RadzenListBox @bind-Value="_librariesWithAccess"
-                                              Data="@_availableLibraries"
-                                              TextProperty="@nameof(Library.Name)"
-                                              ValueProperty="@nameof(Library.Id)"
-                                              Multiple="false"
-                                              Style="width:100%; height: 150px"
-                                              aria-label="@L("UserGroups.LibraryAccess")"/>
                                 <ChildContent>
-                                    <Template>
-                                        <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2">
-                                            @L("UserGroups.LibrariesUsingThisGroup")
-                                        </RadzenText>
-                                    </Template>
+                                    <RadzenListBox @bind-Value="_librariesWithAccess"
+                                                  Data="@_availableLibraries"
+                                                  TextProperty="@nameof(Library.Name)"
+                                                  ValueProperty="@nameof(Library.Id)"
+                                                  Multiple="false"
+                                                  Style="width:100%; height: 150px"
+                                                  aria-label="@L("UserGroups.LibraryAccess")"/>
                                 </ChildContent>
+                                <Helper>
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2">
+                                        @L("UserGroups.LibrariesUsingThisGroup")
+                                    </RadzenText>
+                                </Helper>
                             </RadzenFormField>
                         </RadzenColumn>
                     </RadzenRow>
@@ -86,7 +87,7 @@
 
     bool _isNew => UserGroupId == null || UserGroupId == 0;
     UserGroup _group = new() { Name = string.Empty, CreatedAt = default };
-    IEnumerable<User> _availableUsers = [];
+    IEnumerable<UserDataInfo> _availableUsers = [];
     IEnumerable<Library> _availableLibraries = [];
     IEnumerable<int> _selectedUserIds = [];
     IEnumerable<int> _librariesWithAccess = [];
@@ -103,11 +104,7 @@
         });
         if (usersResult.IsSuccess && usersResult.Data != null)
         {
-            _availableUsers = usersResult.Data.Select(u => new User 
-            { 
-                Id = u.Id, 
-                UserName = u.UserName ?? string.Empty 
-            }).ToList();
+            _availableUsers = usersResult.Data;
         }
 
         // Load available libraries
@@ -118,11 +115,7 @@
         });
         if (librariesResult.IsSuccess && librariesResult.Data != null)
         {
-            _availableLibraries = librariesResult.Data.Select(l => new Library 
-            { 
-                Id = l.Id, 
-                Name = l.Name 
-            }).ToList();
+            _availableLibraries = librariesResult.Data;
         }
     }
 
@@ -143,8 +136,8 @@
                     var librariesWithGroup = new List<int>();
                     foreach (var lib in allLibrariesResult.Data)
                     {
-                        var accessControls = await LibraryService.GetLibraryAccessControlGroupIdsAsync(lib.Id);
-                        if (accessControls.Contains(UserGroupId.Value))
+                        var accessControlsResult = await LibraryService.GetLibraryAccessControlGroupIdsAsync(lib.Id);
+                        if (accessControlsResult.IsSuccess && (accessControlsResult.Data?.Contains(UserGroupId.Value) ?? false))
                         {
                             librariesWithGroup.Add(lib.Id);
                         }

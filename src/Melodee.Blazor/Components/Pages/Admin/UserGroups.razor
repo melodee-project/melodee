@@ -75,7 +75,7 @@
             </RadzenDataGridColumn>
             <RadzenDataGridColumn Property="@nameof(UserGroup.CreatedAt)" Title="@L("Label.Created")" Width="150px">
                 <Template Context="group">
-                    @FormatDate(group.CreatedAt)
+                    @FormatDate(group.CreatedAt.ToDateTimeUtc())
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn 

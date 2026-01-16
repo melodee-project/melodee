@@ -180,9 +180,9 @@
                 _library = result.Data;
                 
                 // Load access control settings
-                var accessControlGroupIds = await LibraryService.GetLibraryAccessControlGroupIdsAsync(_library.Id);
-                _selectedGroupIds = accessControlGroupIds;
-                _accessRestrictedToGroups = accessControlGroupIds.Length > 0;
+                var accessControlGroupIdsResult = await LibraryService.GetLibraryAccessControlGroupIdsAsync(_library.Id);
+                _selectedGroupIds = accessControlGroupIdsResult.Data ?? [];
+                _accessRestrictedToGroups = _selectedGroupIds.Any();
             }
         }
     }
