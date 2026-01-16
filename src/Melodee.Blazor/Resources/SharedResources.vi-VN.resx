@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Hồ sơ thiết bị</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Quản lý hồ sơ thiết bị</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Hồ sơ thiết bị mới</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Không tìm thấy hồ sơ thiết bị</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Tên</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Phát trực tiếp</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Tốc độ bit tối đa</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Mặc định</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Ưu tiên</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Hành động</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Chỉnh sửa</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Đặt làm mặc định</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Xóa</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Có</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Không</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Không thể tải hồ sơ thiết bị</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Đã đặt hồ sơ mặc định</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Hồ sơ '{0}' đã được đặt làm mặc định</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Không thể đặt hồ sơ mặc định</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Đã xóa hồ sơ</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Hồ sơ '{0}' đã được xóa</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Không thể xóa hồ sơ</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Bạn có chắc chắn muốn xóa hồ sơ '{0}' không?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Xóa hồ sơ</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Chi tiết hồ sơ thiết bị</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Nhập tên hồ sơ</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Tên hồ sơ là bắt buộc</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Bật phát trực tiếp</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Codec mục tiêu</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Chọn một codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Tốc độ bit tối đa</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Nhập tốc độ bit theo kb/s</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Tốc độ bit tối đa tính bằng kilobit mỗi giây</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Tần số lấy mẫu lại</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Nhập tần số lấy mẫu lại theo Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Tần số lấy mẫu mục tiêu tính bằng hertz</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Nhập mức ưu tiên (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Giá trị cao hơn có ưu tiên cao hơn</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Đặt hồ sơ này làm mặc định</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Đã cập nhật hồ sơ</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Hồ sơ '{0}' đã được cập nhật</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Đã tạo hồ sơ</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Hồ sơ '{0}' đã được tạo</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Không thể cập nhật hồ sơ</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Không thể tạo hồ sơ</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Thao tác thất bại</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Chỉnh sửa hồ sơ thiết bị</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

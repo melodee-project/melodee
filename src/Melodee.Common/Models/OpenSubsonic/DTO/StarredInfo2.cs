@@ -1,8 +1,13 @@
+using System.Text.Json.Serialization;
 using System.Text;
 
 namespace Melodee.Common.Models.OpenSubsonic.DTO;
 
-public record StarredInfo2(ArtistID3[] Artists, AlbumID3[] Albums, Child[] Songs) : IOpenSubsonicToXml
+public record StarredInfo2(
+    [property: JsonPropertyName("artist")] ArtistID3[] Artists,
+    [property: JsonPropertyName("album")] AlbumID3[] Albums,
+    [property: JsonPropertyName("song")] Child[] Songs
+) : IOpenSubsonicToXml
 {
     public string ToXml(string? nodeName = null)
     {

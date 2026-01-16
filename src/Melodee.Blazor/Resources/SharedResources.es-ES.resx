@@ -617,6 +617,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>Guardando...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Perfiles de dispositivo</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Administrar perfiles de dispositivo</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Nuevo perfil de dispositivo</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>No se encontraron perfiles de dispositivo</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Reproducción directa</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Tasa de bits máx.</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Por defecto</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Prioridad</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Establecer como predeterminado</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Error al cargar los perfiles de dispositivo</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Perfil predeterminado establecido</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>El perfil '{0}' se ha establecido como predeterminado</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Error al establecer el perfil predeterminado</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Perfil eliminado</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>El perfil '{0}' ha sido eliminado</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Error al eliminar el perfil</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>¿Está seguro de que desea eliminar el perfil '{0}'?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Eliminar perfil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Detalles del perfil de dispositivo</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Ingrese el nombre del perfil</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Se requiere el nombre del perfil</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Habilitar reproducción directa</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Codec de destino</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Seleccione un codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Tasa de bits máx.</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Ingrese la tasa de bits en kbps</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Tasa de bits máxima en kilobits por segundo</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Tasa de muestreo</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Ingrese la tasa de muestreo en Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Tasa de muestreo objetivo en hercios</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Ingrese la prioridad (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Los valores más altos tienen mayor prioridad</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Hacer este perfil predeterminado</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Perfil actualizado</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>El perfil '{0}' ha sido actualizado</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Perfil creado</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>El perfil '{0}' ha sido creado</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Error al actualizar el perfil</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Error al crear el perfil</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>La operación falló</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Editar perfil de dispositivo</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>Cuentas Vinculadas</value>
   </data>

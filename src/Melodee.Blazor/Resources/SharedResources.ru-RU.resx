@@ -599,6 +599,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>Сохранение...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Профили устройств</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Управление профилями устройств</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Новый профиль устройства</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Профили устройств не найдены</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Имя</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Прямое воспроизведение</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Кодек</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Макс. битрейт</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>По умолчанию</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Приоритет</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Действия</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Редактировать</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Установить по умолчанию</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Удалить</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Да</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Нет</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Не удалось загрузить профили устройств</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Профиль по умолчанию установлен</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Профиль '{0}' был установлен как профиль по умолчанию</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Не удалось установить профиль по умолчанию</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Профиль удален</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Профиль '{0}' был удален</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Не удалось удалить профиль</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Вы уверены, что хотите удалить профиль '{0}'?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Удалить профиль</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Детали профиля устройства</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Введите имя профиля</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Имя профиля обязательно</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Включить прямое воспроизведение</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Целевой кодек</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Выберите кодек</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Макс. битрейт</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Введите битрейт в кбит/с</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Максимальный битрейт в килобитах в секунду</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Частота дискретизации</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Введите частоту дискретизации в Гц</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Целевая частота дискретизации в герцах</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Введите приоритет (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Более высокие значения имеют более высокий приоритет</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Сделать этот профиль профилем по умолчанию</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Профиль обновлен</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Профиль '{0}' был обновлен</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Профиль создан</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Профиль '{0}' был создан</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Не удалось обновить профиль</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Не удалось создать профиль</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Операция не удалась</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Редактировать профиль устройства</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>Связанные Учетные Записи</value>
   </data>

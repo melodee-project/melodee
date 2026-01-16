@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Apparaatprofielen</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Apparaatprofielen beheren</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Nieuw apparaatprofiel</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Geen apparaatprofielen gevonden</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Naam</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Direct afspelen</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max. bitrate</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Standaard</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Prioriteit</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Acties</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Bewerken</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Instellen als standaard</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Verwijderen</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Ja</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Nee</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Laden van apparaatprofielen mislukt</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Standaardprofiel ingesteld</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Profiel '{0}' is ingesteld als standaard</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Instellen van standaardprofiel mislukt</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profiel verwijderd</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Profiel '{0}' is verwijderd</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Verwijderen van profiel mislukt</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Weet u zeker dat u het profiel '{0}' wilt verwijderen?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Profiel verwijderen</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Apparaatprofielgegevens</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Voer profielnaam in</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Profielnaam is vereist</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Direct afspelen inschakelen</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Doelcodec</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Selecteer een codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max. bitrate</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Voer bitrate in kbps in</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Maximale bitrate in kilobits per seconde</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Resample-frequentie</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Voer resample-frequentie in Hz in</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Doelfrequentie in hertz</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Voer prioriteit in (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Hogere waarden hebben hogere prioriteit</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Maak dit het standaardprofiel</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profiel bijgewerkt</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Profiel '{0}' is bijgewerkt</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profiel gemaakt</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Profiel '{0}' is gemaakt</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Bijwerken van profiel mislukt</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Maken van profiel mislukt</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Bewerking mislukt</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Apparaatprofiel bewerken</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

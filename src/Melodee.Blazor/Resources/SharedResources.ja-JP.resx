@@ -950,6 +950,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>保存中...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>デバイスプロファイル</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>デバイスプロファイルの管理</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>新しいデバイスプロファイル</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>デバイスプロファイルが見つかりません</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>名前</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>ダイレクトプレイ</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>コーデック</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>最大ビットレート</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>デフォルト</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>優先度</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>アクション</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>編集</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>デフォルトに設定</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>はい</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>いいえ</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>デバイスプロファイルの読み込みに失敗しました</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>デフォルトプロファイルが設定されました</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>プロファイル '{0}' がデフォルトとして設定されました</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>デフォルトプロファイルの設定に失敗しました</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>プロファイルが削除されました</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>プロファイル '{0}' が削除されました</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>プロファイルの削除に失敗しました</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>本当にプロファイル '{0}' を削除しますか？</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>プロファイルを削除</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>デバイスプロファイルの詳細</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>プロファイル名を入力してください</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>プロファイル名が必要です</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>ダイレクトプレイを有効にする</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>ターゲットコーデック</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>コーデックを選択してください</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>最大ビットレート</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>ビットレートをkbpsで入力してください</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>最大ビットレート（キロビット毎秒）</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>リサンプルレート</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>リサンプルレートをHzで入力してください</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>ターゲットサンプルレート（ヘルツ）</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>優先度を入力してください（0-100）</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>数値が高いほど優先度が高くなります</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>このプロファイルをデフォルトにする</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>プロファイルが更新されました</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>プロファイル '{0}' が更新されました</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>プロファイルが作成されました</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>プロファイル '{0}' が作成されました</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>プロファイルの更新に失敗しました</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>プロファイルの作成に失敗しました</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>操作に失敗しました</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>デバイスプロファイルを編集</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>リンクされたアカウント</value>
   </data>

@@ -599,6 +599,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>Enregistrement...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Profils d'appareil</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Gérer les profils d'appareil</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Nouveau profil d'appareil</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Aucun profil d'appareil trouvé</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Lecture directe</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Débit max</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Par défaut</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Priorité</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Modifier</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Définir par défaut</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Oui</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Non</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Échec du chargement des profils d'appareil</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Profil par défaut défini</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Le profil '{0}' a été défini comme profil par défaut</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Échec de la définition du profil par défaut</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profil supprimé</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Le profil '{0}' a été supprimé</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Échec de la suppression du profil</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Voulez-vous vraiment supprimer le profil '{0}' ?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Supprimer le profil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Détails du profil d'appareil</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Entrez le nom du profil</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Le nom du profil est requis</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Activer la lecture directe</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Codec cible</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Sélectionnez un codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Débit max</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Entrez le débit en kbps</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Débit maximal en kilobits par seconde</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Taux d'échantillonnage</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Entrez le taux d'échantillonnage en Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Taux d'échantillonnage cible en hertz</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Entrez la priorité (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Les valeurs plus élevées ont une priorité plus élevée</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Faire de ce profil le profil par défaut</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profil mis à jour</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Le profil '{0}' a été mis à jour</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profil créé</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Le profil '{0}' a été créé</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Échec de la mise à jour du profil</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Échec de la création du profil</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>L'opération a échoué</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Modifier le profil d'appareil</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>Comptes Liés</value>
   </data>

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using System.Text;
 
 namespace Melodee.Common.Models.OpenSubsonic;
@@ -5,7 +6,7 @@ namespace Melodee.Common.Models.OpenSubsonic;
 public record Artists(
     string IgnoredArticles,
     string LastModified,
-    ArtistIndex[] Index
+    [property: JsonPropertyName("index")] ArtistIndex[] Index
 ) : IOpenSubsonicToXml
 {
     public string ToXml(string? nodeName = null)

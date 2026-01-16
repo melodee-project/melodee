@@ -312,6 +312,96 @@ public static class SubsonicSchemaValidator
                 ["album"] = new FieldDefinition { Type = FieldType.Array, ItemType = "AlbumChild" }
             }
         },
+        ["internetRadioStations"] = new ElementDefinition
+        {
+            TypeName = "InternetRadioStations",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["internetRadioStation"] = new FieldDefinition { Type = FieldType.Array, ItemType = "InternetRadioStation" }
+            }
+        },
+        ["InternetRadioStation"] = new ElementDefinition
+        {
+            TypeName = "InternetRadioStation",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["name"] = FieldType.String,
+                ["streamUrl"] = FieldType.String,
+                ["homePageUrl"] = FieldType.String
+            },
+            RequiredAttributes = new[] { "id", "name", "streamUrl" }
+        },
+        ["scanStatus"] = new ElementDefinition
+        {
+            TypeName = "ScanStatus",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["scanning"] = FieldType.Boolean,
+                ["count"] = FieldType.Integer
+            },
+            RequiredAttributes = new[] { "scanning", "count" }
+        },
+        ["shares"] = new ElementDefinition
+        {
+            TypeName = "Shares",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["share"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Share" }
+            }
+        },
+        ["Share"] = new ElementDefinition
+        {
+            TypeName = "Share",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["url"] = FieldType.String,
+                ["description"] = FieldType.String,
+                ["username"] = FieldType.String,
+                ["created"] = FieldType.DateTime,
+                ["expires"] = FieldType.DateTime,
+                ["lastVisited"] = FieldType.DateTime,
+                ["visitCount"] = FieldType.Integer
+            },
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            },
+            RequiredAttributes = new[] { "id", "url", "username", "created", "visitCount" }
+        },
+        ["similarSongs"] = new ElementDefinition
+        {
+            TypeName = "SimilarSongs",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["similarSongs2"] = new ElementDefinition
+        {
+            TypeName = "SimilarSongs2",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["songsByGenre"] = new ElementDefinition
+        {
+            TypeName = "SongsByGenre",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["topSongs"] = new ElementDefinition
+        {
+            TypeName = "TopSongs",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
         ["AlbumChild"] = new ElementDefinition
         {
             TypeName = "AlbumChild",

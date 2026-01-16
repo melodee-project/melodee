@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>장치 프로필</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>장치 프로필 관리</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>새 장치 프로필</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>장치 프로필을 찾을 수 없음</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>이름</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>다이렉트 재생</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>코덱</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>최대 비트레이트</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>기본값</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>우선순위</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>작업</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>편집</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>기본으로 설정</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>삭제</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>예</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>아니요</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>장치 프로필 로드 실패</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>기본 프로필 설정됨</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>프로필 '{0}'이(가) 기본으로 설정됨</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>기본 프로필 설정 실패</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>프로필 삭제됨</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>프로필 '{0}'이(가) 삭제됨</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>프로필 삭제 실패</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>정말로 '{0}' 프로필을 삭제하시겠습니까?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>프로필 삭제</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>장치 프로필 세부 정보</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>프로필 이름 입력</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>프로필 이름은 필수입니다</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>다이렉트 재생 사용</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>대상 코덱</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>코덱 선택</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>최대 비트레이트</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>비트레이트를 kbps 단위로 입력</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>초당 최대 킬로비트 단위의 비트레이트</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>리샘플링 주파수</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>리샘플링 주파수를 Hz 단위로 입력</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>헤르츠 단위의 대상 샘플링 주파수</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>우선순위 입력 (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>값이 높을수록 우선순위가 높습니다</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>이 프로필을 기본으로 설정</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>프로필 업데이트됨</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>프로필 '{0}'이(가) 업데이트됨</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>프로필 생성됨</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>프로필 '{0}'이(가) 생성됨</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>프로필 업데이트 실패</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>프로필 생성 실패</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>작업 실패</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>장치 프로필 편집</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

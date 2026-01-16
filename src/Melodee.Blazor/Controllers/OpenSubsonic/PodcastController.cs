@@ -623,9 +623,22 @@ public class PodcastController(
         {
             dataPropertyName = "error";
         }
-        else if (data is StatusResponse)
+        else if (data is StatusResponse statusResponse)
         {
             dataPropertyName = "status";
+            var dataDetailPropertyName = "status";
+            var dataToSerialize = statusResponse.Status;
+
+            return new ResponseModel
+            {
+                UserInfo = UserInfo.BlankUserInfo,
+                ResponseData = await openSubsonicApiService.NewApiResponse(
+                    !isError,
+                    dataPropertyName,
+                    dataDetailPropertyName,
+                    isError ? (Error)data : null,
+                    dataToSerialize).ConfigureAwait(false)
+            };
         }
         else if (data.GetType().Name.Contains("Channel"))
         {

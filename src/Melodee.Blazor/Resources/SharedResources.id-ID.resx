@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Profil Perangkat</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Kelola Profil Perangkat</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Profil Perangkat Baru</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Tidak ada profil perangkat yang ditemukan</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Nama</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Mainkan Langsung</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Bitrate Maks</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Bawaan</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Prioritas</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Tindakan</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Atur sebagai bawaan</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Hapus</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Ya</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Tidak</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Gagal memuat profil perangkat</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Profil bawaan diatur</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Profil '{0}' telah diatur sebagai bawaan</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Gagal mengatur profil bawaan</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profil dihapus</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Profil '{0}' telah dihapus</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Gagal menghapus profil</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Apakah Anda yakin ingin menghapus profil '{0}'?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Hapus Profil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Detail Profil Perangkat</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Masukkan nama profil</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Nama profil wajib diisi</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Aktifkan Mainkan Langsung</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Codec Target</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Pilih codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Bitrate Maks</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Masukkan bitrate dalam kbps</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Bitrate maksimum dalam kilobit per detik</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Frekuensi Pengambilan Ulang</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Masukkan frekuensi pengambilan ulang dalam Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Frekuensi pengambilan target dalam hertz</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Masukkan prioritas (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Nilai lebih tinggi memiliki prioritas lebih tinggi</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Jadikan profil ini sebagai bawaan</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profil diperbarui</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Profil '{0}' telah diperbarui</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profil dibuat</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Profil '{0}' telah dibuat</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Gagal memperbarui profil</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Gagal membuat profil</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Operasi gagal</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Edit Profil Perangkat</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

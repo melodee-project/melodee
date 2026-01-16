@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Enhetsprofiler</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Hantera enhetsprofiler</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Ny enhetsprofil</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Inga enhetsprofiler hittades</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Namn</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Direktuppspelning</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max bithastighet</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Standard</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Prioritet</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Åtgärder</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Redigera</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Ange som standard</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Ta bort</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Ja</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Nej</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Det gick inte att läsa in enhetsprofiler</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Standardprofil inställd</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Profilen '{0}' har ställts in som standard</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Det gick inte att ange standardprofil</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profil borttagen</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Profilen '{0}' har tagits bort</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Det gick inte att ta bort profilen</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Är du säker på att du vill ta bort profilen '{0}'?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Ta bort profil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Enhetsprofildetaljer</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Ange profilnamn</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Profilnamn krävs</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Aktivera direktuppspelning</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Mål-codec</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Välj en codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max bithastighet</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Ange bithastighet i kbps</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Maximal bithastighet i kilobit per sekund</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Omsamplingsfrekvens</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Ange omsamplingsfrekvens i Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Mål-samplingsfrekvens i hertz</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Ange prioritet (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Högre värden har högre prioritet</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Gör detta till standardprofilen</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profil uppdaterad</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Profilen '{0}' har uppdaterats</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profil skapad</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Profilen '{0}' har skapats</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Det gick inte att uppdatera profilen</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Det gick inte att skapa profilen</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Åtgärden misslyckades</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Redigera enhetsprofil</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

@@ -599,6 +599,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>جارٍ الحفظ...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>ملفات تعريف الجهاز</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>إدارة ملفات تعريف الجهاز</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>ملف تعريف جهاز جديد</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>لم يتم العثور على ملفات تعريف الجهاز</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>الاسم</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>التشغيل المباشر</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>الترميز</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>أقصى معدل بت</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>الافتراضي</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>الأولوية</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>الإجراءات</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>تعديل</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>تعيين كافتراضي</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>نعم</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>لا</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>فشل تحميل ملفات تعريف الجهاز</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>تم تعيين الملف الافتراضي</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>تم تعيين ملف '{0}' كملف افتراضي</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>فشل في تعيين الملف الافتراضي</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>تم حذف الملف</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>تم حذف ملف '{0}'</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>فشل في حذف الملف</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>هل أنت متأكد من أنك تريد حذف الملف '{0}'؟</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>حذف الملف</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>تفاصيل ملف تعريف الجهاز</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>أدخل اسم الملف</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>اسم الملف مطلوب</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>تمكين التشغيل المباشر</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>ترميز الهدف</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>اختر ترميزًا</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>أقصى معدل بت</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>أدخل معدل البت بالكيلوبت في الثانية</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>أقصى معدل بت بالكيلوبت في الثانية</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>معدل أخذ العينات</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>أدخل معدل أخذ العينات بالهرتز</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>معدل أخذ العينات الهدف بالهرتز</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>أدخل الأولوية (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>القيم الأعلى لها أولوية أعلى</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>اجعل هذا الملف هو الافتراضي</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>تم تحديث الملف</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>تم تحديث ملف '{0}'</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>تم إنشاء الملف</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>تم إنشاء ملف '{0}'</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>فشل تحديث الملف</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>فشل إنشاء الملف</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>فشلت العملية</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>تعديل ملف تعريف الجهاز</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>الحسابات المرتبطة</value>
   </data>

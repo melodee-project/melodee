@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Profily zařízení</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Správa profilů zařízení</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Nový profil zařízení</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Nebyly nalezeny žádné profily zařízení</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Název</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Přímé přehrávání</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Kodek</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max. datový tok</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Výchozí</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Priorita</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Akce</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Upravit</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Nastavit jako výchozí</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Smazat</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Ano</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Ne</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Načtení profilů zařízení se nezdařilo</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Výchozí profil nastaven</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Profil '{0}' byl nastaven jako výchozí</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Nastavení výchozího profilu se nezdařilo</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profil smazán</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Profil '{0}' byl smazán</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Smazání profilu se nezdařilo</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Opravdu chcete smazat profil '{0}'?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Smazat profil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Podrobnosti profilu zařízení</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Zadejte název profilu</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Název profilu je povinný</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Povolit přímé přehrávání</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Cílový kodek</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Vyberte kodek</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max. datový tok</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Zadejte datový tok v kb/s</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Maximální datový tok v kilobitech za sekundu</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Vzorkovací frekvence</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Zadejte vzorkovací frekvenci ve Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Cílová vzorkovací frekvence v hertzích</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Zadejte prioritu (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Vyšší hodnoty mají vyšší prioritu</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Nastavit tento profil jako výchozí</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profil aktualizován</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Profil '{0}' byl aktualizován</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profil vytvořen</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Profil '{0}' byl vytvořen</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Aktualizace profilu se nezdařila</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Vytvoření profilu se nezdařilo</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Operace se nezdařila</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Upravit profil zařízení</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

@@ -599,6 +599,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>保存中...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>设备配置文件</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>管理设备配置文件</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>新建设备配置文件</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>未找到设备配置文件</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>直接播放</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>编解码器</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>最大比特率</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>默认</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>优先级</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>编辑</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>设为默认</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>否</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>加载设备配置文件失败</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>已设置默认配置文件</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>配置文件 '{0}' 已被设为默认</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>设置默认配置文件失败</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>配置文件已删除</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>配置文件 '{0}' 已被删除</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>删除配置文件失败</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>您确定要删除配置文件 '{0}' 吗？</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>删除配置文件</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>设备配置文件详情</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>输入配置文件名称</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>配置文件名称为必填项</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>启用直接播放</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>目标编解码器</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>选择一个编解码器</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>最大比特率</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>输入比特率（kbps）</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>最大比特率，单位为千比特每秒</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>重采样率</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>输入重采样率（Hz）</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>目标采样率，单位为赫兹</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>输入优先级（0-100）</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>数值越高优先级越高</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>将此配置文件设为默认</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>配置文件已更新</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>配置文件 '{0}' 已更新</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>配置文件已创建</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>配置文件 '{0}' 已创建</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>更新配置文件失败</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>创建配置文件失败</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>操作失败</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>编辑设备配置文件</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>关联账户</value>
   </data>

@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>پروفایل‌های دستگاه</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>مدیریت پروفایل‌های دستگاه</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>پروفایل جدید دستگاه</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>هیچ پروفایل دستگاهی یافت نشد</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>نام</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>پخش مستقیم</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>کدک</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>حداکثر بیت ریت</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>پیش فرض</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>اولویت</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>عملیات</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>ویرایش</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>تنظیم به عنوان پیش فرض</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>بله</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>خیر</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>بارگذاری پروفایل‌های دستگاه ناموفق بود</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>پروفایل پیش فرض تنظیم شد</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>پروفایل '{0}' به عنوان پیش فرض تنظیم شد</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>تنظیم پروفایل پیش فرض ناموفق بود</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>پروفایل حذف شد</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>پروفایل '{0}' حذف شد</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>حذف پروفایل ناموفق بود</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>آیا از حذف پروفایل '{0}' مطمئن هستید؟</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>حذف پروفایل</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>جزئیات پروفایل دستگاه</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>نام پروفایل را وارد کنید</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>نام پروفایل الزامی است</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>فعال سازی پخش مستقیم</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>کدک هدف</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>یک کدک انتخاب کنید</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>حداکثر بیت ریت</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>بیت ریت را به kb/s وارد کنید</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>حداکثر بیت ریت به کیلوبیت در ثانیه</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>نرخ نمونه گیری مجدد</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>نرخ نمونه گیری مجدد را به Hz وارد کنید</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>نرخ نمونه گیری هدف به هرتز</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>اولویت را وارد کنید (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>مقادیر بالاتر اولویت بیشتری دارند</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>تنظیم این پروفایل به عنوان پیش فرض</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>پروفایل به روز شد</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>پروفایل '{0}' به روز شد</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>پروفایل ایجاد شد</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>پروفایل '{0}' ایجاد شد</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>به روزرسانی پروفایل ناموفق بود</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>ایجاد پروفایل ناموفق بود</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>عملیات ناموفق بود</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>ویرایش پروفایل دستگاه</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>

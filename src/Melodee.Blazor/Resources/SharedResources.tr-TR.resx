@@ -946,6 +946,150 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Cihaz Profilleri</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Cihaz Profillerini Yönet</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Yeni Cihaz Profili</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Cihaz profili bulunamadı</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>İsim</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Doğrudan Oynatma</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Kodek</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max Bit Hızı</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Varsayılan</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Öncelik</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>İşlemler</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Düzenle</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Varsayılan olarak ayarla</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Sil</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Evet</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Hayır</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Cihaz profilleri yüklenemedi</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Varsayılan profil ayarlandı</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>'{0}' profili varsayılan olarak ayarlandı</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Varsayılan profil ayarlanamadı</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profil silindi</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>'{0}' profili silindi</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Profil silinemedi</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>'{0}' profilini silmek istediğinizden emin misiniz?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Profili Sil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Cihaz Profili Detayları</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Profil adını girin</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Profil adı gereklidir</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Doğrudan oynatmayı etkinleştir</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Hedef Kodek</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Bir kodek seçin</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Max Bit Hızı</value>
+  </data>
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Bit hızını kbps cinsinden girin</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Massimum bit hızı (kilobit/saniye)</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Yeniden Örnekleme Oranı</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Yeniden örnekleme oranını Hz cinsinden girin</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Hedef örnekleme oranı (hertz)</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Önceliği girin (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Daha yüksek değerler daha yüksek önceliğe sahiptir</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Bu profili varsayılan yap</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profil güncellendi</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>'{0}' profili güncellendi</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profil oluşturuldu</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>'{0}' profili oluşturuldu</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Profil güncellenemedi</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Profil oluşturulamadı</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>İşlem başarısız oldu</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Cihaz Profilini Düzenle</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>
