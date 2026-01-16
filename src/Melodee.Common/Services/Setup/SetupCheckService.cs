@@ -4,7 +4,6 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
-using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Common.Services.Setup;

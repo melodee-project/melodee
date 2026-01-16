@@ -1,14 +1,10 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Setup;
-using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
-using Serilog;
 
 namespace Melodee.Blazor.Services;
 

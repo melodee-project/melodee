@@ -1,5 +1,3 @@
-using Melodee.Common.Data.Models;
-
 namespace Melodee.Common.Services.Doctor;
 
 /// <summary>

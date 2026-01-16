@@ -1,3 +1,4 @@
+using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -41,8 +42,10 @@ public class DoctorServiceTests : IDisposable
     private IDbContextFactory<MelodeeDbContext> CreateContextFactory()
     {
         var factory = new Mock<IDbContextFactory<MelodeeDbContext>>();
-        factory.Setup(x => x.CreateDbContext(It.IsAny<CancellationToken>()))
+        factory.Setup(x => x.CreateDbContext())
             .Returns(CreateContext);
+        factory.Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .Returns((CancellationToken _) => Task.FromResult(CreateContext()));
         return factory.Object;
     }
 

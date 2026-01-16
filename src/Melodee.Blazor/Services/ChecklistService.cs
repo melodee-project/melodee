@@ -1,14 +1,11 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
-using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
-using Melodee.Common.Services.Setup;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 
 namespace Melodee.Blazor.Services;
 
