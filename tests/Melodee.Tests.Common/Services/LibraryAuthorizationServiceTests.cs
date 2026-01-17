@@ -89,6 +89,10 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
+            context.LibraryAccessControls.RemoveRange(context.LibraryAccessControls);
+            context.Libraries.RemoveRange(context.Libraries);
+            await context.SaveChangesAsync();
+
             var user = new User { Id = 7, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var libraries = new[]
             {
@@ -115,6 +119,10 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
+            context.LibraryAccessControls.RemoveRange(context.LibraryAccessControls);
+            context.Libraries.RemoveRange(context.Libraries);
+            await context.SaveChangesAsync();
+
             var user = new User { Id = 8, UserName = "testuser", UserNameNormalized = "TESTUSER", Email = "test@example.com", EmailNormalized = "TEST@EXAMPLE.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var group = new UserGroup { Id = 801, Name = "Test Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var unrestrictedLib = new Library { Id = 801, Name = "Public", Path = "/public", Type = (int)Melodee.Common.Enums.LibraryType.Storage, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
@@ -149,6 +157,10 @@ public class LibraryAuthorizationServiceTests : ServiceTestBase
         var service = CreateLibraryAuthorizationService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
+            context.LibraryAccessControls.RemoveRange(context.LibraryAccessControls);
+            context.Libraries.RemoveRange(context.Libraries);
+            await context.SaveChangesAsync();
+
             var user1 = new User { Id = 201, UserName = "user1", UserNameNormalized = "USER1", Email = "user1@test.com", EmailNormalized = "USER1@TEST.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var user2 = new User { Id = 202, UserName = "user2", UserNameNormalized = "USER2", Email = "user2@test.com", EmailNormalized = "USER2@TEST.COM", PublicKey = Guid.NewGuid().ToString(), PasswordEncrypted = string.Empty, ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };
             var groupA = new UserGroup { Id = 2001, Name = "Group A", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() };

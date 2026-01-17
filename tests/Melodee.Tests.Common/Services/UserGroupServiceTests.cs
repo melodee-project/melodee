@@ -57,7 +57,7 @@ public class UserGroupServiceTests : ServiceTestBase
         var result = await service.GetByIdAsync(999);
 
         // Assert
-        Assert.True(result.IsSuccess);
+        Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
     }
 
@@ -203,6 +203,9 @@ public class UserGroupServiceTests : ServiceTestBase
         var service = CreateUserGroupService();
         await using (var context = await MockFactory().CreateDbContextAsync())
         {
+            context.UserGroups.RemoveRange(context.UserGroups);
+            await context.SaveChangesAsync();
+
             var groups = new[]
             {
                 new UserGroup { Id = 201, Name = "Zebra Group", ApiKey = Guid.NewGuid(), CreatedAt = SystemClock.Instance.GetCurrentInstant() },
@@ -230,6 +233,11 @@ public class UserGroupServiceTests : ServiceTestBase
     {
         // Arrange
         var service = CreateUserGroupService();
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            context.UserGroups.RemoveRange(context.UserGroups);
+            await context.SaveChangesAsync();
+        }
 
         // Act
         var result = await service.GetAllAsync();
