@@ -68,7 +68,10 @@
     <PackageReference Include="Asp.Versioning.Http" />
     <PackageReference Include="Blazored.SessionStorage" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
     <PackageReference Include="Quartz.AspNetCore" />
     <PackageReference Include="Quartz.Jobs" />
