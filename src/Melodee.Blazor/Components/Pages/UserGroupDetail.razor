@@ -1,0 +1,219 @@
+@page "/usergroup/{ApiKey}"
+@using System.Globalization
+@using NodaTime
+@using Melodee.Common.Data
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Data.Models.Extensions
+@using Melodee.Common.Services
+@inherits MelodeeComponentBase
+
+@inject UserGroupService UserGroupService
+@inject NavigationManager NavigationManager
+@inject ILogger Logger
+@inject NotificationService NotificationService
+
+<PageTitle>@L("UserDetail.PageTitle", _groupName)</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb Class="rz-pb-5">
+        <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
+        <RadzenBreadCrumbItem Path="/admin/usergroups" Text="@L("Navigation.UserGroups")"/>
+        <RadzenBreadCrumbItem Icon="group" Text="@_groupName"/>
+    </RadzenBreadCrumb>
+
+    @if (_userGroup == null && !_isLoading)
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H5">@L("UserDetail.UserNotFound")</RadzenText>
+        </RadzenCard>
+    }
+    else if (_isLoading)
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.Body1">@L("Messages.Loading")</RadzenText>
+        </RadzenCard>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenStack Gap="0.5rem">
+                <RadzenText TextStyle="TextStyle.H4" Text="@_userGroup!.Name"/>
+                @if (!string.IsNullOrWhiteSpace(_userGroup.Description))
+                {
+                    <RadzenText TextStyle="TextStyle.Body1" Text="@_userGroup.Description"/>
+                }
+                <RadzenText TextStyle="TextStyle.Caption" Text="@L("Common.CreatedAt")"/>
+                <RadzenText TextStyle="TextStyle.Body2">@(CurrentUser?.FormatInstant(_userGroup.CreatedAt) ?? FormatDate(_userGroup.CreatedAt.ToDateTimeUtc()))</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+
+        @if (_members.Any())
+        {
+            <RadzenCard>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.H6" Text="@L("UserGroups.Members")"/>
+                    <RadzenDataGrid TItem="UserGroupMember"
+                                    Data="@_members"
+                                    AllowPaging="false"
+                                    AllowSorting="false"
+                                    AllowFiltering="false"
+                                    Density="Density.Compact">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="UserGroupMember" Property="User.UserName" Title="@L("Auth.Username")" Width="200px">
+                                <Template Context="member">
+                                    <RadzenButton Style="font-size: inherit;" Size="ButtonSize.ExtraSmall"
+                                                  Click="@(() => NavigationManager.NavigateTo($"/user/{member.User!.ToApiKey()}"))"
+                                                  ButtonStyle="ButtonStyle.Secondary"
+                                                  Variant="Variant.Flat"
+                                                  Text="@member.User!.UserName"/>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="UserGroupMember" Property="User.Email" Title="@L("Auth.Email")" Width="250px"/>
+                            <RadzenDataGridColumn TItem="UserGroupMember" Title="@L("Common.Created")" Width="150px">
+                                <Template Context="member">
+                                    @(CurrentUser?.FormatInstant(member.CreatedAt) ?? FormatDate(member.CreatedAt.ToDateTimeUtc()))
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenStack>
+            </RadzenCard>
+        }
+        else
+        {
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.Body1" Text="@L("Messages.NoResults")"/>
+            </RadzenCard>
+        }
+
+        @if (_userGroup!.LibraryAccessControls?.Any() == true)
+        {
+            <RadzenCard>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.H6" Text="@L("UserGroups.LibraryAccess")"/>
+                    <RadzenDataGrid TItem="LibraryAccessControl"
+                                    Data="@_userGroup.LibraryAccessControls"
+                                    AllowPaging="false"
+                                    AllowSorting="false"
+                                    AllowFiltering="false"
+                                    Density="Density.Compact">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="LibraryAccessControl" Property="Library.Name" Title="@L("Data.Name")" Width="250px">
+                                <Template Context="lac">
+                                    <RadzenButton Style="font-size: inherit;" Size="ButtonSize.ExtraSmall"
+                                                  Click="@(() => NavigationManager.NavigateTo($"/data/library/{lac.Library!.ToApiKey()}"))"
+                                                  ButtonStyle="ButtonStyle.Secondary"
+                                                  Variant="Variant.Flat"
+                                                  Text="@lac.Library!.Name"/>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="LibraryAccessControl" Property="Library.Path" Title="@L("Data.Directory")" Width="300px"/>
+                            <RadzenDataGridColumn TItem="LibraryAccessControl" Property="Library.Type" Title="@L("Common.Type")" Width="100px">
+                                <Template Context="lac">
+                                    @lac.Library!.TypeValue
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="LibraryAccessControl" Title="@L("Common.Created")" Width="150px">
+                                <Template Context="lac">
+                                    @(CurrentUser?.FormatInstant(lac.CreatedAt) ?? FormatDate(lac.CreatedAt.ToDateTimeUtc()))
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenStack>
+            </RadzenCard>
+        }
+        else
+        {
+            <RadzenCard>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.H6" Text="@L("UserGroups.LibraryAccess")"/>
+                    <RadzenText TextStyle="TextStyle.Body1" Text="@L("UserGroups.NoExplicitLibraryAccess")"/>
+                </RadzenStack>
+            </RadzenCard>
+        }
+    }
+</RadzenStack>
+
+@code {
+    [Parameter]
+    public string ApiKey { get; set; } = string.Empty;
+
+    UserGroup? _userGroup;
+    List<UserGroupMember> _members = [];
+    string _groupName = string.Empty;
+    bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(ApiKey))
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.InvalidApiKeyFormat") });
+                _isLoading = false;
+                return;
+            }
+
+            var apiKeyResult = ParseUserGroupApiKey(ApiKey);
+            if (!apiKeyResult.HasValue)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.InvalidApiKeyFormat") });
+                _isLoading = false;
+                return;
+            }
+
+            var userGroupResult = await UserGroupService.GetByApiKeyAsync(apiKeyResult.Value);
+            if (!userGroupResult.IsSuccess || userGroupResult.Data == null)
+            {
+                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.UserNotFound") });
+                _isLoading = false;
+                return;
+            }
+
+            _userGroup = userGroupResult.Data;
+            _groupName = _userGroup.Name;
+
+            if (_userGroup.Members != null)
+            {
+                _members = _userGroup.Members.ToList();
+            }
+        }
+        catch (Exception e)
+        {
+            Logger.Error(e, L("UserDetail.ErrorLoadingUserDetail"));
+            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = e.Message });
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    Guid? ParseUserGroupApiKey(string apiKeyInput)
+    {
+        if (string.IsNullOrWhiteSpace(apiKeyInput))
+        {
+            return null;
+        }
+
+        if (Guid.TryParse(apiKeyInput, out var directGuid))
+        {
+            return directGuid;
+        }
+
+        const string userGroupPrefix = "usergroup_";
+        if (apiKeyInput.StartsWith(userGroupPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var guidPart = apiKeyInput.Substring(userGroupPrefix.Length);
+            if (Guid.TryParse(guidPart, out var parsedGuid))
+            {
+                return parsedGuid;
+            }
+        }
+
+        return null;
+    }
+}

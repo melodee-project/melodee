@@ -37,6 +37,7 @@ public sealed class UserGroupService : ServiceBase
                 .Include(x => x.Members)
                 .ThenInclude(x => x.User)
                 .Include(x => x.LibraryAccessControls)
+                .ThenInclude(x => x.Library)
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
                 .ConfigureAwait(false);
         }, cancellationToken);
