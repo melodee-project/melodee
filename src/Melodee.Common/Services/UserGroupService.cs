@@ -137,6 +137,7 @@ public sealed class UserGroupService : ServiceBase
             };
         }
 
+        userGroup.CreatedAt = SystemClock.Instance.GetCurrentInstant();
         scopedContext.UserGroups.Add(userGroup);
         await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
