@@ -4,7 +4,6 @@ using Ardalis.GuardClauses;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
-using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
@@ -120,8 +119,8 @@ public class PlaylistImportService(
         {
             UserId = userId,
             OriginalFileName = originalFileName,
-            ContentType = originalFileName.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase) 
-                ? "audio/x-mpegurl; charset=utf-8" 
+            ContentType = originalFileName.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+                ? "audio/x-mpegurl; charset=utf-8"
                 : "audio/x-mpegurl",
             Length = fileContent.Length,
             Content = fileContent,
@@ -196,9 +195,9 @@ public class PlaylistImportService(
     private static Encoding DetectEncoding(byte[] fileContent)
     {
         // Check for UTF-8 BOM
-        if (fileContent.Length >= 3 && 
-            fileContent[0] == 0xEF && 
-            fileContent[1] == 0xBB && 
+        if (fileContent.Length >= 3 &&
+            fileContent[0] == 0xEF &&
+            fileContent[1] == 0xBB &&
             fileContent[2] == 0xBF)
         {
             return Encoding.UTF8;
