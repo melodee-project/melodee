@@ -567,6 +567,7 @@ builder.Services
     .AddScoped<RequestAutoCompletionService>()
     .AddScoped<RadioStationService>()
     .AddScoped<PlaylistService>()
+    .AddScoped<PlaylistImportService>()
     .AddScoped<Melodee.Common.Services.IThemeService, Melodee.Common.Services.ThemeService>()
     .AddScoped<ChartService>()
     .AddScoped<MelodeeMetadataMaker>()
