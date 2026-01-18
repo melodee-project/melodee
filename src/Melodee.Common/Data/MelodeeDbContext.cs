@@ -33,6 +33,10 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     public DbSet<PlaylistSong> PlaylistSong { get; set; }
 
+    public DbSet<PlaylistUploadedFile> PlaylistUploadedFiles { get; set; }
+
+    public DbSet<PlaylistUploadedFileItem> PlaylistUploadedFileItems { get; set; }
+
     public DbSet<PlayQueue> PlayQues { get; set; }
 
     public DbSet<RadioStation> RadioStations { get; set; }
