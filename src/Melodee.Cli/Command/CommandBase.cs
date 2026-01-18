@@ -123,6 +123,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<AlbumService>();
         services.AddScoped<SongService>();
         services.AddScoped<PlaylistService>();
+        services.AddScoped<PlaylistImportService>();
         services.AddScoped<PodcastService>();
         services.AddScoped<UserService>();
         services.AddScoped<UserGroupService>();
