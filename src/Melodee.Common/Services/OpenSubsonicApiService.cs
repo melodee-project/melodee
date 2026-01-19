@@ -63,6 +63,7 @@ public class OpenSubsonicApiService(
     ChartService chartService,
     ShareService shareService,
     RadioStationService radioStationService,
+    RadioStationUserPreferenceService radioStationUserPreferenceService,
     UserQueueService userQueueService,
     StatisticsService statisticsService,
     IBus bus,
@@ -3718,9 +3719,40 @@ public class OpenSubsonicApiService(
         try
         {
             var radioStationsResult = await radioStationService.GetAllAsync(cancellationToken);
-            if (radioStationsResult.IsSuccess)
+            if (radioStationsResult.IsSuccess && authResponse.UserInfo.Id > 0)
             {
-                data = radioStationsResult.Data.Select(x => x.ToApiInternetRadioStation()).ToList();
+                // Get user preferences to filter hidden stations and apply sort order
+                var preferencesResult = await radioStationUserPreferenceService.GetUserPreferencesAsync(
+                    authResponse.UserInfo.Id, 
+                    cancellationToken);
+                
+                var preferences = preferencesResult.Data?.ToDictionary(p => p.RadioStationId) ?? 
+                    new Dictionary<int, Common.Data.Models.RadioStationUserPreference>();
+
+                // Filter out hidden stations and apply user ordering
+                var filteredStations = radioStationsResult.Data
+                    .Where(s =>
+                    {
+                        var pref = preferences.GetValueOrDefault(s.Id);
+                        return pref == null || !pref.IsHidden;
+                    })
+                    .Select(s =>
+                    {
+                        var pref = preferences.GetValueOrDefault(s.Id);
+                        return new
+                        {
+                            Station = s,
+                            IsFavorite = pref?.IsFavorite ?? false,
+                            SortOrder = pref?.SortOrder ?? 1000
+                        };
+                    })
+                    .OrderByDescending(x => x.IsFavorite)
+                    .ThenBy(x => x.SortOrder)
+                    .ThenBy(x => x.Station.Name)
+                    .Select(x => x.Station.ToApiInternetRadioStation())
+                    .ToList();
+
+                data = filteredStations;
             }
         }
         catch (Exception e)
