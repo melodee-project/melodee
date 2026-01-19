@@ -29,11 +29,11 @@ public class IcyMetadataParser(ILogger logger)
             var httpClient = httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromSeconds(StreamReadTimeoutSeconds);
 
-            var request = new HttpRequestMessage(HttpMethod.Get, streamUrl);
+            using var request = new HttpRequestMessage(HttpMethod.Get, streamUrl);
             request.Headers.Add("Icy-MetaData", "1");
             request.Headers.Add("User-Agent", "Melodee/1.0");
 
-            var response = await httpClient.SendAsync(
+            using var response = await httpClient.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);

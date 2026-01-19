@@ -9,7 +9,6 @@ namespace Melodee.Common.Services;
 /// </summary>
 public class RadioStationProbeService(ILogger logger, IHttpClientFactory httpClientFactory)
 {
-    private const int MaxRedirects = 5;
     private const int ProbeTimeoutSeconds = 10;
     
     public record ProbeResult(
@@ -31,37 +30,41 @@ public class RadioStationProbeService(ILogger logger, IHttpClientFactory httpCli
             var httpClient = httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromSeconds(ProbeTimeoutSeconds);
             
-            // Try HEAD first
-            var request = new HttpRequestMessage(HttpMethod.Head, streamUrl);
-            request.Headers.Add("Icy-MetaData", "1");
-            request.Headers.Add("User-Agent", "Melodee/1.0");
-            
-            HttpResponseMessage? response = null;
             string? resolvedUrl = streamUrl;
+            HttpResponseMessage? response = null;
             
             try
             {
-                response = await httpClient.SendAsync(request, cancellationToken);
+                // Try HEAD first
+                using var headRequest = new HttpRequestMessage(HttpMethod.Head, streamUrl);
+                headRequest.Headers.Add("Icy-MetaData", "1");
+                headRequest.Headers.Add("User-Agent", "Melodee/1.0");
+                
+                response = await httpClient.SendAsync(headRequest, cancellationToken);
                 resolvedUrl = response.RequestMessage?.RequestUri?.ToString() ?? streamUrl;
             }
             catch (Exception headEx)
             {
+                response?.Dispose();
+                response = null;
+                
                 logger.Debug("HEAD request failed for {StreamUrl}, trying GET: {Error}", 
                     streamUrl, headEx.Message);
                 
                 // Fallback to GET with Range header
-                request = new HttpRequestMessage(HttpMethod.Get, streamUrl);
-                request.Headers.Add("Icy-MetaData", "1");
-                request.Headers.Add("User-Agent", "Melodee/1.0");
-                request.Headers.Add("Range", "bytes=0-8191");
+                using var getRequest = new HttpRequestMessage(HttpMethod.Get, streamUrl);
+                getRequest.Headers.Add("Icy-MetaData", "1");
+                getRequest.Headers.Add("User-Agent", "Melodee/1.0");
+                getRequest.Headers.Add("Range", "bytes=0-8191");
                 
                 try
                 {
-                    response = await httpClient.SendAsync(request, cancellationToken);
+                    response = await httpClient.SendAsync(getRequest, cancellationToken);
                     resolvedUrl = response.RequestMessage?.RequestUri?.ToString() ?? streamUrl;
                 }
                 catch (Exception getEx)
                 {
+                    response?.Dispose();
                     return new OperationResult<ProbeResult>
                     {
                         Data = new ProbeResult(
@@ -75,53 +78,56 @@ public class RadioStationProbeService(ILogger logger, IHttpClientFactory httpCli
                 }
             }
             
-            // Check if response indicates success
-            var isHealthy = response.IsSuccessStatusCode;
-            string? errorMessage = null;
-            
-            if (!isHealthy)
+            using (response)
             {
-                errorMessage = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
-            }
-            
-            // Extract content type
-            var contentType = response.Content.Headers.ContentType?.MediaType;
-            
-            // Validate content type for audio streams
-            if (isHealthy && contentType != null)
-            {
-                var isAudioContent = contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) ||
-                                    contentType.Equals("application/ogg", StringComparison.OrdinalIgnoreCase);
+                // Check if response indicates success
+                var isHealthy = response.IsSuccessStatusCode;
+                string? errorMessage = null;
                 
-                if (!isAudioContent)
+                if (!isHealthy)
                 {
-                    isHealthy = false;
-                    errorMessage = $"Invalid content type: {contentType}";
+                    errorMessage = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
                 }
-            }
-            
-            // Try to extract bitrate from ICY headers
-            int? bitrateKbps = null;
-            if (response.Headers.TryGetValues("icy-br", out var icyBrValues))
-            {
-                var brValue = icyBrValues.FirstOrDefault();
-                if (int.TryParse(brValue, out var br))
+                
+                // Extract content type
+                var contentType = response.Content.Headers.ContentType?.MediaType;
+                
+                // Validate content type for audio streams
+                if (isHealthy && contentType != null)
                 {
-                    bitrateKbps = br;
+                    var isAudioContent = contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) ||
+                                        contentType.Equals("application/ogg", StringComparison.OrdinalIgnoreCase);
+                    
+                    if (!isAudioContent)
+                    {
+                        isHealthy = false;
+                        errorMessage = $"Invalid content type: {contentType}";
+                    }
                 }
+                
+                // Try to extract bitrate from ICY headers
+                int? bitrateKbps = null;
+                if (response.Headers.TryGetValues("icy-br", out var icyBrValues))
+                {
+                    var brValue = icyBrValues.FirstOrDefault();
+                    if (int.TryParse(brValue, out var br))
+                    {
+                        bitrateKbps = br;
+                    }
+                }
+                
+                var result = new ProbeResult(
+                    isHealthy,
+                    resolvedUrl,
+                    contentType,
+                    bitrateKbps,
+                    errorMessage);
+                
+                return new OperationResult<ProbeResult>
+                {
+                    Data = result
+                };
             }
-            
-            var result = new ProbeResult(
-                isHealthy,
-                resolvedUrl,
-                contentType,
-                bitrateKbps,
-                errorMessage);
-            
-            return new OperationResult<ProbeResult>
-            {
-                Data = result
-            };
         }
         catch (Exception ex)
         {
