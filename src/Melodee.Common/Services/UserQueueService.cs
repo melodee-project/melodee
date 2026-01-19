@@ -46,12 +46,18 @@ public class UserQueueService(
         }
 
         var current = usersPlayQues.FirstOrDefault(x => x.IsCurrentSong);
+        // Get the most recent LastUpdatedAt from any queue item, or use CreatedAt as fallback
+        var lastUpdated = usersPlayQues
+            .Select(x => x.LastUpdatedAt ?? x.CreatedAt)
+            .Max();
+        var changedDateTime = lastUpdated.ToString("yyyy-MM-ddTHH:mm:ss", null);
+        
         return new PlayQueue
         {
             Current = current?.PlayQueId ?? 0,
             Position = current?.Position ?? 0,
             ChangedBy = current?.ChangedBy ?? user.Data.UserName,
-            Changed = current?.LastUpdatedAt.ToString() ?? string.Empty,
+            Changed = changedDateTime,
             Username = user.Data.UserName,
             Entry = usersPlayQues.Select(x => x.Song.ToApiChild(x.Song.Album, null)).ToArray()
         };

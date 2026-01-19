@@ -124,19 +124,16 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
                     services.AddDbContextFactory<MelodeeDbContext>(options =>
                     {
                         options.UseInMemoryDatabase("OpenSubsonicTestDb");
-                        options.UseInternalServiceProvider(InMemoryProvider);
                     });
 
                     services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
                     {
                         options.UseInMemoryDatabase("OpenSubsonicTestDb_ArtistSearchEngine");
-                        options.UseInternalServiceProvider(InMemoryProvider);
                     });
 
                     services.AddDbContextFactory<MusicBrainzDbContext>(options =>
                     {
                         options.UseInMemoryDatabase("OpenSubsonicTestDb_MusicBrainz");
-                        options.UseInternalServiceProvider(InMemoryProvider);
                     });
 
                     // Replace DefaultImages singleton with test version that doesn't require files
@@ -168,6 +165,14 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.EnsureCreatedAsync();
+
+        var artistSearchEngineFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ArtistSearchEngineServiceDbContext>>();
+        await using var artistSearchEngineContext = await artistSearchEngineFactory.CreateDbContextAsync();
+        await artistSearchEngineContext.Database.EnsureCreatedAsync();
+
+        var musicBrainzFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>();
+        await using var musicBrainzContext = await musicBrainzFactory.CreateDbContextAsync();
+        await musicBrainzContext.Database.EnsureCreatedAsync();
 
         await CreateTestUserAsync(context);
         await CreateTestLibraryAsync(context);
