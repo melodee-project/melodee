@@ -1292,4 +1292,94 @@ public class PlaylistService(
             Data = returnPrefixedApiKey ? newPlaylist.ToApiKey() : newPlaylist.ApiKey.ToString()
         };
     }
+
+    /// <summary>
+    /// Exports a playlist as M3U content that can be imported back.
+    /// </summary>
+    /// <param name="apiKey">The playlist API key.</param>
+    /// <param name="userInfo">The user requesting the export.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The M3U content as a string.</returns>
+    public async Task<OperationResult<string>> ExportPlaylistAsM3UAsync(
+        Guid apiKey,
+        UserInfo userInfo,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(_ => apiKey == Guid.Empty, apiKey, nameof(apiKey));
+
+        var playlistResult = await GetByApiKeyAsync(userInfo, apiKey, cancellationToken).ConfigureAwait(false);
+        if (!playlistResult.IsSuccess || playlistResult.Data == null)
+        {
+            return new OperationResult<string>(["Playlist not found."])
+            {
+                Data = string.Empty,
+                Type = OperationResponseType.NotFound
+            };
+        }
+
+        // Get all songs for the playlist (no pagination for export)
+        var songsResult = await SongsForPlaylistAsync(
+            apiKey,
+            userInfo,
+            new PagedRequest { PageSize = short.MaxValue },
+            cancellationToken).ConfigureAwait(false);
+
+        if (!songsResult.IsSuccess || !songsResult.Data.Any())
+        {
+            return new OperationResult<string>(["Playlist has no songs."])
+            {
+                Data = string.Empty,
+                Type = OperationResponseType.ValidationFailure
+            };
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("#EXTM3U");
+        sb.AppendLine($"#PLAYLIST:{playlistResult.Data.Name}");
+
+        // Need to get the filenames for the songs - query the database
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var songIds = songsResult.Data.Select(s => s.Id).ToArray();
+        var songsWithFilenames = await scopedContext.Songs
+            .AsNoTracking()
+            .Include(s => s.Album)
+            .ThenInclude(a => a.Artist)
+            .Where(s => songIds.Contains(s.Id))
+            .Select(s => new
+            {
+                s.Id,
+                s.Title,
+                s.FileName,
+                s.Duration,
+                AlbumName = s.Album.Name,
+                ArtistName = s.Album.Artist.Name
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // Create a dictionary for quick lookup, maintaining playlist order
+        var songLookup = songsWithFilenames.ToDictionary(s => s.Id);
+
+        foreach (var song in songsResult.Data)
+        {
+            if (songLookup.TryGetValue(song.Id, out var songData))
+            {
+                // Duration in seconds (rounded)
+                var durationSeconds = (int)Math.Round(songData.Duration / 1000.0);
+
+                // EXTINF format: #EXTINF:duration,artist - title
+                sb.AppendLine($"#EXTINF:{durationSeconds},{songData.ArtistName} - {songData.Title}");
+
+                // Path format: Artist/Album/Filename (matches import parser expectations)
+                var path = $"{songData.ArtistName}/{songData.AlbumName}/{songData.FileName}";
+                sb.AppendLine(path);
+            }
+        }
+
+        return new OperationResult<string>
+        {
+            Data = sb.ToString()
+        };
+    }
 }
