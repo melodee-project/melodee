@@ -3,6 +3,8 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
+using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
+using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -92,10 +94,48 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
+                    // Remove existing ArtistSearchEngineServiceDbContext registrations
+                    var artistSearchEngineDescriptors = services.Where(d =>
+                            d.ServiceType == typeof(DbContextOptions<ArtistSearchEngineServiceDbContext>) ||
+                            d.ServiceType == typeof(IDbContextFactory<ArtistSearchEngineServiceDbContext>) ||
+                            d.ServiceType == typeof(IDbContextOptionsConfiguration<ArtistSearchEngineServiceDbContext>) ||
+                            d.ServiceType == typeof(IConfigureOptions<DbContextOptions<ArtistSearchEngineServiceDbContext>>))
+                        .ToList();
+
+                    foreach (var descriptor in artistSearchEngineDescriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    // Remove existing MusicBrainzDbContext registrations
+                    var musicBrainzDescriptors = services.Where(d =>
+                            d.ServiceType == typeof(DbContextOptions<MusicBrainzDbContext>) ||
+                            d.ServiceType == typeof(IDbContextFactory<MusicBrainzDbContext>) ||
+                            d.ServiceType == typeof(IDbContextOptionsConfiguration<MusicBrainzDbContext>) ||
+                            d.ServiceType == typeof(IConfigureOptions<DbContextOptions<MusicBrainzDbContext>>))
+                        .ToList();
+
+                    foreach (var descriptor in musicBrainzDescriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
                     // Add DbContextFactory with in-memory database
                     services.AddDbContextFactory<MelodeeDbContext>(options =>
                     {
                         options.UseInMemoryDatabase("OpenSubsonicTestDb");
+                        options.UseInternalServiceProvider(InMemoryProvider);
+                    });
+
+                    services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase("OpenSubsonicTestDb_ArtistSearchEngine");
+                        options.UseInternalServiceProvider(InMemoryProvider);
+                    });
+
+                    services.AddDbContextFactory<MusicBrainzDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase("OpenSubsonicTestDb_MusicBrainz");
                         options.UseInternalServiceProvider(InMemoryProvider);
                     });
 

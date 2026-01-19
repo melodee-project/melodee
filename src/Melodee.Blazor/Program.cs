@@ -145,16 +145,21 @@ if (int.TryParse(envMaxPool, out var maxPool) && maxPool > 0)
 }
 var effectiveConnString = npgsqlBuilder.ToString();
 
-builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
-    opt.UseNpgsql(effectiveConnString, o
-        => o.UseNodaTime()
-            .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
+// Skip database registration if running in integration test mode (tests provide their own)
+var skipDbRegistration = Environment.GetEnvironmentVariable("MELODEE_SKIP_DB_REGISTRATION") == "true";
+if (!skipDbRegistration)
+{
+    builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
+        opt.UseNpgsql(effectiveConnString, o
+            => o.UseNodaTime()
+                .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
-builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
-    => opt.UseSqlite(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection")));
+    builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
+        => opt.UseSqlite(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection")));
 
-builder.Services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
-    opt.UseSqlite(builder.Configuration.GetConnectionString("MusicBrainzConnection")));
+    builder.Services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
+        opt.UseSqlite(builder.Configuration.GetConnectionString("MusicBrainzConnection")));
+}
 
 builder.Services.AddApiVersioning(options =>
     {

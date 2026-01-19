@@ -1,6 +1,8 @@
 using System.Net;
 using FluentAssertions;
 using Melodee.Common.Data;
+using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
+using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services.Security;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -69,9 +71,47 @@ public class SecurityHeadersIntegrationTests : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
+                    // Remove existing ArtistSearchEngineServiceDbContext registrations
+                    var artistSearchEngineDescriptors = services.Where(d =>
+                            d.ServiceType == typeof(DbContextOptions<ArtistSearchEngineServiceDbContext>) ||
+                            d.ServiceType == typeof(IDbContextFactory<ArtistSearchEngineServiceDbContext>) ||
+                            d.ServiceType == typeof(IDbContextOptionsConfiguration<ArtistSearchEngineServiceDbContext>) ||
+                            d.ServiceType == typeof(IConfigureOptions<DbContextOptions<ArtistSearchEngineServiceDbContext>>))
+                        .ToList();
+
+                    foreach (var descriptor in artistSearchEngineDescriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    // Remove existing MusicBrainzDbContext registrations
+                    var musicBrainzDescriptors = services.Where(d =>
+                            d.ServiceType == typeof(DbContextOptions<MusicBrainzDbContext>) ||
+                            d.ServiceType == typeof(IDbContextFactory<MusicBrainzDbContext>) ||
+                            d.ServiceType == typeof(IDbContextOptionsConfiguration<MusicBrainzDbContext>) ||
+                            d.ServiceType == typeof(IConfigureOptions<DbContextOptions<MusicBrainzDbContext>>))
+                        .ToList();
+
+                    foreach (var descriptor in musicBrainzDescriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
                     services.AddDbContextFactory<MelodeeDbContext>(options =>
                     {
                         options.UseInMemoryDatabase("SecurityHeadersTests");
+                        options.UseInternalServiceProvider(_inMemoryProvider);
+                    });
+
+                    services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase("SecurityHeadersTests_ArtistSearchEngine");
+                        options.UseInternalServiceProvider(_inMemoryProvider);
+                    });
+
+                    services.AddDbContextFactory<MusicBrainzDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase("SecurityHeadersTests_MusicBrainz");
                         options.UseInternalServiceProvider(_inMemoryProvider);
                     });
 
