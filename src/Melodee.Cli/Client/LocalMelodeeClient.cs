@@ -22,6 +22,11 @@ public class LocalMelodeeClient : IMelodeeClient
         _userProfileService = userProfileService;
     }
 
+    public void Dispose()
+    {
+        // Nothing to dispose for local mode
+    }
+
     public async Task<SystemInfoDto> GetSystemInfoAsync(CancellationToken cancellationToken = default)
     {
         var configuration = await _configurationFactory.GetConfigurationAsync(cancellationToken);

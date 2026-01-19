@@ -8,7 +8,7 @@ namespace Melodee.Cli.Client;
 /// - LocalMelodeeClient: uses local services directly
 /// - RemoteMelodeeClient: uses HTTP client to call REST API
 /// </summary>
-public interface IMelodeeClient
+public interface IMelodeeClient : IDisposable
 {
     /// <summary>
     /// Get system information (version, name, description).

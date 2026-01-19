@@ -7,7 +7,7 @@ namespace Melodee.Cli.CommandSettings;
 /// Global settings that apply to all commands.
 /// These can be specified before the command name.
 /// </summary>
-public class GlobalSettings : Spectre.Console.Cli.CommandSettings
+public class GlobalSettings : UserSettings
 {
     [CommandOption("--server <URL>")]
     [Description("Remote Melodee server URL (e.g., https://demo.melodee.org)")]

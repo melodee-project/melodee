@@ -1,3 +1,5 @@
+using Melodee.Cli.Client;
+using Melodee.Cli.Configuration;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Metadata;
@@ -149,5 +151,42 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Create a Melodee client based on the provided settings.
+    /// If server is specified, returns RemoteMelodeeClient, otherwise LocalMelodeeClient.
+    /// </summary>
+    protected IMelodeeClient CreateMelodeeClient(CommandSettings.GlobalSettings settings)
+    {
+        using var _  = Serilog.Context.LogContext.PushProperty("Method", nameof(CreateMelodeeClient));
+
+        var options = RemoteModeOptions.Resolve(settings.Server, settings.Token, settings.Profile);
+
+        if (options.IsRemoteMode)
+        {
+            if (string.IsNullOrWhiteSpace(options.Token))
+            {
+                Console.Error.WriteLine("ERROR: Missing API token. Provide --token, MELODEE_TOKEN, or a config profile token.");
+                Environment.Exit(2);
+            }
+
+            // Warn if token was passed on command line
+            if (!string.IsNullOrWhiteSpace(settings.Token))
+            {
+                Console.Error.WriteLine("WARNING: Passing tokens on the command line can leak secrets via shell history. Prefer MELODEE_TOKEN or config profiles.");
+            }
+
+            return new Client.RemoteMelodeeClient(options.GetApiBaseUrl(), options.Token);
+        }
+        else
+        {
+            // Local mode - use existing service provider
+            var serviceProvider = CreateServiceProvider();
+            var configFactory = serviceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
+            var userProfileService = serviceProvider.GetRequiredService<UserProfileService>();
+
+            return new Client.LocalMelodeeClient(configFactory, userProfileService);
+        }
     }
 }
