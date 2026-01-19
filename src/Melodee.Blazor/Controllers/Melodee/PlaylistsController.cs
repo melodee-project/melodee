@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Melodee.Blazor.Controllers.Melodee.Models.Requests;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -29,6 +30,7 @@ public sealed class PlaylistsController(
     EtagRepository etagRepository,
     UserProfileService userProfileService,
     PlaylistService playlistService,
+    PlaylistImportService playlistImportService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
     etagRepository,
@@ -233,6 +235,72 @@ public sealed class PlaylistsController(
 
         var baseUrl = await GetBaseUrlAsync(cancellationToken).ConfigureAwait(false);
         return Ok(playlistResult.Data.ToPlaylistModel(baseUrl, user.ToUserModel(baseUrl)));
+    }
+
+    /// <summary>
+    /// Import an M3U/M3U8 playlist file.
+    /// </summary>
+    [HttpPost]
+    [Route("import")]
+    [ProducesResponseType(typeof(Models.PlaylistImportResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ImportPlaylist(IFormFile file, string? playlistName, CancellationToken cancellationToken = default)
+    {
+        if (!ApiRequest.IsAuthorized)
+        {
+            return ApiUnauthorized();
+        }
+
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
+        if (user == null)
+        {
+            return ApiUnauthorized();
+        }
+
+        if (user.IsLocked)
+        {
+            return ApiUserLocked();
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            return ApiValidationError("Playlist file is required.");
+        }
+
+        var fileName = file.FileName;
+        if (!fileName.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase) && !fileName.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiValidationError("Only .m3u and .m3u8 files are supported.");
+        }
+
+        byte[] fileContent;
+        using (var memoryStream = new MemoryStream())
+        {
+            await file.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
+            fileContent = memoryStream.ToArray();
+        }
+
+        var importResult = await playlistImportService.ImportPlaylistAsync(
+            user.Id,
+            fileName,
+            fileContent,
+            playlistName,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!importResult.IsSuccess || importResult.Data == null)
+        {
+            return ApiBadRequest(importResult.Messages?.FirstOrDefault() ?? "Unable to import playlist.");
+        }
+
+        var result = new Models.PlaylistImportResult(
+            importResult.Data.PlaylistApiKey,
+            importResult.Data.TotalEntries,
+            importResult.Data.MatchedCount,
+            importResult.Data.MissingCount,
+            importResult.Data.MissingReferences.ToArray());
+
+        return Ok(result);
     }
 
     /// <summary>

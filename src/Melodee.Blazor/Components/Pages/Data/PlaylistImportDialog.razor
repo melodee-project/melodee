@@ -1,0 +1,162 @@
+@inject PlaylistImportService PlaylistImportService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+@inject ILogger Logger
+@inject IJSRuntime JS
+
+<RadzenStack Gap="1rem">
+    <RadzenAlert AlertStyle="AlertStyle.Info" Shade="Shade.Lighter" AllowClose="false">
+        <RadzenText TextStyle="TextStyle.Subtitle2">@L("PlaylistImportDialog.Title")</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2">@L("PlaylistImportDialog.Description")</RadzenText>
+    </RadzenAlert>
+
+    <RadzenFormField Text="@L("PlaylistImportDialog.PlaylistName")" Variant="Variant.Outlined" Style="width: 100%;">
+        <RadzenTextBox @bind-Value="@_playlistName" Placeholder="@L("PlaylistImportDialog.PlaylistNamePlaceholder")"/>
+    </RadzenFormField>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+        <InputFile OnChange="@OnFileSelected" accept=".m3u,.m3u8" style="display: none;" id="playlistFileInput"/>
+        <RadzenButton Text="@L("PlaylistImportDialog.SelectFile")" Icon="upload_file" ButtonStyle="ButtonStyle.Secondary" Click="@TriggerFileInput"/>
+        <RadzenText TextStyle="TextStyle.Caption" Style="align-self: center;">@_fileName</RadzenText>
+    </RadzenStack>
+
+    @if (_validationErrors.Any())
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" AllowClose="false">
+            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                @foreach (var error in _validationErrors)
+                {
+                    <li><RadzenText TextStyle="TextStyle.Body2">@error</RadzenText></li>
+                }
+            </ul>
+        </RadzenAlert>
+    }
+
+    @if (_importResult != null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Success" Shade="Shade.Lighter" AllowClose="false">
+            <RadzenText TextStyle="TextStyle.Subtitle2">@L("PlaylistImportDialog.ImportSuccess")</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">
+                <strong>@L("PlaylistImportDialog.TotalEntries"):</strong> @_importResult.TotalEntries<br/>
+                <strong>@L("PlaylistImportDialog.MatchedCount"):</strong> @_importResult.MatchedCount<br/>
+                <strong>@L("PlaylistImportDialog.MissingCount"):</strong> @_importResult.MissingCount
+            </RadzenText>
+            @if (_importResult.MissingReferences?.Any() == true)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" Style="margin-top: 0.5rem; display: block;">
+                    <strong>@L("PlaylistImportDialog.MissingReferences"):</strong>
+                </RadzenText>
+                <ul style="margin: 0.25rem 0; padding-left: 1.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                    @foreach (var ref in _importResult.MissingReferences.Take(10))
+                    {
+                        <li>@ref</li>
+                    }
+                    @if (_importResult.MissingReferences.Length > 10)
+                    {
+                        <li>... (@(_importResult.MissingReferences.Length - 10) @L("PlaylistImportDialog.MoreMissing"))</li>
+                    }
+                </ul>
+            }
+        </RadzenAlert>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+        <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Light" Click="@Cancel"/>
+        <RadzenButton Text="@L("Actions.Import")" Icon="download" ButtonStyle="ButtonStyle.Primary" Click="@ImportPlaylist" Disabled="@_fileContent == null || _isImporting"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    string _playlistName = string.Empty;
+    string _fileName = string.Empty;
+    byte[]? _fileContent;
+    List<string> _validationErrors = [];
+    bool _isImporting;
+    PlaylistImportService.PlaylistImportResult? _importResult;
+
+    async Task TriggerFileInput()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('playlistFileInput').click()");
+    }
+
+    async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            _fileName = file.Name;
+            _validationErrors.Clear();
+            _importResult = null;
+
+            if (!file.Name.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase) && !file.Name.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
+            {
+                _validationErrors.Add(L("PlaylistImportDialog.Error.InvalidFileType"));
+                _fileContent = null;
+                return;
+            }
+
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            _fileContent = memoryStream.ToArray();
+        }
+    }
+
+    async Task ImportPlaylist()
+    {
+        if (_fileContent == null) return;
+
+        _isImporting = true;
+        _validationErrors.Clear();
+        _importResult = null;
+
+        try
+        {
+            var userId = CurrentUser?.UserId() ?? 0;
+            if (userId == 0)
+            {
+                _validationErrors.Add(L("PlaylistImportDialog.Error.NotAuthenticated"));
+                return;
+            }
+
+            var result = await PlaylistImportService.ImportPlaylistAsync(
+                userId,
+                _fileName,
+                _fileContent,
+                string.IsNullOrWhiteSpace(_playlistName) ? null : _playlistName);
+
+            if (!result.IsSuccess || result.Data == null)
+            {
+                _validationErrors.Add(result.Messages?.FirstOrDefault() ?? L("PlaylistImportDialog.Error.ImportFailed"));
+                return;
+            }
+
+            _importResult = result.Data;
+
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = L("PlaylistImportDialog.ImportSuccess"),
+                Detail = string.Format(L("PlaylistImportDialog.ImportSuccessDetail"), result.Data.MatchedCount, result.Data.TotalEntries),
+                Duration = 5000
+            });
+
+            await Task.Delay(1000);
+            DialogService.Close(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error importing playlist {FileName}", _fileName);
+            _validationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+
+    void Cancel()
+    {
+        DialogService.Close(false);
+    }
+}

@@ -4832,8 +4832,56 @@
   <data name="DynamicPlaylistImportDialog.ImportSuccessDetail" xml:space="preserve">
     <value>Dynamic playlist '{0}' has been imported as {1}</value>
   </data>
+  <data name="PlaylistImportDialog.Title" xml:space="preserve">
+    <value>Import M3U/M3U8 Playlist</value>
+  </data>
+  <data name="PlaylistImportDialog.Description" xml:space="preserve">
+    <value>Upload an M3U or M3U8 playlist file to import songs into a new Melodee playlist. Songs that match your library will be added immediately. Missing songs will be tracked and can be added later.</value>
+  </data>
+  <data name="PlaylistImportDialog.PlaylistName" xml:space="preserve">
+    <value>Playlist Name</value>
+  </data>
+  <data name="PlaylistImportDialog.PlaylistNamePlaceholder" xml:space="preserve">
+    <value>Leave empty to use filename</value>
+  </data>
+  <data name="PlaylistImportDialog.SelectFile" xml:space="preserve">
+    <value>Select M3U/M3U8 File</value>
+  </data>
+  <data name="PlaylistImportDialog.Error.InvalidFileType" xml:space="preserve">
+    <value>Only .m3u and .m3u8 files are supported</value>
+  </data>
+  <data name="PlaylistImportDialog.Error.NotAuthenticated" xml:space="preserve">
+    <value>You must be logged in to import playlists</value>
+  </data>
+  <data name="PlaylistImportDialog.Error.ImportFailed" xml:space="preserve">
+    <value>Failed to import playlist</value>
+  </data>
+  <data name="PlaylistImportDialog.ImportSuccess" xml:space="preserve">
+    <value>Import Successful</value>
+  </data>
+  <data name="PlaylistImportDialog.ImportSuccessDetail" xml:space="preserve">
+    <value>Imported {0} of {1} songs. Missing songs will be tracked.</value>
+  </data>
+  <data name="PlaylistImportDialog.TotalEntries" xml:space="preserve">
+    <value>Total Entries</value>
+  </data>
+  <data name="PlaylistImportDialog.MatchedCount" xml:space="preserve">
+    <value>Matched Songs</value>
+  </data>
+  <data name="PlaylistImportDialog.MissingCount" xml:space="preserve">
+    <value>Missing Songs</value>
+  </data>
+  <data name="PlaylistImportDialog.MissingReferences" xml:space="preserve">
+    <value>Missing References</value>
+  </data>
+  <data name="PlaylistImportDialog.MoreMissing" xml:space="preserve">
+    <value>more</value>
+  </data>
   <data name="Actions.ImportDynamicPlaylist" xml:space="preserve">
     <value>Import Dynamic Playlist</value>
+  </data>
+  <data name="Actions.ImportPlaylist" xml:space="preserve">
+    <value>Import Playlist</value>
   </data>
   <data name="SettingDetail.BasicInformation" xml:space="preserve">
     <value>Basic Information</value>
