@@ -67,7 +67,7 @@ public class RemoteModeOptions
         }
 
         var url = Server.TrimEnd('/');
-        
+
         // Ensure we don't have /api/v1 already appended
         if (url.EndsWith("/api/v1", StringComparison.OrdinalIgnoreCase))
         {

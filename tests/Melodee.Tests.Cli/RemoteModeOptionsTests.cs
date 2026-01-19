@@ -14,14 +14,14 @@ public class RemoteModeOptionsTests
         // Arrange
         Environment.SetEnvironmentVariable("MELODEE_SERVER", "https://env.example.com");
         Environment.SetEnvironmentVariable("MELODEE_TOKEN", "env-token");
-        
+
         // Act
         var options = RemoteModeOptions.Resolve("https://cli.example.com", "cli-token", null);
-        
+
         // Assert
         options.Server.Should().Be("https://cli.example.com");
         options.Token.Should().Be("cli-token");
-        
+
         // Cleanup
         Environment.SetEnvironmentVariable("MELODEE_SERVER", null);
         Environment.SetEnvironmentVariable("MELODEE_TOKEN", null);
@@ -33,14 +33,14 @@ public class RemoteModeOptionsTests
         // Arrange
         Environment.SetEnvironmentVariable("MELODEE_SERVER", "https://env.example.com");
         Environment.SetEnvironmentVariable("MELODEE_TOKEN", "env-token");
-        
+
         // Act
         var options = RemoteModeOptions.Resolve(null, null, null);
-        
+
         // Assert
         options.Server.Should().Be("https://env.example.com");
         options.Token.Should().Be("env-token");
-        
+
         // Cleanup
         Environment.SetEnvironmentVariable("MELODEE_SERVER", null);
         Environment.SetEnvironmentVariable("MELODEE_TOKEN", null);
@@ -51,10 +51,10 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var options = new RemoteModeOptions { Server = "https://example.com/" };
-        
+
         // Act
         var normalized = options.GetNormalizedBaseUrl();
-        
+
         // Assert
         normalized.Should().Be("https://example.com");
     }
@@ -64,10 +64,10 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var options = new RemoteModeOptions { Server = "https://example.com/api/v1" };
-        
+
         // Act
         var normalized = options.GetNormalizedBaseUrl();
-        
+
         // Assert
         normalized.Should().Be("https://example.com");
     }
@@ -77,10 +77,10 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var options = new RemoteModeOptions { Server = "https://example.com" };
-        
+
         // Act
         var apiUrl = options.GetApiBaseUrl();
-        
+
         // Assert
         apiUrl.Should().Be("https://example.com/api/v1");
     }
@@ -90,10 +90,10 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var token = "12345678-1234-1234-1234-123456789012";
-        
+
         // Act
         var masked = RemoteModeOptions.MaskToken(token);
-        
+
         // Assert
         masked.Should().Be("********-****-****-****-************");
     }
@@ -103,10 +103,10 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var token = "short";
-        
+
         // Act
         var masked = RemoteModeOptions.MaskToken(token);
-        
+
         // Assert
         masked.Should().Be("*****");
     }
@@ -116,7 +116,7 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var options = new RemoteModeOptions { Server = "https://example.com" };
-        
+
         // Act & Assert
         options.IsRemoteMode.Should().BeTrue();
     }
@@ -126,7 +126,7 @@ public class RemoteModeOptionsTests
     {
         // Arrange
         var options = new RemoteModeOptions { Server = null };
-        
+
         // Act & Assert
         options.IsRemoteMode.Should().BeFalse();
     }

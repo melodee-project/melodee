@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Melodee.Cli.Client;
 using Melodee.Cli.CommandSettings;
-using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Melodee.Cli.Command;
@@ -22,7 +21,7 @@ public class SearchCommand : CommandBase<SearchSettings>
                 null, // Type - search all types
                 (short)settings.Limit
             );
-            
+
             var searchResults = await client.SearchAsync(request, cancellationToken);
 
             if (settings.Json)

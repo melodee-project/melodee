@@ -1,11 +1,8 @@
+using System.Text.Json;
 using Melodee.Cli.Client;
 using Melodee.Cli.CommandSettings;
-using Melodee.Common.Models;
-using Melodee.Common.Services;
-using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using System.Text.Json;
 
 namespace Melodee.Cli.Command;
 

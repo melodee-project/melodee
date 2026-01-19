@@ -46,7 +46,7 @@ public static class McliConfigurationLoader
     public static McliConfiguration Load()
     {
         var configPath = GetConfigFilePath();
-        
+
         if (!File.Exists(configPath))
         {
             return new McliConfiguration();

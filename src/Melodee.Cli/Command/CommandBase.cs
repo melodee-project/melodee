@@ -159,7 +159,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
     /// </summary>
     protected IMelodeeClient CreateMelodeeClient(CommandSettings.GlobalSettings settings)
     {
-        using var _  = Serilog.Context.LogContext.PushProperty("Method", nameof(CreateMelodeeClient));
+        using var _ = Serilog.Context.LogContext.PushProperty("Method", nameof(CreateMelodeeClient));
 
         var options = RemoteModeOptions.Resolve(settings.Server, settings.Token, settings.Profile);
 

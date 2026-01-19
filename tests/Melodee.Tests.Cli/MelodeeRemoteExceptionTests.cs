@@ -16,10 +16,10 @@ public class MelodeeRemoteExceptionTests
             "Network error",
             null,
             MelodeeRemoteException.RemoteErrorType.NetworkError);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(10);
     }
@@ -32,10 +32,10 @@ public class MelodeeRemoteExceptionTests
             "Timeout",
             null,
             MelodeeRemoteException.RemoteErrorType.Timeout);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(11);
     }
@@ -49,10 +49,10 @@ public class MelodeeRemoteExceptionTests
             null,
             MelodeeRemoteException.RemoteErrorType.Unauthorized,
             401);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(12);
         exception.HttpStatusCode.Should().Be(401);
@@ -67,10 +67,10 @@ public class MelodeeRemoteExceptionTests
             null,
             MelodeeRemoteException.RemoteErrorType.Forbidden,
             403);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(12);
         exception.HttpStatusCode.Should().Be(403);
@@ -85,10 +85,10 @@ public class MelodeeRemoteExceptionTests
             null,
             MelodeeRemoteException.RemoteErrorType.NotFound,
             404);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(13);
     }
@@ -102,10 +102,10 @@ public class MelodeeRemoteExceptionTests
             null,
             MelodeeRemoteException.RemoteErrorType.ServerError,
             500);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(14);
     }
@@ -118,10 +118,10 @@ public class MelodeeRemoteExceptionTests
             "Unexpected error",
             null,
             MelodeeRemoteException.RemoteErrorType.UnexpectedError);
-        
+
         // Act
         var exitCode = exception.GetExitCode();
-        
+
         // Assert
         exitCode.Should().Be(15);
     }

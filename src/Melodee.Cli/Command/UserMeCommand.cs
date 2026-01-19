@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Melodee.Cli.Client;
 using Melodee.Cli.CommandSettings;
-using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Melodee.Cli.Command;

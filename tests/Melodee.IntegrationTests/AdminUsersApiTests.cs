@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using FluentAssertions;
-using Melodee.Blazor.Controllers.Melodee.Models;
 using Xunit;
 
 namespace Melodee.IntegrationTests;

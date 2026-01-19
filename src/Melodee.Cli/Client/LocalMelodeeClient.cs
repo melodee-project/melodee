@@ -46,14 +46,14 @@ public class LocalMelodeeClient : IMelodeeClient
         // For now, we'll get the first admin user as a fallback
         // In reality, local mode might not have a "current user" context
         var usersResult = await _userProfileService.ListAsync(new PagedRequest { PageSize = 1 }, cancellationToken);
-        
+
         if (usersResult.Data == null || !usersResult.Data.Any())
         {
             throw new InvalidOperationException("No users found in local database");
         }
 
         var user = usersResult.Data.First();
-        
+
         return new UserMeDto(
             user.ApiKey, // Use ApiKey as Guid ID for consistency with API
             string.Empty, // ThumbnailUrl - not available in local mode without base URL
@@ -78,7 +78,7 @@ public class LocalMelodeeClient : IMelodeeClient
     public async Task<IReadOnlyList<AdminUserDto>> GetAdminUsersAsync(CancellationToken cancellationToken = default)
     {
         var result = await _userProfileService.ListAsync(new PagedRequest { PageSize = 1000 }, cancellationToken);
-        
+
         if (result.Data == null)
         {
             return [];

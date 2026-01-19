@@ -18,7 +18,7 @@ public class RemoteMelodeeClient : IMelodeeClient, IDisposable
     public RemoteMelodeeClient(string baseUrl, string token, string? userAgent = null)
     {
         _apiBaseUrl = baseUrl.TrimEnd('/') + "/api/v1";
-        
+
         _httpClient = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(30)
@@ -26,7 +26,7 @@ public class RemoteMelodeeClient : IMelodeeClient, IDisposable
 
         var version = typeof(RemoteMelodeeClient).Assembly.GetName().Version;
         var versionString = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "1.0.0";
-        
+
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent ?? $"mcli/{versionString}");
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -43,7 +43,7 @@ public class RemoteMelodeeClient : IMelodeeClient, IDisposable
         {
             var response = await _httpClient.GetAsync($"{_apiBaseUrl}/system/info", cancellationToken);
             await EnsureSuccessWithDetailedError(response);
-            
+
             var result = await response.Content.ReadFromJsonAsync<SystemInfoDto>(_jsonOptions, cancellationToken);
             return result ?? throw new InvalidOperationException("Failed to deserialize system info");
         }
@@ -63,7 +63,7 @@ public class RemoteMelodeeClient : IMelodeeClient, IDisposable
         {
             var response = await _httpClient.GetAsync($"{_apiBaseUrl}/user/me", cancellationToken);
             await EnsureSuccessWithDetailedError(response);
-            
+
             var result = await response.Content.ReadFromJsonAsync<UserMeDto>(_jsonOptions, cancellationToken);
             return result ?? throw new InvalidOperationException("Failed to deserialize user info");
         }
@@ -83,7 +83,7 @@ public class RemoteMelodeeClient : IMelodeeClient, IDisposable
         {
             var response = await _httpClient.GetAsync($"{_apiBaseUrl}/admin/users", cancellationToken);
             await EnsureSuccessWithDetailedError(response);
-            
+
             var result = await response.Content.ReadFromJsonAsync<List<AdminUserDto>>(_jsonOptions, cancellationToken);
             return result ?? new List<AdminUserDto>();
         }
@@ -103,14 +103,14 @@ public class RemoteMelodeeClient : IMelodeeClient, IDisposable
         {
             var response = await _httpClient.PostAsJsonAsync($"{_apiBaseUrl}/search", request, cancellationToken);
             await EnsureSuccessWithDetailedError(response);
-            
+
             // Parse as dynamic JSON since the structure can vary
             var jsonString = await response.Content.ReadAsStringAsync(cancellationToken);
             var doc = JsonDocument.Parse(jsonString);
-            
+
             var data = doc.RootElement.GetProperty("data");
             var meta = doc.RootElement.GetProperty("meta");
-            
+
             return new SearchResultsDto(
                 JsonSerializer.Deserialize<object>(data.GetRawText(), _jsonOptions) ?? new object(),
                 JsonSerializer.Deserialize<object>(meta.GetRawText(), _jsonOptions) ?? new object()
