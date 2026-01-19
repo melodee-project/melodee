@@ -1802,6 +1802,39 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     Comment = "Enable per-user and per-device transcoding profiles.",
                     Value = "true",
                     CreatedAt = seedDataTimestamp
+                },
+                new Setting
+                {
+                    Id = 1928,
+                    ApiKey = SeedGuid("Setting", 1928),
+                    Category = (int)SettingCategory.Jobs,
+                    Key = SettingRegistry.JobsRadioStationHealthProbeCronExpression,
+                    Comment =
+                        "Cron expression to run the radio station health probe job, set empty to disable. Default of '0 */15 * ? * *' runs every 15 minutes.",
+                    Value = "0 */15 * ? * *",
+                    CreatedAt = seedDataTimestamp
+                },
+                new Setting
+                {
+                    Id = 1929,
+                    ApiKey = SeedGuid("Setting", 1929),
+                    Category = (int)SettingCategory.Jobs,
+                    Key = SettingRegistry.JobsRadioStationNowPlayingCaptureCronExpression,
+                    Comment =
+                        "Cron expression to run the radio station now-playing capture job, set empty to disable. Default of '0 */5 * ? * *' runs every 5 minutes.",
+                    Value = "0 */5 * ? * *",
+                    CreatedAt = seedDataTimestamp
+                },
+                new Setting
+                {
+                    Id = 1930,
+                    ApiKey = SeedGuid("Setting", 1930),
+                    Category = (int)SettingCategory.Jobs,
+                    Key = SettingRegistry.JobsRadioStationNowPlayingHistoryCleanupCronExpression,
+                    Comment =
+                        "Cron expression to run the radio station now-playing history cleanup job, set empty to disable. Default of '0 0 3 ? * *' runs daily at 3 AM.",
+                    Value = "0 0 3 ? * *",
+                    CreatedAt = seedDataTimestamp
                 }
             );
         });

@@ -571,6 +571,9 @@ builder.Services
     .AddScoped<RequestActivityService>()
     .AddScoped<RequestAutoCompletionService>()
     .AddScoped<RadioStationService>()
+    .AddScoped<RadioStationProbeService>()
+    .AddScoped<RadioStationUserPreferenceService>()
+    .AddScoped<IcyMetadataParser>()
     .AddScoped<PlaylistService>()
     .AddScoped<PlaylistImportService>()
     .AddScoped<Melodee.Common.Services.IThemeService, Melodee.Common.Services.ThemeService>()
@@ -942,6 +945,48 @@ if (!isQuartzDisabled)
             TriggerBuilder.Create()
                 .WithIdentity("PodcastRecoveryJob-trigger")
                 .WithCronSchedule(podcastRecoveryCronExpression!)
+                .StartNow()
+                .Build());
+    }
+
+    var radioStationHealthProbeCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsRadioStationHealthProbeCronExpression);
+    if (radioStationHealthProbeCronExpression.Nullify() != null)
+    {
+        await quartzScheduler.ScheduleJob(
+            JobBuilder.Create<RadioStationHealthProbeJob>()
+                .WithIdentity(JobKeyRegistry.RadioStationHealthProbeJobKey)
+                .Build(),
+            TriggerBuilder.Create()
+                .WithIdentity("RadioStationHealthProbeJob-trigger")
+                .WithCronSchedule(radioStationHealthProbeCronExpression!)
+                .StartNow()
+                .Build());
+    }
+
+    var radioStationNowPlayingCaptureCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsRadioStationNowPlayingCaptureCronExpression);
+    if (radioStationNowPlayingCaptureCronExpression.Nullify() != null)
+    {
+        await quartzScheduler.ScheduleJob(
+            JobBuilder.Create<RadioStationNowPlayingCaptureJob>()
+                .WithIdentity(JobKeyRegistry.RadioStationNowPlayingCaptureJobKey)
+                .Build(),
+            TriggerBuilder.Create()
+                .WithIdentity("RadioStationNowPlayingCaptureJob-trigger")
+                .WithCronSchedule(radioStationNowPlayingCaptureCronExpression!)
+                .StartNow()
+                .Build());
+    }
+
+    var radioStationHistoryCleanupCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsRadioStationNowPlayingHistoryCleanupCronExpression);
+    if (radioStationHistoryCleanupCronExpression.Nullify() != null)
+    {
+        await quartzScheduler.ScheduleJob(
+            JobBuilder.Create<RadioStationNowPlayingHistoryCleanupJob>()
+                .WithIdentity(JobKeyRegistry.RadioStationNowPlayingHistoryCleanupJobKey)
+                .Build(),
+            TriggerBuilder.Create()
+                .WithIdentity("RadioStationNowPlayingHistoryCleanupJob-trigger")
+                .WithCronSchedule(radioStationHistoryCleanupCronExpression!)
                 .StartNow()
                 .Build());
     }
