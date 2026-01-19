@@ -1,3 +1,5 @@
+@inherits MelodeeComponentBase
+
 @inject PlaylistImportService PlaylistImportService
 @inject NotificationService NotificationService
 @inject DialogService DialogService
@@ -47,13 +49,13 @@
                     <strong>@L("PlaylistImportDialog.MissingReferences"):</strong>
                 </RadzenText>
                 <ul style="margin: 0.25rem 0; padding-left: 1.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
-                    @foreach (var ref in _importResult.MissingReferences.Take(10))
+                    @foreach (var missingRef in _importResult.MissingReferences.Take(10))
                     {
-                        <li>@ref</li>
+                        <li>@missingRef</li>
                     }
-                    @if (_importResult.MissingReferences.Length > 10)
+                    @if (_importResult.MissingReferences.Count > 10)
                     {
-                        <li>... (@(_importResult.MissingReferences.Length - 10) @L("PlaylistImportDialog.MoreMissing"))</li>
+                        <li>... (@(_importResult.MissingReferences.Count - 10) @L("PlaylistImportDialog.MoreMissing"))</li>
                     }
                 </ul>
             }
@@ -62,7 +64,7 @@
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
         <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Light" Click="@Cancel"/>
-        <RadzenButton Text="@L("Actions.Import")" Icon="download" ButtonStyle="ButtonStyle.Primary" Click="@ImportPlaylist" Disabled="@_fileContent == null || _isImporting"/>
+        <RadzenButton Text="@L("Actions.Import")" Icon="download" ButtonStyle="ButtonStyle.Primary" Click="@ImportPlaylist" Disabled="@(_fileContent == null || _isImporting)"/>
     </RadzenStack>
 </RadzenStack>
 
