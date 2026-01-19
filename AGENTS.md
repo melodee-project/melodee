@@ -70,6 +70,7 @@ See: [`.github/agents/`](./.github/agents/)
 - [`tdd-refactor.agent.md`](./.github/agents/tdd-refactor.agent.md): TDD Phase 3 - Clean up.
 - [`se-security-reviewer.agent.md`](./.github/agents/se-security-reviewer.agent.md): Security implementation and review.
 - [`playwright-tester.agent.md`](./.github/agents/playwright-tester.agent.md): End-to-end testing with Playwright.
+- [`blazor-dotnet10-developer.skill.md`](./.github/agents/blazor-dotnet10-developer.skill.md): Skill for generating Melodee Blazor Server (.NET 10/C# 13) UI code.
 
 ### 3. Prompt Library (`.github/prompts/`)
 Reusable prompts for common tasks to ensure consistency.
