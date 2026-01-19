@@ -41,6 +41,10 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     public DbSet<RadioStation> RadioStations { get; set; }
 
+    public DbSet<RadioStationUserPreference> RadioStationUserPreferences { get; set; }
+
+    public DbSet<RadioStationNowPlayingHistory> RadioStationNowPlayingHistories { get; set; }
+
     public DbSet<Setting> Settings { get; set; }
 
     public DbSet<SearchHistory> SearchHistories { get; set; }
@@ -2163,6 +2167,35 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
             lac.HasOne(x => x.UserGroup)
                 .WithMany(g => g.LibraryAccessControls)
                 .HasForeignKey(x => x.UserGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RadioStationUserPreference>(rsup =>
+        {
+            rsup.HasIndex(x => x.UserId);
+            rsup.HasIndex(x => x.RadioStationId);
+            rsup.HasIndex(x => new { x.UserId, x.RadioStationId }).IsUnique();
+
+            rsup.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            rsup.HasOne(x => x.RadioStation)
+                .WithMany()
+                .HasForeignKey(x => x.RadioStationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RadioStationNowPlayingHistory>(rsnph =>
+        {
+            rsnph.HasIndex(x => x.RadioStationId);
+            rsnph.HasIndex(x => x.CapturedAt);
+            rsnph.HasIndex(x => new { x.RadioStationId, x.CapturedAt });
+
+            rsnph.HasOne(x => x.RadioStation)
+                .WithMany()
+                .HasForeignKey(x => x.RadioStationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
