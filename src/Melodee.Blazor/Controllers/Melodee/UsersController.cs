@@ -1,7 +1,12 @@
 using Asp.Versioning;
+using Melodee.Blazor.Controllers.Melodee.Extensions;
+using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
+using Melodee.Common.Models;
 using Melodee.Common.Serialization;
+using Melodee.Common.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,10 +24,11 @@ namespace Melodee.Blazor.Controllers.Melodee;
 [ServiceFilter(typeof(MelodeeApiAuthFilter))]
 [EnableRateLimiting("melodee-api")]
 [ApiVersion(1)]
-[Route("api/v{version:apiVersion}/users")]
+[Route("api/v{version:apiVersion}/admin")]
 public class UsersController(
     ISerializer serializer,
     EtagRepository etagRepository,
+    UserProfileService userProfileService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
     etagRepository,
@@ -30,6 +36,51 @@ public class UsersController(
     configuration,
     configurationFactory)
 {
-    // Future admin user management endpoints will go here
-    // Examples: GET /users (list all users), GET /users/{id}, PUT /users/{id}, DELETE /users/{id}
+    /// <summary>
+    /// List all users (admin only).
+    /// Returns basic user information without sensitive data (no passwords, tokens, etc.).
+    /// </summary>
+    [HttpGet]
+    [Route("users")]
+    [RequireCapability(UserCapability.Admin)]
+    [ProducesResponseType(typeof(AdminUserInfo[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ListUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var currentUser = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
+        if (currentUser == null)
+        {
+            return ApiUnauthorized();
+        }
+
+        if (!currentUser.IsAdmin)
+        {
+            return ApiForbidden("Admin privileges required");
+        }
+
+        // Get all users (reasonable limit for admin operations)
+        var result = await userProfileService.ListAsync(new PagedRequest
+        {
+            PageSize = 1000,
+            OrderBy = new Dictionary<string, string> { { "UserName", "ASC" } }
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess || result.Data == null)
+        {
+            return Ok(Array.Empty<AdminUserInfo>());
+        }
+
+        var users = result.Data.Select(u => new AdminUserInfo(
+            u.ApiKey, // Use ApiKey as the unique identifier
+            u.UserName,
+            u.Email,
+            u.IsAdmin,
+            !u.IsLocked, // IsEnabled is inverse of IsLocked
+            u.CreatedAt.ToDateTimeUtc().ToString("o"),
+            u.LastLoginAt?.ToDateTimeUtc().ToString("o")
+        )).ToArray();
+
+        return Ok(users);
+    }
 }
