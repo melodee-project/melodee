@@ -1,14 +1,13 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace Melodee.IntegrationTests;
 
-public class OpenApiTests : IClassFixture<WebApplicationFactory<Program>>
+public class OpenApiTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
 
-    public OpenApiTests(WebApplicationFactory<Program> factory)
+    public OpenApiTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
     }
