@@ -28,9 +28,9 @@ public class RadioStationNowPlayingCaptureJob(
         Logger.Debug("[{JobName}] Starting now-playing capture", nameof(RadioStationNowPlayingCaptureJob));
 
         await using var dbContext = await contextFactory.CreateDbContextAsync(context.CancellationToken);
-        
+
         var cutoffTime = SystemClock.Instance.GetCurrentInstant().Minus(Duration.FromMinutes(HealthyThresholdMinutes));
-        
+
         // Only capture from stations that are healthy and were checked recently
         var eligibleStations = await dbContext.RadioStations
             .Where(s => s.LastHealthStatus == RadioStationHealthStatus.Ok &&
@@ -40,18 +40,18 @@ public class RadioStationNowPlayingCaptureJob(
 
         if (eligibleStations.Length == 0)
         {
-            Logger.Debug("[{JobName}] No eligible healthy stations found for now-playing capture", 
+            Logger.Debug("[{JobName}] No eligible healthy stations found for now-playing capture",
                 nameof(RadioStationNowPlayingCaptureJob));
             return;
         }
 
         var captureResults = new { SuccessCount = 0, SkipCount = 0 };
-        
+
         foreach (var station in eligibleStations)
         {
             if (context.CancellationToken.IsCancellationRequested)
             {
-                Logger.Information("[{JobName}] Cancellation requested, stopping now-playing capture", 
+                Logger.Information("[{JobName}] Cancellation requested, stopping now-playing capture",
                     nameof(RadioStationNowPlayingCaptureJob));
                 break;
             }
@@ -65,7 +65,7 @@ public class RadioStationNowPlayingCaptureJob(
             if (result.IsSuccess && result.Data != null && !string.IsNullOrWhiteSpace(result.Data.Title))
             {
                 var newTitle = result.Data.Title.Trim();
-                
+
                 // Only update if the title has changed
                 if (newTitle != station.NowPlayingRaw)
                 {
@@ -83,7 +83,7 @@ public class RadioStationNowPlayingCaptureJob(
                     dbContext.RadioStationNowPlayingHistories.Add(historyEntry);
 
                     captureResults = new { SuccessCount = captureResults.SuccessCount + 1, SkipCount = captureResults.SkipCount };
-                    
+
                     Logger.Debug("[{JobName}] Captured now-playing for station {StationId} ({StationName}): {Title}",
                         nameof(RadioStationNowPlayingCaptureJob),
                         station.Id,

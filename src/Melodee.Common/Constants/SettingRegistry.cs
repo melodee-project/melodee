@@ -98,7 +98,7 @@ public static class SettingRegistry
     public const string JobsPodcastDownloadCronExpression = "jobs.podcastDownload.cronExpression";
     public const string JobsPodcastCleanupCronExpression = "jobs.podcastCleanup.cronExpression";
     public const string JobsPodcastRecoveryCronExpression = "jobs.podcastRecovery.cronExpression";
-    
+
     // Radio Station Jobs
     public const string JobsRadioStationHealthProbeCronExpression = "jobs.radioStationHealthProbe.cronExpression";
     public const string JobsRadioStationNowPlayingCaptureCronExpression = "jobs.radioStationNowPlayingCapture.cronExpression";

@@ -3723,10 +3723,10 @@ public class OpenSubsonicApiService(
             {
                 // Get user preferences to filter hidden stations and apply sort order
                 var preferencesResult = await radioStationUserPreferenceService.GetUserPreferencesAsync(
-                    authResponse.UserInfo.Id, 
+                    authResponse.UserInfo.Id,
                     cancellationToken);
-                
-                var preferences = preferencesResult.Data?.ToDictionary(p => p.RadioStationId) ?? 
+
+                var preferences = preferencesResult.Data?.ToDictionary(p => p.RadioStationId) ??
                     new Dictionary<int, Common.Data.Models.RadioStationUserPreference>();
 
                 // Filter out hidden stations and apply user ordering

@@ -16,21 +16,21 @@ public record RadioStationDto
     public string? Tags { get; init; }
     public string? CountryCode { get; init; }
     public string? LanguageCode { get; init; }
-    
+
     // Logo
     public string? LogoUrl { get; init; }
     public string? LogoCachedUrl { get; init; }
-    
+
     // Health
     public RadioStationHealthStatus LastHealthStatus { get; init; }
     public Instant? LastHealthCheckAt { get; init; }
     public Instant? LastHealthOkAt { get; init; }
     public string? LastHealthError { get; init; }
-    
+
     // Now Playing
     public string? NowPlayingRaw { get; init; }
     public Instant? NowPlayingCapturedAt { get; init; }
-    
+
     // User Preferences
     public bool IsFavorite { get; init; }
     public bool IsHidden { get; init; }
@@ -87,7 +87,7 @@ public record RadioStationDiagnosticsDto
     public required int Id { get; init; }
     public required string Name { get; init; }
     public required string StreamUrl { get; init; }
-    
+
     // Health
     public RadioStationHealthStatus LastHealthStatus { get; init; }
     public Instant? LastHealthCheckAt { get; init; }
@@ -96,11 +96,11 @@ public record RadioStationDiagnosticsDto
     public string? LastResolvedStreamUrl { get; init; }
     public string? LastContentType { get; init; }
     public int? LastBitrateKbps { get; init; }
-    
+
     // Current Now Playing
     public string? NowPlayingRaw { get; init; }
     public Instant? NowPlayingCapturedAt { get; init; }
-    
+
     // Recent History
     public RadioStationNowPlayingHistoryDto[] RecentHistory { get; init; } = [];
 }

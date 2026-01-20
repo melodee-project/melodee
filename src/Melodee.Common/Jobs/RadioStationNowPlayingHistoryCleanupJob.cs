@@ -19,18 +19,18 @@ public class RadioStationNowPlayingHistoryCleanupJob(
 
     public override async Task Execute(IJobExecutionContext context)
     {
-        Logger.Debug("[{JobName}] Starting now-playing history cleanup", 
+        Logger.Debug("[{JobName}] Starting now-playing history cleanup",
             nameof(RadioStationNowPlayingHistoryCleanupJob));
 
         await using var dbContext = await contextFactory.CreateDbContextAsync(context.CancellationToken);
-        
+
         var stationIds = await dbContext.RadioStations
             .Select(s => s.Id)
             .ToArrayAsync(context.CancellationToken);
 
         if (stationIds.Length == 0)
         {
-            Logger.Debug("[{JobName}] No radio stations found for cleanup", 
+            Logger.Debug("[{JobName}] No radio stations found for cleanup",
                 nameof(RadioStationNowPlayingHistoryCleanupJob));
             return;
         }
@@ -41,7 +41,7 @@ public class RadioStationNowPlayingHistoryCleanupJob(
         {
             if (context.CancellationToken.IsCancellationRequested)
             {
-                Logger.Information("[{JobName}] Cancellation requested, stopping cleanup", 
+                Logger.Information("[{JobName}] Cancellation requested, stopping cleanup",
                     nameof(RadioStationNowPlayingHistoryCleanupJob));
                 break;
             }
@@ -55,7 +55,7 @@ public class RadioStationNowPlayingHistoryCleanupJob(
             {
                 // Get IDs of entries to delete (oldest ones over the limit)
                 var entriesToDelete = count - MaxHistoryEntriesPerStation;
-                
+
                 var idsToDelete = await dbContext.RadioStationNowPlayingHistories
                     .Where(h => h.RadioStationId == stationId)
                     .OrderBy(h => h.CapturedAt)
@@ -70,7 +70,7 @@ public class RadioStationNowPlayingHistoryCleanupJob(
                         .ExecuteDeleteAsync(context.CancellationToken);
 
                     totalDeleted += idsToDelete.Length;
-                    
+
                     Logger.Debug("[{JobName}] Deleted {Count} old history entries for station {StationId}",
                         nameof(RadioStationNowPlayingHistoryCleanupJob),
                         idsToDelete.Length,

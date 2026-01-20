@@ -30,7 +30,7 @@ public class RadioStationUserPreferenceService(
         Guard.Against.Expression(x => x < 1, radioStationId, nameof(radioStationId));
 
         await using var context = await ContextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         var preference = await context.RadioStationUserPreferences
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == userId && p.RadioStationId == radioStationId, cancellationToken);
@@ -51,7 +51,7 @@ public class RadioStationUserPreferenceService(
         Guard.Against.Expression(x => x < 1, userId, nameof(userId));
 
         await using var context = await ContextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         var preferences = await context.RadioStationUserPreferences
             .AsNoTracking()
             .Where(p => p.UserId == userId)
@@ -78,7 +78,7 @@ public class RadioStationUserPreferenceService(
         Guard.Against.Expression(x => x < 1, radioStationId, nameof(radioStationId));
 
         await using var context = await ContextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         var preference = await context.RadioStationUserPreferences
             .FirstOrDefaultAsync(p => p.UserId == userId && p.RadioStationId == radioStationId, cancellationToken);
 
@@ -134,7 +134,7 @@ public class RadioStationUserPreferenceService(
         Guard.Against.Expression(x => x < 1, radioStationId, nameof(radioStationId));
 
         await using var context = await ContextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         var preference = await context.RadioStationUserPreferences
             .FirstOrDefaultAsync(p => p.UserId == userId && p.RadioStationId == radioStationId, cancellationToken);
 

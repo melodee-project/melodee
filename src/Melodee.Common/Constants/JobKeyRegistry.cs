@@ -20,7 +20,7 @@ public static class JobKeyRegistry
     public static readonly JobKey PodcastDownloadJobKey = new("PodcastDownloadJob");
     public static readonly JobKey PodcastCleanupJobKey = new("PodcastCleanupJob");
     public static readonly JobKey PodcastRecoveryJobKey = new("PodcastRecoveryJob");
-    
+
     // Radio Station Jobs
     public static readonly JobKey RadioStationHealthProbeJobKey = new("RadioStationHealthProbeJob");
     public static readonly JobKey RadioStationNowPlayingCaptureJobKey = new("RadioStationNowPlayingCaptureJob");

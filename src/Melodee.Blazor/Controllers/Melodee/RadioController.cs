@@ -3,7 +3,6 @@ using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
-using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
@@ -45,10 +44,10 @@ public class RadioController(
         }
 
         await using var dbContext = await contextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         // Get all stations
         var stationsQuery = dbContext.RadioStations.AsNoTracking();
-        
+
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -59,13 +58,13 @@ public class RadioController(
                 (s.CountryCode != null && s.CountryCode.ToLower().Contains(searchTerm)) ||
                 (s.LanguageCode != null && s.LanguageCode.ToLower().Contains(searchTerm)));
         }
-        
+
         var stations = await stationsQuery.ToListAsync(cancellationToken);
-        
+
         // Get user preferences
         var preferencesResult = await preferenceService.GetUserPreferencesAsync(user.Id, cancellationToken);
         var preferences = preferencesResult.Data?.ToDictionary(p => p.RadioStationId) ?? new Dictionary<int, RadioStationUserPreference>();
-        
+
         // Map to DTOs with preferences
         var dtos = stations.Select(s =>
         {
@@ -95,25 +94,25 @@ public class RadioController(
                 SortOrder = pref?.SortOrder ?? 1000
             };
         }).ToList();
-        
+
         // Apply filters
         if (!includeHidden)
         {
             dtos = dtos.Where(d => !d.IsHidden).ToList();
         }
-        
+
         if (favoritesOnly)
         {
             dtos = dtos.Where(d => d.IsFavorite).ToList();
         }
-        
+
         // Sort: Favorites first, then SortOrder, then Name
         var sorted = dtos
             .OrderByDescending(d => d.IsFavorite)
             .ThenBy(d => d.SortOrder)
             .ThenBy(d => d.Name)
             .ToArray();
-        
+
         return Ok(sorted);
     }
 
@@ -170,11 +169,11 @@ public class RadioController(
         }
 
         await using var dbContext = await contextFactory.CreateDbContextAsync(cancellationToken);
-        
+
         var station = await dbContext.RadioStations
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
-        
+
         if (station == null)
         {
             return ApiNotFound("Radio station");
@@ -404,7 +403,7 @@ public class RadioController(
         }
 
         var probeResult = await probeService.ProbeStationAsync(stationResult.Data.StreamUrl, cancellationToken);
-        
+
         return Ok(new
         {
             isHealthy = probeResult.Data?.IsHealthy ?? false,

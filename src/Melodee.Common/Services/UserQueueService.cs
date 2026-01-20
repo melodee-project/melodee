@@ -51,7 +51,7 @@ public class UserQueueService(
             .Select(x => x.LastUpdatedAt ?? x.CreatedAt)
             .Max();
         var changedDateTime = lastUpdated.ToString("yyyy-MM-ddTHH:mm:ss", null);
-        
+
         return new PlayQueue
         {
             Current = current?.PlayQueId ?? 0,

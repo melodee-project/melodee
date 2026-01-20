@@ -103,7 +103,7 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
         // Note: This test may fail if external DNS resolution is blocked in the test environment
         var response = await Client.GetAsync(
             $"/rest/createPodcastChannel?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json&url=https://feeds.feedburner.com/aspnetpodcast");
-        
+
         // Accept either OK (success) or BadRequest (DNS/network failure in test environment)
         response.StatusCode.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.BadRequest);
 
@@ -132,7 +132,7 @@ public class PodcastEndpointTests : OpenSubsonicTestBase
         // Try to create a podcast channel, but don't fail if external DNS is blocked
         var createResponse = await Client.GetAsync(
             $"/rest/createPodcastChannel?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json&url=https://feeds.feedburner.com/aspnetpodcast");
-        
+
         // If creation succeeded, get the actual ID
         string channelId = "podcast:channel:1"; // Default fallback ID
         if (createResponse.IsSuccessStatusCode)

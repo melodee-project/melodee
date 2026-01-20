@@ -24,7 +24,7 @@ public class RadioStationHealthProbeJob(
         Logger.Debug("[{JobName}] Starting radio station health probe", nameof(RadioStationHealthProbeJob));
 
         await using var dbContext = await contextFactory.CreateDbContextAsync(context.CancellationToken);
-        
+
         var stations = await dbContext.RadioStations
             .ToArrayAsync(context.CancellationToken);
 
@@ -35,12 +35,12 @@ public class RadioStationHealthProbeJob(
         }
 
         var probeResults = new { SuccessCount = 0, FailCount = 0 };
-        
+
         foreach (var station in stations)
         {
             if (context.CancellationToken.IsCancellationRequested)
             {
-                Logger.Information("[{JobName}] Cancellation requested, stopping health probe", 
+                Logger.Information("[{JobName}] Cancellation requested, stopping health probe",
                     nameof(RadioStationHealthProbeJob));
                 break;
             }
@@ -68,7 +68,7 @@ public class RadioStationHealthProbeJob(
                     station.LastHealthStatus = RadioStationHealthStatus.Fail;
                     station.LastHealthError = probeResult.Data.ErrorMessage;
                     probeResults = new { SuccessCount = probeResults.SuccessCount, FailCount = probeResults.FailCount + 1 };
-                    
+
                     Logger.Debug("[{JobName}] Station {StationId} ({StationName}) failed health check: {Error}",
                         nameof(RadioStationHealthProbeJob),
                         station.Id,
