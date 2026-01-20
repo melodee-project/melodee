@@ -112,6 +112,14 @@
                         </RadzenStack>
                     </Template>
                 </RadzenDataGridColumn>
+                <RadzenDataGridColumn Width="80px" Sortable="false" Filterable="false">
+                    <Template Context="data">
+                        <RadzenButton Icon="edit" Size="ButtonSize.ExtraSmall"
+                                      Click="@(_ => NavigationManager.NavigateTo($"/data/radiostation/{data.Id}"))"
+                                      ButtonStyle="ButtonStyle.Secondary"
+                                      Disabled="@(CurrentUser?.IsEditor() != true)"/>
+                    </Template>
+                </RadzenDataGridColumn>
             </Columns>
         </RadzenDataGrid>
     </RadzenRow>
@@ -183,7 +191,7 @@
 
     private void AddButtonClick()
     {
-        NavigationManager.NavigateTo($"/data/radiostationdedit/{Guid.Empty}");
+        NavigationManager.NavigateTo($"/data/radiostation/0");
     }
 
 

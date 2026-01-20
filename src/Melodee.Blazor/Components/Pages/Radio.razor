@@ -1,14 +1,263 @@
 @page "/radio"
 @inherits MelodeeComponentBase
 
+@using Melodee.Common.Models
+@using Melodee.Common.Enums
+
+@inject HttpClient Http
+@inject ILogger Logger
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
 <PageTitle>@L("Navigation.InternetRadio")</PageTitle>
 
-<h1>Internet Radio - Coming Soon</h1>
-<p>This page will display radio stations with favorites and search functionality.</p>
+<RadzenStack Style="height: 100%">
+    <RadzenBreadCrumb Class="rz-pb-5">
+        <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
+        <RadzenBreadCrumbItem Icon="radio" Text="@L("Navigation.InternetRadio")"/>
+    </RadzenBreadCrumb>
+
+    <RadzenRow AlignItems="AlignItems.Center">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenText Text="@L("Navigation.InternetRadio")" TextStyle="TextStyle.DisplayH6" TagName="TagName.H1" style="margin: 0"/>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                <RadzenTextBox Placeholder="@L("Common.Search")" @bind-Value="_searchQuery" @bind-Value:event="OnInput" class="rz-w-300px"/>
+                <RadzenButton Icon="refresh" Click="@LoadStationsAsync" IsBusy="_isLoading" Size="ButtonSize.Small"/>
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Class="rz-mb-3">
+        <RadzenButton Text="@L("Radio.AllStations")" Click="@(() => { _showFavoritesOnly = false; })"
+                      ButtonStyle="@(_showFavoritesOnly ? ButtonStyle.Secondary : ButtonStyle.Primary)"/>
+        <RadzenButton Text="@L("Radio.Favorites")" Click="@(() => { _showFavoritesOnly = true; })"
+                      ButtonStyle="@(_showFavoritesOnly ? ButtonStyle.Primary : ButtonStyle.Secondary)"/>
+    </RadzenStack>
+
+    <RadzenProgressBar Visible="@_isLoading" Style="height: 4px;"/>
+
+    @if (!_stations.Any() && !_isLoading)
+    {
+        <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="height: 300px;">
+            <RadzenIcon Icon="radio" Style="font-size: 64px; color: var(--rz-text-disabled-color);"/>
+            <RadzenText Text="@L("Radio.NoStations")" TextStyle="TextStyle.H6"/>
+        </RadzenStack>
+    }
+    else
+    {
+        <RadzenRow Style="flex: 1; overflow-y: auto;">
+            @foreach (var station in _filteredStations)
+            {
+                <RadzenColumn Size="12" SizeSM="6" SizeMD="4" SizeLG="3" Class="rz-p-1">
+                    <RadzenCard Style="height: 100%;" Class="rz-position-relative">
+                        <RadzenStack Gap="0.5rem">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                <RadzenImage Path="@(GetLogoUrl(station))" Style="width: 48px; height: 48px; border-radius: 4px;"
+                                             Visible="@(!string.IsNullOrEmpty(GetLogoUrl(station)))"/>
+                                <RadzenIcon Icon="radio" Style="font-size: 48px;" Visible="@(string.IsNullOrEmpty(GetLogoUrl(station)))"/>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem">
+                                    <RadzenButton Icon="@(station.IsFavorite ? "star" : "star_border")"
+                                                  Click="@(() => ToggleFavoriteAsync(station))"
+                                                  ButtonStyle="ButtonStyle.Secondary"
+                                                  Size="ButtonSize.Small"
+                                                  Shade="Shade.Lighter"/>
+                                    <RadzenButton Icon="@(station.IsHidden ? "visibility_off" : "visibility")"
+                                                  Click="@(() => ToggleHiddenAsync(station))"
+                                                  ButtonStyle="ButtonStyle.Secondary"
+                                                  Size="ButtonSize.Small"
+                                                  Shade="Shade.Lighter"/>
+                                </RadzenStack>
+                            </RadzenStack>
+
+                            <RadzenText Text="@station.Name" TextStyle="TextStyle.H6" class="rz-text-wrap" Style="font-weight: 600;"/>
+
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                                <RadzenBadge BadgeStyle="@GetHealthBadgeStyle(station.LastHealthStatus)" Text="@GetHealthStatusText(station.LastHealthStatus)"/>
+                                @if (!string.IsNullOrEmpty(station.CountryCode))
+                                {
+                                    <RadzenText Text="@station.CountryCode" TextStyle="TextStyle.Caption"/>
+                                }
+                                @if (!string.IsNullOrEmpty(station.LanguageCode))
+                                {
+                                    <RadzenText Text="@station.LanguageCode" TextStyle="TextStyle.Caption"/>
+                                }
+                            </RadzenStack>
+
+                            @if (!string.IsNullOrEmpty(station.NowPlayingRaw))
+                            {
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" AlignItems="AlignItems.Center">
+                                    <RadzenIcon Icon="graphic_eq" IconColor="Info" Style="font-size: 16px;"/>
+                                    <RadzenText Text="@station.NowPlayingRaw" TextStyle="TextStyle.Body2" class="rz-text-wrap rz-text-truncate"/>
+                                </RadzenStack>
+                            }
+
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.End">
+                                <RadzenButton Icon="keyboard_arrow_up" Click="@(() => MoveStationUpAsync(station))" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Secondary"/>
+                                <RadzenButton Icon="keyboard_arrow_down" Click="@(() => MoveStationDownAsync(station))" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Secondary"/>
+                            </RadzenStack>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+            }
+        </RadzenRow>
+    }
+</RadzenStack>
 
 @code {
+    private List<RadioStationDto> _stations = new();
+    private bool _isLoading;
+    private string _searchQuery = "";
+    private bool _showFavoritesOnly;
+
+    private IEnumerable<RadioStationDto> _filteredStations => _stations
+        .Where(s => !_showFavoritesOnly || s.IsFavorite)
+        .Where(s => string.IsNullOrEmpty(_searchQuery) ||
+                    s.Name.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    (s.Tags?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (s.CountryCode?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (s.LanguageCode?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false))
+        .OrderByDescending(s => s.IsFavorite)
+        .ThenBy(s => s.SortOrder)
+        .ThenBy(s => s.Name);
+
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
+        await LoadStationsAsync();
+    }
+
+    private async Task LoadStationsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var response = await Http.GetAsync($"api/v1/radio/stations?q={Uri.EscapeDataString(_searchQuery)}&includeHidden=true");
+            if (response.IsSuccessStatusCode)
+            {
+                _stations = await response.Content.ReadFromJsonAsync<List<RadioStationDto>>() ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error loading radio stations");
+            NotificationService.Notify(NotificationSeverity.Error, L("Errors.LoadingFailed"));
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string? GetLogoUrl(RadioStationDto station)
+    {
+        if (!string.IsNullOrEmpty(station.LogoCachedUrl))
+        {
+            return station.LogoCachedUrl;
+        }
+        return station.LogoUrl;
+    }
+
+    private static BadgeStyle GetHealthBadgeStyle(RadioStationHealthStatus status)
+    {
+        return status switch
+        {
+            RadioStationHealthStatus.Ok => BadgeStyle.Success,
+            RadioStationHealthStatus.Fail => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+
+    private static string GetHealthStatusText(RadioStationHealthStatus status)
+    {
+        return status switch
+        {
+            RadioStationHealthStatus.Ok => "Online",
+            RadioStationHealthStatus.Fail => "Offline",
+            _ => "Unknown"
+        };
+    }
+
+    private async Task ToggleFavoriteAsync(RadioStationDto station)
+    {
+        try
+        {
+            var newValue = !station.IsFavorite;
+            var response = await Http.PutAsJsonAsync($"api/v1/radio/stations/{station.Id}/preferences", new
+            {
+                isFavorite = newValue,
+                isHidden = (bool?)null,
+                sortOrder = (int?)null
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadStationsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error toggling favorite for station {StationId}", station.Id);
+            NotificationService.Notify(NotificationSeverity.Error, L("Errors.UpdateFailed"));
+        }
+    }
+
+    private async Task ToggleHiddenAsync(RadioStationDto station)
+    {
+        try
+        {
+            var newValue = !station.IsHidden;
+            var response = await Http.PutAsJsonAsync($"api/v1/radio/stations/{station.Id}/preferences", new
+            {
+                isFavorite = (bool?)null,
+                isHidden = newValue,
+                sortOrder = (int?)null
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadStationsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error toggling hidden for station {StationId}", station.Id);
+            NotificationService.Notify(NotificationSeverity.Error, L("Errors.UpdateFailed"));
+        }
+    }
+
+    private async Task MoveStationUpAsync(RadioStationDto station)
+    {
+        await AdjustSortOrderAsync(station, -10);
+    }
+
+    private async Task MoveStationDownAsync(RadioStationDto station)
+    {
+        await AdjustSortOrderAsync(station, 10);
+    }
+
+    private async Task AdjustSortOrderAsync(RadioStationDto station, int adjustment)
+    {
+        try
+        {
+            var newSortOrder = station.SortOrder + adjustment;
+            var response = await Http.PutAsJsonAsync($"api/v1/radio/stations/{station.Id}/preferences", new
+            {
+                isFavorite = (bool?)null,
+                isHidden = (bool?)null,
+                sortOrder = newSortOrder
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadStationsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error adjusting sort order for station {StationId}", station.Id);
+            NotificationService.Notify(NotificationSeverity.Error, L("Errors.UpdateFailed"));
+        }
     }
 }

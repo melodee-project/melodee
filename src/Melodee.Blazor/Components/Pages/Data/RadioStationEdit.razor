@@ -1,0 +1,328 @@
+@page "/data/radiostation/{Id:int}"
+@page "/data/radiostation/{Id:int}/{Name}"
+@inherits MelodeeComponentBase
+
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Enums
+@using Melodee.Common.Models
+
+@inject RadioStationService RadioStationService
+@inject RadioStationLogoCacheService LogoCacheService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>@(IsNew ? L("RadioStationEdit.AddStation") : L("RadioStationEdit.EditStation"))</PageTitle>
+
+<RadzenBreadCrumb Class="rz-pb-5">
+    <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
+    <RadzenBreadCrumbItem Path="/data/radiostations" Text="@L("Navigation.RadioStations")"/>
+    <RadzenBreadCrumbItem Icon="@(IsNew ? "add" : "edit")" Text="@(IsNew ? L("RadioStationEdit.NewStation") : L("RadioStationEdit.Editing"))"/>
+</RadzenBreadCrumb>
+
+<RadzenTemplateForm TItem="RadioStation" Data="@_station" Submit="@OnSubmit">
+    <RadzenFieldset Text="@(IsNew ? L("RadioStationEdit.NewStation") : L("RadioStationEdit.EditStationTitle", _station.Name))">
+        <RadzenStack Gap="1rem">
+            <RadzenRow>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="@L("Label.Name")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.Name" Placeholder="@L("RadioStationEdit.NamePlaceholder")" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="@L("Label.StreamUrl")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.StreamUrl" Placeholder="https://example.com/stream" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow>
+                <RadzenColumn Size="12">
+                    <RadzenFormField Text="@L("Label.HomepageUrl")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.HomePageUrl" Placeholder="https://example.com" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow>
+                <RadzenColumn Size="12">
+                    <RadzenFormField Text="@L("Label.Description")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextArea @bind-Value="_station.Notes" Rows="3" Placeholder="@L("RadioStationEdit.OptionalDescriptionPlaceholder")" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow>
+                <RadzenColumn Size="12">
+                    <RadzenFormField Text="@L("Label.Tags")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.Tags" Placeholder="@L("RadioStationEdit.TagsPlaceholder")" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow>
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="@L("Label.Country")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.CountryCode" Placeholder="US" MaxLength="2" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="@L("Label.Language")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.LanguageCode" Placeholder="en-US" MaxLength="12" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="@L("Label.SortOrder")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenNumeric @bind-Value="_station.SortOrder" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow>
+                <RadzenColumn Size="12">
+                    <RadzenFormField Text="@L("Label.LogoUrl")" Variant="Variant.Outlined" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_station.LogoUrl" Placeholder="https://example.com/logo.png" Style="width:100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            @if (!string.IsNullOrEmpty(_station.LogoCacheKey))
+            {
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenImage Path="@($"/assets/radio-logos/{_station.LogoCacheKey}")" Style="width: 100px; height: 100px; border-radius: 4px;"/>
+                        <RadzenButton Icon="delete" Text="@L("Actions.Delete")" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Click="@DeleteLogoAsync" class="rz-ml-2"/>
+                    </RadzenColumn>
+                </RadzenRow>
+            }
+
+            @if (!string.IsNullOrEmpty(_station.LogoUrl) && string.IsNullOrEmpty(_station.LogoCacheKey))
+            {
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenButton Icon="cached" Text="@L("Actions.CacheLogo")" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small" Click="@CacheLogoAsync"/>
+                    </RadzenColumn>
+                </RadzenRow>
+            }
+
+            <RadzenRow>
+                <RadzenColumn Size="6">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="height:100%">
+                        <RadzenSwitch @bind-Value="_station.IsLocked" Name="IsLocked"/>
+                        <RadzenLabel Text="@L("Status.Locked")" Component="IsLocked"/>
+                    </RadzenStack>
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenStack>
+    </RadzenFieldset>
+
+    @if (!IsNew && _station.Id > 0)
+    {
+        <RadzenFieldset Text="@L("Radio.Diagnostics")" class="rz-mt-4">
+            <RadzenStack Gap="1rem">
+                <RadzenRow>
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <RadzenText TextStyle="TextStyle.Caption">@L("Radio.HealthStatus")</RadzenText>
+                        <RadzenBadge BadgeStyle="@GetHealthBadgeStyle(_station.LastHealthStatus)" Text="@GetHealthStatusText(_station.LastHealthStatus)"/>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <RadzenText TextStyle="TextStyle.Caption">@L("Radio.LastCheck")</RadzenText>
+                        <RadzenText>@(_station.LastHealthCheckAt?.ToString() ?? "-")</RadzenText>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <RadzenText TextStyle="TextStyle.Caption">@L("Radio.LastOk")</RadzenText>
+                        <RadzenText>@(_station.LastHealthOkAt?.ToString() ?? "-")</RadzenText>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <RadzenText TextStyle="TextStyle.Caption">@L("Radio.LastError")</RadzenText>
+                        <RadzenText class="rz-text-wrap">@(_station.LastHealthError ?? "-")</RadzenText>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenButton Icon="science" Text="@L("Radio.TestStation")" ButtonStyle="ButtonStyle.Secondary" Click="@TestStationAsync" IsBusy="_isTesting"/>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" class="rz-mt-4">
+        <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Secondary" Click="@(() => NavigationManager.NavigateTo("/data/radiostations"))"/>
+        <RadzenButton Icon="save" Text="@L("Actions.Save")" ButtonType="ButtonType.Submit"/>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    bool IsNew => Id == 0;
+
+    RadioStation _station = new()
+    {
+        Name = string.Empty,
+        StreamUrl = string.Empty,
+        CreatedAt = NodaTime.SystemClock.Instance.GetCurrentInstant()
+    };
+
+    bool _isTesting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (!IsNew)
+        {
+            var result = await RadioStationService.GetAsync(Id);
+            if (result.IsSuccess && result.Data != null)
+            {
+                _station = result.Data;
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, L("Errors.NotFound"));
+                NavigationManager.NavigateTo("/data/radiostations");
+            }
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(_station.Name) || _station.Name.Length < 2 || _station.Name.Length > 120)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, L("Validation.NameRequired"));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_station.StreamUrl) || !Uri.TryCreate(_station.StreamUrl, UriKind.Absolute, out _))
+        {
+            NotificationService.Notify(NotificationSeverity.Error, L("Validation.InvalidStreamUrl"));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_station.CountryCode) && _station.CountryCode.Length != 2)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, L("Validation.CountryCodeLength"));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_station.LanguageCode) && (_station.LanguageCode.Length < 2 || _station.LanguageCode.Length > 12))
+        {
+            NotificationService.Notify(NotificationSeverity.Error, L("Validation.LanguageCodeLength"));
+            return;
+        }
+
+        if (IsNew)
+        {
+            var addResult = await RadioStationService.AddAsync(_station);
+            if (addResult.IsSuccess)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, L("Message.SuccessfullySaved"));
+                if (!string.IsNullOrEmpty(_station.LogoUrl) && string.IsNullOrEmpty(_station.LogoCacheKey) && addResult.Data != null)
+                {
+                    await LogoCacheService.CacheLogoAsync(addResult.Data.Id);
+                }
+                NavigationManager.NavigateTo("/data/radiostations");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, string.Join(", ", addResult.Messages ?? []));
+            }
+        }
+        else
+        {
+            var updateResult = await RadioStationService.UpdateAsync(_station);
+            if (updateResult.IsSuccess)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, L("Message.SuccessfullySaved"));
+                if (!string.IsNullOrEmpty(_station.LogoUrl) && string.IsNullOrEmpty(_station.LogoCacheKey))
+                {
+                    await LogoCacheService.CacheLogoAsync(_station.Id);
+                }
+                NavigationManager.NavigateTo("/data/radiostations");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, string.Join(", ", updateResult.Messages ?? []));
+            }
+        }
+    }
+
+    private async Task CacheLogoAsync()
+    {
+        if (_station.Id > 0)
+        {
+            var result = await LogoCacheService.CacheLogoAsync(_station.Id);
+            if (result.IsSuccess && result.Data != null)
+            {
+                _station.LogoCacheKey = result.Data;
+                NotificationService.Notify(NotificationSeverity.Success, L("Message.LogoCached"));
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, L("Errors.LogoCacheFailed"));
+            }
+        }
+    }
+
+    private async Task DeleteLogoAsync()
+    {
+        if (_station.Id > 0)
+        {
+            var result = await LogoCacheService.DeleteCachedLogoAsync(_station.Id);
+            if (result.IsSuccess)
+            {
+                _station.LogoCacheKey = null;
+                NotificationService.Notify(NotificationSeverity.Success, L("Message.LogoDeleted"));
+            }
+        }
+    }
+
+    private async Task TestStationAsync()
+    {
+        _isTesting = true;
+        try
+        {
+            var response = await Http.PostAsync($"api/v1/radio/admin/stations/{_station.Id}/test", null);
+            var result = await response.Content.ReadFromJsonAsync<dynamic?>();
+            if (result?.isHealthy == true)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, L("Radio.StationHealthy"));
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, L("Radio.StationUnhealthy") + ": " + (result?.errorMessage?.Value<string>() ?? ""));
+            }
+        }
+        catch
+        {
+            NotificationService.Notify(NotificationSeverity.Error, L("Errors.TestFailed"));
+        }
+        finally
+        {
+            _isTesting = false;
+        }
+    }
+
+    private static BadgeStyle GetHealthBadgeStyle(RadioStationHealthStatus status)
+    {
+        return status switch
+        {
+            RadioStationHealthStatus.Ok => BadgeStyle.Success,
+            RadioStationHealthStatus.Fail => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+
+    private static string GetHealthStatusText(RadioStationHealthStatus status)
+    {
+        return status switch
+        {
+            RadioStationHealthStatus.Ok => "Online",
+            RadioStationHealthStatus.Fail => "Offline",
+            _ => "Unknown"
+        };
+    }
+}

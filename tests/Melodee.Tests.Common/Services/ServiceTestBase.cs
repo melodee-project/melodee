@@ -254,6 +254,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetChartService(),
             GetShareService(),
             GetRadioStationService(),
+            GetRadioStationUserPreferenceService(),
             GetUserQueueService(),
             GetStatisticsService(),
             MockBus(),
@@ -320,6 +321,11 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     protected UserBookmarkService GetUserBookmarkService()
     {
         return new UserBookmarkService(Logger, CacheManager, MockFactory());
+    }
+
+    protected RadioStationUserPreferenceService GetRadioStationUserPreferenceService()
+    {
+        return new RadioStationUserPreferenceService(Logger, CacheManager, MockFactory());
     }
 
     protected UserRatingService GetUserRatingService()

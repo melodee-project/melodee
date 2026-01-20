@@ -573,6 +573,7 @@ builder.Services
     .AddScoped<RadioStationService>()
     .AddScoped<RadioStationProbeService>()
     .AddScoped<RadioStationUserPreferenceService>()
+    .AddScoped<RadioStationLogoCacheService>()
     .AddScoped<IcyMetadataParser>()
     .AddScoped<PlaylistService>()
     .AddScoped<PlaylistImportService>()

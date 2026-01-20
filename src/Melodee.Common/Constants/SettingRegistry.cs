@@ -217,4 +217,7 @@ public static class SettingRegistry
     public const string SystemDefaultTheme = "system.defaultTheme";
     public const string ThemeMaxUploadSizeMb = "theme.maxUploadSizeMb";
     public const string ThemeEnforceContrastValidation = "theme.enforceContrastValidation";
+
+    // Assets settings
+    public const string AssetsPath = "assets.path";
 }

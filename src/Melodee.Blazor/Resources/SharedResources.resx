@@ -80,6 +80,9 @@
   <data name="Navigation.RadioStations" xml:space="preserve">
     <value>Radio Stations</value>
   </data>
+  <data name="Navigation.InternetRadio" xml:space="preserve">
+    <value>Internet Radio</value>
+  </data>
   <data name="Navigation.Charts" xml:space="preserve">
     <value>Charts</value>
   </data>
@@ -6450,4 +6453,48 @@ Common fixes:
     <value>Complete the remaining {0} items to finish setup.</value>
   </data>
 
-<data name="Navigation.UserGroups" xml:space="preserve"><value>User Groups</value></data><data name="UserGroups.MemberCount" xml:space="preserve"><value>Members</value></data><data name="UserGroups.AddGroup" xml:space="preserve"><value>Add User Group</value></data><data name="UserGroups.EditGroup" xml:space="preserve"><value>Edit User Group</value></data><data name="UserGroups.NewGroup" xml:space="preserve"><value>New User Group</value></data><data name="UserGroups.EditGroupTitle" xml:space="preserve"><value>Edit {0}</value></data><data name="UserGroups.GroupNamePlaceholder" xml:space="preserve"><value>Enter group name</value></data><data name="UserGroups.GroupDescriptionPlaceholder" xml:space="preserve"><value>Enter group description</value></data><data name="UserGroups.Members" xml:space="preserve"><value>Members</value></data><data name="UserGroups.SelectUsersPlaceholder" xml:space="preserve"><value>Select users</value></data><data name="UserGroups.LibraryAccess" xml:space="preserve"><value>Library Access</value></data><data name="UserGroups.LibrariesUsingThisGroup" xml:space="preserve"><value>Libraries using this group for access control</value></data><data name="UserGroups.NoExplicitLibraryAccess" xml:space="preserve"><value>No explicit library access restrictions. This group has access to all libraries that are not restricted to specific user groups.</value></data><data name="UserGroups.GroupCreated" xml:space="preserve"><value>User group created successfully</value></data><data name="UserGroups.GroupSaved" xml:space="preserve"><value>User group saved successfully</value></data><data name="UserGroups.GroupDeleted" xml:space="preserve"><value>User group deleted successfully</value></data><data name="UserGroups.ConfirmDeleteTitle" xml:space="preserve"><value>Confirm Delete</value></data><data name="UserGroups.ConfirmDeleteMessage" xml:space="preserve"><value>Are you sure you want to delete user group '{0}'?</value></data><data name="LibraryEdit.AccessControl" xml:space="preserve"><value>Access Control</value></data><data name="LibraryEdit.RestrictAccessToGroups" xml:space="preserve"><value>Restrict access to specific user groups</value></data><data name="LibraryEdit.AccessControlHelp" xml:space="preserve"><value>When disabled, library is accessible to all authenticated users. When enabled, only users in selected groups can access.</value></data><data name="LibraryEdit.AllowedGroups" xml:space="preserve"><value>Allowed Groups</value></data><data name="LibraryEdit.SelectGroupsPlaceholder" xml:space="preserve"><value>Select user groups</value></data><data name="LibraryEdit.AllowedGroupsHelp" xml:space="preserve"><value>Users must be members of at least one selected group to access this library.</value></data></root>
+<data name="Navigation.UserGroups" xml:space="preserve"><value>User Groups</value></data><data name="UserGroups.MemberCount" xml:space="preserve"><value>Members</value></data><data name="UserGroups.AddGroup" xml:space="preserve"><value>Add User Group</value></data><data name="UserGroups.EditGroup" xml:space="preserve"><value>Edit User Group</value></data><data name="UserGroups.NewGroup" xml:space="preserve"><value>New User Group</value></data><data name="UserGroups.EditGroupTitle" xml:space="preserve"><value>Edit {0}</value></data><data name="UserGroups.GroupNamePlaceholder" xml:space="preserve"><value>Enter group name</value></data><data name="UserGroups.GroupDescriptionPlaceholder" xml:space="preserve"><value>Enter group description</value></data><data name="UserGroups.Members" xml:space="preserve"><value>Members</value></data><data name="UserGroups.SelectUsersPlaceholder" xml:space="preserve"><value>Select users</value></data><data name="UserGroups.LibraryAccess" xml:space="preserve"><value>Library Access</value></data><data name="UserGroups.LibrariesUsingThisGroup" xml:space="preserve"><value>Libraries using this group for access control</value></data><data name="UserGroups.NoExplicitLibraryAccess" xml:space="preserve"><value>No explicit library access restrictions. This group has access to all libraries that are not restricted to specific user groups.</value></data><data name="UserGroups.GroupCreated" xml:space="preserve"><value>User group created successfully</value></data><data name="UserGroups.GroupSaved" xml:space="preserve"><value>User group saved successfully</value></data><data name="UserGroups.GroupDeleted" xml:space="preserve"><value>User group deleted successfully</value></data><data name="UserGroups.ConfirmDeleteTitle" xml:space="preserve"><value>Confirm Delete</value></data><data name="UserGroups.ConfirmDeleteMessage" xml:space="preserve"><value>Are you sure you want to delete user group '{0}'?</value></data><data name="LibraryEdit.AccessControl" xml:space="preserve"><value>Access Control</value></data><data name="LibraryEdit.RestrictAccessToGroups" xml:space="preserve"><value>Restrict access to specific user groups</value></data><data name="LibraryEdit.AccessControlHelp" xml:space="preserve"><value>When disabled, library is accessible to all authenticated users. When enabled, only users in selected groups can access.</value></data><data name="LibraryEdit.AllowedGroups" xml:space="preserve"><value>Allowed Groups</value></data><data name="LibraryEdit.SelectGroupsPlaceholder" xml:space="preserve"><value>Select user groups</value></data><data name="LibraryEdit.AllowedGroupsHelp" xml:space="preserve"><value>Users must be members of at least one selected group to access this library.</value></data>
+  <data name="Radio.AllStations" xml:space="preserve"><value>All Stations</value></data>
+  <data name="Radio.Favorites" xml:space="preserve"><value>Favorites</value></data>
+  <data name="Radio.NoStations" xml:space="preserve"><value>No radio stations found</value></data>
+  <data name="Radio.StationDetails" xml:space="preserve"><value>Station Details</value></data>
+  <data name="Radio.Play" xml:space="preserve"><value>Play</value></data>
+  <data name="Radio.VisitWebsite" xml:space="preserve"><value>Visit Website</value></data>
+  <data name="Radio.Diagnostics" xml:space="preserve"><value>Diagnostics</value></data>
+  <data name="Radio.NowPlayingHistory" xml:space="preserve"><value>Now Playing History</value></data>
+  <data name="Radio.HealthStatus" xml:space="preserve"><value>Health Status</value></data>
+  <data name="Radio.LastCheck" xml:space="preserve"><value>Last Check</value></data>
+  <data name="Radio.LastOk" xml:space="preserve"><value>Last OK</value></data>
+  <data name="Radio.LastError" xml:space="preserve"><value>Last Error</value></data>
+  <data name="Radio.ResolvedUrl" xml:space="preserve"><value>Resolved URL</value></data>
+  <data name="Radio.ContentType" xml:space="preserve"><value>Content Type</value></data>
+  <data name="Radio.Bitrate" xml:space="preserve"><value>Bitrate</value></data>
+  <data name="Radio.TestStation" xml:space="preserve"><value>Test Station</value></data>
+  <data name="Radio.Testing" xml:space="preserve"><value>Testing...</value></data>
+  <data name="Radio.StationHealthy" xml:space="preserve"><value>Station is healthy</value></data>
+  <data name="Radio.StationUnhealthy" xml:space="preserve"><value>Station health check failed</value></data>
+  <data name="RadioStationEdit.AddStation" xml:space="preserve"><value>Add Radio Station</value></data>
+  <data name="RadioStationEdit.EditStation" xml:space="preserve"><value>Edit Radio Station</value></data>
+  <data name="RadioStationEdit.NewStation" xml:space="preserve"><value>New Radio Station</value></data>
+  <data name="RadioStationEdit.Editing" xml:space="preserve"><value>Editing</value></data>
+  <data name="RadioStationEdit.EditStationTitle" xml:space="preserve"><value>Edit {0}</value></data>
+  <data name="RadioStationEdit.NamePlaceholder" xml:space="preserve"><value>Enter station name</value></data>
+  <data name="RadioStationEdit.OptionalDescriptionPlaceholder" xml:space="preserve"><value>Enter optional description</value></data>
+  <data name="RadioStationEdit.TagsPlaceholder" xml:space="preserve"><value>rock,classic,80s</value></data>
+  <data name="Label.StreamUrl" xml:space="preserve"><value>Stream URL</value></data>
+  <data name="Label.HomepageUrl" xml:space="preserve"><value>Homepage URL</value></data>
+  <data name="Label.Country" xml:space="preserve"><value>Country</value></data>
+  <data name="Label.Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Label.LogoUrl" xml:space="preserve"><value>Logo URL</value></data>
+  <data name="Message.SuccessfullySaved" xml:space="preserve"><value>Saved successfully</value></data>
+  <data name="Message.LogoCached" xml:space="preserve"><value>Logo cached successfully</value></data>
+  <data name="Message.LogoDeleted" xml:space="preserve"><value>Logo deleted</value></data>
+  <data name="Errors.NotFound" xml:space="preserve"><value>Not found</value></data>
+  <data name="Errors.LogoCacheFailed" xml:space="preserve"><value>Failed to cache logo</value></data>
+  <data name="Errors.TestFailed" xml:space="preserve"><value>Station test failed</value></data>
+  <data name="Validation.NameRequired" xml:space="preserve"><value>Name must be between 2 and 120 characters</value></data>
+  <data name="Validation.InvalidStreamUrl" xml:space="preserve"><value>Invalid stream URL</value></data>
+  <data name="Validation.CountryCodeLength" xml:space="preserve"><value>Country code must be exactly 2 characters</value></data>
+  <data name="Validation.LanguageCodeLength" xml:space="preserve"><value>Language code must be between 2 and 12 characters</value></data>
+  <data name="Actions.CacheLogo" xml:space="preserve"><value>Cache Logo</value></data>
+</root>
