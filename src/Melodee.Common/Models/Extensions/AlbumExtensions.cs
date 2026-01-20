@@ -200,12 +200,28 @@ public static class AlbumExtensions
         var artistAndAlbumPart = string.Empty;
         if (!(isForAlbumDirectory ?? false))
         {
-            var artist =
-                album.Artist.ToAlphanumericName(false, false).ToTitleCase(false).Nullify()?.ToFileNameFriendly() ??
-                throw new Exception($"[{album}] Artist not set on Album.");
-            var albumTitle =
-                album.AlbumTitle()?.ToAlphanumericName(false, false).ToTitleCase(false).Nullify()
-                    ?.ToFileNameFriendly() ?? SafeParser.Hash(album.Directory.Name).ToString();
+            var artistNameToUse = (album.Artist.SortName ?? album.Artist.Name).Nullify() ??
+                                  album.MetaTagValue<string?>(MetaTagIdentifier.AlbumArtist).Nullify() ??
+                                  (album.Songs ?? [])
+                                  .Select(x => x.AlbumArtist().Nullify())
+                                  .FirstOrDefault(x => x != null) ??
+                                  (album.Songs ?? [])
+                                  .Select(x => x.SongArtist().Nullify())
+                                  .FirstOrDefault(x => x != null) ??
+                                  album.Directory.Name;
+
+            var artist = album.Artist.ToAlphanumericName(false, false)
+                             .ToTitleCase(false)
+                             .Nullify()
+                             ?.ToFileNameFriendly() ??
+                         SafeParser.Hash(artistNameToUse).ToString();
+
+            var albumTitleValue = album.AlbumTitle().Nullify();
+            var albumTitle = albumTitleValue?.ToAlphanumericName(false, false)
+                                 .ToTitleCase(false)
+                                 .Nullify()
+                                 ?.ToFileNameFriendly() ??
+                             SafeParser.Hash(albumTitleValue ?? album.Directory.Name).ToString();
             artistAndAlbumPart = $"{artist}_{albumTitle}.";
         }
 
@@ -221,13 +237,27 @@ public static class AlbumExtensions
 
     public static string ToDirectoryName(this Album album)
     {
+        var artistNameToUse = (album.Artist.SortName ?? album.Artist.Name).Nullify() ??
+                              album.MetaTagValue<string?>(MetaTagIdentifier.AlbumArtist).Nullify() ??
+                              (album.Songs ?? [])
+                              .Select(x => x.AlbumArtist().Nullify())
+                              .FirstOrDefault(x => x != null) ??
+                              (album.Songs ?? [])
+                              .Select(x => x.SongArtist().Nullify())
+                              .FirstOrDefault(x => x != null) ??
+                              album.Directory.Name;
+
         var artistSortName = album.Artist.SortName?.ToAlphanumericName(false, false).ToTitleCase().Nullify();
-        var artist =
-            (artistSortName ?? album.Artist.ToAlphanumericName(false, false).ToTitleCase().Nullify())
-            ?.ToFileNameFriendly() ?? throw new Exception($"[{album}] Artist not set on Album.");
-        var albumTitle =
-            album.AlbumTitle()?.ToAlphanumericName(false, false).ToTitleCase(false).Nullify()?.ToFileNameFriendly() ??
-            SafeParser.Hash(album.Directory.Name).ToString();
+        var artist = (artistSortName ?? album.Artist.ToAlphanumericName(false, false).ToTitleCase().Nullify())
+                         ?.ToFileNameFriendly() ??
+                     SafeParser.Hash(artistNameToUse).ToString();
+
+        var albumTitleValue = album.AlbumTitle().Nullify();
+        var albumTitle = albumTitleValue?.ToAlphanumericName(false, false)
+                             .ToTitleCase(false)
+                             .Nullify()
+                             ?.ToFileNameFriendly() ??
+                         SafeParser.Hash(albumTitleValue ?? album.Directory.Name).ToString();
         return $"{artist} - [{album.AlbumYear()}] {albumTitle}".ToFileNameFriendly() ??
                throw new Exception($"[{album}] Unable to determine Album Directory name.");
     }
@@ -464,7 +494,7 @@ public static class AlbumExtensions
 
         if (string.IsNullOrEmpty(albumPathTitle))
         {
-            throw new Exception($"Unable to determine Album Path for Album [{album}].");
+            albumPathTitle = SafeParser.Hash(albumTitleValue).ToString();
         }
 
         var maxFnLength =

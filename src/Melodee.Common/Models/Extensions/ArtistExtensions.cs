@@ -134,7 +134,7 @@ public static class ArtistExtensions
             ?.ToTitleCase(false);
         if (string.IsNullOrEmpty(artistDirectory))
         {
-            throw new Exception($"Unable to determine artist directory for Album ArtistNameToUse [{artistNameToUse}].");
+            artistDirectory = SafeParser.Hash(artistNameToUse).ToString();
         }
 
         var afUpper = artistDirectory.ToUpper();
