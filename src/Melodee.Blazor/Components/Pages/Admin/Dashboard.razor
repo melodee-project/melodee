@@ -54,91 +54,97 @@
         </RadzenColumn>
     </RadzenRow>
 
-    @* Quick Links *@
-    <RadzenCard>
-      <RadzenText TextStyle="TextStyle.H6">
-        <RadzenIcon Icon="link" class="rz-me-1"/>
-        @L("AdminDashboard.QuickLinks")
-      </RadzenText>
-      <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mt-2">
-        <RadzenButton Text="@L("Navigation.Settings")" Icon="settings" Click="@(() => NavigationManager.NavigateTo("/admin/settings"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("Navigation.Doctor")" Icon="health_and_safety" Click="@(() => NavigationManager.NavigateTo("/admin/doctor"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("Navigation.Users")" Icon="group" Click="@(() => NavigationManager.NavigateTo("/data/users"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("Navigation.Libraries")" Icon="library_music" Click="@(() => NavigationManager.NavigateTo("/data/libraries"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("Navigation.Artists")" Icon="person" Click="@(() => NavigationManager.NavigateTo("/data/artists"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("Navigation.Albums")" Icon="album" Click="@(() => NavigationManager.NavigateTo("/data/albums"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("Navigation.Songs")" Icon="music_note" Click="@(() => NavigationManager.NavigateTo("/data/songs"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenButton Text="@L("AdminDashboard.APIDocs")" Icon="description" Click="@(() => NavigationManager.NavigateTo("/scalar/v1", forceLoad: true))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"/>
-      </RadzenStack>
-    </RadzenCard>
+    <RadzenRow Gap="1rem">
+        @* Quick Links *@
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard Style="height: 100%;">
+              <RadzenText TextStyle="TextStyle.H6">
+                <RadzenIcon Icon="link" class="rz-me-1"/>
+                @L("AdminDashboard.QuickLinks")
+              </RadzenText>
+              <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mt-2">
+                <RadzenButton Text="@L("Navigation.Settings")" Icon="settings" Click="@(() => NavigationManager.NavigateTo("/admin/settings"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("Navigation.Doctor")" Icon="health_and_safety" Click="@(() => NavigationManager.NavigateTo("/admin/doctor"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("Navigation.Users")" Icon="group" Click="@(() => NavigationManager.NavigateTo("/data/users"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("Navigation.Libraries")" Icon="library_music" Click="@(() => NavigationManager.NavigateTo("/data/libraries"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("Navigation.Artists")" Icon="person" Click="@(() => NavigationManager.NavigateTo("/data/artists"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("Navigation.Albums")" Icon="album" Click="@(() => NavigationManager.NavigateTo("/data/albums"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("Navigation.Songs")" Icon="music_note" Click="@(() => NavigationManager.NavigateTo("/data/songs"))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenButton Text="@L("AdminDashboard.APIDocs")" Icon="description" Click="@(() => NavigationManager.NavigateTo("/scalar/v1", forceLoad: true))" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"/>
+              </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
 
-    @* Configuration Import/Export *@
-    <RadzenCard>
-      <RadzenText TextStyle="TextStyle.H6">
-        <RadzenIcon Icon="sync" class="rz-me-1"/>
-        @L("AdminDashboard.ConfigurationImportExport")
-      </RadzenText>
-      <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1" Style="color: var(--rz-warning);">
-        <RadzenIcon Icon="warning" class="rz-mr-1"/>@L("AdminDashboard.ExportMayContainSecrets")
-      </RadzenText>
+        @* Configuration Import/Export *@
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard Style="height: 100%;">
+              <RadzenText TextStyle="TextStyle.H6">
+                <RadzenIcon Icon="sync" class="rz-me-1"/>
+                @L("AdminDashboard.ConfigurationImportExport")
+              </RadzenText>
+              <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1" Style="color: var(--rz-warning);">
+                <RadzenIcon Icon="warning" class="rz-mr-1"/>@L("AdminDashboard.ExportMayContainSecrets")
+              </RadzenText>
 
-      <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-2">
-        <RadzenButton Text="@L("AdminDashboard.ExportConfiguration")"
-                      Icon="download"
-                      Click="@ExportConfiguration"
-                      IsBusy="@_isExporting"
-                      ButtonStyle="ButtonStyle.Secondary"/>
-        <RadzenFileInput @bind-Value="_importFile"
-                         ChooseText="@L("AdminDashboard.ChooseFile")"
-                         Accept=".json"
-                         MaxFileSize="10485760"
-                         Style="width: 300px;"
-                         TValue="string"
-                         Change="@OnImportFileChanged"/>
-        @if (!string.IsNullOrEmpty(_importMessage))
-        {
-          <RadzenAlert Variant="@(_importSuccess ? Variant.Outlined : Variant.Filled)"
-                       AlertStyle="@(_importSuccess ? AlertStyle.Success : AlertStyle.Danger)"
-                       Icon="@(_importSuccess ? "check_circle" : "error")">
-            <RadzenText Text="@_importMessage"/>
-          </RadzenAlert>
-        }
-      </RadzenStack>
+              <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-2">
+                <RadzenButton Text="@L("AdminDashboard.ExportConfiguration")"
+                              Icon="download"
+                              Click="@ExportConfiguration"
+                              IsBusy="@_isExporting"
+                              ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenFileInput @bind-Value="_importFile"
+                                 ChooseText="@L("AdminDashboard.ChooseFile")"
+                                 Accept=".json"
+                                 MaxFileSize="10485760"
+                                 Style="width: 300px;"
+                                 TValue="string"
+                                 Change="@OnImportFileChanged"/>
+                @if (!string.IsNullOrEmpty(_importMessage))
+                {
+                  <RadzenAlert Variant="@(_importSuccess ? Variant.Outlined : Variant.Filled)"
+                               AlertStyle="@(_importSuccess ? AlertStyle.Success : AlertStyle.Danger)"
+                               Icon="@(_importSuccess ? "check_circle" : "error")">
+                    <RadzenText Text="@_importMessage"/>
+                  </RadzenAlert>
+                }
+              </RadzenStack>
 
-      @if (_importPreview != null)
-      {
-        <RadzenCard Variant="Variant.Outlined" class="rz-mt-3">
-          <RadzenText TextStyle="TextStyle.Subtitle2">@L("AdminDashboard.ImportPreview")</RadzenText>
-          <RadzenStack Gap="0.5rem" class="rz-mt-1">
-            <RadzenText TextStyle="TextStyle.Caption">@L("AdminDashboard.SettingsCount", _importPreview.Settings.Count)</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption">@L("AdminDashboard.LibrariesCount", _importPreview.Libraries.Count)</RadzenText>
-          </RadzenStack>
+              @if (_importPreview != null)
+              {
+                <RadzenCard Variant="Variant.Outlined" class="rz-mt-3">
+                  <RadzenText TextStyle="TextStyle.Subtitle2">@L("AdminDashboard.ImportPreview")</RadzenText>
+                  <RadzenStack Gap="0.5rem" class="rz-mt-1">
+                    <RadzenText TextStyle="TextStyle.Caption">@L("AdminDashboard.SettingsCount", _importPreview.Settings.Count)</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">@L("AdminDashboard.LibrariesCount", _importPreview.Libraries.Count)</RadzenText>
+                  </RadzenStack>
 
-          @if (_importPreview.Settings.Any(s => IsSecretKey(s.Key)))
-          {
-            <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Warning" class="rz-mt-2">
-              <RadzenText Text="@L("AdminDashboard.ImportContainsSecrets")"/>
-            </RadzenAlert>
-          }
+                  @if (_importPreview.Settings.Any(s => IsSecretKey(s.Key)))
+                  {
+                    <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Warning" class="rz-mt-2">
+                      <RadzenText Text="@L("AdminDashboard.ImportContainsSecrets")"/>
+                    </RadzenAlert>
+                  }
 
-          <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-3">
-            <RadzenCheckBox @bind-Value="_importOptions.OverwriteExisting" Name="OverwriteExisting"/>
-            <RadzenLabel Text="@L("AdminDashboard.OverwriteExisting")" Component="OverwriteExisting"/>
-          </RadzenStack>
-          <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-1">
-            <RadzenCheckBox @bind-Value="_importOptions.SkipNullValues" Name="SkipNullValues"/>
-            <RadzenLabel Text="@L("AdminDashboard.SkipNullValues")" Component="SkipNullValues"/>
-          </RadzenStack>
+                  <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-3">
+                    <RadzenCheckBox @bind-Value="_importOptions.OverwriteExisting" Name="OverwriteExisting"/>
+                    <RadzenLabel Text="@L("AdminDashboard.OverwriteExisting")" Component="OverwriteExisting"/>
+                  </RadzenStack>
+                  <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-1">
+                    <RadzenCheckBox @bind-Value="_importOptions.SkipNullValues" Name="SkipNullValues"/>
+                    <RadzenLabel Text="@L("AdminDashboard.SkipNullValues")" Component="SkipNullValues"/>
+                  </RadzenStack>
 
-          <RadzenButton Text="@L("AdminDashboard.ApplyImport")"
-                        Icon="upload"
-                        Click="@ApplyImport"
-                        IsBusy="@_isImporting"
-                        ButtonStyle="ButtonStyle.Primary"
-                        class="rz-mt-3"/>
-        </RadzenCard>
-      }
-    </RadzenCard>
+                  <RadzenButton Text="@L("AdminDashboard.ApplyImport")"
+                                Icon="upload"
+                                Click="@ApplyImport"
+                                IsBusy="@_isImporting"
+                                ButtonStyle="ButtonStyle.Primary"
+                                class="rz-mt-3"/>
+                </RadzenCard>
+              }
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
 
     @* System Health Overview *@
     <RadzenRow Gap="1rem">
