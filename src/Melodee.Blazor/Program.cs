@@ -325,7 +325,7 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            throw new InvalidOperationException("CORS is not configured for production. Set Cors:AllowedOrigins in configuration.");
+            Serilog.Log.Warning("CORS is not configured for production. Set Cors:AllowedOrigins in configuration. Using empty allowlist which will block all cross-origin requests.");
         }
 
         policy.WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");

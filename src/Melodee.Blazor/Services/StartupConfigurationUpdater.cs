@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Extensions;
 using Melodee.Common.Services;
@@ -10,6 +12,7 @@ public class StartupMelodeeConfigurationService(
     ILogger logger,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     LibraryService libraryService,
+    SettingService settingService,
     IConfiguration configuration)
     : IStartupMelodeeConfigurationService
 {
@@ -109,5 +112,31 @@ public class StartupMelodeeConfigurationService(
 
             await scopedContext.SaveChangesAsync(cancellationToken);
         }
+
+        await EnsureSecretKeyConfiguredAsync(cancellationToken);
+    }
+
+    private async Task EnsureSecretKeyConfiguredAsync(CancellationToken cancellationToken = default)
+    {
+        var secretKey = await settingService.GetValueAsync<string>(SettingRegistry.SecuritySecretKey, null, cancellationToken);
+        var isValid = !string.IsNullOrWhiteSpace(secretKey.Data) && secretKey.Data.Length >= 32;
+
+        if (!isValid)
+        {
+            logger.Warning(
+                "The setting {SettingKey} is missing or invalid (blank, null, or less than 32 characters). A new secure random value will be generated and saved to the database.",
+                SettingRegistry.SecuritySecretKey);
+
+            var newSecretKey = GenerateSecureKey();
+            await settingService.SetAsync(SettingRegistry.SecuritySecretKey, newSecretKey, cancellationToken);
+
+            logger.Information("A new secure {SettingKey} has been generated and saved to the database.", SettingRegistry.SecuritySecretKey);
+        }
+    }
+
+    private static string GenerateSecureKey()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(48);
+        return Convert.ToBase64String(bytes);
     }
 }
