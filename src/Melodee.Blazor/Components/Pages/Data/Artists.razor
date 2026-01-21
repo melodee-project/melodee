@@ -252,6 +252,16 @@
         _statistics = statResult?.Data ?? [];
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            _grid.OrderBy(nameof(ArtistDataInfo.CreatedAt));
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     async Task LoadData(LoadDataArgs args)
     {
         _isLoading = true;

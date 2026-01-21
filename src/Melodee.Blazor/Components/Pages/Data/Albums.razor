@@ -244,6 +244,16 @@
         _statistics = statResult?.Data ?? [];
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            _grid.OrderBy(nameof(AlbumDataInfo.CreatedAt));
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     void OnPage(PagerEventArgs args)
     {
         _currentPage = args.PageIndex + 1;

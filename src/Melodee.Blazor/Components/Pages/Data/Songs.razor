@@ -240,6 +240,16 @@
         _statistics = statResult?.Data ?? [];
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            _grid.OrderBy(nameof(SongDataInfo.CreatedAt));
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (Filter != null)
