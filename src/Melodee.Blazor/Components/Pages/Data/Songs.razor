@@ -271,6 +271,10 @@
                 sorting = args.Sorts.Where(x => x.Property != null && x.SortOrder != null)
                     .ToDictionary(x => x.Property!, x => x.SortOrder == SortOrder.Ascending ? PagedRequest.OrderAscDirection : PagedRequest.OrderDescDirection);
             }
+            else
+            {
+                sorting = new Dictionary<string, string> { { nameof(SongDataInfo.CreatedAt), PagedRequest.OrderDescDirection } };
+            }
 
             FilterOperatorInfo[]? filters = null;
             if (_debounceInputValue.Nullify() != null)
