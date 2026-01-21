@@ -257,7 +257,7 @@
         await base.OnAfterRenderAsync(firstRender);
         if (firstRender)
         {
-            _grid.OrderBy(nameof(ArtistDataInfo.CreatedAt));
+            _grid.OrderByDescending(nameof(ArtistDataInfo.CreatedAt));
             await _grid.RefreshDataAsync();
         }
     }
