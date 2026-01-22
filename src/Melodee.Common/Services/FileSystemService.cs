@@ -94,14 +94,68 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
 
     public void MoveDirectory(string sourcePath, string destinationPath)
     {
-        Directory.Move(sourcePath, destinationPath);
+        MoveDirectoryInternal(sourcePath, destinationPath);
     }
 
     public void MoveDirectory(string root, string sourcePath, string destinationPath)
     {
         var fullSourcePath = PathGuard.EnsureUnderRoot(root, sourcePath);
         var fullDestPath = PathGuard.EnsureUnderRoot(root, destinationPath);
-        Directory.Move(fullSourcePath, fullDestPath);
+        MoveDirectoryInternal(fullSourcePath, fullDestPath);
+    }
+
+    /// <summary>
+    /// Moves a directory from source to destination. If destination exists, merges contents.
+    /// </summary>
+    private static void MoveDirectoryInternal(string sourcePath, string destinationPath)
+    {
+        if (!Directory.Exists(destinationPath))
+        {
+            // Fast path: destination doesn't exist, use native move
+            Directory.Move(sourcePath, destinationPath);
+            return;
+        }
+
+        // Destination exists: merge contents
+        MergeDirectories(sourcePath, destinationPath);
+        
+        // Delete the now-empty source directory
+        if (Directory.Exists(sourcePath))
+        {
+            Directory.Delete(sourcePath, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Recursively merges source directory into destination directory.
+    /// Files in source overwrite files in destination if they have the same name.
+    /// </summary>
+    private static void MergeDirectories(string sourcePath, string destinationPath)
+    {
+        // Ensure destination exists
+        Directory.CreateDirectory(destinationPath);
+
+        // Move/copy all files from source to destination
+        foreach (var sourceFile in Directory.GetFiles(sourcePath))
+        {
+            var fileName = Path.GetFileName(sourceFile);
+            var destFile = Path.Combine(destinationPath, fileName);
+            
+            // Move file, overwriting if exists
+            if (File.Exists(destFile))
+            {
+                File.Delete(destFile);
+            }
+            File.Move(sourceFile, destFile);
+        }
+
+        // Recursively merge subdirectories
+        foreach (var sourceSubDir in Directory.GetDirectories(sourcePath))
+        {
+            var dirName = Path.GetFileName(sourceSubDir);
+            var destSubDir = Path.Combine(destinationPath, dirName);
+            MergeDirectories(sourceSubDir, destSubDir);
+        }
     }
 
     public string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly)
