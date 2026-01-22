@@ -627,15 +627,15 @@ public sealed class AlbumDiscoveryService(
 
             // Count all subdirectories
             var allDirectories = fileSystemService.EnumerateDirectories(
-                fileSystemDirectoryInfo.Path, 
-                "*", 
+                fileSystemDirectoryInfo.Path,
+                "*",
                 SearchOption.AllDirectories).ToList();
             result.TotalSubdirectories = allDirectories.Count;
 
             // Find all melodee.json files
             var melodeeJsonFiles = fileSystemService.EnumerateFiles(
-                fileSystemDirectoryInfo.Path, 
-                $"*{Album.JsonFileName}", 
+                fileSystemDirectoryInfo.Path,
+                $"*{Album.JsonFileName}",
                 SearchOption.AllDirectories).ToList();
             result.DirectoriesWithMelodeeJson = melodeeJsonFiles.Count;
 
@@ -751,36 +751,36 @@ public sealed class DirectoryDiagnosticResult
 {
     public string DirectoryPath { get; set; } = string.Empty;
     public DateTime AnalyzedAt { get; set; }
-    
+
     /// <summary>Total number of subdirectories in the path.</summary>
     public int TotalSubdirectories { get; set; }
-    
+
     /// <summary>Number of directories containing a melodee.json file.</summary>
     public int DirectoriesWithMelodeeJson { get; set; }
-    
+
     /// <summary>Number of directories containing media files (mp3, flac, etc.).</summary>
     public int DirectoriesWithMediaFiles { get; set; }
-    
+
     /// <summary>Number of directories with media files but no melodee.json (unprocessed).</summary>
     public int DirectoriesWithMediaButNoMelodeeJson { get; set; }
-    
+
     /// <summary>Number of melodee.json files that deserialized successfully (sampled).</summary>
     public int ValidMelodeeJsonFiles { get; set; }
-    
+
     /// <summary>Number of melodee.json files that failed to deserialize (sampled).</summary>
     public int InvalidMelodeeJsonFiles { get; set; }
-    
+
     /// <summary>Sample of directories with media files but no melodee.json.</summary>
     public List<string> SampleUnprocessedDirectories { get; set; } = [];
-    
+
     /// <summary>Sample of JSON deserialization errors.</summary>
     public List<string> JsonDeserializationErrors { get; set; } = [];
-    
+
     /// <summary>Any errors encountered during diagnosis.</summary>
     public List<string> Errors { get; set; } = [];
-    
+
     /// <summary>Summary of the diagnostic findings.</summary>
-    public string Summary => 
+    public string Summary =>
         $"Directory: {DirectoryPath}\n" +
         $"Analyzed: {AnalyzedAt:u}\n" +
         $"Total Subdirectories: {TotalSubdirectories:N0}\n" +
@@ -790,7 +790,7 @@ public sealed class DirectoryDiagnosticResult
         $"Valid melodee.json (sampled): {ValidMelodeeJsonFiles:N0}\n" +
         $"Invalid melodee.json (sampled): {InvalidMelodeeJsonFiles:N0}\n" +
         $"Processing Gap: {GetProcessingGapPercentage()}% unprocessed";
-    
+
     private string GetProcessingGapPercentage()
     {
         if (DirectoriesWithMediaFiles <= 0) return "0.0";

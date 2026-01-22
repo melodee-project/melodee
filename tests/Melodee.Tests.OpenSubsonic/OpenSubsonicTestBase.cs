@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
@@ -42,8 +44,13 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
     {
         Output = output;
 
-        // Set environment variable for security.secretKey (used by MelodeeConfigurationFactory)
+        // Set environment variables for required settings (used by MelodeeConfigurationFactory)
+        // MelodeeConfigurationFactory replaces underscores with periods when reading environment variables
         Environment.SetEnvironmentVariable("security_secretKey", new string('s', 32));
+        Environment.SetEnvironmentVariable("openSubsonicServer_openSubsonic_serverSupportedVersion", "1.16.1");
+        Environment.SetEnvironmentVariable("openSubsonicServer_openSubsonicServer_type", "Melodee");
+        Environment.SetEnvironmentVariable("openSubsonicServer_openSubsonicServerLicenseEmail", "noreply@localhost.lan");
+        Environment.SetEnvironmentVariable("podcast_enabled", "true");
 
         InMemoryProvider = new ServiceCollection()
             .AddEntityFrameworkInMemoryDatabase()
@@ -174,6 +181,7 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
         await using var musicBrainzContext = await musicBrainzFactory.CreateDbContextAsync();
         await musicBrainzContext.Database.EnsureCreatedAsync();
 
+        await SeedRequiredSettingsAsync(context);
         await CreateTestUserAsync(context);
         await CreateTestLibraryAsync(context);
         await CreateTestMusicDataAsync(context);
@@ -185,6 +193,55 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
         Client.Dispose();
         InMemoryProvider.Dispose();
         await Factory.DisposeAsync();
+    }
+
+    private async Task SeedRequiredSettingsAsync(Melodee.Common.Data.MelodeeDbContext context)
+    {
+        var seedTime = Instant.FromDateTimeUtc(DateTime.UtcNow);
+        
+        // Get existing settings
+        var allSettings = await context.Settings.ToListAsync();
+        var existingKeys = allSettings.Select(s => s.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        
+        // Required settings for OpenSubsonic API
+        var requiredSettings = new Dictionary<string, (string Comment, string Value, SettingCategory Category)>
+        {
+            [SettingRegistry.OpenSubsonicServerSupportedVersion] = ("OpenSubsonic server supported Subsonic API version.", "1.16.1", SettingCategory.Api),
+            [SettingRegistry.OpenSubsonicServerType] = ("OpenSubsonic server name.", "Melodee", SettingCategory.Api),
+            [SettingRegistry.OpenSubsonicServerLicenseEmail] = ("OpenSubsonic email to use in License responses.", "noreply@localhost.lan", SettingCategory.Api),
+            [SettingRegistry.PodcastEnabled] = ("Podcasts feature enabled.", "true", SettingCategory.System)
+        };
+        
+        // Add missing required settings
+        var settings = new List<Setting>();
+        var nextId = allSettings.Any() ? allSettings.Max(s => s.Id) + 1 : 100;
+        
+        foreach (var (key, (comment, value, category)) in requiredSettings)
+        {
+            if (!existingKeys.Contains(key))
+            {
+                settings.Add(new Setting
+                {
+                    Id = nextId++,
+                    ApiKey = Guid.NewGuid(),
+                    Category = (int)category,
+                    Key = key,
+                    Comment = comment,
+                    Value = value,
+                    CreatedAt = seedTime
+                });
+            }
+        }
+
+        if (settings.Count > 0)
+        {
+            context.Settings.AddRange(settings);
+            await context.SaveChangesAsync();
+        }
+        
+        // Reset configuration factory cache so it reloads with the new settings
+        var configFactory = Factory.Services.GetRequiredService<IMelodeeConfigurationFactory>();
+        configFactory.Reset();
     }
 
     private async Task CreateTestUserAsync(Melodee.Common.Data.MelodeeDbContext context)
