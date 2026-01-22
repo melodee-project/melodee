@@ -953,4 +953,160 @@ public sealed class MediaEditService(
     {
         return SaveMelodeeAlbum(album, true, cancellationToken);
     }
+
+    public async Task<OperationResult<bool>> UpdateArtistForAlbumsAsync(
+        FileSystemDirectoryInfo libraryDirectory,
+        int[] albumIds,
+        Artist updatedArtist,
+        CancellationToken cancellationToken = default)
+    {
+        CheckInitialized();
+
+        var updatedCount = 0;
+
+        try
+        {
+            foreach (var albumId in albumIds)
+            {
+                var album = await albumDiscoveryService.AlbumByDbIdAsync(libraryDirectory, albumId, cancellationToken);
+
+                if (album != null)
+                {
+                    album.Artist = album.Artist with
+                    {
+                        AmgId = album.Artist.AmgId ?? updatedArtist.AmgId,
+                        ArtistDbId = album.Artist.ArtistDbId ?? updatedArtist.ArtistDbId,
+                        DiscogsId = album.Artist.DiscogsId ?? updatedArtist.DiscogsId,
+                        ItunesId = album.Artist.ItunesId ?? updatedArtist.ItunesId,
+                        LastFmId = album.Artist.LastFmId ?? updatedArtist.LastFmId,
+                        MusicBrainzId = album.Artist.MusicBrainzId ?? updatedArtist.MusicBrainzId,
+                        Name = updatedArtist.Name,
+                        NameNormalized = updatedArtist.NameNormalized,
+                        SearchEngineResultUniqueId = album.Artist.SearchEngineResultUniqueId ?? updatedArtist.SearchEngineResultUniqueId,
+                        SortName = album.Artist.SortName ?? updatedArtist.SortName,
+                        SpotifyId = album.Artist.SpotifyId ?? updatedArtist.SpotifyId,
+                        WikiDataId = album.Artist.WikiDataId ?? updatedArtist.WikiDataId,
+                        OriginalName = updatedArtist.Name != album.Artist.Name ? album.Artist.Name : null
+                    };
+
+                    var validationResult = _albumValidator.ValidateAlbum(album);
+                    album.ValidationMessages = validationResult.Data.Messages ?? [];
+                    album.Status = validationResult.Data.AlbumStatus;
+                    album.StatusReasons = validationResult.Data.AlbumStatusReasons;
+                    album.Modified = DateTimeOffset.UtcNow;
+
+                    await SaveMelodeeAlbum(album, null, cancellationToken);
+
+                    if (album.Status == AlbumStatus.Ok)
+                    {
+                        updatedCount++;
+                    }
+                }
+            }
+
+            return new OperationResult<bool>
+            {
+                Data = updatedCount > 0,
+                AdditionalData = new Dictionary<string, object>
+                {
+                    { "UpdatedCount", updatedCount }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to update artist for {Count} albums", albumIds.Length);
+            return new OperationResult<bool>
+            {
+                Data = false,
+                Errors = [ex]
+            };
+        }
+    }
+
+    public async Task<OperationResult<bool>> UpdateArtistsByMappingAsync(
+        FileSystemDirectoryInfo libraryDirectory,
+        Dictionary<string, Artist> artistMapping,
+        CancellationToken cancellationToken = default)
+    {
+        CheckInitialized();
+
+        var updatedCount = 0;
+
+        try
+        {
+            var allAlbumsResult = await albumDiscoveryService.AllMelodeeAlbumDataFilesForDirectoryAsync(libraryDirectory, cancellationToken);
+
+            if (!allAlbumsResult.IsSuccess || allAlbumsResult.Data == null)
+            {
+                return new OperationResult<bool>
+                {
+                    Data = false,
+                    Errors = [new Exception("Unable to load albums from library.")]
+                };
+            }
+
+            foreach (var album in allAlbumsResult.Data)
+            {
+                var currentArtistName = album.Artist.Name.ToNormalizedString();
+                var currentArtistNameUnnormalized = album.Artist.Name;
+
+                if ((currentArtistName != null && artistMapping.ContainsKey(currentArtistName)) ||
+                    (currentArtistNameUnnormalized != null && artistMapping.ContainsKey(currentArtistNameUnnormalized)))
+                {
+                    var updatedArtist = currentArtistName != null && artistMapping.ContainsKey(currentArtistName)
+                        ? artistMapping[currentArtistName]
+                        : artistMapping[currentArtistNameUnnormalized!];
+
+                    album.Artist = album.Artist with
+                    {
+                        AmgId = album.Artist.AmgId ?? updatedArtist.AmgId,
+                        ArtistDbId = album.Artist.ArtistDbId ?? updatedArtist.ArtistDbId,
+                        DiscogsId = album.Artist.DiscogsId ?? updatedArtist.DiscogsId,
+                        ItunesId = album.Artist.ItunesId ?? updatedArtist.ItunesId,
+                        LastFmId = album.Artist.LastFmId ?? updatedArtist.LastFmId,
+                        MusicBrainzId = album.Artist.MusicBrainzId ?? updatedArtist.MusicBrainzId,
+                        Name = updatedArtist.Name,
+                        NameNormalized = updatedArtist.NameNormalized,
+                        SearchEngineResultUniqueId = album.Artist.SearchEngineResultUniqueId ?? updatedArtist.SearchEngineResultUniqueId,
+                        SortName = album.Artist.SortName ?? updatedArtist.SortName,
+                        SpotifyId = album.Artist.SpotifyId ?? updatedArtist.SpotifyId,
+                        WikiDataId = album.Artist.WikiDataId ?? updatedArtist.WikiDataId,
+                        OriginalName = updatedArtist.Name != album.Artist.Name ? album.Artist.Name : null
+                    };
+
+                    var validationResult = _albumValidator.ValidateAlbum(album);
+                    album.ValidationMessages = validationResult.Data.Messages ?? [];
+                    album.Status = validationResult.Data.AlbumStatus;
+                    album.StatusReasons = validationResult.Data.AlbumStatusReasons;
+                    album.Modified = DateTimeOffset.UtcNow;
+
+                    await SaveMelodeeAlbum(album, null, cancellationToken);
+
+                    if (album.Status == AlbumStatus.Ok)
+                    {
+                        updatedCount++;
+                    }
+                }
+            }
+
+            return new OperationResult<bool>
+            {
+                Data = updatedCount > 0,
+                AdditionalData = new Dictionary<string, object>
+                {
+                    { "UpdatedCount", updatedCount }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to update artists by mapping");
+            return new OperationResult<bool>
+            {
+                Data = false,
+                Errors = [ex]
+            };
+        }
+    }
 }

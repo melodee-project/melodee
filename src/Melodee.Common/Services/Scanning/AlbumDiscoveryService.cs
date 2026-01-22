@@ -69,6 +69,19 @@ public sealed class AlbumDiscoveryService(
         }
     }
 
+    public async Task<Album?> AlbumByDbIdAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo,
+        int albumId,
+        CancellationToken cancellationToken = default)
+    {
+        CheckInitialized();
+        var result =
+            (await AllMelodeeAlbumDataFilesForDirectoryAsync(fileSystemDirectoryInfo, cancellationToken)).Data
+            ?.FirstOrDefault(x => x.AlbumDbId == albumId);
+
+        return result;
+    }
+
     public async Task<Album> AlbumByUniqueIdAsync(
         FileSystemDirectoryInfo fileSystemDirectoryInfo,
         Guid id,
@@ -589,4 +602,199 @@ public sealed class AlbumDiscoveryService(
 
     public (long Hits, long Misses, int Count) GetDirectoryCacheStats()
         => (Interlocked.Read(ref _directoryCacheHits), Interlocked.Read(ref _directoryCacheMisses), _directoryCache.Count);
+
+    /// <summary>
+    /// Diagnostic method to analyze a directory and identify why albums may not be discovered.
+    /// Returns detailed information about the directory structure and melodee.json file status.
+    /// </summary>
+    public async Task<DirectoryDiagnosticResult> DiagnoseDirectoryAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new DirectoryDiagnosticResult
+        {
+            DirectoryPath = fileSystemDirectoryInfo.Path,
+            AnalyzedAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            if (!fileSystemService.DirectoryExists(fileSystemDirectoryInfo.Path))
+            {
+                result.Errors.Add($"Directory does not exist: {fileSystemDirectoryInfo.Path}");
+                return result;
+            }
+
+            // Count all subdirectories
+            var allDirectories = fileSystemService.EnumerateDirectories(
+                fileSystemDirectoryInfo.Path, 
+                "*", 
+                SearchOption.AllDirectories).ToList();
+            result.TotalSubdirectories = allDirectories.Count;
+
+            // Find all melodee.json files
+            var melodeeJsonFiles = fileSystemService.EnumerateFiles(
+                fileSystemDirectoryInfo.Path, 
+                $"*{Album.JsonFileName}", 
+                SearchOption.AllDirectories).ToList();
+            result.DirectoriesWithMelodeeJson = melodeeJsonFiles.Count;
+
+            // Find directories with media files but no melodee.json
+            var mediaExtensions = new[] { ".mp3", ".flac", ".ogg", ".m4a", ".wav", ".wma", ".aac", ".opus" };
+            var directoriesWithMelodeeJson = new HashSet<string>(
+                melodeeJsonFiles.Select(f => fileSystemService.GetDirectoryName(f) ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase);
+
+            var directoriesWithMediaButNoJson = new List<string>();
+            var directoriesWithMediaCount = 0;
+
+            foreach (var dir in allDirectories)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                try
+                {
+                    var dirPath = dir.FullName;
+                    var hasMediaFiles = fileSystemService.EnumerateFiles(dirPath, "*.*", SearchOption.TopDirectoryOnly)
+                        .Any(f => mediaExtensions.Contains(
+                            Path.GetExtension(f).ToLowerInvariant()));
+
+                    if (hasMediaFiles)
+                    {
+                        directoriesWithMediaCount++;
+                        if (!directoriesWithMelodeeJson.Contains(dirPath))
+                        {
+                            directoriesWithMediaButNoJson.Add(dirPath);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.Errors.Add($"Error scanning directory {dir.FullName}: {ex.Message}");
+                }
+            }
+
+            result.DirectoriesWithMediaFiles = directoriesWithMediaCount;
+            result.DirectoriesWithMediaButNoMelodeeJson = directoriesWithMediaButNoJson.Count;
+
+            // Sample some directories without melodee.json for diagnostic purposes
+            result.SampleUnprocessedDirectories = directoriesWithMediaButNoJson
+                .Take(20)
+                .ToList();
+
+            // Check for common issues in melodee.json files
+            var jsonErrors = new List<string>();
+            var validAlbums = 0;
+            var invalidAlbums = 0;
+
+            foreach (var jsonFile in melodeeJsonFiles.Take(100)) // Sample first 100
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                try
+                {
+                    var album = await fileSystemService.DeserializeAlbumAsync(jsonFile, cancellationToken);
+                    if (album != null)
+                    {
+                        validAlbums++;
+                    }
+                    else
+                    {
+                        invalidAlbums++;
+                        jsonErrors.Add($"Null album from: {jsonFile}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    invalidAlbums++;
+                    jsonErrors.Add($"Error deserializing {jsonFile}: {ex.Message}");
+                }
+            }
+
+            result.ValidMelodeeJsonFiles = validAlbums;
+            result.InvalidMelodeeJsonFiles = invalidAlbums;
+            result.JsonDeserializationErrors = jsonErrors.Take(10).ToList();
+
+            // Log summary
+            Log.Information(
+                "Directory Diagnostic for [{Path}]: " +
+                "TotalSubdirs={TotalSubdirs}, WithMelodeeJson={WithJson}, WithMedia={WithMedia}, " +
+                "MediaButNoJson={MediaNoJson}, ValidJson={ValidJson}, InvalidJson={InvalidJson}",
+                fileSystemDirectoryInfo.Path,
+                result.TotalSubdirectories,
+                result.DirectoriesWithMelodeeJson,
+                result.DirectoriesWithMediaFiles,
+                result.DirectoriesWithMediaButNoMelodeeJson,
+                result.ValidMelodeeJsonFiles,
+                result.InvalidMelodeeJsonFiles);
+        }
+        catch (Exception ex)
+        {
+            result.Errors.Add($"Fatal error during diagnosis: {ex.Message}");
+            Log.Error(ex, "Error during directory diagnosis for [{Path}]", fileSystemDirectoryInfo.Path);
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// Result of a directory diagnostic analysis.
+/// </summary>
+public sealed class DirectoryDiagnosticResult
+{
+    public string DirectoryPath { get; set; } = string.Empty;
+    public DateTime AnalyzedAt { get; set; }
+    
+    /// <summary>Total number of subdirectories in the path.</summary>
+    public int TotalSubdirectories { get; set; }
+    
+    /// <summary>Number of directories containing a melodee.json file.</summary>
+    public int DirectoriesWithMelodeeJson { get; set; }
+    
+    /// <summary>Number of directories containing media files (mp3, flac, etc.).</summary>
+    public int DirectoriesWithMediaFiles { get; set; }
+    
+    /// <summary>Number of directories with media files but no melodee.json (unprocessed).</summary>
+    public int DirectoriesWithMediaButNoMelodeeJson { get; set; }
+    
+    /// <summary>Number of melodee.json files that deserialized successfully (sampled).</summary>
+    public int ValidMelodeeJsonFiles { get; set; }
+    
+    /// <summary>Number of melodee.json files that failed to deserialize (sampled).</summary>
+    public int InvalidMelodeeJsonFiles { get; set; }
+    
+    /// <summary>Sample of directories with media files but no melodee.json.</summary>
+    public List<string> SampleUnprocessedDirectories { get; set; } = [];
+    
+    /// <summary>Sample of JSON deserialization errors.</summary>
+    public List<string> JsonDeserializationErrors { get; set; } = [];
+    
+    /// <summary>Any errors encountered during diagnosis.</summary>
+    public List<string> Errors { get; set; } = [];
+    
+    /// <summary>Summary of the diagnostic findings.</summary>
+    public string Summary => 
+        $"Directory: {DirectoryPath}\n" +
+        $"Analyzed: {AnalyzedAt:u}\n" +
+        $"Total Subdirectories: {TotalSubdirectories:N0}\n" +
+        $"Directories with melodee.json: {DirectoriesWithMelodeeJson:N0}\n" +
+        $"Directories with media files: {DirectoriesWithMediaFiles:N0}\n" +
+        $"Unprocessed (media but no melodee.json): {DirectoriesWithMediaButNoMelodeeJson:N0}\n" +
+        $"Valid melodee.json (sampled): {ValidMelodeeJsonFiles:N0}\n" +
+        $"Invalid melodee.json (sampled): {InvalidMelodeeJsonFiles:N0}\n" +
+        $"Processing Gap: {GetProcessingGapPercentage()}% unprocessed";
+    
+    private string GetProcessingGapPercentage()
+    {
+        if (DirectoriesWithMediaFiles <= 0) return "0.0";
+        var percentage = (double)DirectoriesWithMediaButNoMelodeeJson / DirectoriesWithMediaFiles * 100;
+        return percentage.ToString("F1");
+    }
 }
