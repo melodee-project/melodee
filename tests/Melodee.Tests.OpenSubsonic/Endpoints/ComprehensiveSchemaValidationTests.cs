@@ -273,13 +273,13 @@ public class ComprehensiveSchemaValidationTests : OpenSubsonicTestBase
         var uniqueUrl = $"https://feeds.feedburner.com/aspnetpodcast?test={Guid.NewGuid():N}";
         var response = await Client.GetAsync(
             $"/rest/createPodcastChannel?u={TestUserName}&t={AuthToken}&s={AuthSalt}&v=1.16.1&c=test&f=json&url={Uri.EscapeDataString(uniqueUrl)}");
-        
+
         // Accept OK (created successfully) or BadRequest (URL validation failure in test environment)
         // Note: BadRequest can occur if external DNS/network is blocked or URL validation fails
         response.StatusCode.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.BadRequest);
-        
+
         var content = await response.Content.ReadAsStringAsync();
-        
+
         // Verify the response is valid JSON with expected structure
         content.Should().Contain("\"subsonic-response\"");
     }

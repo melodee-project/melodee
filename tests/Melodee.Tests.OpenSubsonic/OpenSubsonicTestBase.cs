@@ -198,11 +198,11 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
     private async Task SeedRequiredSettingsAsync(Melodee.Common.Data.MelodeeDbContext context)
     {
         var seedTime = Instant.FromDateTimeUtc(DateTime.UtcNow);
-        
+
         // Get existing settings
         var allSettings = await context.Settings.ToListAsync();
         var existingKeys = allSettings.Select(s => s.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        
+
         // Required settings for OpenSubsonic API
         var requiredSettings = new Dictionary<string, (string Comment, string Value, SettingCategory Category)>
         {
@@ -211,11 +211,11 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
             [SettingRegistry.OpenSubsonicServerLicenseEmail] = ("OpenSubsonic email to use in License responses.", "noreply@localhost.lan", SettingCategory.Api),
             [SettingRegistry.PodcastEnabled] = ("Podcasts feature enabled.", "true", SettingCategory.System)
         };
-        
+
         // Add missing required settings
         var settings = new List<Setting>();
         var nextId = allSettings.Any() ? allSettings.Max(s => s.Id) + 1 : 100;
-        
+
         foreach (var (key, (comment, value, category)) in requiredSettings)
         {
             if (!existingKeys.Contains(key))
@@ -238,7 +238,7 @@ public abstract class OpenSubsonicTestBase : IAsyncLifetime
             context.Settings.AddRange(settings);
             await context.SaveChangesAsync();
         }
-        
+
         // Reset configuration factory cache so it reloads with the new settings
         var configFactory = Factory.Services.GetRequiredService<IMelodeeConfigurationFactory>();
         configFactory.Reset();
