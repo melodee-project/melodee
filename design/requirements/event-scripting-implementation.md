@@ -23,10 +23,10 @@ post_date: "2026-01-24"
 | 2 | Settings Infrastructure | ✅ Completed | Settings table integration, JSON schema, caching layer |
 | 3 | Directory Processing Events | ✅ Completed | `directoryProcessingStart`, `directoryProcessingDelete` integration |
 | 4 | Context Providers | ✅ Completed | Directory context builder, aggregate calculation utilities |
-| 5 | Safety & Auditing | ⏳ Pending | Safe deletion, path validation, audit logging |
-| 6 | Blazor Events | ⏳ Pending | User, playlist, podcast, share, request event hooks |
-| 7 | Testing & Validation | ⏳ Pending | Unit tests, integration tests, validation API endpoint |
-| 8 | Documentation | ⏳ Pending | User/admin docs, API reference, script examples |
+| 5 | Safety & Auditing | ✅ Completed | Safe deletion, path validation, audit logging |
+| 6 | Blazor Events | ✅ Completed | User, playlist, podcast, share, request event hooks |
+| 7 | Testing & Validation | ✅ Completed | Unit tests, validation service, dry-run mode |
+| 8 | Documentation | ✅ Completed | Script reference docs, examples, admin guide |
 
 ## Phase 1: Foundation
 
@@ -298,6 +298,7 @@ public async Task<DeleteResult> DeleteDirectoryAsync(
 - Log all script evaluation decisions
 - Include script hash for correlation (not body)
 - Retention for minimum 30 days
+- Query methods for Blazor page consumption
 
 ```csharp
 public record ScriptAuditEntry(
@@ -315,8 +316,8 @@ public record ScriptAuditEntry(
 );
 ```
 
-#### Audit Endpoint
-- `GET /api/audit/scripts` for admin review
+#### Audit Query Service
+- Query methods for admin review in Blazor
 - Filter by date range, library, event name
 
 ---
@@ -387,7 +388,7 @@ public record PlaylistCreateContext(
 ### Objectives
 - Comprehensive unit test coverage
 - Integration tests for directory processing
-- Validation API endpoint for admins
+- Validation service for admins
 - Dry-run mode for testing
 
 ### Deliverables
@@ -400,27 +401,23 @@ public record PlaylistCreateContext(
 | Context building | Track gaps, duration calculation |
 | Safe deletion | Path traversal prevention |
 
-#### Validation API Endpoint
-```
-POST /api/scripts/validate
-{
-  "eventName": "directoryProcessingStart",
-  "scriptBody": "function check(ctx) { return ctx.mediaFilesCount >= 3; }",
-  "context": {
-    "libraryId": 1,
-    "relativePath": "Incoming/Album/",
-    "mediaFilesCount": 5
-  }
-}
-```
+#### Script Validation Service
+- Service for validating scripts in Blazor admin pages
+- Syntax checking and test execution
 
-Response:
-```json
-{
-  "result": true,
-  "durationMs": 2,
-  "errorMessage": null
-}
+```csharp
+public record ScriptValidationRequest(
+    string EventName,
+    string ScriptBody,
+    object Context
+);
+
+public record ScriptValidationResult(
+    bool IsValid,
+    bool Result,
+    double DurationMs,
+    string? ErrorMessage
+);
 ```
 
 #### Dry-Run Mode
@@ -434,7 +431,7 @@ Response:
 
 ### Objectives
 - User-facing documentation for Docsy site
-- API reference for script authors
+- Script reference documentation for admins
 - Example scripts for common scenarios
 - Admin operational guide
 
