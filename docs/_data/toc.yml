@@ -41,6 +41,8 @@
       url: "mql"
     - title: "Requests"
       url: "requests"
+    - title: "Event Scripting"
+      url: "scripting"
     - title: "Scrobbling"
       url: "scrobbling"
     - title: "Shares"

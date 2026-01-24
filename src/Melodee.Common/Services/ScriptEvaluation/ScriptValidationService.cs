@@ -83,6 +83,11 @@ public sealed class ScriptValidationService : IScriptValidationService
             var scriptConfigValue = ScriptValueConverter.ToScriptValue(scriptConfig);
 
             engine.Execute(preparedScript);
+
+            // Reset constraints so time/statement limits apply to the check() invocation,
+            // not to host-side setup work (script loading and value conversion).
+            engine.Constraints.Reset();
+
             var scriptResult = engine.Invoke("check", contextValue, scriptConfigValue);
 
             stopwatch.Stop();

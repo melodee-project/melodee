@@ -6281,4 +6281,204 @@ Common fixes:
   <data name="AdminScriptEditor.SaveFailed" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Save failed</value>
   </data>
+
+  <data name="AdminScriptEditor.ContextTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Context</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Fields available on the ctx object for this event. Access them using camelCase (for example ctx.libraryId).</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextNoInfo" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] No context information is available for this event.</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextField" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Field</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextType" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Type</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Description</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.LibraryId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Library ID.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.RelativePath" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path relative to the library root.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.DirectoryName" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Directory name (last path segment).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TotalFilesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Total files found in the directory.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TotalSizeMegabytes" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Total directory size in megabytes (MB).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.MostRecentModified" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Most recent file modified timestamp (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.MediaFilesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Media files detected in the directory.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TotalDurationMinutes" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Total duration of detected media files, in minutes.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TrackNumbers" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Track numbers extracted from media tags.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.HasTrackNumberGaps" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] True if track numbers have gaps or do not start at 1.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.UserNameLength" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Length of the requested username.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.EmailDomain" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Domain portion of the email address.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.ClientIp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Client IP address (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.UserAgent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User-Agent string (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID if the user is known; otherwise null.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.Roles" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Roles associated with the user at login time.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.ClientIp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Client IP address (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.UserAgent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User-Agent string (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID being updated.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.EmailDomain" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Domain portion of the user email address.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.ProfileChangesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Number of changed profile fields in the request.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.ClientIp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Client IP address (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.UserAgent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User-Agent string (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID creating the playlist.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.NameLength" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Length of the playlist name.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.InitialSongCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Number of songs initially included.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID adding the podcast channel.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.FeedUrl" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Podcast feed URL as provided by the user.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.IsNewSubscription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] True if this adds a new subscription.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID creating the share.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.ShareType" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Type of share (for example album, song, playlist).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.ItemCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Number of items being shared.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.ExpirationDays" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Expiration in days if set; otherwise null.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID creating the request.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.RequestType" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Request type (for example song, album, artist).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.IsFirstRequestToday" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] True if this is the user’s first request today.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.DailyRequestCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] How many requests the user has made today.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
 </root>

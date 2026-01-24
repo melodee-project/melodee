@@ -75,6 +75,35 @@
                 </RadzenCard>
             </RadzenTabsItem>
 
+            <RadzenTabsItem Text="@L("AdminScriptEditor.ContextTab")" Icon="help">
+                <RadzenCard Style="height: 100%; overflow: auto;">
+                    <RadzenStack Gap="0.75rem">
+                        <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
+                            @L("AdminScriptEditor.ContextHelp")
+                        </RadzenAlert>
+
+                        @if (_ctxFields.Count == 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.ContextNoInfo")</RadzenText>
+                        }
+                        else
+                        {
+                            <RadzenDataGrid Data="@_ctxFields"
+                                            TItem="CtxField"
+                                            AllowPaging="false"
+                                            AllowSorting="false"
+                                            AllowFiltering="false">
+                                <Columns>
+                                    <RadzenDataGridColumn Property="@nameof(CtxField.Name)" Title="@L("AdminScriptEditor.ContextField")" Width="240px"/>
+                                    <RadzenDataGridColumn Property="@nameof(CtxField.Type)" Title="@L("AdminScriptEditor.ContextType")" Width="160px"/>
+                                    <RadzenDataGridColumn Property="@nameof(CtxField.Description)" Title="@L("AdminScriptEditor.ContextDescription")"/>
+                                </Columns>
+                            </RadzenDataGrid>
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenTabsItem>
+
             <RadzenTabsItem Text="@L("AdminScriptEditor.OverridesTab")" Icon="rule">
                 <RadzenCard Style="height: 100%; overflow: auto;">
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Center">
@@ -219,6 +248,7 @@
     private readonly string[] _denyActions = ["skip", "delete", "quarantine"];
     private string _mockContextJson = "{}";
     private ScriptEvaluationResult? _testResult;
+    private IReadOnlyList<CtxField> _ctxFields = [];
 
     private readonly string[] _testTargets =
     [
@@ -242,6 +272,8 @@
         {
             return;
         }
+
+        _ctxFields = GetContextFields(EventName);
 
         var existing = await ScriptAdminService.GetAsync(EventName);
         if (existing == null)
@@ -496,8 +528,10 @@
                 """
                 {
                   "userId": 123,
-                  "changedFields": ["displayName"],
+                  "emailDomain": "example.com",
+                  "profileChangesCount": 1,
                   "clientIp": "127.0.0.1",
+                  "userAgent": "Mozilla/5.0",
                   "now": "2026-01-24T12:34:56Z"
                 }
                 """,
@@ -514,9 +548,8 @@
                 """
                 {
                   "userId": 123,
-                  "urlScheme": "https",
-                  "urlHost": "example.com",
-                  "isHttps": true,
+                  "feedUrl": "https://example.com/feed.xml",
+                  "isNewSubscription": true,
                   "now": "2026-01-24T12:34:56Z"
                 }
                 """,
@@ -525,7 +558,8 @@
                 {
                   "userId": 123,
                   "shareType": "album",
-                  "expiresInDays": 7,
+                  "itemCount": 1,
+                  "expirationDays": 7,
                   "now": "2026-01-24T12:34:56Z"
                 }
                 """,
@@ -534,11 +568,111 @@
                 {
                   "userId": 123,
                   "requestType": "song",
-                  "clientIp": "127.0.0.1",
+                  "isFirstRequestToday": true,
+                  "dailyRequestCount": 2,
                   "now": "2026-01-24T12:34:56Z"
                 }
                 """,
             _ => "{}"
         };
     }
+
+    private sealed record CtxField(string Name, string Type, string Description);
+    private sealed record CtxFieldDefinition(string Name, string Type, string DescriptionKey);
+
+    private IReadOnlyList<CtxField> GetContextFields(string eventName)
+    {
+        var definitions = eventName switch
+        {
+            ScriptEventNames.DirectoryProcessingStart or ScriptEventNames.DirectoryProcessingDelete => DirectoryProcessingCtx,
+            ScriptEventNames.UserRegistrationStart => UserRegistrationCtx,
+            ScriptEventNames.UserLoginStart => UserLoginCtx,
+            ScriptEventNames.UserProfileUpdateStart => UserProfileUpdateCtx,
+            ScriptEventNames.PlaylistCreateStart => PlaylistCreateCtx,
+            ScriptEventNames.PodcastChannelAddStart => PodcastChannelAddCtx,
+            ScriptEventNames.ShareCreateStart => ShareCreateCtx,
+            ScriptEventNames.RequestCreateStart => RequestCreateCtx,
+            _ => []
+        };
+
+        return definitions
+            .Select(d => new CtxField(d.Name, d.Type, L(d.DescriptionKey)))
+            .ToArray();
+    }
+
+    private static readonly CtxFieldDefinition[] DirectoryProcessingCtx =
+    [
+        new("libraryId", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.LibraryId"),
+        new("relativePath", "string", "AdminScriptEditor.Ctx.DirectoryProcessing.RelativePath"),
+        new("directoryName", "string", "AdminScriptEditor.Ctx.DirectoryProcessing.DirectoryName"),
+        new("totalFilesCount", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.TotalFilesCount"),
+        new("totalSizeMegabytes", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.TotalSizeMegabytes"),
+        new("mostRecentModified", "string", "AdminScriptEditor.Ctx.DirectoryProcessing.MostRecentModified"),
+        new("mediaFilesCount", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.MediaFilesCount"),
+        new("totalDurationMinutes", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.TotalDurationMinutes"),
+        new("trackNumbers", "number[]", "AdminScriptEditor.Ctx.DirectoryProcessing.TrackNumbers"),
+        new("hasTrackNumberGaps", "boolean", "AdminScriptEditor.Ctx.DirectoryProcessing.HasTrackNumberGaps")
+    ];
+
+    private static readonly CtxFieldDefinition[] UserRegistrationCtx =
+    [
+        new("userNameLength", "number", "AdminScriptEditor.Ctx.UserRegistration.UserNameLength"),
+        new("emailDomain", "string", "AdminScriptEditor.Ctx.UserRegistration.EmailDomain"),
+        new("clientIp", "string", "AdminScriptEditor.Ctx.UserRegistration.ClientIp"),
+        new("userAgent", "string", "AdminScriptEditor.Ctx.UserRegistration.UserAgent"),
+        new("now", "string", "AdminScriptEditor.Ctx.UserRegistration.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] UserLoginCtx =
+    [
+        new("userId", "number|null", "AdminScriptEditor.Ctx.UserLogin.UserId"),
+        new("roles", "string[]", "AdminScriptEditor.Ctx.UserLogin.Roles"),
+        new("clientIp", "string", "AdminScriptEditor.Ctx.UserLogin.ClientIp"),
+        new("userAgent", "string", "AdminScriptEditor.Ctx.UserLogin.UserAgent"),
+        new("now", "string", "AdminScriptEditor.Ctx.UserLogin.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] UserProfileUpdateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.UserProfileUpdate.UserId"),
+        new("emailDomain", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.EmailDomain"),
+        new("profileChangesCount", "number", "AdminScriptEditor.Ctx.UserProfileUpdate.ProfileChangesCount"),
+        new("clientIp", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.ClientIp"),
+        new("userAgent", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.UserAgent"),
+        new("now", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] PlaylistCreateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.PlaylistCreate.UserId"),
+        new("nameLength", "number", "AdminScriptEditor.Ctx.PlaylistCreate.NameLength"),
+        new("initialSongCount", "number", "AdminScriptEditor.Ctx.PlaylistCreate.InitialSongCount"),
+        new("now", "string", "AdminScriptEditor.Ctx.PlaylistCreate.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] PodcastChannelAddCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.PodcastChannelAdd.UserId"),
+        new("feedUrl", "string", "AdminScriptEditor.Ctx.PodcastChannelAdd.FeedUrl"),
+        new("isNewSubscription", "boolean", "AdminScriptEditor.Ctx.PodcastChannelAdd.IsNewSubscription"),
+        new("now", "string", "AdminScriptEditor.Ctx.PodcastChannelAdd.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] ShareCreateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.ShareCreate.UserId"),
+        new("shareType", "string", "AdminScriptEditor.Ctx.ShareCreate.ShareType"),
+        new("itemCount", "number", "AdminScriptEditor.Ctx.ShareCreate.ItemCount"),
+        new("expirationDays", "number|null", "AdminScriptEditor.Ctx.ShareCreate.ExpirationDays"),
+        new("now", "string", "AdminScriptEditor.Ctx.ShareCreate.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] RequestCreateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.RequestCreate.UserId"),
+        new("requestType", "string", "AdminScriptEditor.Ctx.RequestCreate.RequestType"),
+        new("isFirstRequestToday", "boolean", "AdminScriptEditor.Ctx.RequestCreate.IsFirstRequestToday"),
+        new("dailyRequestCount", "number", "AdminScriptEditor.Ctx.RequestCreate.DailyRequestCount"),
+        new("now", "string", "AdminScriptEditor.Ctx.RequestCreate.Now")
+    ];
 }

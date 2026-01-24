@@ -75,6 +75,11 @@ public sealed class ScriptEvaluationService : IScriptEvaluationService
 
             var contextValue = ScriptValueConverter.ToScriptValue(context);
             var scriptConfigValue = ScriptValueConverter.ToScriptValue(scriptConfig);
+
+            // Reset constraints so time/statement limits apply to the check() invocation,
+            // not to host-side setup work (engine initialization, script loading, value conversion).
+            engine.Constraints.Reset();
+
             var result = engine.Invoke("check", contextValue, scriptConfigValue);
 
             stopwatch.Stop();
