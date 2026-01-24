@@ -71,6 +71,8 @@
                         <MonacoEditor @bind-Value="_config.Default.Body"
                                       Height="360px"
                                       Language="javascript"
+                                      CtxCompletions="_ctxCompletions"
+                                      ScriptConfigCompletions="ScriptConfigCompletionItems"
                                       Placeholder="@L("AdminScriptEditor.DefaultBodyPlaceholder")"/>
                     </RadzenStack>
                 </RadzenCard>
@@ -250,6 +252,7 @@
     private string _mockContextJson = "{}";
     private ScriptEvaluationResult? _testResult;
     private IReadOnlyList<CtxField> _ctxFields = [];
+    private IReadOnlyList<MonacoCompletionItem> _ctxCompletions = [];
 
     private readonly string[] _testTargets =
     [
@@ -258,6 +261,18 @@
     ];
 
     private string _selectedTestTarget = "default";
+
+    private static readonly IReadOnlyList<MonacoCompletionItem> ScriptConfigCompletionItems =
+    [
+        new MonacoCompletionItem { Label = "eventName", Detail = "string" },
+        new MonacoCompletionItem { Label = "settingKey", Detail = "string" },
+        new MonacoCompletionItem { Label = "timeoutMs", Detail = "number" },
+        new MonacoCompletionItem { Label = "maxStatements", Detail = "number" },
+        new MonacoCompletionItem { Label = "onDeny", Detail = "string" },
+        new MonacoCompletionItem { Label = "isOverride", Detail = "boolean" },
+        new MonacoCompletionItem { Label = "libraryId", Detail = "number|null" },
+        new MonacoCompletionItem { Label = "pathPrefix", Detail = "string|null" }
+    ];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -275,24 +290,23 @@
         }
 
         _ctxFields = GetContextFields(EventName);
+        _ctxCompletions = _ctxFields
+            .Select(field => new MonacoCompletionItem
+            {
+                Label = field.Name,
+                Detail = field.Type,
+                Documentation = field.Description,
+                InsertText = field.Name
+            })
+            .ToArray();
+
+        _mockContextJson = GetDefaultMockContextJson(EventName);
+        _settingId = null;
+        _config = CreateNewScriptConfig();
 
         var existing = await ScriptAdminService.GetAsync(EventName);
         if (existing == null)
         {
-            _settingId = null;
-            _config = new ScriptConfig
-            {
-                Enabled = true,
-                Default = new ScriptDefaultConfig
-                {
-                    Body = "function check(ctx, scriptConfig) { return true; }",
-                    OnDeny = "skip",
-                    Enabled = true
-                },
-                Overrides = []
-            };
-
-            _mockContextJson = GetDefaultMockContextJson(EventName);
             return;
         }
 
@@ -320,8 +334,21 @@
                 }
             };
         }
+    }
 
-        _mockContextJson = GetDefaultMockContextJson(EventName);
+    private static ScriptConfig CreateNewScriptConfig()
+    {
+        return new ScriptConfig
+        {
+            Enabled = true,
+            Default = new ScriptDefaultConfig
+            {
+                Body = "function check(ctx, scriptConfig) { return true; }",
+                OnDeny = "skip",
+                Enabled = true
+            },
+            Overrides = []
+        };
     }
 
     private void Back()
@@ -431,7 +458,9 @@
             L("AdminScriptEditor.EditOverrideBodyTitle"),
             new Dictionary<string, object>
             {
-                { "Body", item.Body }
+                { "Body", item.Body },
+                { "CtxCompletions", _ctxCompletions },
+                { "ScriptConfigCompletions", ScriptConfigCompletionItems }
             },
             new DialogOptions
             {

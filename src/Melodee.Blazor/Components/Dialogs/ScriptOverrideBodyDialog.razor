@@ -7,7 +7,11 @@
     <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.OverrideBodyHelp")</RadzenText>
 
     <div style="flex: 1; min-height: 360px;">
-        <MonacoEditor @bind-Value="_body" Height="100%" Language="javascript"/>
+        <MonacoEditor @bind-Value="_body"
+                      Height="100%"
+                      Language="javascript"
+                      CtxCompletions="CtxCompletions"
+                      ScriptConfigCompletions="ScriptConfigCompletions"/>
     </div>
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
@@ -18,6 +22,8 @@
 
 @code {
     [Parameter] public string Body { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<MonacoCompletionItem>? CtxCompletions { get; set; }
+    [Parameter] public IReadOnlyList<MonacoCompletionItem>? ScriptConfigCompletions { get; set; }
 
     private string _body = string.Empty;
 

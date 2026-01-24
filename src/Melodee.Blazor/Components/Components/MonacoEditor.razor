@@ -20,6 +20,7 @@ else
     private string _lastValue = string.Empty;
     private string _lastLanguage = string.Empty;
     private string _lastTheme = string.Empty;
+    private int _lastCompletionHash;
 
     [Parameter] public string Value { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
@@ -28,6 +29,8 @@ else
     [Parameter] public string Language { get; set; } = "javascript";
     [Parameter] public string Theme { get; set; } = "vs-dark";
     [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public IReadOnlyList<MonacoCompletionItem>? CtxCompletions { get; set; }
+    [Parameter] public IReadOnlyList<MonacoCompletionItem>? ScriptConfigCompletions { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -51,13 +54,19 @@ else
                         language = Language,
                         theme = Theme,
                         readOnly = ReadOnly,
-                        placeholder = Placeholder
+                        placeholder = Placeholder,
+                        completions = new
+                        {
+                            ctx = CtxCompletions,
+                            scriptConfig = ScriptConfigCompletions
+                        }
                     });
 
                 _initialized = true;
                 _lastValue = Value ?? string.Empty;
                 _lastLanguage = Language;
                 _lastTheme = Theme;
+                _lastCompletionHash = ComputeCompletionsHash();
             }
             catch
             {
@@ -103,6 +112,31 @@ else
             await JsRuntime.InvokeVoidAsync("melodeeMonacoEditor.setValue", _elementId, currentValue);
             _lastValue = currentValue;
         }
+
+        var completionHash = ComputeCompletionsHash();
+        if (completionHash != _lastCompletionHash)
+        {
+            await JsRuntime.InvokeVoidAsync(
+                "melodeeMonacoEditor.setCompletions",
+                _elementId,
+                new
+                {
+                    ctx = CtxCompletions,
+                    scriptConfig = ScriptConfigCompletions
+                });
+
+            _lastCompletionHash = completionHash;
+        }
+    }
+
+    public async Task LayoutAsync()
+    {
+        if (_useFallback || !_initialized)
+        {
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync("melodeeMonacoEditor.layout", _elementId);
     }
 
     [JSInvokable]
@@ -128,5 +162,29 @@ else
             _dotNetRef = null;
         }
     }
-}
 
+    private int ComputeCompletionsHash()
+    {
+        var hash = new HashCode();
+        AddCompletionItems(hash, CtxCompletions);
+        AddCompletionItems(hash, ScriptConfigCompletions);
+        return hash.ToHashCode();
+    }
+
+    private static void AddCompletionItems(HashCode hash, IReadOnlyList<MonacoCompletionItem>? items)
+    {
+        if (items == null)
+        {
+            hash.Add(0);
+            return;
+        }
+
+        hash.Add(items.Count);
+        foreach (var item in items)
+        {
+            hash.Add(item.Label, StringComparer.Ordinal);
+            hash.Add(item.Detail, StringComparer.Ordinal);
+            hash.Add(item.InsertText, StringComparer.Ordinal);
+        }
+    }
+}
