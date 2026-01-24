@@ -86,6 +86,8 @@
     <Folder Include="MessageBus\" />
     <Folder Include="Migrations\" />
     <Folder Include="Security\" />
+    <Folder Include="Models\Scripting\" />
+    <Folder Include="Services\ScriptEvaluation\" />
   </ItemGroup>
 
   <ItemGroup>

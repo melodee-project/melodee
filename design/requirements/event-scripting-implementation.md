@@ -20,9 +20,9 @@ post_date: "2026-01-24"
 | Phase | Name | Status | Key Deliverables |
 |-------|------|--------|------------------|
 | 1 | Foundation | ✅ Completed | Jint integration, script evaluation service, error handling |
-| 2 | Settings Infrastructure | ⏳ Pending | Settings table integration, JSON schema, caching layer |
-| 3 | Directory Processing Events | ⏳ Pending | `directoryProcessingStart`, `directoryProcessingDelete` integration |
-| 4 | Context Providers | ⏳ Pending | Directory context builder, aggregate calculation utilities |
+| 2 | Settings Infrastructure | ✅ Completed | Settings table integration, JSON schema, caching layer |
+| 3 | Directory Processing Events | ✅ Completed | `directoryProcessingStart`, `directoryProcessingDelete` integration |
+| 4 | Context Providers | ✅ Completed | Directory context builder, aggregate calculation utilities |
 | 5 | Safety & Auditing | ⏳ Pending | Safe deletion, path validation, audit logging |
 | 6 | Blazor Events | ⏳ Pending | User, playlist, podcast, share, request event hooks |
 | 7 | Testing & Validation | ⏳ Pending | Unit tests, integration tests, validation API endpoint |
