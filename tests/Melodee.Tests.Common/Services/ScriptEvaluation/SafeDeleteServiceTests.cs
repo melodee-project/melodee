@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Melodee.Common.Data.Models;
-using Melodee.Common.Enums;
 using Melodee.Common.Services;
 using Melodee.Common.Services.ScriptEvaluation;
 using Microsoft.EntityFrameworkCore;

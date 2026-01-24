@@ -1,7 +1,7 @@
 using Jint;
-using Script = Acornima.Ast.Script;
 using Melodee.Common.Services.Caching;
 using Serilog;
+using Script = Acornima.Ast.Script;
 
 namespace Melodee.Common.Services.ScriptEvaluation;
 

@@ -118,7 +118,7 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
 
         // Destination exists: merge contents
         MergeDirectories(sourcePath, destinationPath);
-        
+
         // Delete the now-empty source directory
         if (Directory.Exists(sourcePath))
         {
@@ -140,7 +140,7 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
         {
             var fileName = Path.GetFileName(sourceFile);
             var destFile = Path.Combine(destinationPath, fileName);
-            
+
             // Move file, overwriting if exists
             if (File.Exists(destFile))
             {

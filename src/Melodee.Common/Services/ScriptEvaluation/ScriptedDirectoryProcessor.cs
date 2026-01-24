@@ -1,30 +1,10 @@
-using System.Diagnostics;
-using Melodee.Common.Configuration;
-using Melodee.Common.Data;
-using Melodee.Common.Data.Models;
-using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
-using Melodee.Common.Plugins.Conversion;
-using Melodee.Common.Plugins.Conversion.Image;
-using Melodee.Common.Plugins.Conversion.Media;
-using Melodee.Common.Plugins.MetaData.Directory;
-using Melodee.Common.Plugins.MetaData.Directory.Nfo;
-using Melodee.Common.Plugins.MetaData.Song;
-using Melodee.Common.Plugins.Processor;
 using Melodee.Common.Plugins.Processor.Models;
-using Melodee.Common.Plugins.Scripting;
-using Melodee.Common.Plugins.Validation;
-using Melodee.Common.Serialization;
-using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Scanning;
-using Melodee.Common.Services.SearchEngines;
-using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Serilog;
-using Serilog.Events;
-using SerilogTimings;
 
 namespace Melodee.Common.Services.ScriptEvaluation;
 

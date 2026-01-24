@@ -1,4 +1,3 @@
-using Melodee.Common.Models.Scripting;
 using Serilog;
 
 namespace Melodee.Common.Services.ScriptEvaluation;

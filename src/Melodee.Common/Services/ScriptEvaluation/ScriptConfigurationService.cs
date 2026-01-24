@@ -3,7 +3,6 @@ using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Scripting;
 using Melodee.Common.Serialization;
-using NodaTime;
 using Serilog;
 
 namespace Melodee.Common.Services.ScriptEvaluation;

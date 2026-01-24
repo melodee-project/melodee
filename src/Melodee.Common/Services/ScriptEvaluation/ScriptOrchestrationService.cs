@@ -1,4 +1,3 @@
-using Jint;
 using Melodee.Common.Models.Scripting;
 using Serilog;
 
