@@ -7,7 +7,7 @@
     <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.OverrideBodyHelp")</RadzenText>
 
     <div style="flex: 1; min-height: 360px;">
-        <CodeEditor @bind-Value="_body" Height="100%"/>
+        <MonacoEditor @bind-Value="_body" Height="100%" Language="javascript"/>
     </div>
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">

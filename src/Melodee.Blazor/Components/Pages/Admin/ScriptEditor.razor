@@ -68,9 +68,10 @@
 
                     <RadzenStack Gap="0.5rem" class="rz-mt-3">
                         <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.DefaultBody")</RadzenText>
-                        <CodeEditor @bind-Value="_config.Default.Body"
-                                    Height="360px"
-                                    Placeholder="@L("AdminScriptEditor.DefaultBodyPlaceholder")"/>
+                        <MonacoEditor @bind-Value="_config.Default.Body"
+                                      Height="360px"
+                                      Language="javascript"
+                                      Placeholder="@L("AdminScriptEditor.DefaultBodyPlaceholder")"/>
                     </RadzenStack>
                 </RadzenCard>
             </RadzenTabsItem>
@@ -208,7 +209,7 @@
                         </RadzenRow>
 
                         <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.MockContextJson")</RadzenText>
-                        <CodeEditor @bind-Value="_mockContextJson" Height="280px" Placeholder="{}"/>
+                        <MonacoEditor @bind-Value="_mockContextJson" Height="280px" Language="json" Placeholder="{}"/>
 
                         <RadzenButton Text="@L("AdminScriptEditor.RunTest")"
                                       Icon="play_arrow"

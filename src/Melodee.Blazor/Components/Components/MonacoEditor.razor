@@ -1,0 +1,132 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JsRuntime
+
+@if (_useFallback)
+{
+    <CodeEditor @bind-Value="Value"
+                Height="@Height"
+                Placeholder="@Placeholder"/>
+}
+else
+{
+    <div id="@_elementId" class="monaco-editor-container" style="height: @Height;"></div>
+}
+
+@code {
+    private readonly string _elementId = $"monaco-editor-{Guid.NewGuid():N}";
+    private DotNetObjectReference<MonacoEditor>? _dotNetRef;
+    private bool _initialized;
+    private bool _useFallback;
+    private string _lastValue = string.Empty;
+    private string _lastLanguage = string.Empty;
+    private string _lastTheme = string.Empty;
+
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Height { get; set; } = "320px";
+    [Parameter] public string Placeholder { get; set; } = string.Empty;
+    [Parameter] public string Language { get; set; } = "javascript";
+    [Parameter] public string Theme { get; set; } = "vs-dark";
+    [Parameter] public bool ReadOnly { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_useFallback)
+        {
+            return;
+        }
+
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JsRuntime.InvokeVoidAsync(
+                    "melodeeMonacoEditor.create",
+                    _elementId,
+                    _dotNetRef,
+                    new
+                    {
+                        value = Value ?? string.Empty,
+                        language = Language,
+                        theme = Theme,
+                        readOnly = ReadOnly,
+                        placeholder = Placeholder
+                    });
+
+                _initialized = true;
+                _lastValue = Value ?? string.Empty;
+                _lastLanguage = Language;
+                _lastTheme = Theme;
+            }
+            catch
+            {
+                _useFallback = true;
+                StateHasChanged();
+            }
+        }
+        else if (_initialized)
+        {
+            await SyncIfNeededAsync();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+
+        if (_useFallback || !_initialized)
+        {
+            return;
+        }
+
+        await SyncIfNeededAsync();
+    }
+
+    private async Task SyncIfNeededAsync()
+    {
+        var currentValue = Value ?? string.Empty;
+        if (!string.Equals(_lastLanguage, Language, StringComparison.Ordinal)
+            || !string.Equals(_lastTheme, Theme, StringComparison.Ordinal))
+        {
+            await JsRuntime.InvokeVoidAsync(
+                "melodeeMonacoEditor.setLanguageAndTheme",
+                _elementId,
+                Language,
+                Theme);
+            _lastLanguage = Language;
+            _lastTheme = Theme;
+        }
+
+        if (!string.Equals(_lastValue, currentValue, StringComparison.Ordinal))
+        {
+            await JsRuntime.InvokeVoidAsync("melodeeMonacoEditor.setValue", _elementId, currentValue);
+            _lastValue = currentValue;
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyValueChanged(string value)
+    {
+        _lastValue = value ?? string.Empty;
+        await ValueChanged.InvokeAsync(_lastValue);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dotNetRef != null)
+        {
+            try
+            {
+                await JsRuntime.InvokeVoidAsync("melodeeMonacoEditor.dispose", _elementId);
+            }
+            catch
+            {
+            }
+
+            _dotNetRef.Dispose();
+            _dotNetRef = null;
+        }
+    }
+}
+
