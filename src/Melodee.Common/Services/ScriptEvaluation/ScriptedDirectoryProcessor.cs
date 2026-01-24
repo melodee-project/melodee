@@ -117,22 +117,37 @@ public sealed class ScriptedDirectoryProcessor : IScriptedDirectoryProcessor
 
             if (!startResult.Result)
             {
-                var deleteResult = await _scriptOrchestrationService.EvaluateScriptForEventAsync(
-                    "directoryProcessingDelete",
-                    context,
-                    libraryId,
-                    context.RelativePath,
-                    cancellationToken);
+                var onDeny = startResult.OnDeny ?? "skip";
 
-                if (deleteResult.Result)
+                if (string.Equals(onDeny, "delete", StringComparison.OrdinalIgnoreCase))
                 {
-                    var onDeny = "skip";
-                    var handler = _denyActionHandlerFactory.CreateHandler(onDeny);
+                    var deleteResult = await _scriptOrchestrationService.EvaluateScriptForEventAsync(
+                        "directoryProcessingDelete",
+                        context,
+                        libraryId,
+                        context.RelativePath,
+                        cancellationToken);
 
+                    if (deleteResult.Result)
+                    {
+                        var handler = _denyActionHandlerFactory.CreateHandler(onDeny);
+                        var actionResult = await handler.ExecuteAsync(context.RelativePath, libraryId, cancellationToken);
+                        if (actionResult)
+                        {
+                            directoriesDeleted++;
+                            _logger.Information("Script denied processing for {Path}, action {Action} executed",
+                                context.RelativePath, onDeny);
+                            continue;
+                        }
+                    }
+                }
+                else if (string.Equals(onDeny, "quarantine", StringComparison.OrdinalIgnoreCase))
+                {
+                    var handler = _denyActionHandlerFactory.CreateHandler(onDeny);
                     var actionResult = await handler.ExecuteAsync(context.RelativePath, libraryId, cancellationToken);
                     if (actionResult)
                     {
-                        directoriesDeleted++;
+                        directoriesSkipped++;
                         _logger.Information("Script denied processing for {Path}, action {Action} executed",
                             context.RelativePath, onDeny);
                         continue;

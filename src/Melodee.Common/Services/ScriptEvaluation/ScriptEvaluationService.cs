@@ -1,6 +1,5 @@
 using Jint;
 using Melodee.Common.Models.Scripting;
-using Melodee.Common.Services.Caching;
 using Serilog;
 
 namespace Melodee.Common.Services.ScriptEvaluation;
@@ -10,95 +9,119 @@ public interface IScriptEvaluationService
     Task<ScriptEvaluationResult> EvaluateScriptAsync(
         string scriptBody,
         object context,
+        object scriptConfig,
         ScriptConfig config,
         CancellationToken cancellationToken = default);
 }
 
 public sealed class ScriptEvaluationService : IScriptEvaluationService
 {
-    private readonly ICacheManager _cacheManager;
+    private readonly IScriptCacheService _cacheService;
     private readonly ILogger _logger;
 
     public ScriptEvaluationService(
         ILogger logger,
-        ICacheManager cacheManager)
+        IScriptCacheService cacheService)
     {
         _logger = logger;
-        _cacheManager = cacheManager;
+        _cacheService = cacheService;
     }
 
-    public Task<ScriptEvaluationResult> EvaluateScriptAsync(
+    public async Task<ScriptEvaluationResult> EvaluateScriptAsync(
         string scriptBody,
         object context,
+        object scriptConfig,
         ScriptConfig config,
         CancellationToken cancellationToken = default)
     {
-        return Task.Run(() =>
+        if (!config.Enabled)
         {
-            if (!config.Enabled)
+            return new ScriptEvaluationResult
             {
-                return new ScriptEvaluationResult
-                {
-                    Result = true,
-                    IsDefault = true,
-                    ErrorMessage = null
-                };
-            }
+                Result = true,
+                IsDefault = true,
+                ErrorMessage = null
+            };
+        }
 
-            if (string.IsNullOrWhiteSpace(scriptBody))
+        if (string.IsNullOrWhiteSpace(scriptBody))
+        {
+            return new ScriptEvaluationResult
             {
-                return new ScriptEvaluationResult
-                {
-                    Result = true,
-                    IsDefault = true,
-                    ErrorMessage = "Script body is empty, defaulting to allow"
-                };
-            }
+                Result = true,
+                IsDefault = true,
+                ErrorMessage = "Script body is empty, defaulting to allow"
+            };
+        }
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            try
+        try
+        {
+            var effectiveScriptBody = NormalizeToCheckFunction(scriptBody);
+            var preparedScriptKey = ScriptHashing.Sha256Hex(effectiveScriptBody);
+            var preparedScript = await _cacheService
+                .GetOrCreatePreparedScriptAsync(preparedScriptKey, effectiveScriptBody, cancellationToken)
+                .ConfigureAwait(false);
+
+            var engine = new Engine(options =>
             {
-                var engine = new Engine(options =>
-                {
-                    options.Strict = true;
-                    options.TimeoutInterval(TimeSpan.FromMilliseconds(config.TimeoutMs));
-                    options.MaxStatements(config.MaxStatements);
-                });
+                options.Strict = true;
+                options.TimeoutInterval(TimeSpan.FromMilliseconds(config.TimeoutMs));
+                options.MaxStatements(config.MaxStatements);
+            });
 
-                engine.SetValue("ctx", context);
+            engine.Execute(preparedScript);
 
-                engine.Execute(scriptBody);
+            var contextValue = ScriptValueConverter.ToScriptValue(context);
+            var scriptConfigValue = ScriptValueConverter.ToScriptValue(scriptConfig);
+            var result = engine.Invoke("check", contextValue, scriptConfigValue);
 
-                var result = engine.Invoke("check", context);
+            stopwatch.Stop();
 
-                stopwatch.Stop();
-
-                var boolResult = result.IsBoolean() && result.AsBoolean();
-
-                return new ScriptEvaluationResult
-                {
-                    Result = boolResult,
-                    IsDefault = false,
-                    SelectedOverrideId = null,
-                    Duration = stopwatch.Elapsed,
-                    ErrorMessage = null
-                };
-            }
-            catch (Exception ex)
+            if (!result.IsBoolean())
             {
-                stopwatch.Stop();
-                _logger.Error(ex, "Script evaluation failed for script body: {ScriptBodyHash}",
-                    scriptBody.GetHashCode());
-
                 return new ScriptEvaluationResult
                 {
                     Result = true,
                     IsDefault = true,
                     Duration = stopwatch.Elapsed,
-                    ErrorMessage = ex.Message
+                    ErrorMessage = "Script returned a non-boolean value, defaulting to allow"
                 };
             }
-        }, cancellationToken);
+
+            return new ScriptEvaluationResult
+            {
+                Result = result.AsBoolean(),
+                IsDefault = false,
+                SelectedOverrideId = null,
+                Duration = stopwatch.Elapsed,
+                ErrorMessage = null
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            _logger.Error(ex, "Script evaluation failed");
+
+            return new ScriptEvaluationResult
+            {
+                Result = true,
+                IsDefault = true,
+                Duration = stopwatch.Elapsed,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    private static string NormalizeToCheckFunction(string scriptBody)
+    {
+        var trimmed = scriptBody.Trim();
+        if (trimmed.Contains("function check", StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        return $"function check(ctx, scriptConfig) {{ return ({trimmed}); }}";
     }
 }

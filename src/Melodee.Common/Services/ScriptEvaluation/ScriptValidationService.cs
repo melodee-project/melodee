@@ -1,3 +1,4 @@
+using Jint;
 using Melodee.Common.Models.Scripting;
 using Serilog;
 
@@ -51,23 +52,56 @@ public sealed class ScriptValidationService : IScriptValidationService
             };
         }
 
+        var config = await _configurationService.GetScriptConfigAsync(request.EventName, cancellationToken)
+                     ?? new ScriptConfig();
+
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
-            var scriptHash = request.ScriptBody.GetHashCode().ToString();
-            var engine = await _cacheService.GetOrCreateEngineAsync(scriptHash, request.ScriptBody, cancellationToken);
+            var effectiveScriptBody = NormalizeToCheckFunction(request.ScriptBody);
+            var preparedScriptKey = ScriptHashing.Sha256Hex(effectiveScriptBody);
+            var preparedScript = await _cacheService
+                .GetOrCreatePreparedScriptAsync(preparedScriptKey, effectiveScriptBody, cancellationToken)
+                .ConfigureAwait(false);
 
-            var scriptResult = engine.Invoke("check", request.Context);
+            var engine = new Engine(options =>
+            {
+                options.Strict = true;
+                options.TimeoutInterval(TimeSpan.FromMilliseconds(config.TimeoutMs));
+                options.MaxStatements(config.MaxStatements);
+            });
+
+            var scriptConfig = new
+            {
+                eventName = request.EventName,
+                timeoutMs = config.TimeoutMs,
+                maxStatements = config.MaxStatements
+            };
+
+            var contextValue = ScriptValueConverter.ToScriptValue(request.Context);
+            var scriptConfigValue = ScriptValueConverter.ToScriptValue(scriptConfig);
+
+            engine.Execute(preparedScript);
+            var scriptResult = engine.Invoke("check", contextValue, scriptConfigValue);
 
             stopwatch.Stop();
 
-            var boolResult = scriptResult.ToObject() is true;
+            if (!scriptResult.IsBoolean())
+            {
+                return new ScriptValidationResult
+                {
+                    IsValid = false,
+                    Result = true,
+                    DurationMs = stopwatch.ElapsedMilliseconds,
+                    ErrorMessage = "Script returned a non-boolean value"
+                };
+            }
 
             return new ScriptValidationResult
             {
                 IsValid = true,
-                Result = boolResult,
+                Result = scriptResult.AsBoolean(),
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorMessage = null
             };
@@ -85,5 +119,16 @@ public sealed class ScriptValidationService : IScriptValidationService
                 ErrorMessage = ex.Message
             };
         }
+    }
+
+    private static string NormalizeToCheckFunction(string scriptBody)
+    {
+        var trimmed = scriptBody.Trim();
+        if (trimmed.Contains("function check", StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        return $"function check(ctx, scriptConfig) {{ return ({trimmed}); }}";
     }
 }

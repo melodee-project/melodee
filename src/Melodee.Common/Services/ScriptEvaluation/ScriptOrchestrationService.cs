@@ -1,6 +1,5 @@
 using Jint;
 using Melodee.Common.Models.Scripting;
-using Melodee.Common.Services.Caching;
 using Serilog;
 
 namespace Melodee.Common.Services.ScriptEvaluation;
@@ -18,18 +17,15 @@ public interface IScriptOrchestrationService
 public sealed class ScriptOrchestrationService : IScriptOrchestrationService
 {
     private readonly IScriptConfigurationService _configurationService;
-    private readonly IScriptCacheService _cacheService;
     private readonly IScriptEvaluationService _evaluationService;
     private readonly ILogger _logger;
 
     public ScriptOrchestrationService(
         IScriptConfigurationService configurationService,
-        IScriptCacheService cacheService,
         IScriptEvaluationService evaluationService,
         ILogger logger)
     {
         _configurationService = configurationService;
-        _cacheService = cacheService;
         _evaluationService = evaluationService;
         _logger = logger;
     }
@@ -53,14 +49,16 @@ public sealed class ScriptOrchestrationService : IScriptOrchestrationService
             };
         }
 
-        var scriptBody = config.DefaultBody ?? string.Empty;
         var selectedOverride = ScriptOverrideSelector.SelectOverride(config, libraryId, relativePath);
         var isOverride = selectedOverride != null;
 
-        if (isOverride)
-        {
-            scriptBody = selectedOverride!.Body;
-        }
+        var onDeny = selectedOverride?.OnDeny ?? config.Default.OnDeny;
+
+        var scriptBody = isOverride
+            ? selectedOverride!.Body
+            : !string.IsNullOrWhiteSpace(config.Default.Body)
+                ? config.Default.Body
+                : config.DefaultBody ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(scriptBody))
         {
@@ -69,58 +67,51 @@ public sealed class ScriptOrchestrationService : IScriptOrchestrationService
                 Result = true,
                 IsDefault = true,
                 SelectedOverrideId = null,
+                ScriptKey = config.SettingKey,
+                ScriptHash = null,
+                OnDeny = onDeny,
                 ErrorMessage = "No script body available, defaulting to allow"
             };
         }
 
-        var scriptHash = scriptBody.GetHashCode().ToString();
-        Engine engine;
+        var scriptHash = ScriptHashing.Sha256Hex(scriptBody);
 
-        try
+        var scriptConfig = new
         {
-            engine = await _cacheService.GetOrCreateEngineAsync(scriptHash, scriptBody, cancellationToken);
-        }
-        catch (Exception ex)
+            eventName,
+            settingKey = config.SettingKey,
+            timeoutMs = config.TimeoutMs,
+            maxStatements = config.MaxStatements,
+            onDeny,
+            isOverride,
+            libraryId = selectedOverride?.LibraryId,
+            pathPrefix = selectedOverride?.PathPrefix
+        };
+
+        var evaluationResult = await _evaluationService
+            .EvaluateScriptAsync(scriptBody, context, scriptConfig, config, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (evaluationResult.ErrorMessage != null)
         {
-            _logger.Error(ex, "Failed to get or create cached script engine for event {EventName}", eventName);
-            engine = new Engine(options =>
-            {
-                options.Strict = true;
-                options.MaxStatements(config.MaxStatements);
-            });
-            engine.Execute(scriptBody);
+            _logger.Warning(
+                "Script evaluation failure defaulted to allow. Event {EventName} key {ScriptKey} hash {ScriptHash} library {LibraryId} path {RelativePath} override {OverrideId}. Error: {ErrorMessage}",
+                eventName,
+                config.SettingKey,
+                scriptHash,
+                libraryId,
+                relativePath,
+                isOverride ? $"{selectedOverride!.LibraryId}|{selectedOverride.PathPrefix}" : "default",
+                evaluationResult.ErrorMessage);
         }
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-        try
+        return evaluationResult with
         {
-            var result = engine.Invoke("check", context);
-            stopwatch.Stop();
-
-            var boolResult = result.IsBoolean() && result.AsBoolean();
-
-            return new ScriptEvaluationResult
-            {
-                Result = boolResult,
-                IsDefault = !isOverride,
-                SelectedOverrideId = isOverride ? $"lib:{libraryId}|path:{relativePath}" : null,
-                Duration = stopwatch.Elapsed,
-                ErrorMessage = null
-            };
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            _logger.Error(ex, "Script evaluation failed for event {EventName}", eventName);
-
-            return new ScriptEvaluationResult
-            {
-                Result = true,
-                IsDefault = true,
-                Duration = stopwatch.Elapsed,
-                ErrorMessage = ex.Message
-            };
-        }
+            IsDefault = !isOverride || evaluationResult.IsDefault,
+            SelectedOverrideId = isOverride ? $"{selectedOverride!.LibraryId}|{selectedOverride.PathPrefix}" : null,
+            ScriptKey = config.SettingKey,
+            ScriptHash = scriptHash,
+            OnDeny = onDeny
+        };
     }
 }

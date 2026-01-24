@@ -3,6 +3,7 @@ using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Scripting;
 using Melodee.Common.Serialization;
+using NodaTime;
 using Serilog;
 
 namespace Melodee.Common.Services.ScriptEvaluation;
@@ -52,8 +53,18 @@ public sealed class ScriptConfigurationService : IScriptConfigurationService
 
             var setting = settings[0];
             var config = _serializer.Deserialize<ScriptConfig>(setting.Value);
+            if (config == null)
+            {
+                return null;
+            }
 
-            return config;
+            var etagInstant = setting.LastUpdatedAt ?? setting.CreatedAt;
+
+            return config with
+            {
+                SettingKey = settingKey,
+                SettingEtag = etagInstant.ToUnixTimeMilliseconds().ToString()
+            };
         }
         catch (Exception ex)
         {

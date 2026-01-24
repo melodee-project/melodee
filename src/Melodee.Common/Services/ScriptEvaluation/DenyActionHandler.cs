@@ -64,12 +64,24 @@ public sealed class SafeDeleteService : ISafeDeleteService
             var library = libraryResult.Data;
             var inboundPathSettingKey = $"library.inboundPath.{libraryId}";
             var inboundPathResult = await _settingService.GetValueAsync(inboundPathSettingKey, "", cancellationToken);
-            var safeRoot = inboundPathResult.Data ?? library.Path;
+            var safeRoot = string.IsNullOrWhiteSpace(inboundPathResult.Data) ? library.Path : inboundPathResult.Data!;
+
+            if (string.IsNullOrWhiteSpace(safeRoot))
+            {
+                _logger.Error("No safe root configured for library {LibraryId}", libraryId);
+                return false;
+            }
+
+            if (System.IO.Path.IsPathRooted(relativePath))
+            {
+                _logger.Error("Refusing to delete rooted path {Path}", relativePath);
+                return false;
+            }
 
             var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(safeRoot, relativePath));
             var rootPath = System.IO.Path.GetFullPath(safeRoot);
 
-            if (!fullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+            if (!IsWithinRoot(fullPath, rootPath))
             {
                 _logger.Error("Path traversal attempt detected: {FullPath} does not start with {RootPath}", fullPath, rootPath);
                 return false;
@@ -78,6 +90,13 @@ public sealed class SafeDeleteService : ISafeDeleteService
             if (!System.IO.Directory.Exists(fullPath))
             {
                 _logger.Debug("Directory does not exist for deletion: {Path}", fullPath);
+                return true;
+            }
+
+            var dryRunResult = await _settingService.GetValueAsync("script.dryRun.enabled", false, cancellationToken);
+            if (dryRunResult.IsSuccess && dryRunResult.Data == true)
+            {
+                _logger.Information("Dry-run enabled; would delete directory: {Path}", fullPath);
                 return true;
             }
 
@@ -90,6 +109,19 @@ public sealed class SafeDeleteService : ISafeDeleteService
             _logger.Error(ex, "Failed to safely delete directory {Path}", relativePath);
             return false;
         }
+    }
+
+    private static bool IsWithinRoot(string fullPath, string rootPath)
+    {
+        if (string.Equals(fullPath, rootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var normalizedRoot = rootPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)
+                             + System.IO.Path.DirectorySeparatorChar;
+
+        return fullPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 }
 

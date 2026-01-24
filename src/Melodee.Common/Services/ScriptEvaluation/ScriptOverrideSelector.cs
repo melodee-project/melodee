@@ -9,6 +9,7 @@ public static class ScriptOverrideSelector
         int libraryId,
         string relativePath)
     {
+        var normalizedRelativePath = NormalizePath(relativePath);
         var candidates = config.Overrides.Where(o => o.Enabled).ToList();
 
         if (!candidates.Any())
@@ -22,12 +23,12 @@ public static class ScriptOverrideSelector
 
         var pathMatches = candidates
             .Where(o => !string.IsNullOrEmpty(o.PathPrefix) &&
-                        relativePath.StartsWith(o.PathPrefix, StringComparison.OrdinalIgnoreCase))
+                        normalizedRelativePath.StartsWith(NormalizePath(o.PathPrefix!), StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         var libraryMatchWithPath = libraryMatches
             .Where(o => !string.IsNullOrEmpty(o.PathPrefix) &&
-                        relativePath.StartsWith(o.PathPrefix, StringComparison.OrdinalIgnoreCase))
+                        normalizedRelativePath.StartsWith(NormalizePath(o.PathPrefix!), StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (libraryMatchWithPath.Any())
@@ -50,5 +51,13 @@ public static class ScriptOverrideSelector
         }
 
         return null;
+    }
+
+    private static string NormalizePath(string path)
+    {
+        return path
+            .Replace('\\', '/')
+            .TrimStart('/')
+            .Trim();
     }
 }

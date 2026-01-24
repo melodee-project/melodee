@@ -1,4 +1,5 @@
 using Jint;
+using Script = Acornima.Ast.Script;
 using Melodee.Common.Services.Caching;
 using Serilog;
 
@@ -6,8 +7,8 @@ namespace Melodee.Common.Services.ScriptEvaluation;
 
 public interface IScriptCacheService
 {
-    Task<Engine> GetOrCreateEngineAsync(string scriptBodyHash, string scriptBody, CancellationToken cancellationToken = default);
-    void Invalidate(string scriptBodyHash);
+    Task<Prepared<Script>> GetOrCreatePreparedScriptAsync(string cacheKey, string scriptBody, CancellationToken cancellationToken = default);
+    void Invalidate(string cacheKey);
     void InvalidateAll();
 }
 
@@ -26,20 +27,20 @@ public sealed class ScriptCacheService : IScriptCacheService
         _logger = logger;
     }
 
-    public async Task<Engine> GetOrCreateEngineAsync(string scriptBodyHash, string scriptBody, CancellationToken cancellationToken = default)
+    public async Task<Prepared<Script>> GetOrCreatePreparedScriptAsync(string cacheKey, string scriptBody, CancellationToken cancellationToken = default)
     {
         return await _cacheManager.GetAsync(
-            scriptBodyHash,
-            async () => await CreateEngineAsync(scriptBody, cancellationToken),
+            cacheKey,
+            async () => await CreatePreparedScriptAsync(scriptBody, cancellationToken),
             cancellationToken,
             DefaultTtl,
             CacheRegion).ConfigureAwait(false);
     }
 
-    public void Invalidate(string scriptBodyHash)
+    public void Invalidate(string cacheKey)
     {
-        _cacheManager.Remove(scriptBodyHash, CacheRegion);
-        _logger.Debug("Invalidated cached script with hash {ScriptHash}", scriptBodyHash);
+        _cacheManager.Remove(cacheKey, CacheRegion);
+        _logger.Debug("Invalidated cached script with key {CacheKey}", cacheKey);
     }
 
     public void InvalidateAll()
@@ -48,18 +49,11 @@ public sealed class ScriptCacheService : IScriptCacheService
         _logger.Debug("Invalidated all cached scripts");
     }
 
-    private static async Task<Engine> CreateEngineAsync(string scriptBody, CancellationToken cancellationToken)
+    private static async Task<Prepared<Script>> CreatePreparedScriptAsync(string scriptBody, CancellationToken cancellationToken)
     {
         return await Task.Run(() =>
         {
-            var engine = new Engine(options =>
-            {
-                options.Strict = true;
-                options.MaxStatements(10000);
-            });
-
-            engine.Execute(scriptBody);
-            return engine;
+            return Engine.PrepareScript(scriptBody, null, true, null);
         }, cancellationToken).ConfigureAwait(false);
     }
 }
