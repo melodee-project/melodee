@@ -68,8 +68,11 @@ All events follow the same contract: the host provides a `ctx` object, the scrip
    - If the script returns `false`, the directory is skipped and `directoryProcessingDelete` is evaluated.
 
 2. `directoryProcessingDelete`
-   - Runs only after `directoryProcessingStart` returns `false`.
-   - If this script returns `true`, the directory is deleted.
+    - Runs only after `directoryProcessingStart` returns `false` and `onDeny: delete`
+      is configured for the selected override.
+    - This event allows the script to perform additional validation before deletion.
+    - If this script returns `true`, the directory is deleted per the `onDeny` action.
+    - If this script returns `false`, the directory is left in place (soft deny).
 
 3. `userRegistrationStart`
    - Runs before a new user is created (registration flow).
@@ -106,6 +109,7 @@ contract.
 ### Settings key convention
 
 - Base key: `script.<eventName>` (example: `script.directoryProcessingStart`).
+- **The entire JSON document** is stored as the value, enabling configuration, overrides, and guardrails in one place.
 - Value format: JSON document to allow multiple overrides and policy controls.
 
 ### Suggested JSON schema (conceptual)
@@ -146,6 +150,10 @@ Notes:
   events.
 - `onDeny` is an action applied by the host; the script does not perform the
   deletion.
+- **Caching and invalidation**: The host must cache compiled scripts until Settings change.
+  Use `etag` or `lastModified` fields (if available from the Settings store) to detect changes.
+  Changes to Settings keys take effect immediately for new event invocations; in-flight
+  executions complete with the previous version.
 
 ### Override selection rules
 
@@ -182,6 +190,9 @@ Minimum requirements:
   - Statement limit (`maxStatements`) or equivalent
   - Cancellation support where practical
 - The script environment must not expose filesystem/network APIs.
+- **Future hardening**: Consider process-level or AppDomain isolation for future
+  releases to prevent script-induced memory leaks or infinite loops from affecting
+  the entire application process.
 
 ### Host interface contract
 
@@ -221,14 +232,19 @@ when any of the following occurs:
 
 Operational requirements:
 
-- Log failures with enough detail to diagnose (event name, libraryId, relativePath, selected override id/prefix), without dumping full script bodies by default.
+- Log failures with enough detail to diagnose (event name, libraryId, relativePath, selected override id/prefix, script key).
+- **Do not log full script bodies** in production. Instead log:
+  - The Settings key name
+  - A SHA-256 hash of the script body (for auditing and correlation)
+  - The override identifier or path prefix used
 - Failures must not stop directory processing (unless the underlying operation fails independently).
 
 ### Determinism and performance
 
 - Scripts must be expected to run in milliseconds and must not scan files
   themselves.
-- The host should precompute derived values and provide them in `ctx`.
+- **Performance targets**: Script evaluation must complete within 10ms at P99 latency.
+  The host should precompute derived values and provide them in `ctx`.
 - The host should cache parsed/compiled scripts until Settings change.
 
 ## Directory processing gating requirements
@@ -253,7 +269,7 @@ The host must provide `ctx` with at least:
 | `directoryName` | string | Friendly directory name. |
 | `totalFilesCount` | number | Total files in the directory (all extensions). |
 | `totalSizeMegabytes` | number | Total size of files in the directory (MB). |
-| `mostRecentModifiedUtc` | string | Most recent file modified timestamp in ISO-8601 UTC (e.g., `2026-01-24T12:34:56Z`). |
+| `mostRecentModified` | string | Most recent file modified timestamp in ISO-8601 UTC (e.g., `2026-01-24T12:34:56Z`). |
 | `mediaFilesCount` | number | Number of media files considered for staging. |
 | `totalDurationMinutes` | number | Sum duration of media files (minutes). |
 | `trackNumbers` | number[] | Parsed positive track numbers (unique, sorted or unsorted). |
@@ -332,8 +348,8 @@ Minimum recommended fields:
 | `userNameLength` | number | Length of the requested username. |
 | `emailDomain` | string | Domain portion of the email. |
 | `clientIp` | string | Client IP (best-effort). |
-| `userAgent` | string | User-Agent (best-effort). |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `userAgent` | string | User-Agent (best-effort). |~~~~
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ### Context contract for `userLoginStart`
 
@@ -342,10 +358,10 @@ Minimum recommended fields:
 | Field | Type | Description |
 | --- | --- | --- |
 | `userId` | number | Authenticated user id (if known at decision time). |
-| `isAdmin` | boolean | Whether the authenticated user is an administrator. |
+| `roles` | string[] | List of roles assigned to the user (e.g., `["admin", "user"]`). |
 | `clientIp` | string | Client IP (best-effort). |
 | `userAgent` | string | User-Agent (best-effort). |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ### Context contract for `userProfileUpdateStart`
 
@@ -354,9 +370,9 @@ Minimum recommended fields:
 | Field | Type | Description |
 | --- | --- | --- |
 | `userId` | number | User id being updated. |
-| `changedFields` | string[] | Names of changed fields (no values). |
+| `changedFields` | string[] | Names of changed fields in dot-notation (e.g., `["displayName", "settings.theme"]`). |
 | `clientIp` | string | Client IP (best-effort). |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ### Context contract for `playlistCreateStart`
 
@@ -367,7 +383,7 @@ Minimum recommended fields:
 | `userId` | number | User creating the playlist. |
 | `nameLength` | number | Playlist name length. |
 | `initialSongCount` | number | Number of songs included at creation time (if applicable). |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ### Context contract for `podcastChannelAddStart`
 
@@ -379,7 +395,7 @@ Minimum recommended fields:
 | `urlScheme` | string | Scheme, e.g., `https`. |
 | `urlHost` | string | Host portion of the URL. |
 | `isHttps` | boolean | Whether scheme is `https`. |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ### Context contract for `shareCreateStart`
 
@@ -388,9 +404,9 @@ Minimum recommended fields:
 | Field | Type | Description |
 | --- | --- | --- |
 | `userId` | number | User creating the share. |
-| `shareType` | string | Logical share type (album/song/playlist/etc.). |
+| `shareType` | string | Logical share type. Valid values: `album`, `song`, `playlist`, `artist`, `albumArtist`. |
 | `expiresInDays` | number | Expiration in days (if supported). |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ### Context contract for `requestCreateStart`
 
@@ -401,16 +417,16 @@ Minimum recommended fields:
 | `userId` | number | User creating the request. |
 | `requestType` | string | Logical request type. |
 | `clientIp` | string | Client IP (best-effort). |
-| `utcNow` | string | Current UTC timestamp (ISO-8601). |
+| `now` | string | Current UTC timestamp (ISO-8601). |
 
 ## Safety requirements for deletion
 
 If `onDeny: delete` is enabled:
 
-- Deletion must be constrained to the library's configured inbound root (or
-  another explicit safe root).
-- The host must verify the target is within the allowed root after path
-  normalization to prevent traversal issues.
+- Deletion must be constrained to the library's configured inbound root
+  (`library.inboundPath.<libraryId>` in Settings) or another explicit safe root.
+  - The host must verify the target is within the allowed root after path
+    normalization to prevent traversal issues.
 - Deletion must be audited with:
   - event name
   - libraryId
@@ -419,6 +435,10 @@ If `onDeny: delete` is enabled:
   - decision result
   - action taken
   - errors (if any)
+  - timestamp (ISO-8601 UTC)
+
+- **Audit retention**: Audit records must be retained for a minimum of 30 days.
+  Implement a cleanup job to remove older records or archive them to long-term storage.
 
 Optional safety controls:
 
@@ -431,6 +451,43 @@ Optional safety controls:
 - Record execution duration and failures.
 - Avoid logging full script bodies by default; log script identifiers and/or
   a hash/version to support auditing without leaking contents.
+
+## Script lifecycle and operations
+
+### Script editing and propagation
+
+- **Immediate effect**: Changes to Settings entries take effect immediately for new
+  event invocations. In-flight executions complete with the previous script version.
+- **No rollback mechanism**: Admins must manually revert Settings values if a script
+  causes issues. Consider implementing a backup/restore feature for Settings.
+
+### Script testing and validation
+
+- **Validation endpoint**: The host must provide an API endpoint (e.g., `POST /api/scripts/validate`)
+  that accepts a script body and context sample, executes the script, and returns the result.
+- **Dry-run mode**: Allow admins to test scripts against production data without
+  affecting behavior by simulating decisions and logging outcomes.
+- **Recommended workflow**:
+  1. Write and validate script using the validation endpoint with sample context.
+  2. Deploy to a non-production library for integration testing.
+  3. Deploy to production with monitoring enabled.
+  4. Review audit logs after initial deployment.
+
+### Script versioning and migration
+
+- **Version tracking**: Include a `version` field in the JSON schema (integer, starting at 1)
+  to enable schema migrations and backward compatibility.
+- **Schema evolution**: When making breaking changes to the JSON schema, increment the
+  version and implement migration logic in the host.
+- **Example extended schema**:
+  ```json
+  {
+    "version": 1,
+    "enabled": true,
+    "engine": "jint",
+    ...
+  }
+  ```
 
 ## Acceptance criteria
 
