@@ -6450,4 +6450,184 @@ Common fixes:
   <data name="BulkArtistManagement.Title" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Manage Invalid Artists</value>
   </data>
+
+  <data name="Navigation.Scripts" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Scripts</value>
+  </data>
+
+  <data name="AdminScripts.PageTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Scripts</value>
+  </data>
+
+  <data name="AdminScripts.SelectEvent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Select an event</value>
+  </data>
+
+  <data name="AdminScripts.Create" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Create</value>
+  </data>
+
+  <data name="AdminScripts.EventName" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Event</value>
+  </data>
+
+  <data name="AdminScripts.Enabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enabled</value>
+  </data>
+
+  <data name="AdminScripts.DefaultOnDeny" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Default on deny</value>
+  </data>
+
+  <data name="AdminScripts.Overrides" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Overrides</value>
+  </data>
+
+  <data name="AdminScripts.LastUpdated" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Last updated (UTC)</value>
+  </data>
+
+  <data name="AdminScripts.Status" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Status</value>
+  </data>
+
+  <data name="AdminScripts.InvalidConfig" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Invalid</value>
+  </data>
+
+  <data name="AdminScripts.DeleteConfirmTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Confirm delete</value>
+  </data>
+
+  <data name="AdminScripts.DeleteConfirmMessage" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Delete script for event '{0}'?</value>
+  </data>
+
+  <data name="AdminScripts.DeletedSuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Deleted</value>
+  </data>
+
+  <data name="AdminScripts.DeleteFailed" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Delete failed</value>
+  </data>
+
+  <data name="AdminScriptEditor.PageTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Script editor</value>
+  </data>
+
+  <data name="AdminScriptEditor.ConfigurationTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Configuration</value>
+  </data>
+
+  <data name="AdminScriptEditor.Enabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enabled</value>
+  </data>
+
+  <data name="AdminScriptEditor.TimeoutMs" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Timeout (ms)</value>
+  </data>
+
+  <data name="AdminScriptEditor.MaxStatements" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Max statements</value>
+  </data>
+
+  <data name="AdminScriptEditor.DefaultOnDeny" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Default on deny</value>
+  </data>
+
+  <data name="AdminScriptEditor.DefaultBody" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Default script</value>
+  </data>
+
+  <data name="AdminScriptEditor.DefaultBodyPlaceholder" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enter JavaScript…</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverridesTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Overrides</value>
+  </data>
+
+  <data name="AdminScriptEditor.AddOverride" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Add override</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverridesHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Overrides apply when library/path matches. The first matching override is used.</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverrideEnabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enabled</value>
+  </data>
+
+  <data name="AdminScriptEditor.LibraryId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Library ID</value>
+  </data>
+
+  <data name="AdminScriptEditor.PathPrefix" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path prefix</value>
+  </data>
+
+  <data name="AdminScriptEditor.OnDeny" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] On deny</value>
+  </data>
+
+  <data name="AdminScriptEditor.Body" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Body</value>
+  </data>
+
+  <data name="AdminScriptEditor.EditOverrideBodyTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Edit override body</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverrideBodyHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Edit the JavaScript body for this override.</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Test</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Execute the current script text with mock JSON.</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestScript" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Script</value>
+  </data>
+
+  <data name="AdminScriptEditor.MockContextJson" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Mock context (JSON)</value>
+  </data>
+
+  <data name="AdminScriptEditor.RunTest" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Run test</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestResult" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Test result</value>
+  </data>
+
+  <data name="AdminScriptEditor.Allowed" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Allowed</value>
+  </data>
+
+  <data name="AdminScriptEditor.Denied" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Denied</value>
+  </data>
+
+  <data name="AdminScriptEditor.DurationMs" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Duration: {0} ms</value>
+  </data>
+
+  <data name="AdminScriptEditor.Error" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Error</value>
+  </data>
+
+  <data name="AdminScriptEditor.Saved" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Saved</value>
+  </data>
+
+  <data name="AdminScriptEditor.SaveFailed" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Save failed</value>
+  </data>
 </root>

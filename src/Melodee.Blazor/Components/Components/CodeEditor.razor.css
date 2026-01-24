@@ -1,0 +1,58 @@
+.code-editor {
+    position: relative;
+    width: 100%;
+}
+
+.code-editor__highlight,
+.code-editor__input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0.75rem;
+    border: 1px solid var(--rz-secondary, #6c757d);
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    overflow: auto;
+    white-space: pre;
+}
+
+.code-editor__highlight {
+    background: var(--rz-base-100, #1c1c1c);
+}
+
+.code-editor__input {
+    position: absolute;
+    inset: 0;
+    resize: none;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--rz-text-color, #ffffff);
+}
+
+.code-editor__input::selection {
+    background: rgba(0, 123, 255, 0.35);
+}
+
+.code-editor__comment {
+    color: #6a9955;
+}
+
+.code-editor__string {
+    color: #ce9178;
+}
+
+.code-editor__number {
+    color: #b5cea8;
+}
+
+.code-editor__keyword {
+    color: #569cd6;
+}
+
+.code-editor__literal {
+    color: #4ec9b0;
+}
+

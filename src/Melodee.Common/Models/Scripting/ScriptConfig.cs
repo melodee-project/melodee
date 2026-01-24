@@ -4,34 +4,34 @@ namespace Melodee.Common.Models.Scripting;
 
 public sealed record ScriptDefaultConfig
 {
-    public bool Enabled { get; init; } = true;
+    public bool Enabled { get; set; } = true;
 
-    public string Body { get; init; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
 
-    public string OnDeny { get; init; } = "skip";
+    public string OnDeny { get; set; } = "skip";
 }
 
 public sealed record ScriptConfig
 {
-    public int Version { get; init; } = 1;
+    public int Version { get; set; } = 1;
 
-    public bool Enabled { get; init; } = true;
+    public bool Enabled { get; set; } = true;
 
-    public string Engine { get; init; } = "jint";
+    public string Engine { get; set; } = "jint";
 
-    public int TimeoutMs { get; init; } = 50;
+    public int TimeoutMs { get; set; } = 50;
 
-    public int MaxStatements { get; init; } = 10000;
+    public int MaxStatements { get; set; } = 10000;
 
-    public ScriptDefaultConfig Default { get; init; } = new();
+    public ScriptDefaultConfig Default { get; set; } = new();
 
-    public string? DefaultBody { get; init; }
+    public string? DefaultBody { get; set; }
 
-    public List<ScriptOverrideConfig> Overrides { get; init; } = new();
-
-    [JsonIgnore]
-    public string SettingKey { get; init; } = string.Empty;
+    public List<ScriptOverrideConfig> Overrides { get; set; } = new();
 
     [JsonIgnore]
-    public string SettingEtag { get; init; } = string.Empty;
+    public string SettingKey { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public string SettingEtag { get; set; } = string.Empty;
 }

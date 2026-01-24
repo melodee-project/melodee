@@ -1,0 +1,254 @@
+@using System.Net
+@inject IJSRuntime JsRuntime
+
+<div class="code-editor" style="height: @Height;">
+    <pre id="@_highlightElementId" class="code-editor__highlight" aria-hidden="true"><code>@_highlighted</code></pre>
+    <textarea id="@_inputElementId"
+              class="code-editor__input"
+              placeholder="@Placeholder"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              autocorrect="off"
+              @oninput="OnInput"
+              @onscroll="OnScroll">@Value</textarea>
+</div>
+
+@code {
+    private readonly string _inputElementId = $"code-editor-input-{Guid.NewGuid():N}";
+    private readonly string _highlightElementId = $"code-editor-highlight-{Guid.NewGuid():N}";
+
+    private MarkupString _highlighted;
+
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = string.Empty;
+    [Parameter] public string Height { get; set; } = "320px";
+
+    protected override void OnParametersSet()
+    {
+        _highlighted = new MarkupString(RenderHighlighted(Value));
+    }
+
+    private async Task OnInput(ChangeEventArgs args)
+    {
+        var nextValue = args.Value?.ToString() ?? string.Empty;
+        Value = nextValue;
+        _highlighted = new MarkupString(RenderHighlighted(nextValue));
+        await ValueChanged.InvokeAsync(nextValue);
+    }
+
+    private async Task OnScroll()
+    {
+        await JsRuntime.InvokeVoidAsync("melodeeCodeEditor.syncScroll", _inputElementId, _highlightElementId);
+    }
+
+    private static string RenderHighlighted(string code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            return string.Empty;
+        }
+
+        var output = new System.Text.StringBuilder(code.Length + 64);
+
+        var i = 0;
+        while (i < code.Length)
+        {
+            if (TryConsumeLineComment(code, ref i, out var comment))
+            {
+                Append(output, comment, "comment");
+                continue;
+            }
+
+            if (TryConsumeBlockComment(code, ref i, out var blockComment))
+            {
+                Append(output, blockComment, "comment");
+                continue;
+            }
+
+            if (TryConsumeString(code, ref i, out var str))
+            {
+                Append(output, str, "string");
+                continue;
+            }
+
+            if (TryConsumeNumber(code, ref i, out var number))
+            {
+                Append(output, number, "number");
+                continue;
+            }
+
+            if (TryConsumeWord(code, ref i, out var word))
+            {
+                Append(output, word, ClassForWord(word));
+                continue;
+            }
+
+            output.Append(WebUtility.HtmlEncode(code[i].ToString()));
+            i++;
+        }
+
+        return output.ToString();
+    }
+
+    private static void Append(System.Text.StringBuilder output, string text, string? cssClass)
+    {
+        var encoded = WebUtility.HtmlEncode(text);
+        if (string.IsNullOrWhiteSpace(cssClass))
+        {
+            output.Append(encoded);
+            return;
+        }
+
+        output.Append("<span class=\"code-editor__");
+        output.Append(cssClass);
+        output.Append("\">");
+        output.Append(encoded);
+        output.Append("</span>");
+    }
+
+    private static bool TryConsumeLineComment(string code, ref int index, out string value)
+    {
+        value = string.Empty;
+        if (index + 1 >= code.Length || code[index] != '/' || code[index + 1] != '/')
+        {
+            return false;
+        }
+
+        var start = index;
+        index += 2;
+        while (index < code.Length && code[index] != '\n')
+        {
+            index++;
+        }
+
+        if (index < code.Length && code[index] == '\n')
+        {
+            index++;
+        }
+
+        value = code[start..index];
+        return true;
+    }
+
+    private static bool TryConsumeBlockComment(string code, ref int index, out string value)
+    {
+        value = string.Empty;
+        if (index + 1 >= code.Length || code[index] != '/' || code[index + 1] != '*')
+        {
+            return false;
+        }
+
+        var start = index;
+        index += 2;
+        while (index + 1 < code.Length)
+        {
+            if (code[index] == '*' && code[index + 1] == '/')
+            {
+                index += 2;
+                value = code[start..index];
+                return true;
+            }
+
+            index++;
+        }
+
+        value = code[start..];
+        index = code.Length;
+        return true;
+    }
+
+    private static bool TryConsumeString(string code, ref int index, out string value)
+    {
+        value = string.Empty;
+        var quote = code[index];
+        if (quote is not ('"' or '\'' or '`'))
+        {
+            return false;
+        }
+
+        var start = index;
+        index++;
+
+        while (index < code.Length)
+        {
+            var c = code[index];
+            if (c == '\\')
+            {
+                index += Math.Min(2, code.Length - index);
+                continue;
+            }
+
+            if (c == quote)
+            {
+                index++;
+                value = code[start..index];
+                return true;
+            }
+
+            index++;
+        }
+
+        value = code[start..];
+        return true;
+    }
+
+    private static bool TryConsumeNumber(string code, ref int index, out string value)
+    {
+        value = string.Empty;
+        var start = index;
+
+        if (!char.IsDigit(code[index]))
+        {
+            return false;
+        }
+
+        while (index < code.Length && char.IsDigit(code[index]))
+        {
+            index++;
+        }
+
+        if (index < code.Length && code[index] == '.' && index + 1 < code.Length && char.IsDigit(code[index + 1]))
+        {
+            index++;
+            while (index < code.Length && char.IsDigit(code[index]))
+            {
+                index++;
+            }
+        }
+
+        value = code[start..index];
+        return true;
+    }
+
+    private static bool TryConsumeWord(string code, ref int index, out string value)
+    {
+        value = string.Empty;
+        if (!char.IsLetter(code[index]) && code[index] != '_')
+        {
+            return false;
+        }
+
+        var start = index;
+        index++;
+        while (index < code.Length && (char.IsLetterOrDigit(code[index]) || code[index] == '_'))
+        {
+            index++;
+        }
+
+        value = code[start..index];
+        return true;
+    }
+
+    private static string? ClassForWord(string word)
+    {
+        return word switch
+        {
+            "function" or "return" or "if" or "else" or "for" or "while" or "do" or "switch" or "case" or "break" or "continue" or "const" or "let" or "var" or "new" or "try" or "catch" or "finally" or "throw" or "typeof" or "instanceof" or "in" or "of" or "class" or "extends" or "import" or "export" => "keyword",
+            "true" or "false" or "null" or "undefined" => "literal",
+            _ => null
+        };
+    }
+}
+

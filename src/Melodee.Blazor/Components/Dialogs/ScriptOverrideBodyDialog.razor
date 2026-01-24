@@ -1,0 +1,39 @@
+@using Melodee.Blazor.Components.Pages
+@inherits MelodeeComponentBase
+
+@inject DialogService DialogService
+
+<RadzenStack Gap="0.75rem" Style="height: 100%">
+    <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.OverrideBodyHelp")</RadzenText>
+
+    <div style="flex: 1; min-height: 360px;">
+        <CodeEditor @bind-Value="_body" Height="100%"/>
+    </div>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+        <RadzenButton Text="@L("Actions.Save")" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@Save"/>
+        <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Light" Click="@Cancel"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public string Body { get; set; } = string.Empty;
+
+    private string _body = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        _body = Body;
+        base.OnParametersSet();
+    }
+
+    private void Save()
+    {
+        DialogService.Close(_body);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+}

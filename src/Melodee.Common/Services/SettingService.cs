@@ -478,4 +478,33 @@ public class SettingService : ServiceBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
     }
+
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.NullOrWhiteSpace(key, nameof(key));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var deletedRows = await scopedContext.Settings
+            .Where(x => x.Key == key)
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (deletedRows <= 0)
+        {
+            return new MelodeeModels.OperationResult<bool>
+            {
+                Data = false,
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        CacheManager.Clear();
+        _melodeeConfigurationFactory.Reset();
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = true
+        };
+    }
 }

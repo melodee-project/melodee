@@ -1,0 +1,190 @@
+@page "/admin/scripts"
+@inherits MelodeeComponentBase
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
+
+@inject IScriptAdminService ScriptAdminService
+@inject NavigationManager NavigationManager
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>@L("AdminScripts.PageTitle")</PageTitle>
+
+<RadzenStack Style="height: 100%">
+    <RadzenBreadCrumb Class="rz-pb-5">
+        <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
+        <RadzenBreadCrumbItem Icon="admin_panel_settings" Text="@L("Navigation.Admin")"/>
+        <RadzenBreadCrumbItem Icon="code" Text="@L("AdminScripts.PageTitle")"/>
+    </RadzenBreadCrumb>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Center">
+        <RadzenDropDown Data="@_availableEvents"
+                        @bind-Value="@_selectedEvent"
+                        Style="min-width: 260px"
+                        Placeholder="@L("AdminScripts.SelectEvent")"
+                        aria-label="@L("AdminScripts.SelectEvent")"/>
+
+        <RadzenButton Text="@L("AdminScripts.Create")"
+                      Icon="add"
+                      ButtonStyle="ButtonStyle.Primary"
+                      Disabled="@string.IsNullOrWhiteSpace(_selectedEvent)"
+                      Click="@CreateNew"/>
+
+        <RadzenButton Text="@L("Actions.Refresh")"
+                      Icon="refresh"
+                      ButtonStyle="ButtonStyle.Light"
+                      Click="@LoadAsync"/>
+    </RadzenStack>
+
+    <RadzenDataGrid
+        @ref="_grid"
+        Style="flex: 1; overflow: hidden;"
+        IsLoading="@_isLoading"
+        Data="@_scripts"
+        AllowSorting="true"
+        AllowPaging="true"
+        PageSize="@DefaultPageSize"
+        PagerHorizontalAlign="HorizontalAlign.Center"
+        ShowPagingSummary="true"
+        PageSizeOptions="@PageSizeOptions"
+        PagingSummaryFormat="@GridPagingSummaryFormat"
+        PageSizeText="@GridPageSizeText"
+        EmptyText="@GridEmptyText"
+        TItem="ScriptSettingSummary">
+        <Columns>
+            <RadzenDataGridColumn Property="@nameof(ScriptSettingSummary.EventName)" Title="@L("AdminScripts.EventName")" Width="260px"/>
+            <RadzenDataGridColumn Title="@L("AdminScripts.Enabled")" Width="110px" Sortable="true">
+                <Template Context="item">
+                    @{
+                        var enabledText = item.Enabled ? L("Common.Yes") : L("Common.No");
+                    }
+                    <RadzenBadge BadgeStyle="@(item.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
+                                 Text="@enabledText"/>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Property="@nameof(ScriptSettingSummary.DefaultOnDeny)" Title="@L("AdminScripts.DefaultOnDeny")" Width="150px"/>
+            <RadzenDataGridColumn Property="@nameof(ScriptSettingSummary.OverridesCount)" Title="@L("AdminScripts.Overrides")" Width="120px"/>
+            <RadzenDataGridColumn Property="@nameof(ScriptSettingSummary.LastUpdatedUtc)" Title="@L("AdminScripts.LastUpdated")" Width="220px"/>
+            <RadzenDataGridColumn Title="@L("AdminScripts.Status")" Width="140px">
+                <Template Context="item">
+                    @{
+                        var statusText = item.IsValid ? L("Status.Ok") : L("AdminScripts.InvalidConfig");
+                    }
+                    <RadzenBadge BadgeStyle="@(item.IsValid ? BadgeStyle.Info : BadgeStyle.Danger)"
+                                 Text="@statusText"/>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn
+                Context="item"
+                Filterable="false"
+                Sortable="false"
+                TextAlign="TextAlign.Right"
+                Frozen="true"
+                Width="160px"
+                FrozenPosition="FrozenColumnPosition.Right">
+                <Template Context="item">
+                    <RadzenButton
+                        Icon="edit"
+                        ButtonStyle="ButtonStyle.Light"
+                        Variant="Variant.Flat"
+                        Size="ButtonSize.Medium"
+                        Click="@(_ => Edit(item.EventName))"
+                        @onclick:stopPropagation="true"
+                        title="@L("Actions.Edit")"/>
+                    <RadzenButton
+                        Icon="delete"
+                        ButtonStyle="ButtonStyle.Danger"
+                        Variant="Variant.Flat"
+                        Size="ButtonSize.Medium"
+                        class="rz-ms-1"
+                        Click="@(_ => DeleteAsync(item.EventName))"
+                        @onclick:stopPropagation="true"
+                        title="@L("Actions.Delete")"/>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+@code {
+    private RadzenDataGrid<ScriptSettingSummary> _grid = null!;
+    private bool _isLoading;
+    private IReadOnlyList<ScriptSettingSummary> _scripts = [];
+    private string[] _availableEvents = ScriptEventNames.All;
+    private string? _selectedEvent;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _scripts = await ScriptAdminService.ListAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void CreateNew()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedEvent))
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo($"/admin/scripts/{Uri.EscapeDataString(_selectedEvent)}");
+    }
+
+    private void Edit(string eventName)
+    {
+        NavigationManager.NavigateTo($"/admin/scripts/{Uri.EscapeDataString(eventName)}");
+    }
+
+    private async Task DeleteAsync(string eventName)
+    {
+        var confirmed = await DialogService.Confirm(
+            L("AdminScripts.DeleteConfirmMessage", eventName),
+            L("AdminScripts.DeleteConfirmTitle"),
+            new ConfirmOptions
+            {
+                OkButtonText = L("Actions.Delete"),
+                CancelButtonText = L("Actions.Cancel")
+            });
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var result = await ScriptAdminService.DeleteAsync(eventName);
+        if (result.IsSuccess && result.Data)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Duration = ToastTime,
+                Summary = L("AdminScripts.DeletedSuccess"),
+                Detail = eventName
+            });
+            await LoadAsync();
+            return;
+        }
+
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Error,
+            Duration = ToastTime * 2,
+            Summary = L("AdminScripts.DeleteFailed"),
+            Detail = string.Join(", ", result.Messages ?? [])
+        });
+    }
+}

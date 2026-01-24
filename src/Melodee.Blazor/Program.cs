@@ -33,6 +33,7 @@ using Melodee.Common.Services.PartyMode;
 using Melodee.Common.Services.Playback;
 using Melodee.Common.Services.Playback.Factory;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
@@ -557,6 +558,17 @@ builder.Services
     .AddScoped<AlbumDiscoveryService>()
     .AddScoped<MediaEditService>()
     .AddScoped<DirectoryProcessorToStagingService>()
+    .AddScoped<IScriptAdminService, ScriptAdminService>()
+    .AddScoped<IScriptConfigurationService, ScriptConfigurationService>()
+    .AddScoped<IScriptCacheService, ScriptCacheService>()
+    .AddScoped<IScriptEvaluationService, ScriptEvaluationService>()
+    .AddScoped<IScriptOrchestrationService, ScriptOrchestrationService>()
+    .AddScoped<IScriptValidationService, ScriptValidationService>()
+    .AddScoped<IBlazorEventScriptService, BlazorEventScriptService>()
+    .AddScoped<IDirectoryContextProvider, DirectoryContextProvider>()
+    .AddScoped<ISafeDeleteService, SafeDeleteService>()
+    .AddScoped<DenyActionHandlerFactory>()
+    .AddScoped<IScriptedDirectoryProcessor, ScriptedDirectoryProcessor>()
     .AddScoped<ImageConversionService>()
     .AddScoped<OpenSubsonicApiService>()
     .AddScoped<AlbumImageSearchEngineService>()
