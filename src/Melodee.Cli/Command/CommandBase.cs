@@ -1,5 +1,6 @@
 using Melodee.Cli.Client;
 using Melodee.Cli.Configuration;
+using Melodee.Cli.Services;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Metadata;
@@ -11,6 +12,7 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Services.Security;
 using Microsoft.EntityFrameworkCore;
@@ -149,6 +151,13 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton<ISsrfValidator, SsrfValidator>();
         services.AddSingleton<PodcastHttpClient>();
         services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
+        
+        // Script evaluation services (CLI uses no-op implementations where needed)
+        services.AddScoped<IScriptOrchestrationService, CliScriptOrchestrationService>();
+        services.AddScoped<IDirectoryContextProvider, DirectoryContextProvider>();
+        services.AddScoped<DenyActionHandlerFactory>();
+        services.AddScoped<ISafeDeleteService, SafeDeleteService>();
+        services.AddScoped<IScriptedDirectoryProcessor, ScriptedDirectoryProcessor>();
 
         return services.BuildServiceProvider();
     }
