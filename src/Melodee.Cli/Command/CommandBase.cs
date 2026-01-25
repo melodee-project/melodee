@@ -150,7 +150,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton<ISsrfValidator, SsrfValidator>();
         services.AddSingleton<PodcastHttpClient>();
         services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
-        
+
         // Script evaluation services
         services.AddScoped<IScriptAdminService, ScriptAdminService>();
         services.AddScoped<IScriptConfigurationService, ScriptConfigurationService>();

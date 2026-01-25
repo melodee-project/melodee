@@ -15,6 +15,7 @@ namespace Melodee.Tests.Common.Services.ScriptEvaluation;
 /// 
 /// PRODUCTION SAFETY: These tests are essential to prevent accidental data loss.
 /// </summary>
+[Collection("ScriptEvaluation")]
 public class DirectoryDeletionScriptTests
 {
     private static ILogger CreateLogger()
@@ -531,14 +532,14 @@ public class DirectoryDeletionScriptTests
     [InlineData(false, false, false, "Script returns false = DO NOT DELETE")]
     [InlineData(false, true, false, "Script returns false and is default = DO NOT DELETE")]
     public void DeleteDecisionLogic_CorrectlyDeterminesWhetherToDelete(
-        bool scriptResult, 
-        bool isDefault, 
+        bool scriptResult,
+        bool isDefault,
         bool expectedShouldDelete,
         string scenario)
     {
         // This is the exact condition from DirectoryProcessorToStagingService.cs line 1215
         var shouldDelete = scriptResult && !isDefault;
-        
+
         shouldDelete.Should().Be(expectedShouldDelete, scenario);
     }
 

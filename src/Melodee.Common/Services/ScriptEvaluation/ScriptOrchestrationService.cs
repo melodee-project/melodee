@@ -33,7 +33,7 @@ public sealed class ScriptOrchestrationService : IScriptOrchestrationService
         CancellationToken cancellationToken = default)
     {
         _logger.Debug("Evaluating script for event {EventName}", eventName);
-        
+
         var config = await _configurationService.GetScriptConfigAsync(eventName, cancellationToken);
 
         if (config == null || !config.Enabled)

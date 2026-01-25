@@ -1199,7 +1199,7 @@ public sealed class DirectoryProcessorToStagingService(
         try
         {
             var context = await directoryContextProvider.BuildContextAsync(directory, _songPlugins, cancellationToken);
-            
+
             Logger.Debug("Script context for [{Directory}]: TotalFilesCount={TotalFilesCount}, TotalDurationMinutes={TotalDurationMinutes}, HasTrackNumberGaps={HasTrackNumberGaps}, MediaFilesCount={MediaFilesCount}",
                 directory.Path, context.TotalFilesCount, context.TotalDurationMinutes, context.HasTrackNumberGaps, context.MediaFilesCount);
 

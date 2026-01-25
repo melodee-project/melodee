@@ -326,7 +326,7 @@ public static class FileSystemDirectoryInfoExtensions
             var hasFiles = dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly).Any();
             var hasMediaFiles = hasFiles && dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
                 .Any(x => FileHelper.IsFileMediaType(x.Extension));
-            
+
             if (dir.LastWriteTimeUtc >= modifiedSinceValue && (hasMediaFiles || hasFiles))
             {
                 var fsDir = dir.ToFileSystemDirectoryInfo();
@@ -341,7 +341,7 @@ public static class FileSystemDirectoryInfoExtensions
         var rootHasFiles = dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly).Any();
         var rootHasMediaFiles = rootHasFiles && dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
             .Any(x => x.LastWriteTimeUtc >= modifiedSinceValue && FileHelper.IsFileMediaType(x.Extension));
-        
+
         if (rootHasMediaFiles || (rootHasFiles && dirInfo.LastWriteTimeUtc >= modifiedSinceValue))
         {
             yield return fileSystemDirectoryInfo;

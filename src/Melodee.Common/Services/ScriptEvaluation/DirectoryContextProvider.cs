@@ -9,7 +9,7 @@ namespace Melodee.Common.Services.ScriptEvaluation;
 public interface IDirectoryContextProvider
 {
     Task<DirectoryProcessingContext> BuildContextAsync(
-        FileSystemDirectoryInfo directory, 
+        FileSystemDirectoryInfo directory,
         ISongPlugin[] songPlugins,
         CancellationToken cancellationToken = default);
 }
@@ -24,7 +24,7 @@ public sealed class DirectoryContextProvider : IDirectoryContextProvider
     }
 
     public async Task<DirectoryProcessingContext> BuildContextAsync(
-        FileSystemDirectoryInfo directory, 
+        FileSystemDirectoryInfo directory,
         ISongPlugin[] songPlugins,
         CancellationToken cancellationToken = default)
     {
@@ -67,7 +67,7 @@ public sealed class DirectoryContextProvider : IDirectoryContextProvider
                     {
                         mediaFilesCount++;
                         var song = result.Data;
-                        
+
                         var duration = song.Duration();
                         if (duration.HasValue && duration.Value > 0)
                         {
