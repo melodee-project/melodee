@@ -2,9 +2,7 @@ namespace Melodee.Common.Models.Scripting;
 
 public record DirectoryProcessingContext
 {
-    public int LibraryId { get; init; }
-
-    public string RelativePath { get; init; } = string.Empty;
+    public string Path { get; init; } = string.Empty;
 
     public string DirectoryName { get; init; } = string.Empty;
 
@@ -14,6 +12,9 @@ public record DirectoryProcessingContext
 
     public string MostRecentModified { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Count of media files with ID3 tags (mp3, flac, opus, etc.) that song plugins can process.
+    /// </summary>
     public int MediaFilesCount { get; init; }
 
     public double TotalDurationMinutes { get; init; }

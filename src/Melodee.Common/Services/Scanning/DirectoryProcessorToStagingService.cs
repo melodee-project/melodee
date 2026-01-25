@@ -510,17 +510,13 @@ public sealed class DirectoryProcessorToStagingService(
         try
         {
             // Script evaluation hooks - process delete event first, then start event
-            if (libraryId.HasValue)
-            {
-                var scriptResult = await EvaluateDirectoryScriptsAsync(
-                    directoryInfoToProcess,
-                    libraryId.Value,
-                    cancellationToken);
+            var scriptResult = await EvaluateDirectoryScriptsAsync(
+                directoryInfoToProcess,
+                cancellationToken);
 
-                if (!scriptResult.ShouldContinue)
-                {
-                    return (numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
-                }
+            if (!scriptResult.ShouldContinue)
+            {
+                return (numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
             }
 
             var dontDeleteExistingMelodeeFiles = _configuration.GetValue<bool>(SettingRegistry.ProcessingDontDeleteExistingMelodeeDataFiles);
@@ -1198,29 +1194,23 @@ public sealed class DirectoryProcessorToStagingService(
 
     private async Task<DirectoryScriptEvaluationResult> EvaluateDirectoryScriptsAsync(
         FileSystemDirectoryInfo directory,
-        int libraryId,
         CancellationToken cancellationToken)
     {
         try
         {
-            var libraryResult = await libraryService.GetAsync(libraryId, cancellationToken);
-            if (!libraryResult.IsSuccess || libraryResult.Data == null)
-            {
-                Logger.Warning("Could not get library {LibraryId} for script evaluation, continuing with processing", libraryId);
-                return new DirectoryScriptEvaluationResult(true);
-            }
-
-            var library = libraryResult.Data;
-            var context = directoryContextProvider.BuildContext(directory, library);
-            var relativePath = context.RelativePath;
+            var context = await directoryContextProvider.BuildContextAsync(directory, _songPlugins, cancellationToken);
+            
+            Logger.Debug("Script context for [{Directory}]: TotalFilesCount={TotalFilesCount}, TotalDurationMinutes={TotalDurationMinutes}, HasTrackNumberGaps={HasTrackNumberGaps}, MediaFilesCount={MediaFilesCount}",
+                directory.Path, context.TotalFilesCount, context.TotalDurationMinutes, context.HasTrackNumberGaps, context.MediaFilesCount);
 
             // Evaluate DirectoryProcessingDelete script first
             var deleteResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
                 ScriptEventNames.DirectoryProcessingDelete,
                 context,
-                libraryId,
-                relativePath,
                 cancellationToken);
+
+            Logger.Debug("DirectoryProcessingDelete result: Result={Result}, IsDefault={IsDefault}, OnDeny={OnDeny}",
+                deleteResult.Result, deleteResult.IsDefault, deleteResult.OnDeny);
 
             if (deleteResult.Result && !deleteResult.IsDefault)
             {
@@ -1228,7 +1218,7 @@ public sealed class DirectoryProcessorToStagingService(
                 if (onDeny == "delete")
                 {
                     var handler = denyActionHandlerFactory.CreateHandler("delete");
-                    var deleteSuccess = await handler.ExecuteAsync(relativePath, libraryId, cancellationToken);
+                    var deleteSuccess = await handler.ExecuteAsync(directory.Path, cancellationToken);
                     LogAndRaiseEvent(
                         deleteSuccess ? LogEventLevel.Information : LogEventLevel.Warning,
                         "DirectoryProcessingDelete script returned true; directory [{0}] {1}",
@@ -1247,8 +1237,6 @@ public sealed class DirectoryProcessorToStagingService(
             var startResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
                 ScriptEventNames.DirectoryProcessingStart,
                 context,
-                libraryId,
-                relativePath,
                 cancellationToken);
 
             if (!startResult.Result && !startResult.IsDefault)
@@ -1256,7 +1244,7 @@ public sealed class DirectoryProcessorToStagingService(
                 var onDeny = startResult.OnDeny?.ToLowerInvariant() ?? "skip";
                 var handler = denyActionHandlerFactory.CreateHandler(onDeny);
 
-                await handler.ExecuteAsync(relativePath, libraryId, cancellationToken);
+                await handler.ExecuteAsync(directory.Path, cancellationToken);
                 LogAndRaiseEvent(
                     LogEventLevel.Information,
                     "DirectoryProcessingStart script returned false; directory [{0}] action [{1}]",

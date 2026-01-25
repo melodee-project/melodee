@@ -586,8 +586,6 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         mock.Setup(x => x.EvaluateScriptForEventAsync(
                 It.IsAny<string>(),
                 It.IsAny<object>(),
-                It.IsAny<int>(),
-                It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = true });
         return mock.Object;
@@ -596,19 +594,18 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     protected IDirectoryContextProvider MockDirectoryContextProvider()
     {
         var mock = new Mock<IDirectoryContextProvider>();
-        mock.Setup(x => x.BuildContext(It.IsAny<FileSystemDirectoryInfo>(), It.IsAny<Library>()))
-            .Returns(new DirectoryProcessingContext());
+        mock.Setup(x => x.BuildContextAsync(It.IsAny<FileSystemDirectoryInfo>(), It.IsAny<ISongPlugin[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DirectoryProcessingContext());
         return mock.Object;
     }
 
     protected DenyActionHandlerFactory MockDenyActionHandlerFactory()
     {
         var mockSafeDeleteService = new Mock<ISafeDeleteService>();
-        mockSafeDeleteService.Setup(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        mockSafeDeleteService.Setup(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         return new DenyActionHandlerFactory(
             mockSafeDeleteService.Object,
-            MockFileSystemService(),
             new SettingService(),
             Logger);
     }

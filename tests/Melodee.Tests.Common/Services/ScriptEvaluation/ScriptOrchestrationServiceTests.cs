@@ -40,8 +40,6 @@ public class ScriptOrchestrationServiceTests
         var result = await orchestrationService.EvaluateScriptForEventAsync(
             "directoryProcessingStart",
             new { },
-            1,
-            "Incoming/Test",
             CancellationToken.None);
 
         result.Result.Should().BeTrue();
@@ -49,7 +47,7 @@ public class ScriptOrchestrationServiceTests
     }
 
     [Fact]
-    public async Task EvaluateScriptForEventAsync_OverrideOnDeny_IsProvidedToScript()
+    public async Task EvaluateScriptForEventAsync_WithScript_EvaluatesCorrectly()
     {
         var logger = CreateLogger();
         var serializer = new Serializer(logger);
@@ -64,17 +62,6 @@ public class ScriptOrchestrationServiceTests
                 Body = "function check(ctx, scriptConfig) { return false; }",
                 OnDeny = "skip"
             },
-            Overrides =
-            [
-                new ScriptOverrideConfig
-                {
-                    Enabled = true,
-                    LibraryId = 1,
-                    PathPrefix = "Incoming/",
-                    OnDeny = "delete",
-                    Body = "function check(ctx, scriptConfig) { return scriptConfig.onDeny === 'delete'; }"
-                }
-            ],
             SettingKey = "script.directoryProcessingStart",
             SettingEtag = "1"
         };
@@ -92,16 +79,12 @@ public class ScriptOrchestrationServiceTests
         var result = await orchestrationService.EvaluateScriptForEventAsync(
             "directoryProcessingStart",
             new { },
-            1,
-            "Incoming/Test",
             CancellationToken.None);
 
-        result.Result.Should().BeTrue();
-        result.IsDefault.Should().BeFalse();
-        result.OnDeny.Should().Be("delete");
+        result.Result.Should().BeFalse();
+        result.OnDeny.Should().Be("skip");
         result.ScriptKey.Should().Be("script.directoryProcessingStart");
         result.ScriptHash.Should().NotBeNullOrWhiteSpace();
-        result.SelectedOverrideId.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -137,8 +120,6 @@ public class ScriptOrchestrationServiceTests
         var result = await orchestrationService.EvaluateScriptForEventAsync(
             "directoryProcessingStart",
             new { },
-            1,
-            "Incoming/Test",
             CancellationToken.None);
 
         result.Result.Should().BeTrue();
@@ -146,4 +127,3 @@ public class ScriptOrchestrationServiceTests
         result.IsDefault.Should().BeTrue();
     }
 }
-

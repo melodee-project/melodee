@@ -1,38 +1,37 @@
-using Melodee.Common.Data.Models;
 using Melodee.Common.Models;
+using Melodee.Common.Models.Extensions;
 using Melodee.Common.Models.Scripting;
+using Melodee.Common.Plugins.MetaData.Song;
 using Serilog;
 
 namespace Melodee.Common.Services.ScriptEvaluation;
 
 public interface IDirectoryContextProvider
 {
-    DirectoryProcessingContext BuildContext(FileSystemDirectoryInfo directory, Library library);
+    Task<DirectoryProcessingContext> BuildContextAsync(
+        FileSystemDirectoryInfo directory, 
+        ISongPlugin[] songPlugins,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class DirectoryContextProvider : IDirectoryContextProvider
 {
-    private readonly IFileSystemService _fileSystemService;
     private readonly ILogger _logger;
-    private readonly string[] _supportedExtensions =
-    {
-        ".mp3", ".flac", ".ogg", ".m4a", ".wav", ".aiff", ".aac", ".wma", ".opus"
-    };
 
-    public DirectoryContextProvider(
-        IFileSystemService fileSystemService,
-        ILogger logger)
+    public DirectoryContextProvider(ILogger logger)
     {
-        _fileSystemService = fileSystemService;
         _logger = logger;
     }
 
-    public DirectoryProcessingContext BuildContext(FileSystemDirectoryInfo directory, Library library)
+    public async Task<DirectoryProcessingContext> BuildContextAsync(
+        FileSystemDirectoryInfo directory, 
+        ISongPlugin[] songPlugins,
+        CancellationToken cancellationToken = default)
     {
         var directoryInfo = new DirectoryInfo(directory.Path);
         if (!directoryInfo.Exists)
         {
-            return CreateEmptyContext(directory, library);
+            return CreateEmptyContext(directory);
         }
 
         var files = directoryInfo.GetFiles("*", SearchOption.TopDirectoryOnly);
@@ -41,52 +40,97 @@ public sealed class DirectoryContextProvider : IDirectoryContextProvider
             ? files.Max(f => f.LastWriteTimeUtc).ToString("O")
             : DateTime.UtcNow.ToString("O");
 
-        var mediaFilesCount = files.Count(f => IsMediaFile(f.Name));
+        // Process media files using song plugins
+        var totalDurationMs = 0.0;
+        var trackNumbers = new List<int>();
+        var mediaFilesCount = 0;
 
-        var relativePath = GetRelativePath(directory.Path, library.Path);
+        foreach (var file in files)
+        {
+            var fileInfo = new FileSystemFileInfo
+            {
+                Name = file.Name,
+                Size = file.Length
+            };
+
+            foreach (var plugin in songPlugins)
+            {
+                if (!plugin.DoesHandleFile(directory, fileInfo))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var result = await plugin.ProcessFileAsync(directory, fileInfo, cancellationToken);
+                    if (result.IsSuccess && result.Data != null)
+                    {
+                        mediaFilesCount++;
+                        var song = result.Data;
+                        
+                        var duration = song.Duration();
+                        if (duration.HasValue && duration.Value > 0)
+                        {
+                            totalDurationMs += duration.Value;
+                        }
+
+                        var trackNumber = song.SongNumber();
+                        if (trackNumber > 0)
+                        {
+                            trackNumbers.Add(trackNumber);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Failed to read metadata from {File}", file.FullName);
+                }
+
+                break; // Only use first matching plugin
+            }
+        }
+
+        var sortedTrackNumbers = trackNumbers.OrderBy(x => x).ToArray();
+        var hasTrackNumberGaps = CalculateHasTrackNumberGaps(sortedTrackNumbers);
 
         return new DirectoryProcessingContext
         {
-            LibraryId = library.Id,
-            RelativePath = relativePath,
+            Path = directory.Path,
             DirectoryName = directory.Name,
             TotalFilesCount = files.Length,
             TotalSizeMegabytes = Math.Round(totalSizeBytes / (1024.0 * 1024.0), 2),
             MostRecentModified = mostRecentModified,
             MediaFilesCount = mediaFilesCount,
-            TotalDurationMinutes = 0,
-            TrackNumbers = [],
-            HasTrackNumberGaps = false
+            TotalDurationMinutes = Math.Round(totalDurationMs / 60000.0, 2), // Convert ms to minutes
+            TrackNumbers = sortedTrackNumbers,
+            HasTrackNumberGaps = hasTrackNumberGaps
         };
     }
 
-    private static string GetRelativePath(string fullPath, string basePath)
+    private static bool CalculateHasTrackNumberGaps(int[] sortedTrackNumbers)
     {
-        if (!basePath.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()))
+        if (sortedTrackNumbers.Length < 2)
         {
-            basePath += System.IO.Path.DirectorySeparatorChar;
+            return false;
         }
 
-        try
+        // Check if track numbers are sequential (allowing start from any number)
+        for (var i = 1; i < sortedTrackNumbers.Length; i++)
         {
-            var baseUri = new Uri(basePath);
-            var fullUri = new Uri(fullPath.TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar);
-            return Uri.UnescapeDataString(baseUri.MakeRelativeUri(fullUri).ToString()
-                .Replace('/', System.IO.Path.DirectorySeparatorChar));
+            if (sortedTrackNumbers[i] != sortedTrackNumbers[i - 1] + 1)
+            {
+                return true;
+            }
         }
-        catch
-        {
-            return fullPath;
-        }
+
+        return false;
     }
 
-    private static DirectoryProcessingContext CreateEmptyContext(FileSystemDirectoryInfo directory, Library library)
+    private static DirectoryProcessingContext CreateEmptyContext(FileSystemDirectoryInfo directory)
     {
-        var relativePath = GetRelativePath(directory.Path, library.Path);
         return new DirectoryProcessingContext
         {
-            LibraryId = library.Id,
-            RelativePath = relativePath,
+            Path = directory.Path,
             DirectoryName = directory.Name,
             TotalFilesCount = 0,
             TotalSizeMegabytes = 0,
@@ -96,11 +140,5 @@ public sealed class DirectoryContextProvider : IDirectoryContextProvider
             TrackNumbers = [],
             HasTrackNumberGaps = false
         };
-    }
-
-    private bool IsMediaFile(string fileName)
-    {
-        var extension = System.IO.Path.GetExtension(fileName);
-        return _supportedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
 }

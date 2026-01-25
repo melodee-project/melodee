@@ -12,14 +12,14 @@ public enum DenyAction
 public interface IDenyActionHandler
 {
     DenyAction ActionType { get; }
-    Task<bool> ExecuteAsync(string relativePath, int libraryId, CancellationToken cancellationToken = default);
+    Task<bool> ExecuteAsync(string directoryPath, CancellationToken cancellationToken = default);
 }
 
 public sealed class SkipDenyActionHandler : IDenyActionHandler
 {
     public DenyAction ActionType => DenyAction.Skip;
 
-    public Task<bool> ExecuteAsync(string relativePath, int libraryId, CancellationToken cancellationToken = default)
+    public Task<bool> ExecuteAsync(string directoryPath, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(true);
     }
@@ -27,64 +27,27 @@ public sealed class SkipDenyActionHandler : IDenyActionHandler
 
 public interface ISafeDeleteService
 {
-    Task<bool> DeleteDirectoryAsync(string relativePath, int libraryId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDirectoryAsync(string directoryPath, CancellationToken cancellationToken = default);
 }
 
 public sealed class SafeDeleteService : ISafeDeleteService
 {
-    private readonly LibraryService _libraryService;
     private readonly SettingService _settingService;
-    private readonly IFileSystemService _fileSystemService;
     private readonly ILogger _logger;
 
     public SafeDeleteService(
-        LibraryService libraryService,
         SettingService settingService,
-        IFileSystemService fileSystemService,
         ILogger logger)
     {
-        _libraryService = libraryService;
         _settingService = settingService;
-        _fileSystemService = fileSystemService;
         _logger = logger;
     }
 
-    public async Task<bool> DeleteDirectoryAsync(string relativePath, int libraryId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteDirectoryAsync(string directoryPath, CancellationToken cancellationToken = default)
     {
         try
         {
-            var libraryResult = await _libraryService.GetAsync(libraryId, cancellationToken);
-            if (!libraryResult.IsSuccess || libraryResult.Data == null)
-            {
-                _logger.Warning("Failed to get library {LibraryId} for safe delete", libraryId);
-                return false;
-            }
-
-            var library = libraryResult.Data;
-            var inboundPathSettingKey = $"library.inboundPath.{libraryId}";
-            var inboundPathResult = await _settingService.GetValueAsync(inboundPathSettingKey, "", cancellationToken);
-            var safeRoot = string.IsNullOrWhiteSpace(inboundPathResult.Data) ? library.Path : inboundPathResult.Data!;
-
-            if (string.IsNullOrWhiteSpace(safeRoot))
-            {
-                _logger.Error("No safe root configured for library {LibraryId}", libraryId);
-                return false;
-            }
-
-            if (System.IO.Path.IsPathRooted(relativePath))
-            {
-                _logger.Error("Refusing to delete rooted path {Path}", relativePath);
-                return false;
-            }
-
-            var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(safeRoot, relativePath));
-            var rootPath = System.IO.Path.GetFullPath(safeRoot);
-
-            if (!IsWithinRoot(fullPath, rootPath))
-            {
-                _logger.Error("Path traversal attempt detected: {FullPath} does not start with {RootPath}", fullPath, rootPath);
-                return false;
-            }
+            var fullPath = System.IO.Path.GetFullPath(directoryPath);
 
             if (!System.IO.Directory.Exists(fullPath))
             {
@@ -99,28 +62,15 @@ public sealed class SafeDeleteService : ISafeDeleteService
                 return true;
             }
 
-            _logger.Information("Safely deleting directory: {Path}", fullPath);
+            _logger.Information("Deleting directory: {Path}", fullPath);
             System.IO.Directory.Delete(fullPath, true);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to safely delete directory {Path}", relativePath);
+            _logger.Error(ex, "Failed to delete directory {Path}", directoryPath);
             return false;
         }
-    }
-
-    private static bool IsWithinRoot(string fullPath, string rootPath)
-    {
-        if (string.Equals(fullPath, rootPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var normalizedRoot = rootPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)
-                             + System.IO.Path.DirectorySeparatorChar;
-
-        return fullPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 }
 
@@ -135,9 +85,9 @@ public sealed class DeleteDenyActionHandler : IDenyActionHandler
         _safeDeleteService = safeDeleteService;
     }
 
-    public Task<bool> ExecuteAsync(string relativePath, int libraryId, CancellationToken cancellationToken = default)
+    public Task<bool> ExecuteAsync(string directoryPath, CancellationToken cancellationToken = default)
     {
-        return _safeDeleteService.DeleteDirectoryAsync(relativePath, libraryId, cancellationToken);
+        return _safeDeleteService.DeleteDirectoryAsync(directoryPath, cancellationToken);
     }
 }
 
@@ -145,39 +95,31 @@ public sealed class QuarantineDenyActionHandler : IDenyActionHandler
 {
     public DenyAction ActionType => DenyAction.Quarantine;
 
-    private readonly ISafeDeleteService _safeDeleteService;
-    private readonly IFileSystemService _fileSystemService;
     private readonly SettingService _settingService;
     private readonly ILogger _logger;
 
     public QuarantineDenyActionHandler(
-        ISafeDeleteService safeDeleteService,
-        IFileSystemService fileSystemService,
         SettingService settingService,
         ILogger logger)
     {
-        _safeDeleteService = safeDeleteService;
-        _fileSystemService = fileSystemService;
         _settingService = settingService;
         _logger = logger;
     }
 
-    public async Task<bool> ExecuteAsync(string relativePath, int libraryId, CancellationToken cancellationToken = default)
+    public async Task<bool> ExecuteAsync(string directoryPath, CancellationToken cancellationToken = default)
     {
         try
         {
             var quarantinePathResult = await _settingService.GetValueAsync("script.quarantine.path", "", cancellationToken);
             if (string.IsNullOrEmpty(quarantinePathResult.Data))
             {
-                _logger.Warning("Quarantine path not configured, falling back to delete");
-                return await _safeDeleteService.DeleteDirectoryAsync(relativePath, libraryId, cancellationToken);
+                _logger.Warning("Quarantine path not configured, skipping quarantine for: {Path}", directoryPath);
+                return false;
             }
 
-            var libraryPathResult = await _settingService.GetValueAsync($"library.inboundPath.{libraryId}", "", cancellationToken);
-            var libraryPath = libraryPathResult.Data ?? string.Empty;
-
-            var sourceFullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(libraryPath, relativePath));
-            var quarantineFullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(quarantinePathResult.Data!, relativePath));
+            var sourceFullPath = System.IO.Path.GetFullPath(directoryPath);
+            var directoryName = System.IO.Path.GetFileName(sourceFullPath.TrimEnd(System.IO.Path.DirectorySeparatorChar));
+            var quarantineFullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(quarantinePathResult.Data!, directoryName));
 
             var rootPath = System.IO.Path.GetFullPath(quarantinePathResult.Data!);
             if (!quarantineFullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
@@ -186,10 +128,9 @@ public sealed class QuarantineDenyActionHandler : IDenyActionHandler
                 return false;
             }
 
-            var quarantineDir = System.IO.Path.GetDirectoryName(quarantineFullPath);
-            if (!string.IsNullOrEmpty(quarantineDir) && !System.IO.Directory.Exists(quarantineDir))
+            if (!System.IO.Directory.Exists(rootPath))
             {
-                System.IO.Directory.CreateDirectory(quarantineDir);
+                System.IO.Directory.CreateDirectory(rootPath);
             }
 
             _logger.Information("Quarantining directory from {Source} to {Destination}", sourceFullPath, quarantineFullPath);
@@ -203,7 +144,7 @@ public sealed class QuarantineDenyActionHandler : IDenyActionHandler
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to quarantine directory {Path}", relativePath);
+            _logger.Error(ex, "Failed to quarantine directory {Path}", directoryPath);
             return false;
         }
     }
@@ -212,18 +153,15 @@ public sealed class QuarantineDenyActionHandler : IDenyActionHandler
 public sealed class DenyActionHandlerFactory
 {
     private readonly ISafeDeleteService _safeDeleteService;
-    private readonly IFileSystemService _fileSystemService;
     private readonly SettingService _settingService;
     private readonly ILogger _logger;
 
     public DenyActionHandlerFactory(
         ISafeDeleteService safeDeleteService,
-        IFileSystemService fileSystemService,
         SettingService settingService,
         ILogger logger)
     {
         _safeDeleteService = safeDeleteService;
-        _fileSystemService = fileSystemService;
         _settingService = settingService;
         _logger = logger;
     }
@@ -233,7 +171,7 @@ public sealed class DenyActionHandlerFactory
         return actionType.ToLowerInvariant() switch
         {
             "delete" => new DeleteDenyActionHandler(_safeDeleteService),
-            "quarantine" => new QuarantineDenyActionHandler(_safeDeleteService, _fileSystemService, _settingService, _logger),
+            "quarantine" => new QuarantineDenyActionHandler(_settingService, _logger),
             _ => new SkipDenyActionHandler()
         };
     }

@@ -29,8 +29,7 @@ public class ScriptEvaluationServiceTests
     {
         var context = new DirectoryProcessingContext
         {
-            LibraryId = 123,
-            RelativePath = "Incoming/Test",
+            Path = "/mnt/incoming/Test",
             DirectoryName = "Test",
             TotalFilesCount = 0,
             TotalSizeMegabytes = 0,
@@ -42,7 +41,7 @@ public class ScriptEvaluationServiceTests
         };
 
         var result = await _evaluationService.EvaluateScriptAsync(
-            "function check(ctx, scriptConfig) { return ctx.libraryId === 123 && ctx.relativePath === 'Incoming/Test'; }",
+            "function check(ctx, scriptConfig) { return ctx.path === '/mnt/incoming/Test' && ctx.directoryName === 'Test'; }",
             context,
             new { },
             new ScriptConfig(),

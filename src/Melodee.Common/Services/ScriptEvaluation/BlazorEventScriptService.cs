@@ -31,8 +31,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.UserRegistrationStart,
             context,
-            0,
-            string.Empty,
             cancellationToken);
     }
 
@@ -41,8 +39,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.UserLoginStart,
             context,
-            0,
-            string.Empty,
             cancellationToken);
     }
 
@@ -51,8 +47,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.UserProfileUpdateStart,
             context,
-            0,
-            string.Empty,
             cancellationToken);
     }
 
@@ -61,8 +55,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.PlaylistCreateStart,
             context,
-            0,
-            string.Empty,
             cancellationToken);
     }
 
@@ -71,8 +63,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.PodcastChannelAddStart,
             context,
-            0,
-            string.Empty,
             cancellationToken);
     }
 
@@ -81,8 +71,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.RequestCreateStart,
             context,
-            0,
-            string.Empty,
             cancellationToken);
     }
 }
