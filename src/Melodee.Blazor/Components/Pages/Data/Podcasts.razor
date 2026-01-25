@@ -2,6 +2,9 @@
 @inherits MelodeeComponentBase
 @using Melodee.Common.Filtering
 @using Melodee.Common.Models.Collection
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
+@using NodaTime
 
 @inject MainLayoutProxyService MainLayoutProxyService
 @inject ILogger Logger
@@ -11,6 +14,8 @@
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 @inject NavigationManager NavigationManager
+@inject TooltipService TooltipService
+@inject IBlazorEventScriptService BlazorEventScriptService
 
 <PageTitle>@L("Navigation.Podcasts")</PageTitle>
 
@@ -45,6 +50,8 @@
                               Click="@ShowOpmlDialog" />
                 <RadzenButton Icon="add_circle_outline" Text="@L("Podcast.AddChannel")"
                               Size="ButtonSize.Small"
+                              Disabled="@_isPodcastAddDisabled"
+                              MouseEnter="@(args => { if (_isPodcastAddDisabled) ShowTooltip(args, _podcastAddDisabledMessage ?? L("Actions.Disabled")); })"
                               Click="@ShowAddChannelDialog" />
                 <RadzenButton Icon="refresh" Text="@L("Actions.Refresh")"
                               Size="ButtonSize.Small"
@@ -152,11 +159,46 @@
     private int _count;
     private bool _isLoading;
     private bool _podcastEnabled;
+    
+    private bool _isPodcastAddDisabled;
+    private string? _podcastAddDisabledMessage;
 
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
         _podcastEnabled = Configuration.GetValue<bool>(SettingRegistry.PodcastEnabled);
+        await EvaluatePodcastAddScriptAsync();
+    }
+
+    private async Task EvaluatePodcastAddScriptAsync()
+    {
+        try
+        {
+            var context = new PodcastChannelAddContext
+            {
+                UserId = CurrentUser?.UserId() ?? 0,
+                FeedUrl = string.Empty,
+                IsNewSubscription = true,
+                Now = SystemClock.Instance.GetCurrentInstant().ToString()
+            };
+
+            var result = await BlazorEventScriptService.EvaluatePodcastChannelAddAsync(context);
+            
+            if (!result.Result)
+            {
+                _isPodcastAddDisabled = true;
+                _podcastAddDisabledMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning(ex, "Error evaluating podcast channel add script, continuing as normal");
+        }
+    }
+
+    private void ShowTooltip(ElementReference elementReference, string message)
+    {
+        TooltipService.Open(elementReference, message);
     }
 
     private async Task LoadData(LoadDataArgs args)

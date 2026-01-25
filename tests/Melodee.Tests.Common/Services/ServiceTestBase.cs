@@ -20,8 +20,10 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Services.Security;
+using Melodee.Common.Models.Scripting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -577,5 +579,43 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     protected DeviceIdentificationService GetDeviceIdentificationService()
     {
         return new DeviceIdentificationService(Logger, CacheManager, MockFactory());
+    }
+
+    protected IScriptOrchestrationService MockScriptOrchestrationService()
+    {
+        var mock = new Mock<IScriptOrchestrationService>();
+        mock.Setup(x => x.EvaluateScriptForEventAsync(
+                It.IsAny<string>(),
+                It.IsAny<object>(),
+                It.IsAny<int>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = true });
+        return mock.Object;
+    }
+
+    protected IDirectoryContextProvider MockDirectoryContextProvider()
+    {
+        var mock = new Mock<IDirectoryContextProvider>();
+        mock.Setup(x => x.BuildContext(It.IsAny<FileSystemDirectoryInfo>(), It.IsAny<Library>()))
+            .Returns(new DirectoryProcessingContext());
+        return mock.Object;
+    }
+
+    protected DenyActionHandlerFactory MockDenyActionHandlerFactory()
+    {
+        var mockSafeDeleteService = new Mock<ISafeDeleteService>();
+        mockSafeDeleteService.Setup(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        return new DenyActionHandlerFactory(
+            mockSafeDeleteService.Object,
+            MockFileSystemService(),
+            new SettingService(),
+            Logger);
+    }
+
+    protected SettingService GetSettingService()
+    {
+        return new SettingService();
     }
 }

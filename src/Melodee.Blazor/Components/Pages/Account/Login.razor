@@ -4,6 +4,8 @@
 @using System.Net.Http.Json
 @using Melodee.Blazor.Components
 @using Melodee.Blazor.Services
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Options
@@ -19,6 +21,8 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject ILocalizationService LocalizationService
 @inject IThemeService ThemeService
+@inject IBlazorEventScriptService BlazorEventScriptService
+@inject IHttpContextAccessor HttpContextAccessor
 
 @implements IAsyncDisposable
 
@@ -186,12 +190,23 @@ else
             <div class="login-body">
                 <CustomBlock Key="login.top" />
                 
+                @if (_isLoginDisabled)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" 
+                                 Shade="Shade.Lighter" 
+                                 AllowClose="false"
+                                 class="rz-mb-4">
+                        @(_loginDisabledMessage ?? L("Auth.LoginDisabledByAdmin"))
+                    </RadzenAlert>
+                }
+                
                 <RadzenTemplateForm TItem="LoginModel" Data="@_loginModel" Submit="@OnSubmit">
                     <div class="login-form-field">
                         <label for="username">@L("Auth.Username")</label>
                         <RadzenTextBox @bind-Value="@_loginModel.Username" 
                                        Name="Username" 
                                        Placeholder="@L("Auth.EnterUsername")"
+                                       Disabled="@_isLoginDisabled"
                                        Style="width: 100%"/>
                         <RadzenRequiredValidator Component="Username" Text="@L("Auth.UsernameRequired")" Popup="false"/>
                     </div>
@@ -201,6 +216,7 @@ else
                         <RadzenPassword @bind-Value="@_loginModel.Password" 
                                         Name="Password"
                                         Placeholder="@L("Auth.EnterPassword")"
+                                        Disabled="@_isLoginDisabled"
                                         Style="width: 100%"/>
                         <RadzenRequiredValidator Component="Password" Text="@L("Auth.PasswordRequired")" Popup="false"/>
                     </div>
@@ -216,6 +232,7 @@ else
                                   Text="@L("Auth.Login")" 
                                   ButtonStyle="ButtonStyle.Primary"
                                   class="login-btn-primary"
+                                  Disabled="@_isLoginDisabled"
                                   IsBusy="@_isSubmitting"
                                   BusyText="@L("Auth.SigningIn")"/>
                 </RadzenTemplateForm>
@@ -230,7 +247,7 @@ else
                                   ButtonStyle="ButtonStyle.Light" 
                                   Variant="Variant.Outlined"
                                   class="login-google-btn"
-                                  Disabled="@_isGoogleSigningIn">
+                                  Disabled="@(_isGoogleSigningIn || _isLoginDisabled)">
                         @if (_isGoogleSigningIn)
                         {
                             <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" 
@@ -291,6 +308,8 @@ else
     private DotNetObjectReference<Login>? _dotNetRef;
     private bool _googleInitialized;
     private bool _isEmailEnabled;
+    private bool _isLoginDisabled;
+    private string? _loginDisabledMessage;
 
     [SupplyParameterFromQuery] [Parameter] public string? ReturnUrl { get; set; }
 
@@ -338,6 +357,9 @@ else
         {
             var config = await ConfigurationFactory.GetConfigurationAsync();
             _isEmailEnabled = config.GetValue<bool>(SettingRegistry.EmailEnabled);
+            
+            // Evaluate UserLoginStart script
+            await EvaluateLoginScriptAsync();
         }
         
         if (string.IsNullOrEmpty(ReturnUrl))
@@ -367,6 +389,37 @@ else
         }
         
         StateHasChanged();
+    }
+    
+    private async Task EvaluateLoginScriptAsync()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+            var clientIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = httpContext?.Request.Headers.UserAgent.ToString() ?? "unknown";
+            
+            var context = new UserLoginContext
+            {
+                UserId = null,
+                Roles = [],
+                ClientIp = clientIp,
+                UserAgent = userAgent,
+                Now = DateTime.UtcNow.ToString("O")
+            };
+            
+            var result = await BlazorEventScriptService.EvaluateUserLoginAsync(context);
+            
+            if (!result.Result && !result.IsDefault)
+            {
+                _isLoginDisabled = true;
+                _loginDisabledMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error evaluating login script: {ex.Message}");
+        }
     }
 
     private async Task InitializeGoogleSignInAsync()

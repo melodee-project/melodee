@@ -6,12 +6,22 @@ permalink: /scripting/
 # Event Scripting
 
 Melodee supports **admin-authored JavaScript** scripts that can allow/deny specific operations at well-defined hook points
-(called “events”). Scripts are evaluated in-process using the Jint engine and must return a single boolean:
+(called "events"). Scripts are evaluated in-process using the Jint engine and must return either:
 
-- `true`: allow the operation to proceed.
-- `false`: deny the operation (and optionally apply an `onDeny` action such as `skip`, `delete`, or `quarantine`).
+- A **boolean**: `true` to allow, `false` to deny.
+- An **object** with `result` (boolean) and optional `message` (string) properties.
 
-If a script is missing/disabled, fails to compile, throws, times out, exceeds statement limits, or returns a non-boolean,
+Example return values:
+
+```javascript
+// Simple boolean
+return true;
+
+// Object with message (message is displayed to users when denied)
+return { result: false, message: "Registration is currently disabled for maintenance." };
+```
+
+If a script is missing/disabled, fails to compile, throws, times out, exceeds statement limits, or returns a non-boolean/non-object,
 Melodee defaults to **allow** (`true`).
 
 ## Where to manage scripts
@@ -20,7 +30,7 @@ In the Melodee web UI:
 
 1. Go to **Admin → Scripts**.
 2. Select an event (dropdown) and choose **Create**, or edit an existing script row.
-3. Use the built-in editor to update script text, enable/disable the config, and run a “Test” using mock JSON.
+3. Use the built-in editor to update script text, enable/disable the config, and run a "Test" using mock JSON.
 
 Scripts are stored in the database `Settings` table under keys like:
 
@@ -32,6 +42,7 @@ Melodee calls your script as:
 
 ```javascript
 function check(ctx, scriptConfig) {
+  // Return boolean or object with result/message
   return true;
 }
 ```
@@ -41,6 +52,19 @@ You may also provide a single expression; Melodee wraps it into `check(...)` aut
 ```javascript
 ctx.userNameLength >= 3 && ctx.emailDomain === "example.com"
 ```
+
+### Return values
+
+Scripts can return:
+
+| Return Type | Example | Behavior |
+|------------|---------|----------|
+| `true` | `return true;` | Allow the operation |
+| `false` | `return false;` | Deny the operation |
+| Object with `result` | `return { result: false, message: "Not allowed" };` | Deny with message displayed to user |
+
+The `message` property is particularly useful for UI events (login, registration, profile, etc.) where the message
+is displayed to the user explaining why the action was denied.
 
 ### Inputs
 
@@ -152,13 +176,15 @@ Context: `DirectoryProcessingContext`
 
 ### `directoryProcessingDelete`
 
-Runs only when `directoryProcessingStart` denies and `onDeny` is `delete`. If it returns `true`, deletion is attempted.
+Runs when `directoryProcessingStart` returns `false` and `onDeny` is `delete`. If this script returns `true`, deletion
+proceeds; if `false`, deletion is skipped (directory is not processed but also not deleted).
 
 Context: `DirectoryProcessingContext` (same as above).
 
 ### `userRegistrationStart`
 
-Runs during user registration.
+Runs when a user views the registration page. If the script returns `false`, registration is disabled and the
+`message` property (if provided) is displayed to the user.
 
 Context: `UserRegistrationContext`
 
@@ -172,7 +198,8 @@ Context: `UserRegistrationContext`
 
 ### `userLoginStart`
 
-Runs during login, before issuing an authenticated session.
+Runs when a user views the login page. If the script returns `false`, authentication is disabled and the
+`message` property (if provided) is displayed to the user.
 
 Context: `UserLoginContext`
 
@@ -186,7 +213,8 @@ Context: `UserLoginContext`
 
 ### `userProfileUpdateStart`
 
-Runs before persisting a profile update.
+Runs when a user views their profile page. If the script returns `false`, the profile becomes read-only and
+the `message` property (if provided) is displayed to the user.
 
 Context: `UserProfileUpdateContext`
 
@@ -201,7 +229,8 @@ Context: `UserProfileUpdateContext`
 
 ### `playlistCreateStart`
 
-Runs before creating a playlist.
+Runs when viewing the playlists page. If the script returns `false`, the "Import Playlist" buttons are disabled
+and the `message` property (if provided) is shown as a tooltip.
 
 Context: `PlaylistCreateContext`
 
@@ -214,7 +243,8 @@ Context: `PlaylistCreateContext`
 
 ### `podcastChannelAddStart`
 
-Runs before adding a podcast channel.
+Runs when viewing the podcasts page. If the script returns `false`, the "Add Podcast Channel" button is disabled
+and the `message` property (if provided) is shown as a tooltip.
 
 Context: `PodcastChannelAddContext`
 
@@ -225,23 +255,10 @@ Context: `PodcastChannelAddContext`
 | `isNewSubscription` | boolean |
 | `now` | string |
 
-### `shareCreateStart`
-
-Runs before creating a share.
-
-Context: `ShareCreateContext`
-
-| Field | Type |
-|------|------|
-| `userId` | number |
-| `shareType` | string |
-| `itemCount` | number |
-| `expirationDays` | number\|null |
-| `now` | string |
-
 ### `requestCreateStart`
 
-Runs before creating a request.
+Runs when viewing the requests page. If the script returns `false`, the "New Request" button is disabled
+and the `message` property (if provided) is shown as a tooltip.
 
 Context: `RequestCreateContext`
 
@@ -304,25 +321,51 @@ function check(ctx, scriptConfig) {
 }
 ```
 
-### Example: block registration from unknown email domains
+### Example: block registration with custom message
 
 Event: `userRegistrationStart`
 
 ```javascript
 function check(ctx, scriptConfig) {
   const allowed = ["example.com", "example.org"];
-  return allowed.includes((ctx.emailDomain || "").toLowerCase());
+  if (!allowed.includes((ctx.emailDomain || "").toLowerCase())) {
+    return {
+      result: false,
+      message: "Registration is only available for example.com and example.org email addresses."
+    };
+  }
+  return true;
 }
 ```
 
-### Example: restrict playlist names
+### Example: disable login during maintenance
+
+Event: `userLoginStart`
+
+```javascript
+function check(ctx, scriptConfig) {
+  // Maintenance window: deny all logins with a message
+  return {
+    result: false,
+    message: "System is under maintenance. Please try again in 30 minutes."
+  };
+}
+```
+
+### Example: restrict playlist creation
 
 Event: `playlistCreateStart`
 
 ```javascript
 function check(ctx, scriptConfig) {
   // Require playlist names between 3 and 80 characters.
-  return ctx.nameLength >= 3 && ctx.nameLength <= 80;
+  if (ctx.nameLength < 3 || ctx.nameLength > 80) {
+    return {
+      result: false,
+      message: "Playlist names must be between 3 and 80 characters."
+    };
+  }
+  return true;
 }
 ```
 
@@ -334,18 +377,29 @@ Event: `podcastChannelAddStart`
 function check(ctx, scriptConfig) {
   // Allow only HTTPS feeds.
   const url = (ctx.feedUrl || "").toLowerCase();
-  return url.startsWith("https://");
+  if (!url.startsWith("https://")) {
+    return {
+      result: false,
+      message: "Only HTTPS podcast feeds are allowed for security reasons."
+    };
+  }
+  return true;
 }
 ```
 
-### Example: require share expiration
+### Example: limit daily requests
 
-Event: `shareCreateStart`
+Event: `requestCreateStart`
 
 ```javascript
 function check(ctx, scriptConfig) {
-  // Deny shares that do not expire.
-  return ctx.expirationDays != null && ctx.expirationDays > 0;
+  const maxDailyRequests = 5;
+  if (ctx.dailyRequestCount >= maxDailyRequests) {
+    return {
+      result: false,
+      message: "You have reached the maximum of " + maxDailyRequests + " requests per day."
+    };
+  }
+  return true;
 }
 ```
-

@@ -4,6 +4,8 @@
 @using Melodee.Common.Data.Models
 @using Melodee.Common.Data.Models.Extensions
 @using Melodee.Common.Models
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
 @using Melodee.Common.Services.Security
 @using Microsoft.Extensions.Options
 @using NodaTime
@@ -18,6 +20,8 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject ILocalizationService ProfileLocalizationService
+@inject IBlazorEventScriptService BlazorEventScriptService
+@inject IHttpContextAccessor HttpContextAccessor
 
 @implements IAsyncDisposable
 
@@ -26,6 +30,16 @@
 <RadzenCard class="profile-card">
     <div class="profile-container">
         <h1 class="rz-text-title">@L("Profile.YourProfile")</h1>
+
+        @if (_isProfileReadOnly)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" 
+                         Shade="Shade.Lighter" 
+                         AllowClose="false"
+                         class="rz-mb-4">
+                @(_profileReadOnlyMessage ?? L("Profile.ReadOnlyByAdmin"))
+            </RadzenAlert>
+        }
 
         <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
             <Tabs>
@@ -54,6 +68,7 @@
                                 class="rz-my-2"
                                 Icon="photo_camera"
                                 ButtonStyle="ButtonStyle.Secondary"
+                                Disabled="@_isProfileReadOnly"
                                 Click="@OpenFileUploadDialog"/>
                         </div>
 
@@ -63,18 +78,18 @@
                                     <RadzenFieldset Text="@L("Profile.ProfileInformation")">
                                         <RadzenStack Gap="1rem">
                                             <RadzenFormField Text="@L("Profile.Username")" Variant="Variant.Outlined">
-                                                <RadzenTextBox @bind-Value="@UserProfile.Username" Name="Username"/>
+                                                <RadzenTextBox @bind-Value="@UserProfile.Username" Name="Username" Disabled="@_isProfileReadOnly"/>
                                                 <RadzenRequiredValidator Text="@L("Profile.UsernameRequired")" Component="Username"/>
                                             </RadzenFormField>
 
                                             <RadzenFormField Text="@L("Profile.Email")" Variant="Variant.Outlined">
-                                                <RadzenTextBox @bind-Value="@UserProfile.Email" Name="Email"/>
+                                                <RadzenTextBox @bind-Value="@UserProfile.Email" Name="Email" Disabled="@_isProfileReadOnly"/>
                                                 <RadzenRequiredValidator Text="@L("Profile.EmailRequired")" Component="Email"/>
                                                 <RadzenEmailValidator Text="@L("Profile.EmailInvalid")" Component="Email"/>
                                             </RadzenFormField>
 
                                             <RadzenFormField Text="@L("Profile.Bio")" Variant="Variant.Outlined">
-                                                <RadzenTextArea @bind-Value="@UserProfile.Bio" Name="Bio" Rows="4" MaxLength="500"/>
+                                                <RadzenTextArea @bind-Value="@UserProfile.Bio" Name="Bio" Rows="4" MaxLength="500" Disabled="@_isProfileReadOnly"/>
                                             </RadzenFormField>
 
                                             <RadzenFormField Text="@L("Profile.TimeZone")" Variant="Variant.Outlined">
@@ -83,6 +98,7 @@
                                                                 Data="@_timeZoneIds"
                                                                 AllowFiltering="true"
                                                                 FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                                                Disabled="@_isProfileReadOnly"
                                                                 Style="width: 100%"/>
                                                 <RadzenText TextStyle="TextStyle.Caption">@L("Profile.DefaultsToUTC")</RadzenText>
                                             </RadzenFormField>
@@ -95,12 +111,13 @@
                                                                 ValueProperty="Name"
                                                                 AllowClear="true"
                                                                 Placeholder="@L("Profile.LanguageDefault")"
+                                                                Disabled="@_isProfileReadOnly"
                                                                 Style="width: 100%"/>
                                                 <RadzenText TextStyle="TextStyle.Caption">@L("Profile.LanguageHelp")</RadzenText>
                                             </RadzenFormField>
 
                                             <RadzenFormField Text="@L("Profile.Theme")" Variant="Variant.Outlined">
-                                                <ThemeSelector Value="@UserProfile.PreferredTheme" ValueChanged="OnThemeValueChangedAsync"/>
+                                                <ThemeSelector Value="@UserProfile.PreferredTheme" ValueChanged="OnThemeValueChangedAsync" Disabled="@_isProfileReadOnly"/>
                                             </RadzenFormField>
                                         </RadzenStack>
                                     </RadzenFieldset>
@@ -109,6 +126,7 @@
                                                   Icon="save"
                                                   ButtonStyle="ButtonStyle.Primary"
                                                   ButtonType="ButtonType.Submit"
+                                                  Disabled="@_isProfileReadOnly"
                                                   IsBusy="@_isSaving"
                                                   BusyText="@L("Profile.Saving")"/>
                                 </RadzenStack>
@@ -297,6 +315,10 @@
     private string? _googleLinkSuccess;
     private DotNetObjectReference<Profile>? _dotNetRef;
     private bool _googleInitialized;
+    
+    // Profile update script state
+    private bool _isProfileReadOnly;
+    private string? _profileReadOnlyMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -324,6 +346,41 @@
         if (_googleAuthEnabled)
         {
             await LoadGoogleLinkStatusAsync();
+        }
+        
+        // Evaluate UserProfileUpdateStart script
+        await EvaluateProfileScriptAsync();
+    }
+    
+    private async Task EvaluateProfileScriptAsync()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+            var clientIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = httpContext?.Request.Headers.UserAgent.ToString() ?? "unknown";
+            
+            var context = new UserProfileUpdateContext
+            {
+                UserId = CurrentUser!.UserId(),
+                EmailDomain = UserProfile.Email?.Split('@').LastOrDefault() ?? string.Empty,
+                ProfileChangesCount = 0,
+                ClientIp = clientIp,
+                UserAgent = userAgent,
+                Now = DateTime.UtcNow.ToString("O")
+            };
+            
+            var result = await BlazorEventScriptService.EvaluateUserProfileUpdateAsync(context);
+            
+            if (!result.Result && !result.IsDefault)
+            {
+                _isProfileReadOnly = true;
+                _profileReadOnlyMessage = result.Message;
+            }
+        }
+        catch
+        {
+            // Script errors default to allowing the action
         }
     }
 

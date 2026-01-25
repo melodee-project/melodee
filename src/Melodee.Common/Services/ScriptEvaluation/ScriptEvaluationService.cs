@@ -1,4 +1,5 @@
 using Jint;
+using Jint.Native;
 using Melodee.Common.Models.Scripting;
 using Serilog;
 
@@ -84,27 +85,53 @@ public sealed class ScriptEvaluationService : IScriptEvaluationService
 
             stopwatch.Stop();
 
-            if (!result.IsBoolean())
+            // Handle boolean result
+            if (result.IsBoolean())
             {
                 return new ScriptEvaluationResult
                 {
-                    Result = true,
-                    IsDefault = true,
+                    Result = result.AsBoolean(),
+                    IsDefault = false,
+                    SelectedOverrideId = null,
                     Duration = stopwatch.Elapsed,
-                    ErrorMessage = "Script returned a non-boolean value, defaulting to allow"
+                    Message = null,
+                    ErrorMessage = null
                 };
             }
 
+            // Handle object result with 'result' and optional 'message' properties
+            if (result.IsObject() && result is JsObject jsObject)
+            {
+                var resultProp = jsObject.Get("result");
+                var messageProp = jsObject.Get("message");
+
+                if (resultProp.IsBoolean())
+                {
+                    string? message = null;
+                    if (!messageProp.IsUndefined() && !messageProp.IsNull())
+                    {
+                        message = messageProp.ToString();
+                    }
+
+                    return new ScriptEvaluationResult
+                    {
+                        Result = resultProp.AsBoolean(),
+                        IsDefault = false,
+                        SelectedOverrideId = null,
+                        Duration = stopwatch.Elapsed,
+                        Message = message,
+                        ErrorMessage = null
+                    };
+                }
+            }
+
+            // Non-boolean, non-object-with-result: default to allow
             return new ScriptEvaluationResult
             {
-                Result = result.AsBoolean(),
-                IsDefault = false,
-                SelectedOverrideId = null,
+                Result = true,
+                IsDefault = true,
                 Duration = stopwatch.Elapsed,
-                // TODO this needs to be implemented
-                // The result can be a simple bool or an object with a message, when the result has "message" property use it here
-                Message = null,
-                ErrorMessage = null
+                ErrorMessage = "Script returned a non-boolean value, defaulting to allow"
             };
         }
         catch (Exception ex)

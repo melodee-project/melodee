@@ -6867,4 +6867,16 @@ Common fixes:
   <data name="AdminScriptEditor.Ctx.RequestCreate.Now" xml:space="preserve">
     <value>Current server time (ISO-8601).</value>
   </data>
+
+  <data name="Auth.LoginDisabledByAdmin" xml:space="preserve">
+    <value>Login has been disabled by the administrator.</value>
+  </data>
+
+  <data name="Profile.ReadOnlyByAdmin" xml:space="preserve">
+    <value>Your profile is currently read-only due to administrator settings.</value>
+  </data>
+
+  <data name="Actions.Disabled" xml:space="preserve">
+    <value>Action disabled by administrator</value>
+  </data>
 </root>
