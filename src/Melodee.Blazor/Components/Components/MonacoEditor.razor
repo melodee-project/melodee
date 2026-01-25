@@ -42,9 +42,14 @@ else
         if (firstRender)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
+            // Capture COPIES of current parameter values to ensure hash matches what we send to JS
+            // Must make defensive copies because the parent may mutate the lists during async await
             var initialValue = Value ?? string.Empty;
             var initialLanguage = Language;
             var initialTheme = Theme;
+            var initialCtxCompletions = CtxCompletions?.ToList();
+            var initialScriptConfigCompletions = ScriptConfigCompletions?.ToList();
+            
             try
             {
                 await JsRuntime.InvokeVoidAsync(
@@ -60,8 +65,8 @@ else
                         placeholder = Placeholder,
                         completions = new
                         {
-                            ctx = CtxCompletions,
-                            scriptConfig = ScriptConfigCompletions
+                            ctx = initialCtxCompletions,
+                            scriptConfig = initialScriptConfigCompletions
                         }
                     });
 
@@ -69,7 +74,8 @@ else
                 _lastValue = initialValue;
                 _lastLanguage = initialLanguage;
                 _lastTheme = initialTheme;
-                _lastCompletionHash = ComputeCompletionsHash();
+                // Compute hash from the CAPTURED values we sent to JS, not current parameter values
+                _lastCompletionHash = ComputeCompletionsHashFor(initialCtxCompletions, initialScriptConfigCompletions);
 
                 await SyncIfNeededAsync();
             }
@@ -170,13 +176,20 @@ else
 
     private int ComputeCompletionsHash()
     {
+        return ComputeCompletionsHashFor(CtxCompletions, ScriptConfigCompletions);
+    }
+
+    private static int ComputeCompletionsHashFor(
+        IReadOnlyList<MonacoCompletionItem>? ctxCompletions,
+        IReadOnlyList<MonacoCompletionItem>? scriptConfigCompletions)
+    {
         var hash = new HashCode();
-        AddCompletionItems(hash, CtxCompletions);
-        AddCompletionItems(hash, ScriptConfigCompletions);
+        AddCompletionItems(ref hash, ctxCompletions);
+        AddCompletionItems(ref hash, scriptConfigCompletions);
         return hash.ToHashCode();
     }
 
-    private static void AddCompletionItems(HashCode hash, IReadOnlyList<MonacoCompletionItem>? items)
+    private static void AddCompletionItems(ref HashCode hash, IReadOnlyList<MonacoCompletionItem>? items)
     {
         if (items == null)
         {

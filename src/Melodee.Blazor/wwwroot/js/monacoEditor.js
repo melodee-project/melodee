@@ -283,17 +283,22 @@
     }
 
     function setCompletions(elementId, completions) {
+        console.log("[Monaco setCompletions] called with:", completions);
         const editorState = state.editors.get(elementId);
         if (!editorState) {
+            console.log("[Monaco setCompletions] No editor state");
             return;
         }
 
         const modelUri = editorState.modelUri;
         if (!modelUri) {
+            console.log("[Monaco setCompletions] No modelUri");
             return;
         }
 
-        state.completionsByModelUri.set(modelUri, normalizeCompletionSchema(completions));
+        const normalized = normalizeCompletionSchema(completions);
+        console.log("[Monaco setCompletions] Setting for modelUri:", modelUri, "normalized ctx count:", normalized.ctx.length);
+        state.completionsByModelUri.set(modelUri, normalized);
     }
 
     function setValue(elementId, value) {
