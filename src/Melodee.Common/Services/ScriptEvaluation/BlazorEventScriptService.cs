@@ -10,7 +10,6 @@ public interface IBlazorEventScriptService
     Task<ScriptEvaluationResult> EvaluateUserProfileUpdateAsync(UserProfileUpdateContext context, CancellationToken cancellationToken = default);
     Task<ScriptEvaluationResult> EvaluatePlaylistCreateAsync(PlaylistCreateContext context, CancellationToken cancellationToken = default);
     Task<ScriptEvaluationResult> EvaluatePodcastChannelAddAsync(PodcastChannelAddContext context, CancellationToken cancellationToken = default);
-    Task<ScriptEvaluationResult> EvaluateShareCreateAsync(ShareCreateContext context, CancellationToken cancellationToken = default);
     Task<ScriptEvaluationResult> EvaluateRequestCreateAsync(RequestCreateContext context, CancellationToken cancellationToken = default);
 }
 
@@ -71,16 +70,6 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
             ScriptEventNames.PodcastChannelAddStart,
-            context,
-            0,
-            string.Empty,
-            cancellationToken);
-    }
-
-    public Task<ScriptEvaluationResult> EvaluateShareCreateAsync(ShareCreateContext context, CancellationToken cancellationToken = default)
-    {
-        return _orchestrationService.EvaluateScriptForEventAsync(
-            ScriptEventNames.ShareCreateStart,
             context,
             0,
             string.Empty,

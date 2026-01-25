@@ -101,6 +101,9 @@ public sealed class ScriptEvaluationService : IScriptEvaluationService
                 IsDefault = false,
                 SelectedOverrideId = null,
                 Duration = stopwatch.Elapsed,
+                // TODO this needs to be implemented
+                // The result can be a simple bool or an object with a message, when the result has "message" property use it here
+                Message = null,
                 ErrorMessage = null
             };
         }

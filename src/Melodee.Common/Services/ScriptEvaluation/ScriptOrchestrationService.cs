@@ -110,6 +110,7 @@ public sealed class ScriptOrchestrationService : IScriptOrchestrationService
             SelectedOverrideId = isOverride ? $"{selectedOverride!.LibraryId}|{selectedOverride.PathPrefix}" : null,
             ScriptKey = config.SettingKey,
             ScriptHash = scriptHash,
+            Message = evaluationResult.ErrorMessage,
             OnDeny = onDeny
         };
     }

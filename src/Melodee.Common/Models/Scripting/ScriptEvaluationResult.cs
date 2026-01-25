@@ -16,5 +16,7 @@ public record ScriptEvaluationResult
 
     public TimeSpan Duration { get; init; }
 
+    public string? Message { get; init; }
+
     public string? ErrorMessage { get; init; }
 }

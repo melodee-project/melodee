@@ -604,16 +604,6 @@
                   "now": "2026-01-24T12:34:56Z"
                 }
                 """,
-            ScriptEventNames.ShareCreateStart =>
-                """
-                {
-                  "userId": 123,
-                  "shareType": "album",
-                  "itemCount": 1,
-                  "expirationDays": 7,
-                  "now": "2026-01-24T12:34:56Z"
-                }
-                """,
             ScriptEventNames.RequestCreateStart =>
                 """
                 {
@@ -641,7 +631,6 @@
             ScriptEventNames.UserProfileUpdateStart => UserProfileUpdateCtx,
             ScriptEventNames.PlaylistCreateStart => PlaylistCreateCtx,
             ScriptEventNames.PodcastChannelAddStart => PodcastChannelAddCtx,
-            ScriptEventNames.ShareCreateStart => ShareCreateCtx,
             ScriptEventNames.RequestCreateStart => RequestCreateCtx,
             _ => []
         };

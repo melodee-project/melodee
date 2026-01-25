@@ -11,7 +11,6 @@ public static class ScriptEventNames
 
     public const string PlaylistCreateStart = "playlistCreateStart";
     public const string PodcastChannelAddStart = "podcastChannelAddStart";
-    public const string ShareCreateStart = "shareCreateStart";
     public const string RequestCreateStart = "requestCreateStart";
 
     public static readonly string[] All =
@@ -23,7 +22,6 @@ public static class ScriptEventNames
         UserProfileUpdateStart,
         PlaylistCreateStart,
         PodcastChannelAddStart,
-        ShareCreateStart,
         RequestCreateStart
     ];
 }
