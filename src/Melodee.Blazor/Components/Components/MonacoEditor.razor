@@ -42,6 +42,9 @@ else
         if (firstRender)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
+            var initialValue = Value ?? string.Empty;
+            var initialLanguage = Language;
+            var initialTheme = Theme;
             try
             {
                 await JsRuntime.InvokeVoidAsync(
@@ -50,9 +53,9 @@ else
                     _dotNetRef,
                     new
                     {
-                        value = Value ?? string.Empty,
-                        language = Language,
-                        theme = Theme,
+                        value = initialValue,
+                        language = initialLanguage,
+                        theme = initialTheme,
                         readOnly = ReadOnly,
                         placeholder = Placeholder,
                         completions = new
@@ -63,10 +66,12 @@ else
                     });
 
                 _initialized = true;
-                _lastValue = Value ?? string.Empty;
-                _lastLanguage = Language;
-                _lastTheme = Theme;
+                _lastValue = initialValue;
+                _lastLanguage = initialLanguage;
+                _lastTheme = initialTheme;
                 _lastCompletionHash = ComputeCompletionsHash();
+
+                await SyncIfNeededAsync();
             }
             catch
             {

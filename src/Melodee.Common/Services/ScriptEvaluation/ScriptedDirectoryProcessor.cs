@@ -1,5 +1,6 @@
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
+using Melodee.Common.Models.Scripting;
 using Melodee.Common.Plugins.Processor.Models;
 using Melodee.Common.Services.Scanning;
 using Microsoft.EntityFrameworkCore;
@@ -89,7 +90,7 @@ public sealed class ScriptedDirectoryProcessor : IScriptedDirectoryProcessor
             var context = _contextProvider.BuildContext(directoryInfo, library);
 
             var startResult = await _scriptOrchestrationService.EvaluateScriptForEventAsync(
-                "directoryProcessingStart",
+                ScriptEventNames.DirectoryProcessingStart,
                 context,
                 libraryId,
                 context.RelativePath,
@@ -102,7 +103,7 @@ public sealed class ScriptedDirectoryProcessor : IScriptedDirectoryProcessor
                 if (string.Equals(onDeny, "delete", StringComparison.OrdinalIgnoreCase))
                 {
                     var deleteResult = await _scriptOrchestrationService.EvaluateScriptForEventAsync(
-                        "directoryProcessingDelete",
+                        ScriptEventNames.DirectoryProcessingDelete,
                         context,
                         libraryId,
                         context.RelativePath,

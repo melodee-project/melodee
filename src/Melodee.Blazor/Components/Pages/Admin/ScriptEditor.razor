@@ -14,7 +14,7 @@
 
 <PageTitle>@L("AdminScriptEditor.PageTitle")</PageTitle>
 
-<RadzenStack Style="height: 100%">
+<RadzenStack Gap="1rem">
     <RadzenBreadCrumb Class="rz-pb-5">
         <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
         <RadzenBreadCrumbItem Icon="admin_panel_settings" Text="@L("Navigation.Admin")"/>
@@ -22,223 +22,244 @@
         <RadzenBreadCrumbItem Icon="edit" Text="@EventName"/>
     </RadzenBreadCrumb>
 
-    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Center">
-        <RadzenText TextStyle="TextStyle.H5">@EventName</RadzenText>
-        <RadzenBadge class="rz-ms-2"
-                     BadgeStyle="@(_config.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
-                     Text="@(_config.Enabled ? L("Common.Yes") : L("Common.No"))"/>
+    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenText TextStyle="TextStyle.H4">
+                <RadzenIcon Icon="code" class="rz-me-1"/>
+                @EventName
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenBadge BadgeStyle="@(_config.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
+                             Text="@(_config.Enabled ? L("Common.Yes") : L("Common.No"))"/>
+            </RadzenStack>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.End" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="@L("Actions.Save")" Icon="save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@SaveAsync"/>
+                <RadzenButton Text="@L("Actions.Delete")" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@DeleteAsync"/>
+                <RadzenButton Text="@L("Actions.Back")" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@Back"/>
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
 
-        <RadzenButton Text="@L("Actions.Save")" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveAsync"/>
-        <RadzenButton Text="@L("Actions.Delete")" Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@DeleteAsync"/>
-        <RadzenButton Text="@L("Actions.Back")" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@Back"/>
-    </RadzenStack>
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">
+            <RadzenIcon Icon="tune" class="rz-me-1"/>
+            @L("AdminScriptEditor.ConfigurationTab")
+        </RadzenText>
 
-    <RadzenTabs Style="flex: 1; overflow: hidden;">
-        <Tabs>
-            <RadzenTabsItem Text="@L("AdminScriptEditor.ConfigurationTab")" Icon="tune">
-                <RadzenCard Style="height: 100%; overflow: auto;">
-                    <RadzenRow Gap="1rem">
-                        <RadzenColumn Size="12" SizeMD="4">
-                            <RadzenFormField Text="@L("AdminScriptEditor.Enabled")" Variant="Variant.Outlined">
-                                <RadzenCheckBox @bind-Value="_config.Enabled" TValue="bool" aria-label="@L("AdminScriptEditor.Enabled")"/>
-                            </RadzenFormField>
-                        </RadzenColumn>
-                        <RadzenColumn Size="12" SizeMD="4">
-                            <RadzenFormField Text="@L("AdminScriptEditor.TimeoutMs")" Variant="Variant.Outlined">
-                                <RadzenNumeric @bind-Value="_config.TimeoutMs" TValue="int" Min="1" Step="1" Style="width: 100%" aria-label="@L("AdminScriptEditor.TimeoutMs")"/>
-                            </RadzenFormField>
-                        </RadzenColumn>
-                        <RadzenColumn Size="12" SizeMD="4">
-                            <RadzenFormField Text="@L("AdminScriptEditor.MaxStatements")" Variant="Variant.Outlined">
-                                <RadzenNumeric @bind-Value="_config.MaxStatements" TValue="int" Min="1" Step="100" Style="width: 100%" aria-label="@L("AdminScriptEditor.MaxStatements")"/>
-                            </RadzenFormField>
-                        </RadzenColumn>
-                    </RadzenRow>
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.Enabled")" Variant="Variant.Outlined">
+                    <RadzenSwitch @bind-Value="_config.Enabled" Name="ScriptEnabled"/>
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.TimeoutMs")" Variant="Variant.Outlined">
+                    <RadzenNumeric @bind-Value="_config.TimeoutMs" TValue="int" Min="1" Step="1" Style="width: 100%" aria-label="@L("AdminScriptEditor.TimeoutMs")"/>
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.MaxStatements")" Variant="Variant.Outlined">
+                    <RadzenNumeric @bind-Value="_config.MaxStatements" TValue="int" Min="1" Step="100" Style="width: 100%" aria-label="@L("AdminScriptEditor.MaxStatements")"/>
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.DefaultOnDeny")" Variant="Variant.Outlined">
+                    <RadzenDropDown Data="@_denyActions"
+                                    @bind-Value="_config.Default.OnDeny"
+                                    Style="width: 100%"
+                                    aria-label="@L("AdminScriptEditor.DefaultOnDeny")"/>
+                </RadzenFormField>
+            </RadzenColumn>
+        </RadzenRow>
 
-                    <RadzenRow Gap="1rem" class="rz-mt-3">
-                        <RadzenColumn Size="12" SizeMD="4">
-                            <RadzenFormField Text="@L("AdminScriptEditor.DefaultOnDeny")" Variant="Variant.Outlined">
-                                <RadzenDropDown Data="@_denyActions"
-                                                @bind-Value="_config.Default.OnDeny"
-                                                Style="width: 100%"
-                                                aria-label="@L("AdminScriptEditor.DefaultOnDeny")"/>
-                            </RadzenFormField>
-                        </RadzenColumn>
-                    </RadzenRow>
+        <RadzenStack Gap="0.5rem" class="rz-mt-3">
+            <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.Body")</RadzenText>
+            <MonacoEditor @bind-Value="_config.Default.Body"
+                          Height="420px"
+                          Language="javascript"
+                          CtxCompletions="_ctxCompletions"
+                          ScriptConfigCompletions="ScriptConfigCompletionItems"
+                          Placeholder="@L("AdminScriptEditor.DefaultBodyPlaceholder")"/>
+        </RadzenStack>
+    </RadzenCard>
 
-                    <RadzenStack Gap="0.5rem" class="rz-mt-3">
-                        <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.DefaultBody")</RadzenText>
-                        <MonacoEditor @bind-Value="_config.Default.Body"
-                                      Height="360px"
-                                      Language="javascript"
-                                      CtxCompletions="_ctxCompletions"
-                                      ScriptConfigCompletions="ScriptConfigCompletionItems"
-                                      Placeholder="@L("AdminScriptEditor.DefaultBodyPlaceholder")"/>
-                    </RadzenStack>
-                </RadzenCard>
-            </RadzenTabsItem>
+    <RadzenCard>
+        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" RowGap="0.5rem">
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenText TextStyle="TextStyle.H6">
+                    <RadzenIcon Icon="rule" class="rz-me-1"/>
+                    @L("AdminScriptEditor.OverridesTab")
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">@L("AdminScriptEditor.OverridesHelp")</RadzenText>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                    <RadzenButton Text="@L("AdminScriptEditor.AddOverride")"
+                                  Icon="add"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Small"
+                                  Click="@AddOverride"/>
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
 
-            <RadzenTabsItem Text="@L("AdminScriptEditor.ContextTab")" Icon="help">
-                <RadzenCard Style="height: 100%; overflow: auto;">
-                    <RadzenStack Gap="0.75rem">
-                        <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
-                            @L("AdminScriptEditor.ContextHelp")
-                        </RadzenAlert>
-
-                        @if (_ctxFields.Count == 0)
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.ContextNoInfo")</RadzenText>
+        <RadzenDataGrid @ref="_overrideGrid"
+                        Data="@_config.Overrides"
+                        TItem="ScriptOverrideConfig"
+                        AllowPaging="true"
+                        PageSize="10"
+                        EditMode="@DataGridEditMode.Single"
+                        RowUpdate="@OnUpdateOverride"
+                        Style="margin-top: 1rem;">
+            <Columns>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.Enabled)" Title="@L("AdminScriptEditor.OverrideEnabled")" Width="110px">
+                    <Template Context="item">
+                        @{
+                            var enabledText = item.Enabled ? L("Common.Yes") : L("Common.No");
                         }
-                        else
+                        <RadzenBadge BadgeStyle="@(item.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
+                                     Text="@enabledText"/>
+                    </Template>
+                    <EditTemplate Context="item">
+                        <RadzenSwitch @bind-Value="item.Enabled"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.LibraryId)" Title="@L("AdminScriptEditor.LibraryId")" Width="120px">
+                    <EditTemplate Context="item">
+                        <RadzenNumeric @bind-Value="item.LibraryId" TValue="int?" Min="0" Step="1" Style="width: 100%"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.PathPrefix)" Title="@L("AdminScriptEditor.PathPrefix")" Width="220px">
+                    <EditTemplate Context="item">
+                        <RadzenTextBox @bind-Value="item.PathPrefix" Style="width: 100%"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.OnDeny)" Title="@L("AdminScriptEditor.OnDeny")" Width="140px">
+                    <EditTemplate Context="item">
+                        <RadzenDropDown Data="@_denyActions" @bind-Value="item.OnDeny" Style="width: 100%"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Title="@L("AdminScriptEditor.Body")" Width="140px">
+                    <Template Context="item">
+                        <RadzenButton Icon="edit"
+                                      Text="@L("Actions.Edit")"
+                                      ButtonStyle="ButtonStyle.Light"
+                                      Size="ButtonSize.Small"
+                                      Click="@(_ => EditOverrideBodyAsync(item))"/>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Context="item" Width="160px" TextAlign="TextAlign.Right" Filterable="false" Sortable="false">
+                    <Template Context="item">
+                        <RadzenButton Icon="edit"
+                                      ButtonStyle="ButtonStyle.Light"
+                                      Variant="Variant.Flat"
+                                      Size="ButtonSize.Medium"
+                                      Click="@(_ => EditOverrideRow(item))"
+                                      @onclick:stopPropagation="true"
+                                      title="@L("Actions.Edit")"/>
+                        <RadzenButton Icon="check"
+                                      ButtonStyle="ButtonStyle.Success"
+                                      Variant="Variant.Flat"
+                                      Size="ButtonSize.Medium"
+                                      class="rz-ms-1"
+                                      Click="@(_ => SaveOverrideRow(item))"
+                                      @onclick:stopPropagation="true"
+                                      title="@L("Actions.Save")"/>
+                        <RadzenButton Icon="delete"
+                                      ButtonStyle="ButtonStyle.Danger"
+                                      Variant="Variant.Flat"
+                                      Size="ButtonSize.Medium"
+                                      class="rz-ms-1"
+                                      Click="@(_ => RemoveOverride(item))"
+                                      @onclick:stopPropagation="true"
+                                      title="@L("Actions.Delete")"/>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">
+            <RadzenIcon Icon="help" class="rz-me-1"/>
+            @L("AdminScriptEditor.ContextTab")
+        </RadzenText>
+
+        <RadzenStack Gap="0.75rem">
+            <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
+                @L("AdminScriptEditor.ContextHelp")
+            </RadzenAlert>
+
+            @if (_ctxFields.Count == 0)
+            {
+                <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.ContextNoInfo")</RadzenText>
+            }
+            else
+            {
+                <RadzenDataGrid Data="@_ctxFields"
+                                TItem="CtxField"
+                                AllowPaging="false"
+                                AllowSorting="false"
+                                AllowFiltering="false">
+                    <Columns>
+                        <RadzenDataGridColumn Property="@nameof(CtxField.Name)" Title="@L("AdminScriptEditor.ContextField")" Width="240px"/>
+                        <RadzenDataGridColumn Property="@nameof(CtxField.Type)" Title="@L("AdminScriptEditor.ContextType")" Width="160px"/>
+                        <RadzenDataGridColumn Property="@nameof(CtxField.Description)" Title="@L("AdminScriptEditor.ContextDescription")"/>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">
+            <RadzenIcon Icon="play_arrow" class="rz-me-1"/>
+            @L("AdminScriptEditor.TestTab")
+        </RadzenText>
+
+        <RadzenStack Gap="0.75rem">
+            <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
+                @L("AdminScriptEditor.TestHelp")
+            </RadzenAlert>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="@L("AdminScriptEditor.TestScript")" Variant="Variant.Outlined">
+                        <RadzenDropDown Data="@_testTargets"
+                                        @bind-Value="_selectedTestTarget"
+                                        Style="width: 100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.MockContextJson")</RadzenText>
+            <MonacoEditor @bind-Value="_mockContextJson" Height="280px" Language="json" Placeholder="{}"/>
+
+            <RadzenButton Text="@L("AdminScriptEditor.RunTest")"
+                          Icon="play_arrow"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Click="@RunTestAsync"/>
+
+            @if (_testResult != null)
+            {
+                <RadzenCard>
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenText TextStyle="TextStyle.Subtitle2">@L("AdminScriptEditor.TestResult")</RadzenText>
+                        <RadzenBadge BadgeStyle="@(_testResult.Result ? BadgeStyle.Success : BadgeStyle.Danger)"
+                                     Text="@(_testResult.Result ? L("AdminScriptEditor.Allowed") : L("AdminScriptEditor.Denied"))"/>
+                        <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.DurationMs", (int)_testResult.Duration.TotalMilliseconds)</RadzenText>
+                        @if (!string.IsNullOrWhiteSpace(_testResult.ErrorMessage))
                         {
-                            <RadzenDataGrid Data="@_ctxFields"
-                                            TItem="CtxField"
-                                            AllowPaging="false"
-                                            AllowSorting="false"
-                                            AllowFiltering="false">
-                                <Columns>
-                                    <RadzenDataGridColumn Property="@nameof(CtxField.Name)" Title="@L("AdminScriptEditor.ContextField")" Width="240px"/>
-                                    <RadzenDataGridColumn Property="@nameof(CtxField.Type)" Title="@L("AdminScriptEditor.ContextType")" Width="160px"/>
-                                    <RadzenDataGridColumn Property="@nameof(CtxField.Description)" Title="@L("AdminScriptEditor.ContextDescription")"/>
-                                </Columns>
-                            </RadzenDataGrid>
+                            <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.Error")</RadzenText>
+                            <RadzenText Style="white-space: pre-wrap">@_testResult.ErrorMessage</RadzenText>
                         }
                     </RadzenStack>
                 </RadzenCard>
-            </RadzenTabsItem>
-
-            <RadzenTabsItem Text="@L("AdminScriptEditor.OverridesTab")" Icon="rule">
-                <RadzenCard Style="height: 100%; overflow: auto;">
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Center">
-                        <RadzenButton Text="@L("AdminScriptEditor.AddOverride")"
-                                      Icon="add"
-                                      ButtonStyle="ButtonStyle.Primary"
-                                      Click="@AddOverride"/>
-                        <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.OverridesHelp")</RadzenText>
-                    </RadzenStack>
-
-                    <RadzenDataGrid @ref="_overrideGrid"
-                                    Data="@_config.Overrides"
-                                    TItem="ScriptOverrideConfig"
-                                    AllowPaging="true"
-                                    PageSize="10"
-                                    EditMode="@DataGridEditMode.Single"
-                                    RowUpdate="@OnUpdateOverride"
-                                    Style="margin-top: 1rem;">
-                        <Columns>
-                            <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.Enabled)" Title="@L("AdminScriptEditor.OverrideEnabled")" Width="110px">
-                                <Template Context="item">
-                                    @{
-                                        var enabledText = item.Enabled ? L("Common.Yes") : L("Common.No");
-                                    }
-                                    <RadzenBadge BadgeStyle="@(item.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
-                                                 Text="@enabledText"/>
-                                </Template>
-                                <EditTemplate Context="item">
-                                    <RadzenCheckBox @bind-Value="item.Enabled" TValue="bool"/>
-                                </EditTemplate>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.LibraryId)" Title="@L("AdminScriptEditor.LibraryId")" Width="120px">
-                                <EditTemplate Context="item">
-                                    <RadzenNumeric @bind-Value="item.LibraryId" TValue="int?" Min="0" Step="1" Style="width: 100%"/>
-                                </EditTemplate>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.PathPrefix)" Title="@L("AdminScriptEditor.PathPrefix")" Width="220px">
-                                <EditTemplate Context="item">
-                                    <RadzenTextBox @bind-Value="item.PathPrefix" Style="width: 100%"/>
-                                </EditTemplate>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.OnDeny)" Title="@L("AdminScriptEditor.OnDeny")" Width="140px">
-                                <EditTemplate Context="item">
-                                    <RadzenDropDown Data="@_denyActions" @bind-Value="item.OnDeny" Style="width: 100%"/>
-                                </EditTemplate>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Title="@L("AdminScriptEditor.Body")" Width="140px">
-                                <Template Context="item">
-                                    <RadzenButton Icon="edit"
-                                                  Text="@L("Actions.Edit")"
-                                                  ButtonStyle="ButtonStyle.Light"
-                                                  Click="@(_ => EditOverrideBodyAsync(item))"/>
-                                </Template>
-                            </RadzenDataGridColumn>
-                            <RadzenDataGridColumn Context="item" Width="160px" TextAlign="TextAlign.Right" Filterable="false" Sortable="false">
-                                <Template Context="item">
-                                    <RadzenButton Icon="edit"
-                                                  ButtonStyle="ButtonStyle.Light"
-                                                  Variant="Variant.Flat"
-                                                  Size="ButtonSize.Medium"
-                                                  Click="@(_ => EditOverrideRow(item))"
-                                                  @onclick:stopPropagation="true"
-                                                  title="@L("Actions.Edit")"/>
-                                    <RadzenButton Icon="check"
-                                                  ButtonStyle="ButtonStyle.Success"
-                                                  Variant="Variant.Flat"
-                                                  Size="ButtonSize.Medium"
-                                                  class="rz-ms-1"
-                                                  Click="@(_ => SaveOverrideRow(item))"
-                                                  @onclick:stopPropagation="true"
-                                                  title="@L("Actions.Save")"/>
-                                    <RadzenButton Icon="delete"
-                                                  ButtonStyle="ButtonStyle.Danger"
-                                                  Variant="Variant.Flat"
-                                                  Size="ButtonSize.Medium"
-                                                  class="rz-ms-1"
-                                                  Click="@(_ => RemoveOverride(item))"
-                                                  @onclick:stopPropagation="true"
-                                                  title="@L("Actions.Delete")"/>
-                                </Template>
-                            </RadzenDataGridColumn>
-                        </Columns>
-                    </RadzenDataGrid>
-                </RadzenCard>
-            </RadzenTabsItem>
-
-            <RadzenTabsItem Text="@L("AdminScriptEditor.TestTab")" Icon="play_arrow">
-                <RadzenCard Style="height: 100%; overflow: auto;">
-                    <RadzenStack Gap="0.75rem">
-                        <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
-                            @L("AdminScriptEditor.TestHelp")
-                        </RadzenAlert>
-
-                        <RadzenRow Gap="1rem">
-                            <RadzenColumn Size="12" SizeMD="4">
-                                <RadzenFormField Text="@L("AdminScriptEditor.TestScript")" Variant="Variant.Outlined">
-                                    <RadzenDropDown Data="@_testTargets"
-                                                    @bind-Value="_selectedTestTarget"
-                                                    Style="width: 100%"/>
-                                </RadzenFormField>
-                            </RadzenColumn>
-                        </RadzenRow>
-
-                        <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.MockContextJson")</RadzenText>
-                        <MonacoEditor @bind-Value="_mockContextJson" Height="280px" Language="json" Placeholder="{}"/>
-
-                        <RadzenButton Text="@L("AdminScriptEditor.RunTest")"
-                                      Icon="play_arrow"
-                                      ButtonStyle="ButtonStyle.Primary"
-                                      Click="@RunTestAsync"/>
-
-                        @if (_testResult != null)
-                        {
-                            <RadzenCard>
-                                <RadzenStack Gap="0.25rem">
-                                    <RadzenText TextStyle="TextStyle.Subtitle2">@L("AdminScriptEditor.TestResult")</RadzenText>
-                                    <RadzenBadge BadgeStyle="@(_testResult.Result ? BadgeStyle.Success : BadgeStyle.Danger)"
-                                                 Text="@(_testResult.Result ? L("AdminScriptEditor.Allowed") : L("AdminScriptEditor.Denied"))"/>
-                                    <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.DurationMs", (int)_testResult.Duration.TotalMilliseconds)</RadzenText>
-                                    @if (!string.IsNullOrWhiteSpace(_testResult.ErrorMessage))
-                                    {
-                                        <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.Error")</RadzenText>
-                                        <RadzenText Style="white-space: pre-wrap">@_testResult.ErrorMessage</RadzenText>
-                                    }
-                                </RadzenStack>
-                            </RadzenCard>
-                        }
-                    </RadzenStack>
-                </RadzenCard>
-            </RadzenTabsItem>
-        </Tabs>
-    </RadzenTabs>
+            }
+        </RadzenStack>
+    </RadzenCard>
 </RadzenStack>
 
 @code {

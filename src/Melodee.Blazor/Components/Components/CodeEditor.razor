@@ -10,14 +10,17 @@
               autocapitalize="off"
               autocomplete="off"
               autocorrect="off"
-              @oninput="OnInput"
-              @onscroll="OnScroll">@Value</textarea>
+              @bind="_currentValue"
+              @bind:event="oninput"
+              @bind:after="OnInputAfterAsync"
+              @onscroll="OnScroll"></textarea>
 </div>
 
 @code {
     private readonly string _inputElementId = $"code-editor-input-{Guid.NewGuid():N}";
     private readonly string _highlightElementId = $"code-editor-highlight-{Guid.NewGuid():N}";
 
+    private string _currentValue = string.Empty;
     private MarkupString _highlighted;
 
     [Parameter] public string Value { get; set; } = string.Empty;
@@ -27,15 +30,15 @@
 
     protected override void OnParametersSet()
     {
-        _highlighted = new MarkupString(RenderHighlighted(Value));
+        _currentValue = Value ?? string.Empty;
+        _highlighted = new MarkupString(RenderHighlighted(_currentValue));
     }
 
-    private async Task OnInput(ChangeEventArgs args)
+    private async Task OnInputAfterAsync()
     {
-        var nextValue = args.Value?.ToString() ?? string.Empty;
-        Value = nextValue;
-        _highlighted = new MarkupString(RenderHighlighted(nextValue));
-        await ValueChanged.InvokeAsync(nextValue);
+        Value = _currentValue;
+        _highlighted = new MarkupString(RenderHighlighted(_currentValue));
+        await ValueChanged.InvokeAsync(_currentValue);
     }
 
     private async Task OnScroll()
@@ -251,4 +254,3 @@
         };
     }
 }
-

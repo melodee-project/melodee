@@ -30,7 +30,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluateUserRegistrationAsync(UserRegistrationContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "userRegistrationStart",
+            ScriptEventNames.UserRegistrationStart,
             context,
             0,
             string.Empty,
@@ -40,7 +40,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluateUserLoginAsync(UserLoginContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "userLoginStart",
+            ScriptEventNames.UserLoginStart,
             context,
             0,
             string.Empty,
@@ -50,7 +50,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluateUserProfileUpdateAsync(UserProfileUpdateContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "userProfileUpdateStart",
+            ScriptEventNames.UserProfileUpdateStart,
             context,
             0,
             string.Empty,
@@ -60,7 +60,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluatePlaylistCreateAsync(PlaylistCreateContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "playlistCreateStart",
+            ScriptEventNames.PlaylistCreateStart,
             context,
             0,
             string.Empty,
@@ -70,7 +70,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluatePodcastChannelAddAsync(PodcastChannelAddContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "podcastChannelAddStart",
+            ScriptEventNames.PodcastChannelAddStart,
             context,
             0,
             string.Empty,
@@ -80,7 +80,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluateShareCreateAsync(ShareCreateContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "shareCreateStart",
+            ScriptEventNames.ShareCreateStart,
             context,
             0,
             string.Empty,
@@ -90,7 +90,7 @@ public sealed class BlazorEventScriptService : IBlazorEventScriptService
     public Task<ScriptEvaluationResult> EvaluateRequestCreateAsync(RequestCreateContext context, CancellationToken cancellationToken = default)
     {
         return _orchestrationService.EvaluateScriptForEventAsync(
-            "requestCreateStart",
+            ScriptEventNames.RequestCreateStart,
             context,
             0,
             string.Empty,
