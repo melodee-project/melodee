@@ -6842,4 +6842,12 @@ Common fixes:
   <data name="Actions.Disabled" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Action disabled by administrator</value>
   </data>
+
+  <data name="AdminScriptEditor.TimeoutMsHelper" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Max script execution time before termination</value>
+  </data>
+
+  <data name="AdminScriptEditor.MaxStatementsHelper" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Max JavaScript statements allowed per execution</value>
+  </data>
 </root>

@@ -49,23 +49,34 @@
         </RadzenText>
 
         <RadzenRow Gap="1rem">
-            <RadzenColumn Size="12" SizeMD="3">
-                <RadzenFormField Text="@L("AdminScriptEditor.Enabled")" Variant="Variant.Outlined">
+            <RadzenColumn Size="12" SizeMD="2">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenLabel Text="@L("AdminScriptEditor.Enabled")" Component="ScriptEnabled"/>
                     <RadzenSwitch @bind-Value="_config.Enabled" Name="ScriptEnabled"/>
+                </RadzenStack>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.TimeoutMs")" Variant="Variant.Outlined" AllowFloatingLabel="false">
+                    <ChildContent>
+                        <RadzenNumeric @bind-Value="_config.TimeoutMs" TValue="int" Min="1" Step="10" Style="width: 100%" aria-label="@L("AdminScriptEditor.TimeoutMs")"/>
+                    </ChildContent>
+                    <Helper>
+                        <RadzenText TextStyle="TextStyle.Caption">@L("AdminScriptEditor.TimeoutMsHelper")</RadzenText>
+                    </Helper>
                 </RadzenFormField>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="3">
-                <RadzenFormField Text="@L("AdminScriptEditor.TimeoutMs")" Variant="Variant.Outlined">
-                    <RadzenNumeric @bind-Value="_config.TimeoutMs" TValue="int" Min="1" Step="1" Style="width: 100%" aria-label="@L("AdminScriptEditor.TimeoutMs")"/>
+                <RadzenFormField Text="@L("AdminScriptEditor.MaxStatements")" Variant="Variant.Outlined" AllowFloatingLabel="false">
+                    <ChildContent>
+                        <RadzenNumeric @bind-Value="_config.MaxStatements" TValue="int" Min="1" Step="1000" Style="width: 100%" aria-label="@L("AdminScriptEditor.MaxStatements")"/>
+                    </ChildContent>
+                    <Helper>
+                        <RadzenText TextStyle="TextStyle.Caption">@L("AdminScriptEditor.MaxStatementsHelper")</RadzenText>
+                    </Helper>
                 </RadzenFormField>
             </RadzenColumn>
-            <RadzenColumn Size="12" SizeMD="3">
-                <RadzenFormField Text="@L("AdminScriptEditor.MaxStatements")" Variant="Variant.Outlined">
-                    <RadzenNumeric @bind-Value="_config.MaxStatements" TValue="int" Min="1" Step="100" Style="width: 100%" aria-label="@L("AdminScriptEditor.MaxStatements")"/>
-                </RadzenFormField>
-            </RadzenColumn>
-            <RadzenColumn Size="12" SizeMD="3">
-                <RadzenFormField Text="@L("AdminScriptEditor.DefaultOnDeny")" Variant="Variant.Outlined">
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenFormField Text="@L("AdminScriptEditor.DefaultOnDeny")" Variant="Variant.Outlined" AllowFloatingLabel="false">
                     <RadzenDropDown Data="@_denyActions"
                                     @bind-Value="_config.Default.OnDeny"
                                     Style="width: 100%"
