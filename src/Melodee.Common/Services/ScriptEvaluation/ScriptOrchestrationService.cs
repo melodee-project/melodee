@@ -107,7 +107,7 @@ public sealed class ScriptOrchestrationService : IScriptOrchestrationService
 
         return evaluationResult with
         {
-            IsDefault = true,
+            IsDefault = evaluationResult.ErrorMessage != null,
             SelectedOverrideId = null,
             ScriptKey = config.SettingKey,
             ScriptHash = scriptHash,
