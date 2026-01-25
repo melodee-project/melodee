@@ -52,8 +52,7 @@ public sealed class DirectoryProcessorToStagingService(
     IFileSystemService fileSystemService,
     IScriptOrchestrationService scriptOrchestrationService,
     IDirectoryContextProvider directoryContextProvider,
-    DenyActionHandlerFactory denyActionHandlerFactory,
-    SettingService settingService)
+    DenyActionHandlerFactory denyActionHandlerFactory)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
@@ -514,10 +513,10 @@ public sealed class DirectoryProcessorToStagingService(
             if (libraryId.HasValue)
             {
                 var scriptResult = await EvaluateDirectoryScriptsAsync(
-                    directoryInfoToProcess, 
-                    libraryId.Value, 
+                    directoryInfoToProcess,
+                    libraryId.Value,
                     cancellationToken);
-                    
+
                 if (!scriptResult.ShouldContinue)
                 {
                     return (numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
@@ -1236,7 +1235,7 @@ public sealed class DirectoryProcessorToStagingService(
                         null,
                         directory.Path,
                         deleteSuccess ? "deleted" : "delete failed, continuing processing");
-                    
+
                     if (deleteSuccess)
                     {
                         return new DirectoryScriptEvaluationResult(false, "Directory deleted by script");
@@ -1256,7 +1255,7 @@ public sealed class DirectoryProcessorToStagingService(
             {
                 var onDeny = startResult.OnDeny?.ToLowerInvariant() ?? "skip";
                 var handler = denyActionHandlerFactory.CreateHandler(onDeny);
-                
+
                 await handler.ExecuteAsync(relativePath, libraryId, cancellationToken);
                 LogAndRaiseEvent(
                     LogEventLevel.Information,

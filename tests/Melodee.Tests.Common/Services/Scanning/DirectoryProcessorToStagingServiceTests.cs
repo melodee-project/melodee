@@ -29,8 +29,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             MockFileSystemService(),
             MockScriptOrchestrationService(),
             MockDirectoryContextProvider(),
-            MockDenyActionHandlerFactory(),
-            GetSettingService());
+            MockDenyActionHandlerFactory());
     }
 
     private DirectoryProcessorToStagingService GetDirectoryProcessorService(IFileSystemService fileSystemService)
@@ -49,8 +48,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             fileSystemService,
             MockScriptOrchestrationService(),
             MockDirectoryContextProvider(),
-            MockDenyActionHandlerFactory(),
-            GetSettingService());
+            MockDenyActionHandlerFactory());
     }
 
     private async Task CreateStagingLibraryInDb()

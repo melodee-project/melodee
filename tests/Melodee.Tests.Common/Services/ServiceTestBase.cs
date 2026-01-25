@@ -1,6 +1,5 @@
 using System.Data.Common;
 using System.Net;
-
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
@@ -8,6 +7,7 @@ using Melodee.Common.Enums;
 using Melodee.Common.Metadata;
 using Melodee.Common.Models;
 using Melodee.Common.Models.OpenSubsonic.Requests;
+using Melodee.Common.Models.Scripting;
 using Melodee.Common.Models.Scrobbling;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.Conversion.Image;
@@ -23,7 +23,6 @@ using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Services.Security;
-using Melodee.Common.Models.Scripting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
