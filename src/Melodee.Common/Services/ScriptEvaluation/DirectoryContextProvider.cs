@@ -91,7 +91,7 @@ public sealed class DirectoryContextProvider : IDirectoryContextProvider
         }
 
         var sortedTrackNumbers = trackNumbers.OrderBy(x => x).ToArray();
-        var hasTrackNumberGaps = CalculateHasTrackNumberGaps(sortedTrackNumbers);
+        var hasTrackNumberGaps = CalculateHasTrackNumberGaps(sortedTrackNumbers, mediaFilesCount);
 
         return new DirectoryProcessingContext
         {
@@ -107,9 +107,9 @@ public sealed class DirectoryContextProvider : IDirectoryContextProvider
         };
     }
 
-    private static bool CalculateHasTrackNumberGaps(int[] sortedTrackNumbers)
+    private static bool CalculateHasTrackNumberGaps(int[] sortedTrackNumbers, int mediaFilesCount)
     {
-        if (sortedTrackNumbers.Length < 2)
+        if (mediaFilesCount < 1 || sortedTrackNumbers.Length < 2)
         {
             return false;
         }
