@@ -43,27 +43,39 @@
     <RadzenCard>
         <RadzenStack Gap="0.5rem">
             <RadzenText TextStyle="TextStyle.H6" Text="@L("Stats.Summary")"/>
-            <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="8px" class="rz-p-2">
-                @foreach (var statistic in _statistics)
-                {
-                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Shade="Shade.Dark" Style="min-width: 200px;">
-                        <RadzenIcon Icon="@statistic.Icon"/>
-                        <div style="width:120px;display:inline-block;text-transform:none;text-align:left;">
-                            @LocalizeStatisticTitle(statistic.Title)
-                        </div>
-                        <div style="width:100px;display:inline-block;text-align:right;" title="@statistic.Message">
-                            @if (statistic.Type == StatisticType.Count)
-                            {
-                                @($"{((int)statistic.Data).ToStringPadLeft(ViewConstants.StatisticNumberPadLength)}")
-                            }
-                            else
-                            {
-                                @statistic.Data
-                            }
-                        </div>
-                    </RadzenBadge>
-                }
-            </RadzenStack>
+            @if (_isStatsLoading)
+            {
+                <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.75rem" Style="padding: 1.5rem;">
+                    <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary"
+                                               Mode="ProgressBarMode.Indeterminate"
+                                               Size="ProgressBarCircularSize.Small"/>
+                    <RadzenText TextStyle="TextStyle.Body2">@L("Common.Loading")</RadzenText>
+                </RadzenStack>
+            }
+            else
+            {
+                <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="8px" class="rz-p-2">
+                    @foreach (var statistic in _statistics)
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Shade="Shade.Dark" Style="min-width: 200px;">
+                            <RadzenIcon Icon="@statistic.Icon"/>
+                            <div style="width:120px;display:inline-block;text-transform:none;text-align:left;">
+                                @LocalizeStatisticTitle(statistic.Title)
+                            </div>
+                            <div style="width:100px;display:inline-block;text-align:right;" title="@statistic.Message">
+                                @if (statistic.Type == StatisticType.Count)
+                                {
+                                    @($"{((int)statistic.Data).ToStringPadLeft(ViewConstants.StatisticNumberPadLength)}")
+                                }
+                                else
+                                {
+                                    @statistic.Data
+                                }
+                            </div>
+                        </RadzenBadge>
+                    }
+                </RadzenStack>
+            }
         </RadzenStack>
     </RadzenCard>
 
@@ -254,6 +266,8 @@
     TopItemStat[] _topArtistsByAlbumCount = [];
     TopItemStat[] _topArtistsByPlays = [];
     bool _hasNoData;
+    bool _isStatsLoading;
+    bool _statsLoadStarted;
 
     private LocalDate _rangeStart;
     private LocalDate _rangeEnd;
@@ -277,11 +291,26 @@
         _rangeEnd = today;
         _rangeStart = today.PlusDays(-29);
 
+        _isStatsLoading = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (!firstRender || _statsLoadStarted)
+        {
+            return;
+        }
+
+        _statsLoadStarted = true;
         await LoadStatsAsync();
     }
 
     private async Task LoadStatsAsync()
     {
+        _isStatsLoading = true;
+        try
+        {
         var userApiKey = CurrentUser?.ToApiGuid() ?? Guid.Empty;
 
         var kpiTask = StatisticsService.GetUserKpisAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
@@ -336,5 +365,11 @@
         // Check if there's no data to display (no albums means no meaningful stats)
         var albumStat = _statistics.FirstOrDefault(s => s.Category == StatisticCategory.CountAlbum);
         _hasNoData = albumStat == null || (albumStat.Data is int count && count == 0);
+        }
+        finally
+        {
+            _isStatsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 }
