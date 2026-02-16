@@ -24,6 +24,7 @@ using Melodee.Common.Services.Scanning;
 using Melodee.Common.Utility;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
@@ -163,127 +164,145 @@ public class ArtistSearchEngineService(
         int totalCount;
         Artist[] artists = [];
 
-        await using (var scopedContext = await artistSearchEngineServiceDbContextFactory
-                         .CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        using (Operation.At(LogEventLevel.Debug)
+                   .Time("[{ServiceName}:{ServiceMethod}] : Data [{EventData}]", nameof(ArtistSearchEngineService), nameof(ListAsync), pagedRequest.ToString()))
         {
-            // Build the base query with filters
-            var query = scopedContext.Artists.AsNoTracking();
-
-            // Apply filters from PagedRequest.FilterBy if any
-            if (pagedRequest.FilterBy?.Length > 0)
+            await using (var scopedContext = await artistSearchEngineServiceDbContextFactory
+                             .CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
-                foreach (var filter in pagedRequest.FilterBy)
+                // Build the base query with filters
+                var query = scopedContext.Artists.AsNoTracking();
+
+                // Apply filters from PagedRequest.FilterBy if any
+                if (pagedRequest.FilterBy?.Length > 0)
                 {
-                    var filterValue = filter.Value?.ToString() ?? string.Empty;
-                    var filterValueLower = filterValue.ToLowerInvariant();
-
-                    // Apply filters based on property name and operator
-                    query = filter.PropertyName.ToLower() switch
+                    foreach (var filter in pagedRequest.FilterBy)
                     {
-                        "name" => filter.OperatorValue.ToUpper() switch
-                        {
-                            "LIKE" => ApplyLikeFilter(query, x => x.Name, filter.Operator, filterValueLower),
-                            "=" => query.Where(x => x.Name == filterValue),
-                            "!=" => query.Where(x => x.Name != filterValue),
-                            _ => query
-                        },
-                        "namenormalized" => filter.OperatorValue.ToUpper() switch
-                        {
-                            "LIKE" => ApplyLikeFilter(query, x => x.NameNormalized, filter.Operator, filterValueLower),
-                            "=" => query.Where(x => x.NameNormalized == filterValue),
-                            "!=" => query.Where(x => x.NameNormalized != filterValue),
-                            _ => query
-                        },
-                        "sortname" => filter.OperatorValue.ToUpper() switch
-                        {
-                            "LIKE" => ApplyLikeFilter(query, x => x.SortName, filter.Operator, filterValueLower),
-                            "=" => query.Where(x => x.SortName == filterValue),
-                            "!=" => query.Where(x => x.SortName != filterValue),
-                            _ => query
-                        },
-                        "musicbrainzid" => filter.OperatorValue.ToUpper() switch
-                        {
-                            "=" => query.Where(x => x.MusicBrainzId.ToString() == filterValue),
-                            "!=" => query.Where(x => x.MusicBrainzId.ToString() != filterValue),
-                            _ => query
-                        },
-                        "spotifyid" => filter.OperatorValue.ToUpper() switch
-                        {
-                            "=" => query.Where(x => x.SpotifyId == filterValue),
-                            "!=" => query.Where(x => x.SpotifyId != filterValue),
-                            "LIKE" => ApplyLikeFilter(query, x => x.SpotifyId!, filter.Operator, filterValueLower),
-                            _ => query
-                        },
-                        _ => query
-                    };
-                }
-            }
+                        var filterValue = filter.Value?.ToString() ?? string.Empty;
+                        var filterValueLower = filterValue.ToLowerInvariant();
 
-            // Get total count
-            totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
-
-            if (!pagedRequest.IsTotalCountOnlyRequest)
-            {
-                // Apply ordering
-                if (pagedRequest.OrderBy?.Count > 0)
-                {
-                    var firstOrderBy = pagedRequest.OrderBy.First();
-                    var isDescending = firstOrderBy.Value.ToUpper() == "DESC";
-
-                    query = firstOrderBy.Key.ToLower() switch
-                    {
-                        "id" => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
-                        "name" => isDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
-                        "namenormalized" => isDescending ? query.OrderByDescending(x => x.NameNormalized) : query.OrderBy(x => x.NameNormalized),
-                        "sortname" => isDescending ? query.OrderByDescending(x => x.SortName) : query.OrderBy(x => x.SortName),
-                        _ => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
-                    };
-
-                    // Apply additional ordering if present
-                    foreach (var orderBy in pagedRequest.OrderBy.Skip(1))
-                    {
-                        var isDesc = orderBy.Value.ToUpper() == "DESC";
-                        var orderedQuery = (IOrderedQueryable<Artist>)query;
-
-                        query = orderBy.Key.ToLower() switch
+                        // Apply filters based on property name and operator
+                        query = filter.PropertyName.ToLower() switch
                         {
-                            "id" => isDesc ? orderedQuery.ThenByDescending(x => x.Id) : orderedQuery.ThenBy(x => x.Id),
-                            "name" => isDesc ? orderedQuery.ThenByDescending(x => x.Name) : orderedQuery.ThenBy(x => x.Name),
-                            "namenormalized" => isDesc ? orderedQuery.ThenByDescending(x => x.NameNormalized) : orderedQuery.ThenBy(x => x.NameNormalized),
-                            "sortname" => isDesc ? orderedQuery.ThenByDescending(x => x.SortName) : orderedQuery.ThenBy(x => x.SortName),
-                            _ => orderedQuery
+                            "name" => filter.OperatorValue.ToUpper() switch
+                            {
+                                "LIKE" => ApplyLikeFilter(query, x => x.Name, filter.Operator, filterValueLower),
+                                "=" => query.Where(x => x.Name == filterValue),
+                                "!=" => query.Where(x => x.Name != filterValue),
+                                _ => query
+                            },
+                            "namenormalized" => filter.OperatorValue.ToUpper() switch
+                            {
+                                "LIKE" => ApplyLikeFilter(query, x => x.NameNormalized, filter.Operator,
+                                    filterValueLower),
+                                "=" => query.Where(x => x.NameNormalized == filterValue),
+                                "!=" => query.Where(x => x.NameNormalized != filterValue),
+                                _ => query
+                            },
+                            "sortname" => filter.OperatorValue.ToUpper() switch
+                            {
+                                "LIKE" => ApplyLikeFilter(query, x => x.SortName, filter.Operator, filterValueLower),
+                                "=" => query.Where(x => x.SortName == filterValue),
+                                "!=" => query.Where(x => x.SortName != filterValue),
+                                _ => query
+                            },
+                            "musicbrainzid" => filter.OperatorValue.ToUpper() switch
+                            {
+                                "=" => query.Where(x => x.MusicBrainzId.ToString() == filterValue),
+                                "!=" => query.Where(x => x.MusicBrainzId.ToString() != filterValue),
+                                _ => query
+                            },
+                            "spotifyid" => filter.OperatorValue.ToUpper() switch
+                            {
+                                "=" => query.Where(x => x.SpotifyId == filterValue),
+                                "!=" => query.Where(x => x.SpotifyId != filterValue),
+                                "LIKE" => ApplyLikeFilter(query, x => x.SpotifyId!, filter.Operator, filterValueLower),
+                                _ => query
+                            },
+                            _ => query
                         };
                     }
                 }
-                else
-                {
-                    query = query.OrderBy(x => x.Id);
-                }
 
-                // Apply pagination and get results with album counts in a single query
-                artists = await query
-                    .Skip(pagedRequest.SkipValue)
-                    .Take(pagedRequest.TakeValue)
-                    .Select(x => new Artist
+                // Get total count
+                totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+                if (!pagedRequest.IsTotalCountOnlyRequest)
+                {
+                    // Apply ordering
+                    if (pagedRequest.OrderBy?.Count > 0)
                     {
-                        Id = x.Id,
-                        Name = x.Name,
-                        NameNormalized = x.NameNormalized,
-                        SortName = x.SortName,
-                        AlternateNames = x.AlternateNames,
-                        ItunesId = x.ItunesId,
-                        AmgId = x.AmgId,
-                        DiscogsId = x.DiscogsId,
-                        WikiDataId = x.WikiDataId,
-                        MusicBrainzId = x.MusicBrainzId,
-                        LastFmId = x.LastFmId,
-                        SpotifyId = x.SpotifyId,
-                        IsLocked = x.IsLocked,
-                        LastRefreshed = x.LastRefreshed,
-                        AlbumCount = scopedContext.Albums.Count(a => a.ArtistId == x.Id) // This will be optimized by EF Core
-                    })
-                    .ToArrayAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                        var firstOrderBy = pagedRequest.OrderBy.First();
+                        var isDescending = firstOrderBy.Value.ToUpper() == "DESC";
+
+                        query = firstOrderBy.Key.ToLower() switch
+                        {
+                            "id" => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
+                            "name" => isDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
+                            "namenormalized" => isDescending
+                                ? query.OrderByDescending(x => x.NameNormalized)
+                                : query.OrderBy(x => x.NameNormalized),
+                            "sortname" => isDescending
+                                ? query.OrderByDescending(x => x.SortName)
+                                : query.OrderBy(x => x.SortName),
+                            _ => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+                        };
+
+                        // Apply additional ordering if present
+                        foreach (var orderBy in pagedRequest.OrderBy.Skip(1))
+                        {
+                            var isDesc = orderBy.Value.ToUpper() == "DESC";
+                            var orderedQuery = (IOrderedQueryable<Artist>)query;
+
+                            query = orderBy.Key.ToLower() switch
+                            {
+                                "id" => isDesc
+                                    ? orderedQuery.ThenByDescending(x => x.Id)
+                                    : orderedQuery.ThenBy(x => x.Id),
+                                "name" => isDesc
+                                    ? orderedQuery.ThenByDescending(x => x.Name)
+                                    : orderedQuery.ThenBy(x => x.Name),
+                                "namenormalized" => isDesc
+                                    ? orderedQuery.ThenByDescending(x => x.NameNormalized)
+                                    : orderedQuery.ThenBy(x => x.NameNormalized),
+                                "sortname" => isDesc
+                                    ? orderedQuery.ThenByDescending(x => x.SortName)
+                                    : orderedQuery.ThenBy(x => x.SortName),
+                                _ => orderedQuery
+                            };
+                        }
+                    }
+                    else
+                    {
+                        query = query.OrderBy(x => x.Id);
+                    }
+
+                    // Apply pagination and get results with album counts in a single query
+                    artists = await query
+                        .Skip(pagedRequest.SkipValue)
+                        .Take(pagedRequest.TakeValue)
+                        .Select(x => new Artist
+                        {
+                            Id = x.Id,
+                            Name = x.Name,
+                            NameNormalized = x.NameNormalized,
+                            SortName = x.SortName,
+                            AlternateNames = x.AlternateNames,
+                            ItunesId = x.ItunesId,
+                            AmgId = x.AmgId,
+                            DiscogsId = x.DiscogsId,
+                            WikiDataId = x.WikiDataId,
+                            MusicBrainzId = x.MusicBrainzId,
+                            LastFmId = x.LastFmId,
+                            SpotifyId = x.SpotifyId,
+                            IsLocked = x.IsLocked,
+                            LastRefreshed = x.LastRefreshed,
+                            AlbumCount =
+                                scopedContext.Albums.Count(a => a.ArtistId == x.Id) // This will be optimized by EF Core
+                        })
+                        .ToArrayAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
         }
 
@@ -667,7 +686,7 @@ public class ArtistSearchEngineService(
                     {
                         foreach (var ar in artists)
                         {
-                            // If any album is given then rank artist if any album matches 
+                            // If any album is given then rank artist if any album matches
                             foreach (var album in ar.Albums)
                             {
                                 foreach (var albumKey in normalizedQuery.AlbumKeyValues)

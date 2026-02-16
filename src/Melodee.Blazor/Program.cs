@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Blazored.SessionStorage;
+using DecentDB.EntityFrameworkCore;
 using Melodee.Blazor.Components;
 using Melodee.Blazor.Constants;
 using Melodee.Blazor.Filters;
@@ -155,8 +156,11 @@ if (!skipDbRegistration)
             => o.UseNodaTime()
                 .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
-    builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
-        => opt.UseSqlite(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection")));
+     builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+     {
+         options.UseDecentDB(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+         options.EnableSensitiveDataLogging(true);
+     });
 
     builder.Services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
         opt.UseSqlite(builder.Configuration.GetConnectionString("MusicBrainzConnection")));

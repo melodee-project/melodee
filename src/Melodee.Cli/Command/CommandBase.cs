@@ -1,3 +1,4 @@
+using DecentDB.EntityFrameworkCore;
 using Melodee.Cli.Client;
 using Melodee.Cli.Configuration;
 using Melodee.Common.Configuration;
@@ -88,8 +89,13 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
                 o => o.UseNodaTime().UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
         services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
             opt.UseSqlite(configuration.GetConnectionString("MusicBrainzConnection")));
-        services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
-            => opt.UseSqlite(configuration.GetConnectionString("ArtistSearchEngineConnection")));
+
+        services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+        {
+              options.UseDecentDB(configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+              options.EnableSensitiveDataLogging(true);
+        });
+
         services.AddScoped<IMusicBrainzRepository, SQLiteMusicBrainzRepository>();
         services.AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>();
         services.AddSingleton<ICacheManager>(opt

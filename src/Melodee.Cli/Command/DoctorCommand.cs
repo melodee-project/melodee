@@ -288,7 +288,7 @@ public sealed class CliDoctorService : DoctorServiceBase
                     }
                 });
 
-                await RunCheckAsync(progress, checks, "Database: ArtistSearchEngine (SQLite)", async () =>
+                await RunCheckAsync(progress, checks, "Database: ArtistSearchEngine (DecentDB)", async () =>
                 {
                     var checkSw = Stopwatch.StartNew();
                     try
@@ -298,11 +298,11 @@ public sealed class CliDoctorService : DoctorServiceBase
                         var cs = GetConnectionString("ArtistSearchEngineConnection");
                         var fileInfo = DescribeSqlitePath(cs);
                         var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
-                        return new DoctorCheckResult("Database: ArtistSearchEngine (SQLite)", canConnect, details, checkSw.Elapsed);
+                        return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", canConnect, details, checkSw.Elapsed);
                     }
                     catch (Exception ex)
                     {
-                        return new DoctorCheckResult("Database: ArtistSearchEngine (SQLite)", false, ex.Message, checkSw.Elapsed);
+                        return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", false, ex.Message, checkSw.Elapsed);
                     }
                 });
 
