@@ -98,7 +98,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
             options.EnableSensitiveDataLogging(true);
         });
 
-        services.AddScoped<IMusicBrainzRepository, DecentDbMusicBrainzRepository>();
+        services.AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>();
         services.AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>();
         services.AddSingleton<ICacheManager>(opt
             => new MemoryCacheManager(opt.GetRequiredService<ILogger>(),

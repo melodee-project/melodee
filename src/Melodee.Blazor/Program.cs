@@ -534,7 +534,7 @@ builder.Services
     .AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>()
     .AddSingleton<StreamingLimiter>()
     .AddSingleton<EtagRepository>()
-    .AddScoped<IMusicBrainzRepository, DecentDbMusicBrainzRepository>()
+    .AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>()
     .AddScoped<SettingService>()
     .AddScoped<ArtistService>()
     .AddScoped<IBaseUrlService, BaseUrlService>()

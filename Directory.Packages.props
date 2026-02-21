@@ -101,14 +101,14 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="SerilogTimings" Version="3.1.0" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.12.41" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.12.46" />
     <PackageVersion Include="SharpZipLib" Version="1.4.2" />
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageVersion Include="SmartFormat" Version="3.6.1" />
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
     <PackageVersion Include="Spectre.Console.Cli" Version="0.53.1" />
     <PackageVersion Include="Spectre.Console.Json" Version="0.54.0" />
-    <PackageVersion Include="SpotifyAPI.Web" Version="7.3.0" />
+    <PackageVersion Include="SpotifyAPI.Web" Version="7.4.0" />
     <PackageVersion Include="Sqids" Version="3.2.0" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.3" />
@@ -139,7 +139,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
-    <PackageVersion Include="HtmlSanitizer" Version="9.1.891-beta" />
+    <PackageVersion Include="HtmlSanitizer" Version="9.1.893-beta" />
     <PackageVersion Include="AngleSharp" Version="1.4.0" />
     <PackageVersion Include="AngleSharp.Css" Version="1.0.0-beta.159" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.52.0" />

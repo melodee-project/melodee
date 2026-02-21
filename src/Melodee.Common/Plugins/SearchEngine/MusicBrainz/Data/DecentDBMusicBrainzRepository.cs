@@ -25,7 +25,7 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 ///         See https://metabrainz.org/datasets/postgres-dumps#musicbrainz
 ///     </remarks>
 /// </summary>
-public class DecentDbMusicBrainzRepository(
+public class DecentDBMusicBrainzRepository(
     ILogger logger,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MusicBrainzDbContext> dbContextFactory) : IMusicBrainzRepository
@@ -81,7 +81,7 @@ public class DecentDbMusicBrainzRepository(
         if (SearchCache.TryGetValue(cacheKey, out var cached) &&
             cached.CachedAt > DateTime.UtcNow.AddMinutes(-CacheExpirationMinutes))
         {
-            logger.Debug("[{RepoName}] Cache HIT for [{Query}]", nameof(DecentDbMusicBrainzRepository), LogSanitizer.Sanitize(query.NameNormalized));
+            logger.Debug("[{RepoName}] Cache HIT for [{Query}]", nameof(DecentDBMusicBrainzRepository), LogSanitizer.Sanitize(query.NameNormalized));
             return cached.Result;
         }
 
@@ -91,7 +91,7 @@ public class DecentDbMusicBrainzRepository(
         try
         {
             using (Operation.At(LogEventLevel.Debug).Time("[{Name}] SearchArtist [{ArtistQuery}]",
-                       nameof(DecentDbMusicBrainzRepository), query))
+                       nameof(DecentDBMusicBrainzRepository), query))
             {
                 await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -116,7 +116,7 @@ public class DecentDbMusicBrainzRepository(
                 }
 
                 logger.Debug("[{RepoName}] Search found [{Count}] artists for [{NameNormalized}]",
-                    nameof(DecentDbMusicBrainzRepository), foundArtists.Length, LogSanitizer.Sanitize(query.NameNormalized));
+                    nameof(DecentDBMusicBrainzRepository), foundArtists.Length, LogSanitizer.Sanitize(query.NameNormalized));
 
                 if (foundArtists.Length > 0)
                 {
@@ -169,7 +169,7 @@ public class DecentDbMusicBrainzRepository(
                         {
                             AlternateNames = artist.AlternateNames?.ToTags()?.ToArray() ?? [],
                             FromPlugin =
-                                $"{nameof(MusicBrainzArtistSearchEnginePlugin)}:{nameof(DecentDbMusicBrainzRepository)}",
+                                $"{nameof(MusicBrainzArtistSearchEnginePlugin)}:{nameof(DecentDBMusicBrainzRepository)}",
                             UniqueId = SafeParser.Hash(artist.MusicBrainzId.ToString()),
                             Rank = rank,
                             Name = artist.Name,
@@ -203,7 +203,7 @@ public class DecentDbMusicBrainzRepository(
         }
         catch (Exception e)
         {
-            logger.Error(e, "[DecentDbMusicBrainzRepository] Search Engine Exception ArtistQuery [{Query}]", query.ToString());
+            logger.Error(e, "[DecentDBMusicBrainzRepository] Search Engine Exception ArtistQuery [{Query}]", query.ToString());
         }
 
         var elapsedMs = Stopwatch.GetElapsedTime(startTicks).TotalMilliseconds;
@@ -226,12 +226,12 @@ public class DecentDbMusicBrainzRepository(
         if (data.Count > 0)
         {
             logger.Debug("[{RepoName}] SearchArtist COMPLETE: Found [{Count}] results for [{Query}] in {ElapsedMs:F1}ms. Top result: [{TopArtist}]",
-                nameof(DecentDbMusicBrainzRepository), data.Count, LogSanitizer.Sanitize(query.NameNormalized), elapsedMs, LogSanitizer.Sanitize(data.First().Name));
+                nameof(DecentDBMusicBrainzRepository), data.Count, LogSanitizer.Sanitize(query.NameNormalized), elapsedMs, LogSanitizer.Sanitize(data.First().Name));
         }
         else
         {
             logger.Debug("[{RepoName}] SearchArtist COMPLETE: NO RESULTS for [{Query}] in {ElapsedMs:F1}ms",
-                nameof(DecentDbMusicBrainzRepository), LogSanitizer.Sanitize(query.NameNormalized), elapsedMs);
+                nameof(DecentDBMusicBrainzRepository), LogSanitizer.Sanitize(query.NameNormalized), elapsedMs);
         }
 
         return result;
@@ -241,7 +241,7 @@ public class DecentDbMusicBrainzRepository(
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
-        using (Operation.At(LogEventLevel.Debug).Time("DecentDbMusicBrainzRepository: ImportData (Streaming)"))
+        using (Operation.At(LogEventLevel.Debug).Time("DecentDBMusicBrainzRepository: ImportData (Streaming)"))
         {
             var configuration =
                 await configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
@@ -262,7 +262,7 @@ public class DecentDbMusicBrainzRepository(
 
             try
             {
-                var importer = new DecentDbStreamingMusicBrainzImporter(logger);
+                var importer = new DecentDBStreamingMusicBrainzImporter(logger);
 
                 await importer.ImportAsync(
                     context,
@@ -274,7 +274,7 @@ public class DecentDbMusicBrainzRepository(
                 var albumCount = await context.Albums.CountAsync(cancellationToken);
 
                 logger.Information(
-                    "DecentDbMusicBrainzRepository: Streaming import complete. Artists: {ArtistCount:N0}, Albums: {AlbumCount:N0}",
+                    "DecentDBMusicBrainzRepository: Streaming import complete. Artists: {ArtistCount:N0}, Albums: {AlbumCount:N0}",
                     artistCount, albumCount);
 
                 return new OperationResult<bool>
@@ -284,7 +284,7 @@ public class DecentDbMusicBrainzRepository(
             }
             catch (Exception e)
             {
-                logger.Error(e, "DecentDbMusicBrainzRepository: Import failed");
+                logger.Error(e, "DecentDBMusicBrainzRepository: Import failed");
                 return new OperationResult<bool>
                 {
                     Data = false

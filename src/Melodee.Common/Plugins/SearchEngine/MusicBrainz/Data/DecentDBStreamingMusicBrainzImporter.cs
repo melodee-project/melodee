@@ -12,7 +12,7 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 /// Streaming import service for MusicBrainz data using DecentDB.
 /// Adapted from StreamingMusicBrainzImporter without Lucene index creation or SQLite PRAGMAs.
 /// </summary>
-public sealed class DecentDbStreamingMusicBrainzImporter(ILogger logger)
+public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 {
     private const int BatchSize = 25000;
     private const int MaxIndexSize = 255;
