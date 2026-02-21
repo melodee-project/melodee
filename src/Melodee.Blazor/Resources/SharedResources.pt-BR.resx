@@ -4252,7 +4252,7 @@
     <value>Banco de dados: MusicBrainz (SQLite)</value>
   </data>
   <data name="AdminDoctor.Check.ArtistSearchEngineDatabase" xml:space="preserve">
-    <value>Banco de dados: ArtistSearchEngine (SQLite)</value>
+    <value>Banco de dados: ArtistSearchEngine</value>
   </data>
   <data name="AdminDoctor.Check.LibraryPaths" xml:space="preserve">
     <value>Caminhos da biblioteca</value>
