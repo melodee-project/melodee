@@ -4249,10 +4249,10 @@
     <value>数据库：PostgreSQL</value>
   </data>
   <data name="AdminDoctor.Check.MusicBrainzDatabase" xml:space="preserve">
-    <value>数据库：MusicBrainz（SQLite）</value>
+    <value>数据库：MusicBrainz</value>
   </data>
   <data name="AdminDoctor.Check.ArtistSearchEngineDatabase" xml:space="preserve">
-    <value>数据库：ArtistSearchEngine（SQLite）</value>
+    <value>数据库：ArtistSearchEngine</value>
   </data>
   <data name="AdminDoctor.Check.LibraryPaths" xml:space="preserve">
     <value>库路径</value>

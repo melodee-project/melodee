@@ -175,8 +175,8 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     a.Name,
                     a.NameNormalized,
                     a.SortName,
-                    (SELECT GROUP_CONCAT(NameNormalized, '|') 
-                     FROM (SELECT DISTINCT aa.NameNormalized FROM ArtistAliasStaging aa WHERE aa.ArtistId = a.ArtistId))
+                    (SELECT GROUP_CONCAT(sub.NameNormalized, '|') 
+                     FROM (SELECT DISTINCT aa.NameNormalized FROM ArtistAliasStaging aa WHERE aa.ArtistId = a.ArtistId) sub)
                 FROM ArtistStaging a";
 
             var rowsAffected = await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
