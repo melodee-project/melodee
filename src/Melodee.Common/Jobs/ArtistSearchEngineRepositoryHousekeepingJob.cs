@@ -16,7 +16,7 @@ namespace Melodee.Common.Jobs;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The Artist Search Engine Repository is a local SQLite database that caches artist and album information
+///         The Artist Search Engine Repository is a local database that caches artist and album information
 ///         from external services (MusicBrainz, Spotify, etc.). This job ensures the cached data stays current
 ///         by periodically refreshing records that haven't been updated within the configured refresh interval.
 ///     </para>

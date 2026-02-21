@@ -17,7 +17,7 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 
 /// <summary>
 /// Streaming import service for MusicBrainz data.
-/// Uses SQLite staging tables to avoid loading entire datasets into memory.
+/// Uses staging tables to avoid loading entire datasets into memory.
 /// Memory usage stays constant regardless of dataset size.
 /// </summary>
 public sealed class StreamingMusicBrainzImporter(ILogger logger)
@@ -39,7 +39,7 @@ public sealed class StreamingMusicBrainzImporter(ILogger logger)
     {
         var mbDumpPath = Path.Combine(storagePath, "staging/mbdump");
 
-        // Configure SQLite for lower memory usage during bulk operations
+        // Configure database for lower memory usage during bulk operations
         await context.Database.ExecuteSqlRawAsync("PRAGMA temp_store = FILE", cancellationToken);
         await context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -500000", cancellationToken);
         await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = OFF", cancellationToken);
@@ -222,7 +222,7 @@ public sealed class StreamingMusicBrainzImporter(ILogger logger)
             progressCallback?.Invoke("Materializing Artists", 0, 1, "Creating materialized artists from staging...");
 
             // Use SQL to materialize artists with concatenated aliases
-            // SQLite GROUP_CONCAT with DISTINCT doesn't support custom separator, so we use a subquery
+            // GROUP_CONCAT with DISTINCT doesn't support custom separator, so we use a subquery
             var sql = @"
                 INSERT INTO Artist (MusicBrainzArtistId, MusicBrainzIdRaw, Name, NameNormalized, SortName, AlternateNames)
                 SELECT 
@@ -550,7 +550,7 @@ public sealed class StreamingMusicBrainzImporter(ILogger logger)
             progressCallback?.Invoke("Materializing Albums", 0, 1, "Creating materialized albums from staging...");
 
             // Complex SQL query that joins all staging tables to create materialized albums
-            // This is the key to memory efficiency - SQLite handles all the joins
+            // This is the key to memory efficiency - the database handles all the joins
             var sql = @"
                 INSERT INTO Album (MusicBrainzArtistId, MusicBrainzIdRaw, Name, NameNormalized, SortName, 
                                    ReleaseGroupMusicBrainzIdRaw, ReleaseType, ReleaseDate, ContributorIds)
@@ -725,8 +725,8 @@ public sealed class StreamingMusicBrainzImporter(ILogger logger)
                     totalCount++;
 
                     // Commit every BatchSize to prevent transaction log from exploding
-                    // although strictly for SQLite, one massive transaction is fastest.
-                    // But checking 25000 gives us a sweet spot.
+                    // One massive transaction is fastest for embedded databases,
+                    // but checking 25000 gives us a sweet spot.
                     if (totalCount % BatchSize == 0)
                     {
                         // For pure raw import, actually keeping the transaction open is faster, 
@@ -779,7 +779,7 @@ public sealed class StreamingMusicBrainzImporter(ILogger logger)
         return nextTab == -1 ? slice : slice.Slice(0, nextTab);
     }
 
-    // Parsing helpers that work with Spans and return objects for SqliteParameters
+    // Parsing helpers that work with Spans and return objects for database parameters
     private static long ToLong(ReadOnlySpan<char> span) =>
         long.TryParse(span, out var result) ? result : 0;
 
@@ -797,7 +797,7 @@ public sealed class StreamingMusicBrainzImporter(ILogger logger)
 
         if (y is > 0 and < 9999)
         {
-            // return string format for SQLite
+            // return string format for the database
             var actualMonth = m is > 0 and <= 12 ? m.Value : 1;
             var actualDay = d is > 0 and <= 31 ? d.Value : 1;
             return $"{y:0000}-{actualMonth:00}-{actualDay:00} 00:00:00";

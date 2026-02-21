@@ -22,7 +22,6 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Utility;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
@@ -1321,9 +1320,9 @@ public class ArtistSearchEngineService(
 
     private static bool IsAlbumUniqueConstraint(DbUpdateException ex)
     {
-        return ex.InnerException is SqliteException sqlite &&
-               sqlite.SqliteErrorCode == 19 &&
-               sqlite.Message.Contains("Albums.ArtistId", StringComparison.OrdinalIgnoreCase);
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) &&
+               message.Contains("Albums", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IQueryable<Artist> ApplyLikeFilter(

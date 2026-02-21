@@ -23,8 +23,7 @@ using Artist = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Mater
 namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 
 /// <summary>
-/// Callback to persist artists and relations to SQLite. Returns a function to lookup artist by MusicBrainzArtistId.
-/// The Lucene index is created by the base class before this callback is invoked.
+/// Callback to persist artists and relations to the database. Returns a function to lookup artist by MusicBrainzArtistId.
 /// </summary>
 public delegate Task<Func<long, Artist?>> ArtistPersistCallback(
     IReadOnlyCollection<Artist> artists,
@@ -359,7 +358,7 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
         progressCallback?.Invoke("Processing Relations", 1, 1, $"Created {LoadedMaterializedArtistRelations.Count:N0} artist relations");
 
         // Convert to lists for efficient iteration (ConcurrentBag iteration is slow)
-        // This is the ONLY copy we make - used for Lucene index, SQLite import, then discarded
+        // This is the ONLY copy we make - used for database import, then discarded
         var artistsList = LoadedMaterializedArtists.ToList();
         var relationsList = LoadedMaterializedArtistRelations.ToList();
 
@@ -380,24 +379,24 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
         GC.Collect();
         GC.WaitForPendingFinalizers();
 
-        // Now persist artists to SQLite and get lookup function
+        // Now persist artists to the database and get lookup function
         Func<long, Artist?>? artistLookup = null;
         if (artistPersistCallback != null)
         {
-            Logger.Debug("MusicBrainzRepository: Persisting artists to SQLite...");
+            Logger.Debug("MusicBrainzRepository: Persisting artists to database...");
             artistLookup = await artistPersistCallback(
                 artistsList,
                 relationsList,
                 progressCallback,
                 cancellationToken).ConfigureAwait(false);
 
-            // Clear the lists - SQLite has the data now, we have the lookup function
+            // Clear the lists - database has the data now, we have the lookup function
             Logger.Debug("MusicBrainzRepository: Clearing artist lists from memory...");
             artistsList.Clear();
             relationsList.Clear();
             GC.Collect();
             GC.WaitForPendingFinalizers();
-            progressCallback?.Invoke("Memory Cleanup", 1, 1, "Freed artist data after SQLite import");
+            progressCallback?.Invoke("Memory Cleanup", 1, 1, "Freed artist data after database import");
         }
         else
         {
@@ -598,7 +597,7 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
         }
         progressCallback?.Invoke("Processing Albums", 1, 1, $"Created {LoadedMaterializedAlbums.Count:N0} materialized albums");
 
-        // Clear album intermediate data to free memory before SQLite import
+        // Clear album intermediate data to free memory before database import
         Logger.Debug("MusicBrainzRepository: Clearing album intermediate data to free memory...");
         ClearAlbumIntermediateData();
         progressCallback?.Invoke("Memory Cleanup", 1, 1, "Freed album intermediate data");

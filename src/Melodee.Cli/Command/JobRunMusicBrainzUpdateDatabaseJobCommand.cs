@@ -3,6 +3,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Jobs;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Spectre.Console.Cli;
@@ -21,6 +22,7 @@ public class JobRunMusicBrainzUpdateDatabaseJobCommand : CommandBase<JobSettings
                 scope.ServiceProvider.GetRequiredService<IMelodeeConfigurationFactory>(),
                 scope.ServiceProvider.GetRequiredService<SettingService>(),
                 scope.ServiceProvider.GetRequiredService<IHttpClientFactory>(),
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>(),
                 scope.ServiceProvider.GetRequiredService<IMusicBrainzRepository>()
             );
             await job.Execute(new MelodeeJobExecutionContext(cancellationToken));

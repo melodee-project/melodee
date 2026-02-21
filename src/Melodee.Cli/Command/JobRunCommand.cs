@@ -265,6 +265,7 @@ public class JobRunCommand : CommandBase<JobRunSettings>
                 configFactory,
                 sp.GetRequiredService<SettingService>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>(),
                 sp.GetRequiredService<IMusicBrainzRepository>());
         }
 

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics;
 using System.Text.Json;
 using Melodee.Cli.CommandSettings;
@@ -8,7 +9,6 @@ using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Doctor;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -270,7 +270,7 @@ public sealed class CliDoctorService : DoctorServiceBase
 
                 await RunCheckAsync(progress, checks, "Database: PostgreSQL", async () => await RunDatabaseCheckAsync(cancellationToken));
 
-                await RunCheckAsync(progress, checks, "Database: MusicBrainz (SQLite)", async () =>
+                await RunCheckAsync(progress, checks, "Database: MusicBrainz (DecentDB)", async () =>
                 {
                     var checkSw = Stopwatch.StartNew();
                     try
@@ -278,13 +278,13 @@ public sealed class CliDoctorService : DoctorServiceBase
                         await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
                         var canConnect = await db.Database.CanConnectAsync(cancellationToken);
                         var cs = GetConnectionString("MusicBrainzConnection");
-                        var fileInfo = DescribeSqlitePath(cs);
+                        var fileInfo = DescribeFileDatabasePath(cs);
                         var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
-                        return new DoctorCheckResult("Database: MusicBrainz (SQLite)", canConnect, details, checkSw.Elapsed);
+                        return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", canConnect, details, checkSw.Elapsed);
                     }
                     catch (Exception ex)
                     {
-                        return new DoctorCheckResult("Database: MusicBrainz (SQLite)", false, ex.Message, checkSw.Elapsed);
+                        return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", false, ex.Message, checkSw.Elapsed);
                     }
                 });
 
@@ -296,7 +296,7 @@ public sealed class CliDoctorService : DoctorServiceBase
                         await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
                         var canConnect = await db.Database.CanConnectAsync(cancellationToken);
                         var cs = GetConnectionString("ArtistSearchEngineConnection");
-                        var fileInfo = DescribeSqlitePath(cs);
+                        var fileInfo = DescribeFileDatabasePath(cs);
                         var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
                         return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", canConnect, details, checkSw.Elapsed);
                     }
@@ -372,19 +372,19 @@ public sealed class CliDoctorService : DoctorServiceBase
         return _configuration.GetConnectionString(name) ?? string.Empty;
     }
 
-    private static string DescribeSqlitePath(string connectionString)
+    private static string DescribeFileDatabasePath(string connectionString)
     {
         try
         {
-            var builder = new SqliteConnectionStringBuilder(connectionString);
-            if (string.IsNullOrWhiteSpace(builder.DataSource))
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var dataSource = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+            if (string.IsNullOrWhiteSpace(dataSource))
             {
                 return "DataSource=(empty)";
             }
 
-            var fullPath = builder.DataSource;
-            var exists = File.Exists(fullPath);
-            return $"DataSource={fullPath}; Exists={exists}";
+            var exists = File.Exists(dataSource);
+            return $"DataSource={dataSource}; Exists={exists}";
         }
         catch
         {

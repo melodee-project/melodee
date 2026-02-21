@@ -15,7 +15,6 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Models;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Utility;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Quartz;
@@ -759,9 +758,9 @@ public class LibraryInsertJob(
 
     private static bool IsAlbumUniqueConstraint(DbUpdateException ex)
     {
-        return ex.InnerException is SqliteException sqlite &&
-               sqlite.SqliteErrorCode == 19 &&
-               sqlite.Message.Contains("Albums.ArtistId", StringComparison.OrdinalIgnoreCase);
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) &&
+               message.Contains("Albums", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -795,7 +795,7 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     ApiKey = SeedGuid("Setting", 905),
                     Category = (int)SettingCategory.SearchEngine,
                     Key = SettingRegistry.SearchEngineMusicBrainzStoragePath,
-                    Comment = "Storage path to hold MusicBrainz downloaded files and SQLite db.",
+                    Comment = "Storage path to hold MusicBrainz downloaded files and database.",
                     Value = "/melodee_test/search-engine-storage/musicbrainz/",
                     CreatedAt = seedDataTimestamp
                 },
@@ -817,7 +817,7 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     Category = (int)SettingCategory.SearchEngine,
                     Key = SettingRegistry.SearchEngineMusicBrainzImportBatchSize,
                     Comment =
-                        "Number of records to import from MusicBrainz downloaded db dump before commiting to local SQLite database.",
+                        "Number of records to import from MusicBrainz downloaded db dump before committing to local database.",
                     Value = "50000",
                     CreatedAt = seedDataTimestamp
                 },

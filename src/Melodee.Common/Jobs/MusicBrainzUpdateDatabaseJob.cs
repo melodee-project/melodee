@@ -9,6 +9,7 @@ using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
+using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Serilog;
 using Stopwatch = System.Diagnostics.Stopwatch;
@@ -21,7 +22,7 @@ namespace Melodee.Common.Jobs;
 /// <remarks>
 ///     <para>
 ///         MusicBrainz is an open music encyclopedia that provides metadata for millions of albums and artists.
-///         This job downloads the full database export and imports it into a local SQLite database for fast,
+///         This job downloads the full database export and imports it into a local DecentDB database for fast,
 ///         offline lookups during media processing.
 ///     </para>
 ///     <para>
@@ -35,7 +36,7 @@ namespace Melodee.Common.Jobs;
 ///             <item>Downloads mbdump.tar.bz2 (~6GB compressed) containing core data (skips if already exists)</item>
 ///             <item>Downloads mbdump-derived.tar.bz2 (~450MB) containing calculated/derived data (skips if already exists)</item>
 ///             <item>Extracts both archives sequentially to staging directory (skips if already extracted)</item>
-///             <item>Imports the extracted data into local SQLite database</item>
+///             <item>Imports the extracted data into local DecentDB database</item>
 ///             <item>On success, deletes the old database; on failure, restores it</item>
 ///             <item>Re-enables the MusicBrainz search engine</item>
 ///         </list>
@@ -75,6 +76,7 @@ public class MusicBrainzUpdateDatabaseJob(
     IMelodeeConfigurationFactory configurationFactory,
     SettingService settingService,
     IHttpClientFactory httpClientFactory,
+    IDbContextFactory<MusicBrainzDbContext> dbContextFactory,
     IMusicBrainzRepository repository) : JobBase(logger, configurationFactory)
 {
     private const string StageInitialize = "Initialize";
@@ -155,7 +157,7 @@ public class MusicBrainzUpdateDatabaseJob(
                 .SetAsync(SettingRegistry.SearchEngineMusicBrainzEnabled, "false", context.CancellationToken)
                 .ConfigureAwait(false);
 
-            var dbName = Path.Combine(storagePath, "musicbrainz.db");
+            var dbName = GetDatabaseFilePath();
             var doesDbExist = File.Exists(dbName);
             Logger.Debug("[{JobName}] Existing database check: exists={Exists}, path={DbPath}",
                 nameof(MusicBrainzUpdateDatabaseJob), doesDbExist, dbName);
@@ -388,10 +390,10 @@ public class MusicBrainzUpdateDatabaseJob(
                 }
             }
 
-            // Import data to SQLite with progress callback
+            // Import data to DecentDB with progress callback
             progress?.StartStage(StageImport, "Loading and importing data...");
             var importStartTicks = Stopwatch.GetTimestamp();
-            Logger.Information("[{JobName}] Starting data import to SQLite...", nameof(MusicBrainzUpdateDatabaseJob));
+            Logger.Information("[{JobName}] Starting data import to DecentDB...", nameof(MusicBrainzUpdateDatabaseJob));
 
             // Create progress callback that updates the job progress
             void ImportProgressCallback(string phase, int current, int total, string? message)
@@ -469,7 +471,7 @@ public class MusicBrainzUpdateDatabaseJob(
                 try
                 {
                     Logger.Information("[{JobName}] Restoring backup database from: [{TempDbName}]", nameof(MusicBrainzUpdateDatabaseJob), tempDbName);
-                    var dbName = Path.Combine(storagePath, "musicbrainz.db");
+                    var dbName = GetDatabaseFilePath();
                     if (File.Exists(dbName))
                     {
                         File.Delete(dbName);
@@ -513,6 +515,19 @@ public class MusicBrainzUpdateDatabaseJob(
             Logger.Debug("[{JobName}] Job cleanup complete. Total execution time: {Elapsed:F1} minutes.",
                 nameof(MusicBrainzUpdateDatabaseJob), totalJobTime.TotalMinutes);
         }
+    }
+
+    private string GetDatabaseFilePath()
+    {
+        using var context = dbContextFactory.CreateDbContext();
+        var connectionString = context.Database.GetConnectionString()
+                               ?? throw new InvalidOperationException("MusicBrainzDbContext has no connection string configured.");
+        var builder = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString };
+        var dataSource = builder.ContainsKey("Data Source")
+            ? builder["Data Source"]?.ToString()
+            : null;
+        return dataSource ?? throw new InvalidOperationException(
+            $"Cannot extract 'Data Source' from MusicBrainz connection string: {connectionString}");
     }
 
     private static JobProgress? GetProgress(IJobExecutionContext context)

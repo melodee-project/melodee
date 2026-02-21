@@ -10,7 +10,7 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 
 /// <summary>
 /// Streaming import service for MusicBrainz data using DecentDB.
-/// Adapted from StreamingMusicBrainzImporter without Lucene index creation or SQLite PRAGMAs.
+/// Adapted from StreamingMusicBrainzImporter without Lucene index creation or database-specific PRAGMAs.
 /// </summary>
 public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 {

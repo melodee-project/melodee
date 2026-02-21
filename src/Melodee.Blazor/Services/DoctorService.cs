@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
@@ -7,7 +8,6 @@ using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Doctor;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 
@@ -176,8 +176,8 @@ public sealed class DoctorService(
 
         try
         {
-            var builder = new SqliteConnectionStringBuilder(connectionString);
-            var dataSource = builder.DataSource;
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var dataSource = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
 
             if (string.IsNullOrWhiteSpace(dataSource))
             {
@@ -338,7 +338,7 @@ public sealed class DoctorService(
         try
         {
             var connectionString = configuration.GetConnectionString("MusicBrainzConnection") ?? "";
-            var fileInfo = DescribeSqlitePath(connectionString);
+            var fileInfo = DescribeFileDatabasePath(connectionString);
 
             var isEmpty = await IsMusicBrainzDatabaseEmptyAsync(cancellationToken);
 
@@ -365,7 +365,7 @@ public sealed class DoctorService(
         try
         {
             var connectionString = configuration.GetConnectionString("ArtistSearchEngineConnection") ?? "";
-            var fileInfo = DescribeSqlitePath(connectionString);
+            var fileInfo = DescribeFileDatabasePath(connectionString);
 
             await using var db = await artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
             var canConnect = await db.Database.CanConnectAsync(cancellationToken);
@@ -447,8 +447,8 @@ public sealed class DoctorService(
             {
                 try
                 {
-                    var builder = new SqliteConnectionStringBuilder(value);
-                    filePath = builder.DataSource;
+                    var builder = new DbConnectionStringBuilder { ConnectionString = value };
+                    filePath = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
                     if (!string.IsNullOrEmpty(filePath))
                     {
                         fileExists = File.Exists(filePath);
@@ -492,7 +492,7 @@ public sealed class DoctorService(
         return results;
     }
 
-    private static string DescribeSqlitePath(string connectionString)
+    private static string DescribeFileDatabasePath(string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -501,8 +501,8 @@ public sealed class DoctorService(
 
         try
         {
-            var builder = new SqliteConnectionStringBuilder(connectionString);
-            var path = builder.DataSource;
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var path = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
             if (string.IsNullOrEmpty(path))
             {
                 return "No data source in connection string";

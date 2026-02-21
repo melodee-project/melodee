@@ -16,7 +16,7 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 {
     private readonly DbContextOptions<MusicBrainzDbContext> _dbContextOptions;
     private readonly Microsoft.Data.Sqlite.SqliteConnection _connection;
-    private SQLiteMusicBrainzRepository _repository;
+    private DecentDBMusicBrainzRepository _repository;
     private readonly ILogger _logger;
 
     public SQLiteMusicBrainzRepositoryTests()
@@ -26,8 +26,6 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
             .WriteTo.Console()
             .CreateLogger();
 
-        // Use a unique in-memory database per test instance to ensure isolation
-        // Mode=Memory ensures it's in-memory only. No Cache=Shared to prevent any cross-test sharing.
         _connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
         _connection.Open();
 
@@ -36,12 +34,10 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
             .EnableSensitiveDataLogging()
             .Options;
 
-        // Create the database tables
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         context.Database.EnsureCreated();
 
         var mockFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
-        // Ensure all contexts share the same SQLite connection
         mockFactory.Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() =>
             {
@@ -51,7 +47,7 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
             .Returns(() => new MusicBrainzDbContext(_dbContextOptions));
         var dbContextFactory = mockFactory.Object;
 
-        _repository = new SQLiteMusicBrainzRepository(
+        _repository = new DecentDBMusicBrainzRepository(
             _logger,
             MockConfigurationFactory(),
             dbContextFactory);
@@ -581,7 +577,7 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
             var mockConfigFactory = new Mock<IMelodeeConfigurationFactory>();
             mockConfigFactory.Setup(f => f.GetConfigurationAsync(It.IsAny<CancellationToken>())).ReturnsAsync(config);
 
-            using var repo = new SQLiteMusicBrainzRepository(_logger, mockConfigFactory.Object, mockDbFactory.Object);
+            using var repo = new DecentDBMusicBrainzRepository(_logger, mockConfigFactory.Object, mockDbFactory.Object);
 
             // Act - Import with progress logging
             var peakMemoryMb = 0L;
