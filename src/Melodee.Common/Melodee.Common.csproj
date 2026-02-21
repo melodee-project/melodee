@@ -22,6 +22,8 @@
     <PackageReference Include="Crc32.NET" />
     <PackageReference Include="CsvHelper" />
     <PackageReference Include="Dapper" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
     <PackageReference Include="Fastenshtein" />
     <PackageReference Include="FFMpegCore" />
     <PackageReference Include="FluentValidation" />

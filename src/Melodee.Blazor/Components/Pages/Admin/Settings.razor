@@ -158,7 +158,7 @@
         
         var result = await DialogService.OpenAsync<AddSettingDialog>(
             L("AdminSettings.AddNewSetting"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { "AvailableKeys", availableKeys }
             },
@@ -211,7 +211,7 @@
     {
         await DialogService.OpenAsync<SettingDetailDialog>(
             L("SettingDetail.Title"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { "Setting", setting }
             },

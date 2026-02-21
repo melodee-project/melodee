@@ -151,7 +151,7 @@
     async Task OpenAddDialog()
     {
         var result = await DialogService.OpenAsync<UserGroupEditor>(L("UserGroups.AddGroup"),
-            new Dictionary<string, object>(),
+            new Dictionary<string, object?>(),
             new DialogOptions { Width = "700px", Height = "600px", Resizable = true, Draggable = true });
         
         if (result is bool success && success)
@@ -163,7 +163,7 @@
     async Task OpenEditDialog(UserGroup group)
     {
         var result = await DialogService.OpenAsync<UserGroupEditor>(L("UserGroups.EditGroup"),
-            new Dictionary<string, object> { { "UserGroupId", group.Id } },
+            new Dictionary<string, object?> { { "UserGroupId", group.Id } },
             new DialogOptions { Width = "700px", Height = "600px", Resizable = true, Draggable = true });
         
         if (result is bool success && success)

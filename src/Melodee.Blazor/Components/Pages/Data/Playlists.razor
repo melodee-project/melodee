@@ -94,7 +94,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedPlaylists.Any() != true ? false : !_playlists.All(i => _selectedPlaylists.Contains(i)) ? null : _playlists.Any(i => _selectedPlaylists.Contains(i)))"
                             Change="@(args => _selectedPlaylists = args == true ? _playlists.ToList() : [])"/>
                     </HeaderTemplate>
@@ -105,7 +105,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedPlaylists.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>

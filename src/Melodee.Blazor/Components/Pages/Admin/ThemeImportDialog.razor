@@ -12,7 +12,7 @@
                   ChooseText="@L("AdminThemes.SelectFile")"
                   Style="width: 100%;"
                   Change="@OnFileSelected"
-                  InputAttributes="@(new Dictionary<string, object> { { "aria-label", L("AdminThemes.SelectFile") } })"/>
+                  InputAttributes="@(new Dictionary<string, object?> { { "aria-label", L("AdminThemes.SelectFile") } })"/>
 
     @if (_selectedFile != null)
     {

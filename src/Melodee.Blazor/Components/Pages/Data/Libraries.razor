@@ -89,7 +89,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", L("Libraries.SelectAllItems") } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", L("Libraries.SelectAllItems") } })"
                             Value="@(_selectedLibraries.Any() != true ? false : !_libraries.All(i => _selectedLibraries.Contains(i)) ? null : _libraries.Any(i => _selectedLibraries.Contains(i)))"
                             Change="@(args => _selectedLibraries = args == true ? _libraries.ToList() : [])"/>
                     </HeaderTemplate>
@@ -100,7 +100,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedLibraries.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", L("Libraries.SelectItem") } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", L("Libraries.SelectItem") } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>

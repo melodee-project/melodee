@@ -156,14 +156,15 @@ if (!skipDbRegistration)
             => o.UseNodaTime()
                 .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
-     builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
-     {
-         options.UseDecentDB(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
-         options.EnableSensitiveDataLogging(true);
-     });
+    builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+    {
+        options.UseDecentDB(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+    });
 
-    builder.Services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
-        opt.UseSqlite(builder.Configuration.GetConnectionString("MusicBrainzConnection")));
+    builder.Services.AddDbContextFactory<MusicBrainzDbContext>(options =>
+    {
+        options.UseDecentDB(builder.Configuration.GetConnectionString("MusicBrainzConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+    });
 }
 
 builder.Services.AddApiVersioning(options =>
@@ -533,7 +534,7 @@ builder.Services
     .AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>()
     .AddSingleton<StreamingLimiter>()
     .AddSingleton<EtagRepository>()
-    .AddScoped<IMusicBrainzRepository, SQLiteMusicBrainzRepository>()
+    .AddScoped<IMusicBrainzRepository, DecentDbMusicBrainzRepository>()
     .AddScoped<SettingService>()
     .AddScoped<ArtistService>()
     .AddScoped<IBaseUrlService, BaseUrlService>()

@@ -433,7 +433,7 @@
     {
         var result = await DialogService.OpenAsync<PodcastOpmlDialog>(
             L("Podcast.OpmlImportExport"),
-            new Dictionary<string, object> { { "UserId", CurrentUsersId } },
+            new Dictionary<string, object?> { { "UserId", CurrentUsersId } },
             new DialogOptions { Width = "700px", Height = "600px" });
 
         if (result == true)
@@ -446,7 +446,7 @@
     {
         var result = await DialogService.OpenAsync<PodcastDiscoveryDialog>(
             L("Podcast.DiscoverPodcasts"),
-            new Dictionary<string, object> { { "UserId", CurrentUsersId } },
+            new Dictionary<string, object?> { { "UserId", CurrentUsersId } },
             new DialogOptions { Width = "800px", Height = "700px" });
 
         if (result == true)

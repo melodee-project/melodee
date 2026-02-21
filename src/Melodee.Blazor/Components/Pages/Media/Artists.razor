@@ -83,7 +83,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedArtists.Any() != true ? false : !_artists.All(i => _selectedArtists.Contains(i)) ? null : _artists.Any(i => _selectedArtists.Contains(i)))"
                             Change="@(args => _selectedArtists = args == true ? _artists.ToList() : [])"/>
                     </HeaderTemplate>
@@ -92,7 +92,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedArtists.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             TValue="bool"/>
                     </Template>

@@ -488,7 +488,7 @@
     {
         var result = await DialogService.OpenAsync<ScriptOverrideBodyDialog>(
             L("AdminScriptEditor.EditOverrideBodyTitle"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { "Body", item.Body },
                 { "CtxCompletions", _ctxCompletions },

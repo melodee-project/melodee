@@ -76,7 +76,7 @@
                                 TabIndex="-1"
                                 TriState="false"
                                 TValue="bool?"
-                                InputAttributes="@(new Dictionary<string, object> { { "aria-label", L("Charts.SelectAllItems") } })"
+                                InputAttributes="@(new Dictionary<string, object?> { { "aria-label", L("Charts.SelectAllItems") } })"
                                 Value="@(_selectedCharts.Any() != true ? false : !_charts.All(i => _selectedCharts.Contains(i)) ? null : _charts.Any(i => _selectedCharts.Contains(i)))"
                                 Change="@(args => _selectedCharts = args == true ? _charts.ToList() : [])"/>
                         </HeaderTemplate>
@@ -85,7 +85,7 @@
                                 TabIndex="-1"
                                 TriState="false"
                                 Value="@(_selectedCharts.Contains(data))"
-                                InputAttributes="@(new Dictionary<string, object> { { "aria-label", L("Charts.SelectItem") } })"
+                                InputAttributes="@(new Dictionary<string, object?> { { "aria-label", L("Charts.SelectItem") } })"
                                 Change="@(_ => { _grid.SelectRow(data); })"
                                 TValue="bool"/>
                         </Template>
@@ -242,7 +242,7 @@
     async Task ImportJsonClick()
     {
         var result = await DialogService.OpenAsync<ChartImportDialog>(L("Charts.ImportChartFromJSON"),
-            new Dictionary<string, object>(),
+            new Dictionary<string, object?>(),
             new DialogOptions { Width = "600px", Height = "500px", Resizable = true, Draggable = true });
 
         if (result is true)

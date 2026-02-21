@@ -691,7 +691,7 @@
     {
         var dialogResult = await DialogService.OpenAsync<ChartItemResolveDialog>(
             L("ChartEditor.ResolveItem", item.ArtistName, item.AlbumTitle),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { "ChartItem", item },
                 { "ChartService", ChartService }

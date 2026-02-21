@@ -757,7 +757,7 @@
 
         var result = await DialogService.OpenAsync<DeviceProfileDialog>(
             L("Profile.NewDeviceProfile"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 {"UserId", CurrentUser!.UserId()},
                 {"UserProfileService", UserProfileService},
@@ -785,7 +785,7 @@
 
         var result = await DialogService.OpenAsync<DeviceProfileDialog>(
             L("Profile.EditDeviceProfile"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 {"UserId", CurrentUser!.UserId()},
                 {"UserProfileService", UserProfileService},

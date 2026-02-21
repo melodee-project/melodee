@@ -87,16 +87,18 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddDbContextFactory<MelodeeDbContext>(opt =>
             opt.UseNpgsql(connectionString,
                 o => o.UseNodaTime().UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
-        services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
-            opt.UseSqlite(configuration.GetConnectionString("MusicBrainzConnection")));
+        services.AddDbContextFactory<MusicBrainzDbContext>(options =>
+        {
+            options.UseDecentDB(configuration.GetConnectionString("MusicBrainzConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+        });
 
         services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
         {
-              options.UseDecentDB(configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
-              options.EnableSensitiveDataLogging(true);
+            options.UseDecentDB(configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+            options.EnableSensitiveDataLogging(true);
         });
 
-        services.AddScoped<IMusicBrainzRepository, SQLiteMusicBrainzRepository>();
+        services.AddScoped<IMusicBrainzRepository, DecentDbMusicBrainzRepository>();
         services.AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>();
         services.AddSingleton<ICacheManager>(opt
             => new MemoryCacheManager(opt.GetRequiredService<ILogger>(),

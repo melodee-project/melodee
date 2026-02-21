@@ -241,10 +241,6 @@ public class MusicBrainzDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        if (!optionsBuilder.IsConfigured)
-        {
-            // This will be overridden by the dependency injection configuration
-            optionsBuilder.UseSqlite("Data Source=:memory:");
-        }
+        // Configuration is provided by DI registration; no fallback needed
     }
 }

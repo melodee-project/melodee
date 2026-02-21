@@ -24,7 +24,6 @@ using Melodee.Common.Services.Scanning;
 using Melodee.Common.Utility;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;

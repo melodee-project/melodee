@@ -130,7 +130,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedAlbums.Any() != true ? false : !_albums.All(i => _selectedAlbums.Contains(i)) ? null : _albums.Any(i => _selectedAlbums.Contains(i)))"
                             Change="@(args => _selectedAlbums = args == true ? _albums.ToList() : [])"/>
                     </HeaderTemplate>
@@ -139,7 +139,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedAlbums.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid?.SelectRow(data); })"
                             TValue="bool"/>
                     </Template>
@@ -739,7 +739,7 @@
     {
         var result = await DialogService.OpenAsync<BulkArtistManagementDialog>(
             L("BulkArtistManagement.Title"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { "LibraryApiKey", _library.ApiKey },
                 { "SelectedAlbums", _selectedAlbums }
@@ -773,7 +773,7 @@
     {
         var result = await DialogService.OpenAsync<UploadAlbumDialog>(
             L("UploadAlbum.Title"),
-            new Dictionary<string, object> { { "LibraryApiKey", _library.ApiKey } },
+            new Dictionary<string, object?> { { "LibraryApiKey", _library.ApiKey } },
             new DialogOptions
             {
                 Width = "600px",

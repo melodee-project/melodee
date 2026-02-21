@@ -344,7 +344,7 @@
     private async Task OpenImportDialog()
     {
         var result = await DialogService.OpenAsync<ThemeImportDialog>(L("AdminThemes.Import"), 
-            new Dictionary<string, object>(),
+            new Dictionary<string, object?>(),
             new DialogOptions
             {
                 Width = "500px",
