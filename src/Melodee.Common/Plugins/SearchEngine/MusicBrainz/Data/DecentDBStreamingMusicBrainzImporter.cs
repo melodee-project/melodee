@@ -150,15 +150,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                 cancellationToken);
             progressCallback?.Invoke("Loading Artists", 4, 4, $"Streamed {artistLinkCount:N0} artist links to staging");
 
-            progressCallback?.Invoke("Loading Artists", 4, 4, "Creating staging indices...");
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ArtistStaging_ArtistId ON ArtistStaging(ArtistId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ArtistAliasStaging_ArtistId ON ArtistAliasStaging(ArtistId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ArtistAliasStaging_NameNormalized ON ArtistAliasStaging(NameNormalized)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_LinkArtistToArtistStaging_Artist0 ON LinkArtistToArtistStaging(Artist0)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_LinkArtistToArtistStaging_Artist1 ON LinkArtistToArtistStaging(Artist1)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_LinkArtistToArtistStaging_LinkId ON LinkArtistToArtistStaging(LinkId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_LinkStaging_LinkId ON LinkStaging(LinkId)", cancellationToken);
-            progressCallback?.Invoke("Loading Artists", 4, 4, "Staging indices created");
+            progressCallback?.Invoke("Loading Artists", 4, 4, "Artist staging data loaded");
         }
     }
 
@@ -371,17 +363,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                 cancellationToken);
             progressCallback?.Invoke("Loading Albums", 6, 6, $"Streamed {releaseCount:N0} releases");
 
-            progressCallback?.Invoke("Loading Albums", 6, 6, "Creating staging indices...");
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ReleaseStaging_ReleaseGroupId ON ReleaseStaging(ReleaseGroupId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ReleaseStaging_ReleaseId ON ReleaseStaging(ReleaseId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ReleaseStaging_ArtistCreditId ON ReleaseStaging(ArtistCreditId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ReleaseGroupStaging_ReleaseGroupId ON ReleaseGroupStaging(ReleaseGroupId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ReleaseGroupMetaStaging_ReleaseGroupId ON ReleaseGroupMetaStaging(ReleaseGroupId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ReleaseCountryStaging_ReleaseId ON ReleaseCountryStaging(ReleaseId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ArtistCreditStaging_ArtistCreditId ON ArtistCreditStaging(ArtistCreditId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ArtistCreditNameStaging_ArtistCreditId ON ArtistCreditNameStaging(ArtistCreditId)", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_ArtistCreditNameStaging_ArtistId ON ArtistCreditNameStaging(ArtistId)", cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 6, 6, "Staging indices created");
+            progressCallback?.Invoke("Loading Albums", 6, 6, "Album staging data loaded");
         }
     }
 

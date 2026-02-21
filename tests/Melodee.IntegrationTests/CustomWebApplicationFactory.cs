@@ -1,10 +1,9 @@
-using System.Data.Common;
+using DecentDB.EntityFrameworkCore;
 using Melodee.Common.Data;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,47 +11,40 @@ namespace Melodee.IntegrationTests;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly DbConnection _melodeeConnection;
-    private readonly DbConnection _artistSearchEngineConnection;
-    private readonly DbConnection _musicBrainzConnection;
+    private readonly string _tempDbDir;
 
     public CustomWebApplicationFactory()
     {
-        // Skip default DB registration in Program.cs - we provide our own SQLite contexts
+        // Skip default DB registration in Program.cs - we provide our own DecentDB contexts
         Environment.SetEnvironmentVariable("MELODEE_SKIP_DB_REGISTRATION", "true");
 
-        // Create in-memory SQLite connections for tests
-        _melodeeConnection = new SqliteConnection("DataSource=:memory:");
-        _melodeeConnection.Open();
-
-        _artistSearchEngineConnection = new SqliteConnection("DataSource=:memory:");
-        _artistSearchEngineConnection.Open();
-
-        _musicBrainzConnection = new SqliteConnection("DataSource=:memory:");
-        _musicBrainzConnection.Open();
+        _tempDbDir = Path.Combine(Path.GetTempPath(), $"melodee-integration-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDbDir);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
-            // Add in-memory SQLite databases for testing with NodaTime support
+            var melodeeDbFile = Path.Combine(_tempDbDir, "melodee.ddb");
+            var artistSearchDbFile = Path.Combine(_tempDbDir, "artist-search.ddb");
+            var musicBrainzDbFile = Path.Combine(_tempDbDir, "musicbrainz.ddb");
+
             services.AddDbContextFactory<MelodeeDbContext>(options =>
             {
-                options.UseSqlite(_melodeeConnection, x => x.UseNodaTime());
+                options.UseDecentDB($"Data Source={melodeeDbFile}", x => x.UseNodaTime());
             });
 
             services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
             {
-                options.UseSqlite(_artistSearchEngineConnection);
+                options.UseDecentDB($"Data Source={artistSearchDbFile}");
             });
 
             services.AddDbContextFactory<MusicBrainzDbContext>(options =>
             {
-                options.UseSqlite(_musicBrainzConnection);
+                options.UseDecentDB($"Data Source={musicBrainzDbFile}");
             });
 
-            // Build the service provider and create database schemas
             var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
 
@@ -72,11 +64,18 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         if (disposing)
         {
-            _melodeeConnection.Dispose();
-            _artistSearchEngineConnection.Dispose();
-            _musicBrainzConnection.Dispose();
+            try
+            {
+                if (Directory.Exists(_tempDbDir))
+                {
+                    Directory.Delete(_tempDbDir, true);
+                }
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
 
-            // Clean up environment variable
             Environment.SetEnvironmentVariable("MELODEE_SKIP_DB_REGISTRATION", null);
         }
     }

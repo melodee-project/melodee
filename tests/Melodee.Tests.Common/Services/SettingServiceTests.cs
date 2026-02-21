@@ -372,7 +372,7 @@ public class SettingServiceTests : IDisposable
     // The SettingService uses EF.Functions.ILike() for case-insensitive filtering (lines 206-209 in SettingService.cs).
     // This is a PostgreSQL-specific function that does NOT work with:
     //   - In-memory database provider (used in these unit tests)
-    //   - SQLite provider
+    //   - DecentDB provider
     //   - SQL Server provider
     //
     // When ILike is used with unsupported providers, queries return ZERO results instead of falling back to case-sensitive matching.

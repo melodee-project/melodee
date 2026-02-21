@@ -71,8 +71,7 @@ public class MusicBrainzImportBenchmark : IDisposable
 
         var storagePath = Path.Combine(_testDataPath, $"storage-{artistCount}");
         var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
-        var dbFile = Path.Combine(_testDbPath, $"musicbrainz-{artistCount}.db");
-        var lucenePath = Path.Combine(_testDbPath, $"lucene-{artistCount}");
+        var dbFile = Path.Combine(_testDbPath, $"musicbrainz-{artistCount}.ddb");
 
         // Phase 0: Generate test data
         var genSw = Stopwatch.StartNew();
@@ -84,14 +83,14 @@ public class MusicBrainzImportBenchmark : IDisposable
 
         // Setup database
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
         // Create importer with progress tracking
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
         var phaseTimings = new Dictionary<string, long>();
         var currentPhase = "";
         var phaseStopwatch = new Stopwatch();
@@ -115,7 +114,6 @@ public class MusicBrainzImportBenchmark : IDisposable
         await importer.ImportAsync(
             context,
             storagePath,
-            lucenePath,
             ProgressCallback,
             CancellationToken.None);
         importSw.Stop();
@@ -165,27 +163,25 @@ public class MusicBrainzImportBenchmark : IDisposable
         {
             var storagePath = Path.Combine(_testDataPath, $"iteration-{i}");
             var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
-            var dbFile = Path.Combine(_testDbPath, $"iteration-{i}.db");
-            var lucenePath = Path.Combine(_testDbPath, $"lucene-{i}");
+            var dbFile = Path.Combine(_testDbPath, $"iteration-{i}.ddb");
 
             var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount, albumsPerArtist);
             var totalRecords = stats.ArtistCount + stats.AliasCount + stats.ReleaseCount +
                                stats.ReleaseGroupCount + stats.ArtistCreditCount;
 
             var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-                .UseSqlite($"Data Source={dbFile}")
+                .UseDecentDB($"Data Source={dbFile}")
                 .Options;
 
             await using var context = new MusicBrainzDbContext(dbOptions);
             await context.Database.EnsureCreatedAsync();
 
-            var importer = new StreamingMusicBrainzImporter(_logger);
+            var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
             var sw = Stopwatch.StartNew();
 
             await importer.ImportAsync(
                 context,
                 storagePath,
-                lucenePath,
                 null,
                 CancellationToken.None);
 
@@ -220,13 +216,12 @@ public class MusicBrainzImportBenchmark : IDisposable
     {
         var storagePath = Path.Combine(_testDataPath, $"memory-{artistCount}");
         var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
-        var dbFile = Path.Combine(_testDbPath, $"memory-{artistCount}.db");
-        var lucenePath = Path.Combine(_testDbPath, $"lucene-memory-{artistCount}");
+        var dbFile = Path.Combine(_testDbPath, $"memory-{artistCount}.ddb");
 
         var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount, albumsPerArtist);
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
@@ -240,7 +235,7 @@ public class MusicBrainzImportBenchmark : IDisposable
         var startMemory = GC.GetTotalMemory(true);
         var peakMemory = startMemory;
 
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
 
         // Track memory during import using a background task
         var cts = new CancellationTokenSource();
@@ -261,7 +256,6 @@ public class MusicBrainzImportBenchmark : IDisposable
         await importer.ImportAsync(
             context,
             storagePath,
-            lucenePath,
             null,
             CancellationToken.None);
         sw.Stop();

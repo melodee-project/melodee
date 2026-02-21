@@ -71,32 +71,23 @@ public class MusicBrainzImportBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<int> ImportWithDefaultSettings()
     {
-        var dbFile = Path.Combine(_dbPath, $"mb-default-{Guid.NewGuid():N}.db");
-        var lucenePath = Path.Combine(_dbPath, $"lucene-default-{Guid.NewGuid():N}");
+        var dbFile = Path.Combine(_dbPath, $"mb-default-{Guid.NewGuid():N}.ddb");
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = OFF");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = MEMORY");
-
-        var importer = new StreamingMusicBrainzImporter(_logger);
-        await importer.ImportAsync(context, _testDataPath, lucenePath, null, CancellationToken.None);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
+        await importer.ImportAsync(context, _testDataPath, null, CancellationToken.None);
 
         var count = await context.Artists.CountAsync();
 
-        // Cleanup this specific run
         try
         {
             File.Delete(dbFile);
-            if (Directory.Exists(lucenePath))
-            {
-                Directory.Delete(lucenePath, true);
-            }
         }
         catch { }
 
@@ -104,35 +95,25 @@ public class MusicBrainzImportBenchmarks
     }
 
     [Benchmark]
-    public async Task<int> ImportWithLargerCache()
+    public async Task<int> ImportWithLargerDataset()
     {
-        var dbFile = Path.Combine(_dbPath, $"mb-largecache-{Guid.NewGuid():N}.db");
-        var lucenePath = Path.Combine(_dbPath, $"lucene-largecache-{Guid.NewGuid():N}");
+        var dbFile = Path.Combine(_dbPath, $"mb-large-{Guid.NewGuid():N}.ddb");
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = OFF");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = MEMORY");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -128000"); // 128MB vs default 2MB
-
-        var importer = new StreamingMusicBrainzImporter(_logger);
-        await importer.ImportAsync(context, _testDataPath, lucenePath, null, CancellationToken.None);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
+        await importer.ImportAsync(context, _testDataPath, null, CancellationToken.None);
 
         var count = await context.Artists.CountAsync();
 
-        // Cleanup this specific run
         try
         {
             File.Delete(dbFile);
-            if (Directory.Exists(lucenePath))
-            {
-                Directory.Delete(lucenePath, true);
-            }
         }
         catch { }
 
@@ -140,37 +121,26 @@ public class MusicBrainzImportBenchmarks
     }
 
     [Benchmark]
-    public async Task<int> ImportWithWalMode()
+    public async Task<int> ImportWithProgressTracking()
     {
-        var dbFile = Path.Combine(_dbPath, $"mb-wal-{Guid.NewGuid():N}.db");
-        var lucenePath = Path.Combine(_dbPath, $"lucene-wal-{Guid.NewGuid():N}");
+        var dbFile = Path.Combine(_dbPath, $"mb-progress-{Guid.NewGuid():N}.ddb");
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = NORMAL");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000");
-
-        var importer = new StreamingMusicBrainzImporter(_logger);
-        await importer.ImportAsync(context, _testDataPath, lucenePath, null, CancellationToken.None);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
+        await importer.ImportAsync(context, _testDataPath,
+            (phase, current, total, msg) => { }, CancellationToken.None);
 
         var count = await context.Artists.CountAsync();
 
-        // Cleanup this specific run
         try
         {
             File.Delete(dbFile);
-            File.Delete(dbFile + "-wal");
-            File.Delete(dbFile + "-shm");
-            if (Directory.Exists(lucenePath))
-            {
-                Directory.Delete(lucenePath, true);
-            }
         }
         catch { }
 

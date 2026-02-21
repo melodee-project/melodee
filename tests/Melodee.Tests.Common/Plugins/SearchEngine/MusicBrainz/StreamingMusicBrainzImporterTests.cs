@@ -10,7 +10,7 @@ using Serilog;
 namespace Melodee.Tests.Common.Plugins.SearchEngine.MusicBrainz;
 
 /// <summary>
-/// Unit and performance tests for StreamingMusicBrainzImporter using synthetic test data.
+/// Unit and performance tests for DecentDBStreamingMusicBrainzImporter using synthetic test data.
 /// </summary>
 public class StreamingMusicBrainzImporterTests : IDisposable
 {
@@ -93,28 +93,23 @@ public class StreamingMusicBrainzImporterTests : IDisposable
     public async Task ImportAsync_WithSmallTestData_ImportsSuccessfully()
     {
         var mbDumpPath = Path.Combine(_testDataPath, "staging", "mbdump");
-        var dbFile = Path.Combine(_testDbPath, "musicbrainz.db");
-        var lucenePath = Path.Combine(_testDbPath, "lucene");
+        var dbFile = Path.Combine(_testDbPath, "musicbrainz.ddb");
 
         var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount: 100, albumsPerArtist: 3);
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = OFF");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = MEMORY");
-
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
         var progressMessages = new List<string>();
 
         await importer.ImportAsync(
             context,
             _testDataPath,
-            lucenePath,
             (phase, current, total, msg) => progressMessages.Add($"{phase}: {msg}"),
             CancellationToken.None);
 
@@ -124,36 +119,29 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         artistCount.Should().Be(stats.ArtistCount);
         albumCount.Should().BeGreaterThan(0);
         progressMessages.Should().NotBeEmpty();
-        Directory.Exists(lucenePath).Should().BeTrue();
     }
 
     [Fact]
     public async Task ImportAsync_WithMediumTestData_CompletesInReasonableTime()
     {
         var mbDumpPath = Path.Combine(_testDataPath, "staging", "mbdump");
-        var dbFile = Path.Combine(_testDbPath, "musicbrainz.db");
-        var lucenePath = Path.Combine(_testDbPath, "lucene");
+        var dbFile = Path.Combine(_testDbPath, "musicbrainz.ddb");
 
         var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount: 1000, albumsPerArtist: 5);
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = OFF");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = MEMORY");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000");
-
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
         var sw = Stopwatch.StartNew();
 
         await importer.ImportAsync(
             context,
             _testDataPath,
-            lucenePath,
             null,
             CancellationToken.None);
 
@@ -174,25 +162,23 @@ public class StreamingMusicBrainzImporterTests : IDisposable
     public async Task ImportAsync_CancellationToken_StopsImport()
     {
         var mbDumpPath = Path.Combine(_testDataPath, "staging", "mbdump");
-        var dbFile = Path.Combine(_testDbPath, "musicbrainz.db");
-        var lucenePath = Path.Combine(_testDbPath, "lucene");
+        var dbFile = Path.Combine(_testDbPath, "musicbrainz.ddb");
 
         MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount: 500);
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
         using var cts = new CancellationTokenSource();
 
         var importTask = importer.ImportAsync(
             context,
             _testDataPath,
-            lucenePath,
             (phase, current, total, msg) =>
             {
                 if (current > 100)
@@ -210,23 +196,20 @@ public class StreamingMusicBrainzImporterTests : IDisposable
     {
         var emptyPath = Path.Combine(_testDataPath, "empty", "mbdump");
         Directory.CreateDirectory(emptyPath);
-        var dbFile = Path.Combine(_testDbPath, "musicbrainz.db");
-        var lucenePath = Path.Combine(_testDbPath, "lucene");
+        var dbFile = Path.Combine(_testDbPath, "musicbrainz.ddb");
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
 
-        // Should not throw, but should result in 0 records
         await importer.ImportAsync(
             context,
             Path.Combine(_testDataPath, "empty"),
-            lucenePath,
             null,
             CancellationToken.None);
 
@@ -242,29 +225,23 @@ public class StreamingMusicBrainzImporterTests : IDisposable
     {
         var storagePath = Path.Combine(_testDataPath, $"storage-{artistCount}");
         var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
-        var dbFile = Path.Combine(_testDbPath, $"musicbrainz-{artistCount}.db");
-        var lucenePath = Path.Combine(_testDbPath, $"lucene-{artistCount}");
+        var dbFile = Path.Combine(_testDbPath, $"musicbrainz-{artistCount}.ddb");
 
         var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount, albumsPerArtist);
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         await using var context = new MusicBrainzDbContext(dbOptions);
         await context.Database.EnsureCreatedAsync();
 
-        await context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = OFF");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = MEMORY");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000");
-
-        var importer = new StreamingMusicBrainzImporter(_logger);
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
         var sw = Stopwatch.StartNew();
 
         await importer.ImportAsync(
             context,
             storagePath,
-            lucenePath,
             null,
             CancellationToken.None);
 
@@ -276,15 +253,12 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         importedArtists.Should().Be(artistCount);
         importedAlbums.Should().BeGreaterThan(0);
 
-        // Calculate records per second for performance baseline
         var totalRecords = stats.ArtistCount + stats.AliasCount + stats.ReleaseCount;
         var recordsPerSecond = totalRecords / sw.Elapsed.TotalSeconds;
 
-        // Log performance metrics for benchmarking
         Console.WriteLine($"[{artistCount} artists] Time: {sw.Elapsed.TotalSeconds:F2}s, " +
                           $"Records: {totalRecords:N0}, Rate: {recordsPerSecond:N0}/sec");
 
-        // Should process at least 400 records/second (lowered from 500 to reduce CI flakiness)
         recordsPerSecond.Should().BeGreaterThan(400,
             $"Performance below threshold: {recordsPerSecond:N0} records/sec");
     }
@@ -294,12 +268,12 @@ public class StreamingMusicBrainzImporterTests : IDisposable
     {
         var storagePath = _testDataPath;
         var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
-        var dbFile = Path.Combine(storagePath, "musicbrainz.db");
+        var dbFile = Path.Combine(storagePath, "musicbrainz.ddb");
 
         var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount: 200, albumsPerArtist: 4);
 
         var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite($"Data Source={dbFile}")
+            .UseDecentDB($"Data Source={dbFile}")
             .Options;
 
         var mockDbFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
@@ -318,7 +292,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         var mockConfigFactory = new Mock<IMelodeeConfigurationFactory>();
         mockConfigFactory.Setup(f => f.GetConfigurationAsync(It.IsAny<CancellationToken>())).ReturnsAsync(config);
 
-        using var repo = new SQLiteMusicBrainzRepository(_logger, mockConfigFactory.Object, mockDbFactory.Object);
+        var repo = new DecentDBMusicBrainzRepository(_logger, mockConfigFactory.Object, mockDbFactory.Object);
 
         var result = await repo.ImportData(
             (phase, current, total, msg) => Console.WriteLine($"{phase}: {current}/{total} - {msg}"),
@@ -327,7 +301,6 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         result.IsSuccess.Should().BeTrue();
         result.Data.Should().BeTrue();
 
-        // Verify data was imported
         await using var context = mockDbFactory.Object.CreateDbContext();
         var artistCount = await context.Artists.CountAsync();
         var albumCount = await context.Albums.CountAsync();

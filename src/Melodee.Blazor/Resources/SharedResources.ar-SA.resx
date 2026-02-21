@@ -4249,7 +4249,7 @@
     <value>قاعدة البيانات: PostgreSQL</value>
   </data>
   <data name="AdminDoctor.Check.MusicBrainzDatabase" xml:space="preserve">
-    <value>قاعدة البيانات: MusicBrainz (SQLite)</value>
+    <value>قاعدة البيانات: MusicBrainz</value>
   </data>
   <data name="AdminDoctor.Check.ArtistSearchEngineDatabase" xml:space="preserve">
     <value>قاعدة البيانات: ArtistSearchEngine</value>

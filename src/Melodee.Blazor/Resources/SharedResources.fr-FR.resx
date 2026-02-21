@@ -4249,7 +4249,7 @@
     <value>Base de données : PostgreSQL</value>
   </data>
   <data name="AdminDoctor.Check.MusicBrainzDatabase" xml:space="preserve">
-    <value>Base de données : MusicBrainz (SQLite)</value>
+    <value>Base de données : MusicBrainz</value>
   </data>
   <data name="AdminDoctor.Check.ArtistSearchEngineDatabase" xml:space="preserve">
     <value>Base de données : ArtistSearchEngine</value>

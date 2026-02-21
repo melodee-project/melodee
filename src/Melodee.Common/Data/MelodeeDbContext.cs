@@ -117,6 +117,12 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     public DbSet<LibraryAccessControl> LibraryAccessControls { get; set; }
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // DecentDB requires DECIMAL/NUMERIC to have explicit precision and scale
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 6);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Use a fixed timestamp for seed data to prevent migration churn

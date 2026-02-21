@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Net;
+using DecentDB.EntityFrameworkCore;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
@@ -23,7 +24,6 @@ using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Services.Security;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Quartz;
@@ -35,7 +35,7 @@ namespace Melodee.Tests.Common.Services;
 public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 {
     private readonly DbContextOptions<ArtistSearchEngineServiceDbContext> _dbArtistSearchEngineContextOptions;
-    private readonly DbConnection _dbConnection;
+    private readonly string _tempDbDir;
 
     private readonly DbContextOptions<MelodeeDbContext> _dbContextOptions;
 
@@ -48,15 +48,19 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
         Serializer = new Serializer(Logger);
         CacheManager = new FakeCacheManager(Logger, TimeSpan.FromDays(1), Serializer);
 
-        _dbConnection = new SqliteConnection("Filename=:memory:;Cache=Shared;");
-        _dbConnection.Open();
+        _tempDbDir = Path.Combine(Path.GetTempPath(), $"melodee-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDbDir);
+
+        var melodeeDbFile = Path.Combine(_tempDbDir, "melodee.ddb");
+        var artistSearchDbFile = Path.Combine(_tempDbDir, "artist-search.ddb");
+        var musicBrainzDbFile = Path.Combine(_tempDbDir, "musicbrainz.ddb");
 
         _dbContextOptions = new DbContextOptionsBuilder<MelodeeDbContext>()
-            .UseSqlite(_dbConnection, x => x.UseNodaTime())
+            .UseDecentDB($"Data Source={melodeeDbFile}", x => x.UseNodaTime())
             .Options;
 
         _dbArtistSearchEngineContextOptions = new DbContextOptionsBuilder<ArtistSearchEngineServiceDbContext>()
-            .UseSqlite(_dbConnection)
+            .UseDecentDB($"Data Source={artistSearchDbFile}")
             .Options;
 
         using (var context = new MelodeeDbContext(_dbContextOptions))
@@ -71,9 +75,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             context.SaveChanges();
         }
 
-        // Create MusicBrainz database tables
         var musicBrainzDbContextOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite(_dbConnection)
+            .UseDecentDB($"Data Source={musicBrainzDbFile}")
             .Options;
         using (var context = new MusicBrainzDbContext(musicBrainzDbContextOptions))
         {
@@ -88,14 +91,30 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 
     protected ICacheManager CacheManager { get; }
 
-    public virtual async ValueTask DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
-        await _dbConnection.DisposeAsync();
+        CleanupTempDir();
+        return ValueTask.CompletedTask;
     }
 
     public virtual void Dispose()
     {
-        _dbConnection.Dispose();
+        CleanupTempDir();
+    }
+
+    private void CleanupTempDir()
+    {
+        try
+        {
+            if (Directory.Exists(_tempDbDir))
+            {
+                Directory.Delete(_tempDbDir, true);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
     }
 
     protected IFileSystemService MockFileSystemService() => new MockFileSystemService();
@@ -161,8 +180,9 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
     protected IDbContextFactory<MusicBrainzDbContext> MockMusicBrainzDbContextFactory()
     {
         var mockFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
+        var musicBrainzDbFile = Path.Combine(_tempDbDir, "musicbrainz.ddb");
         var dbContextOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite(_dbConnection)
+            .UseDecentDB($"Data Source={musicBrainzDbFile}")
             .Options;
         mockFactory.Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MusicBrainzDbContext(dbContextOptions));

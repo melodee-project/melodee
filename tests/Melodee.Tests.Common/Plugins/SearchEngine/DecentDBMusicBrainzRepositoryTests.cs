@@ -12,25 +12,26 @@ using Artist = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Mater
 
 namespace Melodee.Tests.Common.Plugins.SearchEngine;
 
-public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
+public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 {
     private readonly DbContextOptions<MusicBrainzDbContext> _dbContextOptions;
-    private readonly Microsoft.Data.Sqlite.SqliteConnection _connection;
+    private readonly string _tempDbDir;
     private DecentDBMusicBrainzRepository _repository;
     private readonly ILogger _logger;
 
-    public SQLiteMusicBrainzRepositoryTests()
+    public DecentDBMusicBrainzRepositoryTests()
     {
         _logger = new LoggerConfiguration()
             .MinimumLevel.Warning()
             .WriteTo.Console()
             .CreateLogger();
 
-        _connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
-        _connection.Open();
+        _tempDbDir = Path.Combine(Path.GetTempPath(), $"melodee-mb-repo-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDbDir);
+        var dbFile = Path.Combine(_tempDbDir, "musicbrainz.ddb");
 
         _dbContextOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-            .UseSqlite(_connection)
+            .UseDecentDB($"Data Source={dbFile}")
             .EnableSensitiveDataLogging()
             .Options;
 
@@ -126,8 +127,6 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
     [Fact]
     public async Task SearchArtist_WithNormalizedName_AndMusicBrainzId_ReturnsMatchingArtists()
     {
-        // This test verifies that database search works when searching with a MusicBrainzId
-        // Name-only searches require Lucene index, but searches with MusicBrainzId use direct database lookup
         SetupTestArtistData();
 
         var artistId = Guid.Parse("12345678-1234-1234-1234-123456789012");
@@ -548,16 +547,16 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
             return;
         }
 
-        // Create a file-based SQLite database for this test (not in-memory)
+        // Create a file-based DecentDB database for this test
         var testDbPath = Path.Combine(Path.GetTempPath(), $"mb-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(testDbPath);
-        var dbFile = Path.Combine(testDbPath, "musicbrainz.db");
+        var dbFile = Path.Combine(testDbPath, "musicbrainz.ddb");
         Console.WriteLine($"Test database: {dbFile}");
 
         try
         {
             var fileDbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
-                .UseSqlite($"Data Source={dbFile}")
+                .UseDecentDB($"Data Source={dbFile}")
                 .Options;
 
             var mockDbFactory = new Mock<IDbContextFactory<MusicBrainzDbContext>>();
@@ -577,7 +576,7 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
             var mockConfigFactory = new Mock<IMelodeeConfigurationFactory>();
             mockConfigFactory.Setup(f => f.GetConfigurationAsync(It.IsAny<CancellationToken>())).ReturnsAsync(config);
 
-            using var repo = new DecentDBMusicBrainzRepository(_logger, mockConfigFactory.Object, mockDbFactory.Object);
+            var repo = new DecentDBMusicBrainzRepository(_logger, mockConfigFactory.Object, mockDbFactory.Object);
 
             // Act - Import with progress logging
             var peakMemoryMb = 0L;
@@ -668,13 +667,27 @@ public class SQLiteMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
     public void Dispose()
     {
         _repository = null!;
-        _connection.Close();
-        _connection.Dispose();
+        CleanupTempDir();
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        _connection.Close();
-        await _connection.DisposeAsync();
+        CleanupTempDir();
+        return ValueTask.CompletedTask;
+    }
+
+    private void CleanupTempDir()
+    {
+        try
+        {
+            if (Directory.Exists(_tempDbDir))
+            {
+                Directory.Delete(_tempDbDir, true);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
     }
 }
