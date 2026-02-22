@@ -27,21 +27,27 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
         // Phase 1: Stream artist data to staging tables
         await ImportArtistStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Phase 2: Materialize artists using SQL
         await MaterializeArtistsAsync(context, progressCallback, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Phase 3: Materialize artist relations using SQL
         await MaterializeArtistRelationsAsync(context, progressCallback, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Phase 4: Drop artist staging tables
         await DropArtistStagingTablesAsync(context, progressCallback, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Phase 5: Stream album support data to staging tables
         await ImportAlbumStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Phase 6: Materialize albums using SQL
         await MaterializeAlbumsAsync(context, progressCallback, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Phase 7: Drop album staging tables
         await DropAlbumStagingTablesAsync(context, progressCallback, cancellationToken);
@@ -165,24 +171,50 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Materialize artists"))
         {
-            progressCallback?.Invoke("Materializing Artists", 0, 1, "Creating materialized artists from staging...");
+            progressCallback?.Invoke("Materializing Artists", 0, 2, "Creating materialized artists from staging...");
 
-            var sql = @"
-                INSERT INTO Artist (MusicBrainzArtistId, MusicBrainzIdRaw, Name, NameNormalized, SortName, AlternateNames)
+            var insertSql = @"
+                INSERT INTO ""Artist"" (""MusicBrainzArtistId"", ""MusicBrainzIdRaw"", ""Name"", ""NameNormalized"", ""SortName"", ""AlternateNames"")
                 SELECT 
-                    a.ArtistId,
-                    a.MusicBrainzIdRaw,
-                    a.Name,
-                    a.NameNormalized,
-                    a.SortName,
-                    (SELECT GROUP_CONCAT(sub.NameNormalized, '|') 
-                     FROM (SELECT DISTINCT aa.NameNormalized FROM ArtistAliasStaging aa WHERE aa.ArtistId = a.ArtistId) sub)
-                FROM ArtistStaging a";
+                    a.""ArtistId"",
+                    a.""MusicBrainzIdRaw"",
+                    a.""Name"",
+                    a.""NameNormalized"",
+                    a.""SortName"",
+                    NULL
+                FROM ""ArtistStaging"" a";
 
-            var rowsAffected = await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-            logger.Debug("DecentDbStreamingImporter: Materialized {Count} artists", rowsAffected);
+            var rowsAffected = await context.Database.ExecuteSqlRawAsync(insertSql, cancellationToken);
+            progressCallback?.Invoke("Materializing Artists", 1, 2, $"Inserted {rowsAffected:N0} artists, updating alternate names...");
 
-            progressCallback?.Invoke("Materializing Artists", 1, 1, $"Materialized {rowsAffected:N0} artists");
+            // Build alternate names in C# to avoid correlated subquery (not supported by DecentDB)
+            var aliasGroups = await context.ArtistAliasesStaging
+                .GroupBy(aa => aa.ArtistId)
+                .Select(g => new { ArtistId = g.Key, Names = g.Select(x => x.NameNormalized).ToList() })
+                .ToListAsync(cancellationToken);
+
+            var connection = context.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync(cancellationToken);
+
+            using var updateCmd = connection.CreateCommand();
+            updateCmd.CommandText = @"UPDATE ""Artist"" SET ""AlternateNames"" = @p0 WHERE ""MusicBrainzArtistId"" = @p1";
+            var namesParam = updateCmd.CreateParameter();
+            namesParam.ParameterName = "@p0";
+            updateCmd.Parameters.Add(namesParam);
+            var idParam = updateCmd.CreateParameter();
+            idParam.ParameterName = "@p1";
+            updateCmd.Parameters.Add(idParam);
+
+            foreach (var group in aliasGroups)
+            {
+                namesParam.Value = string.Join("|", group.Names);
+                idParam.Value = group.ArtistId;
+                await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            logger.Debug("DecentDbStreamingImporter: Materialized {Count} artists with {AliasGroups} alias groups", rowsAffected, aliasGroups.Count);
+            progressCallback?.Invoke("Materializing Artists", 2, 2, $"Materialized {rowsAffected:N0} artists");
         }
     }
 
@@ -200,18 +232,18 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             progressCallback?.Invoke("Materializing Relations", 0, 1, "Creating artist relations from staging...");
 
             var sql = @"
-                INSERT INTO ArtistRelation (ArtistId, RelatedArtistId, ArtistRelationType, SortOrder, RelationStart, RelationEnd)
+                INSERT INTO ""ArtistRelation"" (""ArtistId"", ""RelatedArtistId"", ""ArtistRelationType"", ""SortOrder"", ""RelationStart"", ""RelationEnd"")
                 SELECT 
-                    a1.Id,
-                    a2.Id,
+                    a1.""Id"",
+                    a2.""Id"",
                     0,
-                    laa.LinkOrder,
-                    l.BeginDate,
-                    l.EndDate
-                FROM LinkArtistToArtistStaging laa
-                INNER JOIN Artist a1 ON a1.MusicBrainzArtistId = laa.Artist0
-                INNER JOIN Artist a2 ON a2.MusicBrainzArtistId = laa.Artist1
-                LEFT JOIN LinkStaging l ON l.LinkId = laa.LinkId";
+                    laa.""LinkOrder"",
+                    l.""BeginDate"",
+                    l.""EndDate""
+                FROM ""LinkArtistToArtistStaging"" laa
+                INNER JOIN ""Artist"" a1 ON a1.""MusicBrainzArtistId"" = laa.""Artist0""
+                INNER JOIN ""Artist"" a2 ON a2.""MusicBrainzArtistId"" = laa.""Artist1""
+                LEFT JOIN ""LinkStaging"" l ON l.""LinkId"" = laa.""LinkId""";
 
             var rowsAffected = await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
             logger.Debug("DecentDbStreamingImporter: Materialized {Count} artist relations", rowsAffected);
@@ -231,10 +263,10 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         progressCallback?.Invoke("Cleanup", 0, 1, "Dropping artist staging tables...");
 
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ArtistStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ArtistAliasStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM LinkStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM LinkArtistToArtistStaging", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistAliasStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""LinkStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""LinkArtistToArtistStaging""", cancellationToken);
 
         progressCallback?.Invoke("Cleanup", 1, 1, "Artist staging tables cleared");
     }
@@ -380,54 +412,102 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         {
             progressCallback?.Invoke("Materializing Albums", 0, 1, "Creating materialized albums from staging...");
 
-            var sql = @"
-                INSERT INTO Album (MusicBrainzArtistId, MusicBrainzIdRaw, Name, NameNormalized, SortName, 
-                                   ReleaseGroupMusicBrainzIdRaw, ReleaseType, ReleaseDate, ContributorIds)
+            // Query raw release data with JOINs, construct dates in C# to avoid printf() (not supported by DecentDB)
+            var connection = context.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync(cancellationToken);
+
+            var querySql = @"
                 SELECT 
-                    COALESCE(acn_artist.MusicBrainzArtistId, credit_artist.MusicBrainzArtistId),
-                    r.MusicBrainzIdRaw,
-                    r.Name,
-                    r.NameNormalized,
-                    r.SortName,
-                    rg.MusicBrainzIdRaw,
-                    rg.ReleaseType,
-                    COALESCE(
-                        CASE WHEN rc.DateYear > 0 AND rc.DateMonth > 0 AND rc.DateDay > 0 
-                             THEN printf('%04d-%02d-%02dT00:00:00', 
-                                        CASE WHEN rc.DateYear BETWEEN 1 AND 9999 THEN rc.DateYear ELSE 1 END,
-                                        CASE WHEN rc.DateMonth BETWEEN 1 AND 12 THEN rc.DateMonth ELSE 1 END,
-                                        CASE WHEN rc.DateDay BETWEEN 1 AND 31 THEN rc.DateDay ELSE 1 END)
-                             ELSE NULL END,
-                        CASE WHEN rgm.DateYear > 0 AND rgm.DateMonth > 0 AND rgm.DateDay > 0 
-                             THEN printf('%04d-%02d-%02dT00:00:00', 
-                                        CASE WHEN rgm.DateYear BETWEEN 1 AND 9999 THEN rgm.DateYear ELSE 1 END,
-                                        CASE WHEN rgm.DateMonth BETWEEN 1 AND 12 THEN rgm.DateMonth ELSE 1 END,
-                                        CASE WHEN rgm.DateDay BETWEEN 1 AND 31 THEN rgm.DateDay ELSE 1 END)
-                             ELSE NULL END
-                    ),
-                    NULL
-                FROM ReleaseStaging r
-                INNER JOIN ReleaseGroupStaging rg ON rg.ReleaseGroupId = r.ReleaseGroupId
-                LEFT JOIN ReleaseCountryStaging rc ON rc.ReleaseId = r.ReleaseId
-                LEFT JOIN ReleaseGroupMetaStaging rgm ON rgm.ReleaseGroupId = r.ReleaseGroupId
-                LEFT JOIN ArtistCreditStaging ac ON ac.ArtistCreditId = r.ArtistCreditId
-                LEFT JOIN ArtistCreditNameStaging acn ON acn.ArtistCreditId = ac.ArtistCreditId AND acn.Position = 0
-                LEFT JOIN Artist acn_artist ON acn_artist.MusicBrainzArtistId = acn.ArtistId
-                LEFT JOIN Artist credit_artist ON credit_artist.MusicBrainzArtistId = r.ArtistCreditId
-                WHERE r.Name IS NOT NULL 
-                  AND r.Name != ''
-                  AND rg.MusicBrainzIdRaw IS NOT NULL
-                  AND (acn_artist.MusicBrainzArtistId IS NOT NULL OR credit_artist.MusicBrainzArtistId IS NOT NULL)
+                    COALESCE(acn_artist.""MusicBrainzArtistId"", credit_artist.""MusicBrainzArtistId"") AS ""ArtistId"",
+                    r.""MusicBrainzIdRaw"",
+                    r.""Name"",
+                    r.""NameNormalized"",
+                    r.""SortName"",
+                    rg.""MusicBrainzIdRaw"" AS ""RgMbId"",
+                    rg.""ReleaseType"",
+                    rc.""DateYear"" AS ""RcYear"", rc.""DateMonth"" AS ""RcMonth"", rc.""DateDay"" AS ""RcDay"",
+                    rgm.""DateYear"" AS ""RgmYear"", rgm.""DateMonth"" AS ""RgmMonth"", rgm.""DateDay"" AS ""RgmDay""
+                FROM ""ReleaseStaging"" r
+                INNER JOIN ""ReleaseGroupStaging"" rg ON rg.""ReleaseGroupId"" = r.""ReleaseGroupId""
+                LEFT JOIN ""ReleaseCountryStaging"" rc ON rc.""ReleaseId"" = r.""ReleaseId""
+                LEFT JOIN ""ReleaseGroupMetaStaging"" rgm ON rgm.""ReleaseGroupId"" = r.""ReleaseGroupId""
+                LEFT JOIN ""ArtistCreditStaging"" ac ON ac.""ArtistCreditId"" = r.""ArtistCreditId""
+                LEFT JOIN ""ArtistCreditNameStaging"" acn ON acn.""ArtistCreditId"" = ac.""ArtistCreditId"" AND acn.""Position"" = 0
+                LEFT JOIN ""Artist"" acn_artist ON acn_artist.""MusicBrainzArtistId"" = acn.""ArtistId""
+                LEFT JOIN ""Artist"" credit_artist ON credit_artist.""MusicBrainzArtistId"" = r.""ArtistCreditId""
+                WHERE r.""Name"" IS NOT NULL 
+                  AND r.""Name"" != ''
+                  AND rg.""MusicBrainzIdRaw"" IS NOT NULL
+                  AND (acn_artist.""MusicBrainzArtistId"" IS NOT NULL OR credit_artist.""MusicBrainzArtistId"" IS NOT NULL)
                   AND (
-                      (rc.DateYear > 0 AND rc.DateMonth > 0 AND rc.DateDay > 0) OR
-                      (rgm.DateYear > 0 AND rgm.DateMonth > 0 AND rgm.DateDay > 0)
+                      (rc.""DateYear"" > 0 AND rc.""DateMonth"" > 0 AND rc.""DateDay"" > 0) OR
+                      (rgm.""DateYear"" > 0 AND rgm.""DateMonth"" > 0 AND rgm.""DateDay"" > 0)
                   )";
 
-            var rowsAffected = await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-            logger.Debug("DecentDbStreamingImporter: Materialized {Count} albums", rowsAffected);
+            using var queryCmd = connection.CreateCommand();
+            queryCmd.CommandText = querySql;
+            using var reader = await queryCmd.ExecuteReaderAsync(cancellationToken);
 
+            using var insertCmd = connection.CreateCommand();
+            insertCmd.CommandText = @"INSERT INTO ""Album"" (""MusicBrainzArtistId"", ""MusicBrainzIdRaw"", ""Name"", ""NameNormalized"", ""SortName"", 
+                                      ""ReleaseGroupMusicBrainzIdRaw"", ""ReleaseType"", ""ReleaseDate"", ""ContributorIds"")
+                                      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, NULL)";
+
+            var pArtistId = insertCmd.CreateParameter(); pArtistId.ParameterName = "@p0"; insertCmd.Parameters.Add(pArtistId);
+            var pMbId = insertCmd.CreateParameter(); pMbId.ParameterName = "@p1"; insertCmd.Parameters.Add(pMbId);
+            var pName = insertCmd.CreateParameter(); pName.ParameterName = "@p2"; insertCmd.Parameters.Add(pName);
+            var pNameNorm = insertCmd.CreateParameter(); pNameNorm.ParameterName = "@p3"; insertCmd.Parameters.Add(pNameNorm);
+            var pSortName = insertCmd.CreateParameter(); pSortName.ParameterName = "@p4"; insertCmd.Parameters.Add(pSortName);
+            var pRgMbId = insertCmd.CreateParameter(); pRgMbId.ParameterName = "@p5"; insertCmd.Parameters.Add(pRgMbId);
+            var pReleaseType = insertCmd.CreateParameter(); pReleaseType.ParameterName = "@p6"; insertCmd.Parameters.Add(pReleaseType);
+            var pReleaseDate = insertCmd.CreateParameter(); pReleaseDate.ParameterName = "@p7"; insertCmd.Parameters.Add(pReleaseDate);
+
+            var rowsAffected = 0;
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                pArtistId.Value = reader.GetInt64(0);
+                pMbId.Value = reader.GetString(1);
+                pName.Value = reader.GetString(2);
+                pNameNorm.Value = reader.GetString(3);
+                pSortName.Value = reader.GetString(4);
+                pRgMbId.Value = reader.GetString(5);
+                pReleaseType.Value = reader.IsDBNull(6) ? DBNull.Value : reader.GetInt32(6);
+
+                // Build date from year/month/day columns in C#
+                DateTime? releaseDate = null;
+                var rcYear = reader.IsDBNull(7) ? 0 : reader.GetInt32(7);
+                var rcMonth = reader.IsDBNull(8) ? 0 : reader.GetInt32(8);
+                var rcDay = reader.IsDBNull(9) ? 0 : reader.GetInt32(9);
+                var rgmYear = reader.IsDBNull(10) ? 0 : reader.GetInt32(10);
+                var rgmMonth = reader.IsDBNull(11) ? 0 : reader.GetInt32(11);
+                var rgmDay = reader.IsDBNull(12) ? 0 : reader.GetInt32(12);
+
+                if (rcYear > 0 && rcMonth > 0 && rcDay > 0)
+                {
+                    releaseDate = SafeDate(rcYear, rcMonth, rcDay);
+                }
+                else if (rgmYear > 0 && rgmMonth > 0 && rgmDay > 0)
+                {
+                    releaseDate = SafeDate(rgmYear, rgmMonth, rgmDay);
+                }
+
+                pReleaseDate.Value = releaseDate.HasValue ? (object)releaseDate.Value : DBNull.Value;
+                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                rowsAffected++;
+            }
+
+            logger.Debug("DecentDbStreamingImporter: Materialized {Count} albums", rowsAffected);
             progressCallback?.Invoke("Materializing Albums", 1, 1, $"Materialized {rowsAffected:N0} albums");
         }
+    }
+
+    private static DateTime? SafeDate(int year, int month, int day)
+    {
+        year = Math.Clamp(year, 1, 9999);
+        month = Math.Clamp(month, 1, 12);
+        day = Math.Clamp(day, 1, DateTime.DaysInMonth(year, month));
+        return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
     }
 
     #endregion
@@ -441,12 +521,12 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         progressCallback?.Invoke("Cleanup", 0, 1, "Dropping album staging tables...");
 
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ArtistCreditStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ArtistCreditNameStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ReleaseCountryStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ReleaseGroupStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ReleaseGroupMetaStaging", cancellationToken);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ReleaseStaging", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditNameStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseCountryStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseGroupStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseGroupMetaStaging""", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseStaging""", cancellationToken);
 
         progressCallback?.Invoke("Cleanup", 1, 1, "Album staging tables cleared");
     }
@@ -478,12 +558,12 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         var totalCount = 0;
 
         var commandText = new StringBuilder();
-        commandText.Append($"INSERT INTO {tableName} (");
-        commandText.Append(string.Join(", ", columns));
+        commandText.Append($"INSERT INTO \"{tableName}\" (");
+        commandText.Append(string.Join(", ", columns.Select(c => $"\"{c}\"")));
         commandText.Append(") VALUES (");
         for (var i = 0; i < columns.Length; i++)
         {
-            commandText.Append($"$p{i}");
+            commandText.Append($"@p{i}");
             if (i < columns.Length - 1) commandText.Append(", ");
         }
         commandText.Append(')');
@@ -494,7 +574,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         for (var i = 0; i < columns.Length; i++)
         {
             var param = command.CreateParameter();
-            param.ParameterName = $"$p{i}";
+            param.ParameterName = $"@p{i}";
             command.Parameters.Add(param);
         }
 
@@ -537,7 +617,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                 }
                 catch (Exception ex)
                 {
-                    logger.Debug("DecentDbStreamingImporter: Skipped malformed line in {File}: {Error}",
+                    logger.Warning("DecentDbStreamingImporter: Skipped malformed line in {File}: {Error}",
                         Path.GetFileName(filePath), ex.Message);
                 }
             }
@@ -592,9 +672,11 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
         if (y is > 0 and < 9999)
         {
+            var actualYear = Math.Clamp(y.Value, 1, 9999);
             var actualMonth = m is > 0 and <= 12 ? m.Value : 1;
-            var actualDay = d is > 0 and <= 31 ? d.Value : 1;
-            return $"{y:0000}-{actualMonth:00}-{actualDay:00} 00:00:00";
+            var maxDay = DateTime.DaysInMonth(actualYear, actualMonth);
+            var actualDay = d is > 0 ? Math.Min(d.Value, maxDay) : 1;
+            return new DateTime(actualYear, actualMonth, actualDay, 0, 0, 0, DateTimeKind.Utc);
         }
         return DBNull.Value;
     }

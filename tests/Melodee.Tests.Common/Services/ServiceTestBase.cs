@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Net;
 using DecentDB.EntityFrameworkCore;
 using Melodee.Common.Configuration;

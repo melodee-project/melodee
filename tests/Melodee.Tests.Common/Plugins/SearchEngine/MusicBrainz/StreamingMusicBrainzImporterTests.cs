@@ -181,7 +181,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
             _testDataPath,
             (phase, current, total, msg) =>
             {
-                if (current > 100)
+                if (current > 5)
                 {
                     cts.Cancel();
                 }

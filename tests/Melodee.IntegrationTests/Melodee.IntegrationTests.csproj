@@ -14,8 +14,8 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="DecentDB.EntityFrameworkCore" />
-    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
+    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore/DecentDB.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore.NodaTime/DecentDB.EntityFrameworkCore.NodaTime.csproj" />
   </ItemGroup>
 
   <ItemGroup>
