@@ -16,7 +16,7 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="NBomber" />
-    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore/DecentDB.EntityFrameworkCore.csproj" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

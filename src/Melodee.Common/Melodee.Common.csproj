@@ -22,8 +22,8 @@
     <PackageReference Include="Crc32.NET" />
     <PackageReference Include="CsvHelper" />
     <PackageReference Include="Dapper" />
-    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore/DecentDB.EntityFrameworkCore.csproj" />
-    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore.NodaTime/DecentDB.EntityFrameworkCore.NodaTime.csproj" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
     <PackageReference Include="Fastenshtein" />
     <PackageReference Include="FFMpegCore" />
     <PackageReference Include="FluentValidation" />
