@@ -95,24 +95,32 @@ public class DecentDBMusicBrainzRepository(
             {
                 await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-                Artist[] foundArtists;
+                await MusicBrainzSchemaInitializer.EnsureArtistAliasTableAsync(context, cancellationToken);
 
-                if (query.MusicBrainzIdValue != null)
+                Artist[] foundArtists = [];
+                var mbIdRaw = query.MusicBrainzIdValue?.ToString();
+
+                if (!string.IsNullOrEmpty(query.NameNormalized))
                 {
-                    var mbIdRaw = query.MusicBrainzIdValue.Value.ToString();
+                    foundArtists = await SearchByNameAsync(context, query, maxSearchResults, cancellationToken);
+
+                    if (foundArtists.Length > 0 && !string.IsNullOrEmpty(mbIdRaw))
+                    {
+                        var exactIdMatch = foundArtists.FirstOrDefault(a => a.MusicBrainzIdRaw == mbIdRaw);
+                        if (exactIdMatch != null)
+                        {
+                            foundArtists = [exactIdMatch];
+                        }
+                    }
+                }
+
+                if (foundArtists.Length == 0 && !string.IsNullOrEmpty(mbIdRaw))
+                {
                     foundArtists = await context.Artists
                         .AsNoTracking()
                         .Where(a => a.MusicBrainzIdRaw == mbIdRaw)
                         .Take(maxSearchResults)
                         .ToArrayAsync(cancellationToken);
-                }
-                else if (!string.IsNullOrEmpty(query.NameNormalized))
-                {
-                    foundArtists = await SearchByNameAsync(context, query, maxSearchResults, cancellationToken);
-                }
-                else
-                {
-                    foundArtists = [];
                 }
 
                 logger.Debug("[{RepoName}] Search found [{Count}] artists for [{NameNormalized}]",
@@ -257,11 +265,11 @@ public class DecentDBMusicBrainzRepository(
                 };
             }
 
-            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            await context.Database.EnsureCreatedAsync(cancellationToken);
-
             try
             {
+                await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                await context.Database.EnsureCreatedAsync(cancellationToken);
+
                 var importer = new DecentDBStreamingMusicBrainzImporter(logger);
 
                 await importer.ImportAsync(
@@ -294,7 +302,7 @@ public class DecentDBMusicBrainzRepository(
     }
 
     /// <summary>
-    /// Multi-step pure EF Core search: exact → reversed → alternate names → word tokenized.
+    /// Multi-step pure EF Core search: exact → reversed → indexed alias lookup.
     /// </summary>
     private static async Task<Artist[]> SearchByNameAsync(
         MusicBrainzDbContext context,
@@ -331,128 +339,32 @@ public class DecentDBMusicBrainzRepository(
             }
         }
 
-        // Step 3: Search in alternate names
-        artists = await context.Artists
+        // Step 3: Exact alias lookup through the dedicated alias table.
+        var aliasTerms = query.NameNormalizedReversed != query.NameNormalized
+            ? new[] { query.NameNormalized, query.NameNormalizedReversed }
+            : new[] { query.NameNormalized };
+
+        var aliasArtistIds = await context.ArtistAliases
             .AsNoTracking()
-            .Where(a => a.AlternateNames != null && a.AlternateNames.Contains(query.NameNormalized))
-            .OrderBy(a => a.SortName)
-            .Take(maxResults)
+            .Where(a => aliasTerms.Contains(a.NameNormalized))
+            .Select(a => a.MusicBrainzArtistId)
             .ToArrayAsync(cancellationToken);
 
-        if (artists.Length > 0)
-        {
-            return artists;
-        }
-
-        // Step 4: Word tokenization search for multi-word queries
-        var words = ExtractWordsFromNormalized(query.NameNormalized);
-        if (words.Length > 1)
-        {
-            var significantWords = words.Where(w => w.Length >= 4).Take(3).ToArray();
-            if (significantWords.Length > 0)
-            {
-                var wordResults = new List<Artist>();
-                foreach (var word in significantWords)
-                {
-                    var wordArtists = await context.Artists
-                        .AsNoTracking()
-                        .Where(a => a.NameNormalized.Contains(word) ||
-                                    (a.AlternateNames != null && a.AlternateNames.Contains(word)))
-                        .OrderBy(a => a.SortName)
-                        .Take(maxResults)
-                        .ToArrayAsync(cancellationToken);
-
-                    wordResults.AddRange(wordArtists);
-                }
-
-                artists = wordResults
-                    .DistinctBy(a => a.Id)
-                    .Take(maxResults)
-                    .ToArray();
-            }
-        }
-
-        return artists;
-    }
-
-    /// <summary>
-    /// Extracts individual words from a normalized artist name for tokenized search.
-    /// </summary>
-    /// <example>
-    /// "SMOKEYROBINSONMIRACLES" -> ["SMOKEY", "ROBINSON", "MIRACLES"]
-    /// "ARMINVANBUURENANDDJSHAH" -> ["ARMIN", "VAN", "BUUREN", "AND", "DJ", "SHAH"]
-    /// </example>
-    private static string[] ExtractWordsFromNormalized(string normalizedName)
-    {
-        if (string.IsNullOrEmpty(normalizedName) || normalizedName.Length < 4)
+        if (aliasArtistIds.Length == 0)
         {
             return [];
         }
 
-        var words = new List<string>();
+        var distinctAliasArtistIds = aliasArtistIds
+            .Distinct()
+            .Take(maxResults)
+            .ToArray();
 
-        string[] commonPatterns =
-        [
-            "AND", "THE", "FEAT", "FEATURING", "WITH", "VS", "VERSUS",
-            "DJ", "MC", "DR", "MR", "MRS", "MS",
-            "VAN", "VON", "DE", "LA", "LE", "EL",
-            "BAND", "GROUP", "TRIO", "QUARTET", "QUINTET", "ORCHESTRA", "ENSEMBLE",
-            "PROJECT", "EXPERIENCE", "COLLECTIVE", "FAMILY", "BROTHERS", "SISTERS"
-        ];
-
-        var remaining = normalizedName;
-
-        foreach (var pattern in commonPatterns.OrderByDescending(p => p.Length))
-        {
-            var idx = remaining.IndexOf(pattern, StringComparison.Ordinal);
-            if (idx >= 0)
-            {
-                if (idx > 0)
-                {
-                    var before = remaining[..idx];
-                    if (before.Length >= 3)
-                    {
-                        words.Add(before);
-                    }
-                }
-
-                words.Add(pattern);
-
-                if (idx + pattern.Length < remaining.Length)
-                {
-                    var after = remaining[(idx + pattern.Length)..];
-                    if (after.Length >= 3)
-                    {
-                        words.AddRange(ExtractWordsFromNormalized(after));
-                    }
-                }
-
-                return words.Distinct().Where(w => w.Length >= 3).ToArray();
-            }
-        }
-
-        if (normalizedName.Length <= 12)
-        {
-            return [normalizedName];
-        }
-
-        words.Add(normalizedName);
-
-        foreach (var splitLen in new[] { 5, 6, 7, 8 })
-        {
-            if (normalizedName.Length > splitLen + 3)
-            {
-                var firstPart = normalizedName[..splitLen];
-                var secondPart = normalizedName[splitLen..];
-
-                if (firstPart.Length >= 4 && secondPart.Length >= 4)
-                {
-                    words.Add(firstPart);
-                    words.Add(secondPart);
-                }
-            }
-        }
-
-        return words.Distinct().Where(w => w.Length >= 3).ToArray();
+        return await context.Artists
+            .AsNoTracking()
+            .Where(a => distinctAliasArtistIds.Contains(a.MusicBrainzArtistId))
+            .OrderBy(a => a.SortName)
+            .Take(maxResults)
+            .ToArrayAsync(cancellationToken);
     }
 }

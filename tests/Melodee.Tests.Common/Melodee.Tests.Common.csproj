@@ -16,8 +16,6 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NBomber" />
     <PackageReference Include="NodaTime.Testing" />
-    <PackageReference Include="DecentDB.EntityFrameworkCore" />
-    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Moq" />

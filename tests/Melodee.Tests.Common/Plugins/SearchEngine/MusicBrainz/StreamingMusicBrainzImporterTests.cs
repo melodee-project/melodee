@@ -114,9 +114,11 @@ public class StreamingMusicBrainzImporterTests : IDisposable
             CancellationToken.None);
 
         var artistCount = await context.Artists.CountAsync();
+        var aliasCount = await context.ArtistAliases.CountAsync();
         var albumCount = await context.Albums.CountAsync();
 
         artistCount.Should().Be(stats.ArtistCount);
+        aliasCount.Should().BeGreaterThan(0);
         albumCount.Should().BeGreaterThan(0);
         progressMessages.Should().NotBeEmpty();
     }
@@ -215,6 +217,73 @@ public class StreamingMusicBrainzImporterTests : IDisposable
 
         var artistCount = await context.Artists.CountAsync();
         artistCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WithDuplicateReleaseCountries_MaterializesSingleAlbumPerRelease()
+    {
+        var storagePath = Path.Combine(_testDataPath, "duplicate-release-country");
+        var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
+        var dbFile = Path.Combine(_testDbPath, "duplicate-release-country.ddb");
+
+        Directory.CreateDirectory(mbDumpPath);
+
+        File.WriteAllLines(Path.Combine(mbDumpPath, "artist"),
+        [
+            "1\t11111111-1111-1111-1111-111111111111\tThe Example Artist\tExample Artist, The"
+        ]);
+        File.WriteAllText(Path.Combine(mbDumpPath, "artist_alias"), string.Empty);
+        File.WriteAllText(Path.Combine(mbDumpPath, "link"), string.Empty);
+        File.WriteAllText(Path.Combine(mbDumpPath, "l_artist_artist"), string.Empty);
+        File.WriteAllLines(Path.Combine(mbDumpPath, "artist_credit"),
+        [
+            "10\tignored\t1"
+        ]);
+        File.WriteAllLines(Path.Combine(mbDumpPath, "artist_credit_name"),
+        [
+            "10\t0\t1"
+        ]);
+        File.WriteAllLines(Path.Combine(mbDumpPath, "release_group"),
+        [
+            "100\t22222222-2222-2222-2222-222222222222\tignored\t10\t1"
+        ]);
+        File.WriteAllLines(Path.Combine(mbDumpPath, "release_group_meta"),
+        [
+            "100\tignored\t2019\t1\t1"
+        ]);
+        File.WriteAllLines(Path.Combine(mbDumpPath, "release"),
+        [
+            "1000\t33333333-3333-3333-3333-333333333333\tExample Album\t10\t100"
+        ]);
+        File.WriteAllLines(Path.Combine(mbDumpPath, "release_country"),
+        [
+            "1000\tignored\t2020\t3\t4",
+            "1000\tignored\t2020\t5\t6"
+        ]);
+
+        var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB($"Data Source={dbFile}")
+            .Options;
+
+        await using var context = new MusicBrainzDbContext(dbOptions);
+        await context.Database.EnsureCreatedAsync();
+
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
+
+        await importer.ImportAsync(
+            context,
+            storagePath,
+            null,
+            CancellationToken.None);
+
+        var albums = await context.Albums
+            .AsNoTracking()
+            .OrderBy(album => album.Id)
+            .ToListAsync();
+
+        albums.Should().HaveCount(1);
+        albums[0].MusicBrainzIdRaw.Should().Be("33333333-3333-3333-3333-333333333333");
+        albums[0].ReleaseDate.Should().Be(new DateTime(2020, 3, 4, 0, 0, 0, DateTimeKind.Utc));
     }
 
     [Theory]

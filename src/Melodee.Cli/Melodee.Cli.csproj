@@ -19,12 +19,6 @@
 
   <ItemGroup>
 
-    <PackageReference Include="DecentDB.EntityFrameworkCore" />
-
-    <PackageReference Include="DecentDB.EntityFrameworkCore.Design" />
-
-    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
-
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Serilog;
 using Album = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Album;
+using ArtistAliasLookup = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.ArtistAliasLookup;
 using Artist = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Artist;
 
 namespace Melodee.Tests.Common.Plugins.SearchEngine;
@@ -145,6 +146,25 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
     }
 
     [Fact]
+    public async Task SearchArtist_WithNameAndStaleMusicBrainzId_ReturnsExactNameMatch()
+    {
+        SetupTestArtistData();
+
+        var query = new ArtistQuery
+        {
+            Name = "Test Artist",
+            MusicBrainzId = Guid.NewGuid().ToString()
+        };
+
+        var result = await _repository.SearchArtist(query, 10);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Data);
+        Assert.Equal("Test Artist", result.Data.First().Name);
+    }
+
+    [Fact]
     public async Task SearchArtist_WithEmptyQuery_ReturnsEmptyResult()
     {
         var query = new ArtistQuery { Name = "" };
@@ -213,6 +233,7 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         // Clear any existing data to avoid conflicts
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
         context.Artists.RemoveRange(context.Artists);
         context.Albums.RemoveRange(context.Albums);
         await context.SaveChangesAsync();
@@ -350,6 +371,7 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         // Clear any existing data to avoid conflicts
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
         context.Artists.RemoveRange(context.Artists);
         context.Albums.RemoveRange(context.Albums);
         await context.SaveChangesAsync();
@@ -392,11 +414,17 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         // Clear any existing data to avoid conflicts
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
         context.Artists.RemoveRange(context.Artists);
         context.Albums.RemoveRange(context.Albums);
         await context.SaveChangesAsync();
 
         context.Artists.Add(testArtist);
+        context.ArtistAliases.Add(new ArtistAliasLookup
+        {
+            MusicBrainzArtistId = testArtist.MusicBrainzArtistId,
+            NameNormalized = "The Artist Formerly Known As Prince".ToNormalizedString() ?? string.Empty
+        });
         await context.SaveChangesAsync();
 
         var query = new ArtistQuery
@@ -431,6 +459,7 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         // Clear any existing data to avoid conflicts
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
         context.Artists.RemoveRange(context.Artists);
         context.SaveChanges();
 
@@ -476,6 +505,7 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         // Clear any existing data to avoid conflicts
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
         context.Artists.RemoveRange(context.Artists);
         context.Albums.RemoveRange(context.Albums);
         context.SaveChanges();
@@ -515,6 +545,7 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
 
         using var context = new MusicBrainzDbContext(_dbContextOptions);
         // Clear any existing data to avoid conflicts
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
         context.Artists.RemoveRange(context.Artists);
         context.Albums.RemoveRange(context.Albums);
         context.SaveChanges();

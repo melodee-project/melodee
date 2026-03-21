@@ -76,9 +76,22 @@ public class ArtistSearchEngineService(
         await using (var scopedContext = await artistSearchEngineServiceDbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
             await scopedContext.Database.EnsureCreatedAsync(cancellationToken);
+            await EnsureHousekeepingIndexesAsync(scopedContext, cancellationToken).ConfigureAwait(false);
         }
 
         _initialized = true;
+    }
+
+    private static async Task EnsureHousekeepingIndexesAsync(
+        ArtistSearchEngineServiceDbContext context,
+        CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
+            ON "Artists" ("IsLocked", "LastRefreshed")
+            """,
+            cancellationToken);
     }
 
     private void OnConfigurationChanged(object? sender, EventArgs e) => _ = OnConfigurationChangedAsync(sender, e);

@@ -14,6 +14,7 @@ namespace Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 [Index(nameof(MusicBrainzId), IsUnique = true)]
 [Index(nameof(LastFmId), IsUnique = true)]
 [Index(nameof(SpotifyId), IsUnique = true)]
+[Index(nameof(IsLocked), nameof(LastRefreshed))]
 public sealed class Artist
 {
     [Key] public int Id { get; set; }
