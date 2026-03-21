@@ -14,8 +14,8 @@ public interface IDoctorService : Common.Services.Doctor.IDoctorService
     Task<BlazorDoctorCheckResults> RunAllChecksAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Quickly checks if any critical issues need attention.
-    /// Used by the Dashboard to show/hide the health warning banner.
+    /// Quickly checks for lightweight health issues that should surface on the dashboard.
+    /// Used by the Dashboard to show/hide the health warning banner without running full diagnostics.
     /// </summary>
     Task<bool> NeedsAttentionAsync(CancellationToken cancellationToken = default);
 

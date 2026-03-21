@@ -59,162 +59,44 @@ public sealed class DoctorService(
 
     public async Task<bool> NeedsAttentionAsync(CancellationToken cancellationToken = default)
     {
-        // Check critical configuration
+        // Dashboard uses this fast path on first render, so keep it limited to
+        // cheap checks that still catch obviously unhealthy startup state.
         if (HasMissingConnectionStrings())
         {
             return true;
         }
 
-        // Check main database connectivity
+        if (HasFileBackedDatabaseIssues("MusicBrainzConnection"))
+        {
+            return true;
+        }
+
+        if (HasFileBackedDatabaseIssues("ArtistSearchEngineConnection"))
+        {
+            return true;
+        }
+
         try
         {
             await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-            if (!await db.Database.CanConnectAsync(cancellationToken))
-            {
-                return true;
-            }
+            return !await db.Database.CanConnectAsync(cancellationToken);
         }
         catch
         {
             return true;
         }
-
-        // Check MusicBrainz database
-        if (await IsMusicBrainzDatabaseEmptyAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check library paths
-        if (await HasLibraryPathIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check disk space
-        if (await HasDiskSpaceIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check library paths overlap
-        if (await HasLibraryPathOverlapAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check search engine API keys
-        if (await HasSearchEngineApiKeyIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check SMTP configuration if email is enabled
-        if (await HasSmtpConfigurationIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check JWT token strength
-        if (HasJwtTokenStrengthIssues())
-        {
-            return true;
-        }
-
-        // Check HTTPS in production
-        if (HasHttpsIssues())
-        {
-            return true;
-        }
-
-        // Check for default admin password
-        if (await HasDefaultAdminPasswordAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check scheduler status
-        if (await HasSchedulerIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check FFmpeg availability (critical for media conversion)
-        if (HasFFmpegIssues())
-        {
-            return true;
-        }
-
-        // Check memory pressure
-        if (HasMemoryPressureIssues())
-        {
-            return true;
-        }
-
-        // Check Jukebox configuration if enabled
-        if (await HasJukeboxConfigurationIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check Podcast configuration if enabled
-        if (await HasPodcastConfigurationIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     public async Task<bool> IsMusicBrainzDatabaseEmptyAsync(CancellationToken cancellationToken = default)
     {
         var connectionString = configuration.GetConnectionString("MusicBrainzConnection");
-        if (string.IsNullOrWhiteSpace(connectionString))
+        if (!HasNonEmptyFileBackedDatabase(connectionString))
         {
             return true;
         }
 
-        try
-        {
-            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
-            var dataSource = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
-
-            if (string.IsNullOrWhiteSpace(dataSource))
-            {
-                return true;
-            }
-
-            if (!File.Exists(dataSource))
-            {
-                return true;
-            }
-
-            var fileInfo = new FileInfo(dataSource);
-            if (fileInfo.Length == 0)
-            {
-                return true;
-            }
-
-            await using var db = await musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
-            if (!await db.Database.CanConnectAsync(cancellationToken))
-            {
-                return true;
-            }
-
-            try
-            {
-                var artistCount = await db.Artists.Take(1).CountAsync(cancellationToken);
-                return artistCount == 0;
-            }
-            catch
-            {
-                return true;
-            }
-        }
-        catch
-        {
-            return true;
-        }
+        var (canConnect, hasArtistData) = await GetMusicBrainzConnectionStateAsync(cancellationToken);
+        return !canConnect || !hasArtistData;
     }
 
     public async Task<BlazorDoctorCheckResults> RunAllChecksAsync(CancellationToken cancellationToken = default)
@@ -339,19 +221,23 @@ public sealed class DoctorService(
         {
             var connectionString = configuration.GetConnectionString("MusicBrainzConnection") ?? "";
             var fileInfo = DescribeFileDatabasePath(connectionString);
-
-            var isEmpty = await IsMusicBrainzDatabaseEmptyAsync(cancellationToken);
-
-            if (isEmpty)
+            if (!HasNonEmptyFileBackedDatabase(connectionString))
             {
                 return (new DoctorCheckResult("MusicBrainzDatabase", false, "MusicBrainz database is empty or not initialized", sw.Elapsed), true);
             }
 
-            await using var db = await musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
+            var (canConnect, hasArtistData) = await GetMusicBrainzConnectionStateAsync(cancellationToken);
+            if (!canConnect)
+            {
+                return (new DoctorCheckResult("MusicBrainzDatabase", false, $"Unable to connect; {fileInfo}", sw.Elapsed), true);
+            }
 
-            return (new DoctorCheckResult("MusicBrainzDatabase", canConnect, details, sw.Elapsed), false);
+            if (!hasArtistData)
+            {
+                return (new DoctorCheckResult("MusicBrainzDatabase", false, $"MusicBrainz database is empty or not initialized; {fileInfo}", sw.Elapsed), true);
+            }
+
+            return (new DoctorCheckResult("MusicBrainzDatabase", true, $"OK; {fileInfo}", sw.Elapsed), false);
         }
         catch (Exception ex)
         {
@@ -533,6 +419,56 @@ public sealed class DoctorService(
             size /= 1024;
         }
         return $"{size:0.##} {sizes[order]}";
+    }
+
+    private bool HasFileBackedDatabaseIssues(string connectionStringName)
+    {
+        return !HasNonEmptyFileBackedDatabase(configuration.GetConnectionString(connectionStringName));
+    }
+
+    private static bool HasNonEmptyFileBackedDatabase(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return false;
+        }
+
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var path = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+            return !string.IsNullOrWhiteSpace(path) && File.Exists(path) && new FileInfo(path).Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<(bool CanConnect, bool HasArtistData)> GetMusicBrainzConnectionStateAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+            if (!canConnect)
+            {
+                return (false, false);
+            }
+
+            // DecentDB's current EF bindings handle FirstOrDefault much more efficiently
+            // than Any/Count-style existence probes on this large file-backed dataset.
+            var firstArtistId = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, firstArtistId != 0);
+        }
+        catch
+        {
+            return (false, false);
+        }
     }
 
     private static bool IsDirectoryWritable(string path)

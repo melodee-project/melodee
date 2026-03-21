@@ -1,3 +1,4 @@
+using DecentDB.EntityFrameworkCore;
 using Melodee.Common.Data;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
@@ -61,6 +62,41 @@ public class DoctorServiceTests
     }
 
     [Fact]
+    public async Task NeedsAttentionAsync_HealthyFastPath_DoesNotOpenDecentDbContexts()
+    {
+        ConfigurePrimaryDatabaseCanConnect();
+
+        var musicBrainzPath = CreateNonEmptyFile("musicbrainz-fast-path");
+        var artistSearchPath = CreateNonEmptyFile("artist-search-fast-path");
+
+        try
+        {
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+            });
+            var service = CreateService(configuration);
+
+            var result = await service.NeedsAttentionAsync();
+
+            Assert.False(result);
+            _musicBrainzDbContextFactory.Verify(
+                x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()),
+                Times.Never);
+            _artistSearchEngineDbContextFactory.Verify(
+                x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+        finally
+        {
+            DeleteFileIfExists(musicBrainzPath);
+            DeleteFileIfExists(artistSearchPath);
+        }
+    }
+
+    [Fact]
     public async Task IsMusicBrainzDatabaseEmptyAsync_NoConnectionString_ReturnsTrue()
     {
         var configuration = CreateConfiguration(new Dictionary<string, string?>());
@@ -119,10 +155,78 @@ public class DoctorServiceTests
         }
         finally
         {
-            if (File.Exists(tempPath))
+            DeleteFileIfExists(tempPath);
+        }
+    }
+
+    [Fact]
+    public async Task IsMusicBrainzDatabaseEmptyAsync_InitializedDatabaseWithoutArtists_ReturnsTrue()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-empty-{Guid.NewGuid():N}.ddb");
+
+        try
+        {
+            var options = CreateMusicBrainzOptions(tempPath);
+            await using (var context = new MusicBrainzDbContext(options))
             {
-                File.Delete(tempPath);
+                await context.Database.EnsureCreatedAsync();
             }
+
+            ConfigureMusicBrainzDatabase(options);
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={tempPath}"
+            });
+            var service = CreateService(configuration);
+
+            var result = await service.IsMusicBrainzDatabaseEmptyAsync();
+
+            Assert.True(result);
+        }
+        finally
+        {
+            DeleteFileIfExists(tempPath);
+        }
+    }
+
+    [Fact]
+    public async Task IsMusicBrainzDatabaseEmptyAsync_DatabaseWithArtists_ReturnsFalse()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-data-{Guid.NewGuid():N}.ddb");
+
+        try
+        {
+            var options = CreateMusicBrainzOptions(tempPath);
+            await using (var context = new MusicBrainzDbContext(options))
+            {
+                await context.Database.EnsureCreatedAsync();
+                await context.Artists.AddAsync(new Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Artist
+                {
+                    MusicBrainzArtistId = 1,
+                    Name = "Test Artist",
+                    SortName = "Test Artist",
+                    NameNormalized = "test artist",
+                    MusicBrainzIdRaw = Guid.NewGuid().ToString()
+                });
+                await context.SaveChangesAsync();
+            }
+
+            ConfigureMusicBrainzDatabase(options);
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={tempPath}"
+            });
+            var service = CreateService(configuration);
+
+            var result = await service.IsMusicBrainzDatabaseEmptyAsync();
+
+            Assert.False(result);
+        }
+        finally
+        {
+            DeleteFileIfExists(tempPath);
         }
     }
 
@@ -159,7 +263,6 @@ public class DoctorServiceTests
 
         var results = await service.RunAllChecksAsync();
 
-        // When configuration is missing, one or more checks should fail
         Assert.True(results.HasIssues);
     }
 
@@ -298,5 +401,50 @@ public class DoctorServiceTests
             ["ConnectionStrings:MusicBrainzConnection"] = "Data Source=/tmp/test.db",
             ["ConnectionStrings:ArtistSearchEngineConnection"] = "Data Source=/tmp/test2.db"
         });
+    }
+
+    private void ConfigurePrimaryDatabaseCanConnect()
+    {
+        var options = new DbContextOptionsBuilder<MelodeeDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        using (var context = new MelodeeDbContext(options))
+        {
+            context.Database.EnsureCreated();
+        }
+
+        _dbContextFactory
+            .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MelodeeDbContext(options));
+    }
+
+    private void ConfigureMusicBrainzDatabase(DbContextOptions<MusicBrainzDbContext> options)
+    {
+        _musicBrainzDbContextFactory
+            .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MusicBrainzDbContext(options));
+    }
+
+    private static DbContextOptions<MusicBrainzDbContext> CreateMusicBrainzOptions(string path)
+    {
+        return new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB($"Data Source={path}")
+            .Options;
+    }
+
+    private static string CreateNonEmptyFile(string prefix)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}.ddb");
+        File.WriteAllText(path, "ready");
+        return path;
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
     }
 }
