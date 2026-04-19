@@ -96,7 +96,7 @@ public sealed class LibraryInboundProcessJob(
         var processedCount = 0;
         try
         {
-            dataMap.Put(JobMapNameRegistry.ScanStatus, ScanStatus.InProcess.ToString());
+            dataMap[JobMapNameRegistry.ScanStatus] = ScanStatus.InProcess.ToString();
             await directoryProcessorToStagingService.InitializeAsync(null, context.CancellationToken)
                 .ConfigureAwait(false);
             var result = await directoryProcessorToStagingService.ProcessDirectoryAsync(new FileSystemDirectoryInfo
@@ -111,11 +111,11 @@ public sealed class LibraryInboundProcessJob(
             }
 
             processedCount = result.Data.NewAlbumsCount + result.Data.NewArtistsCount + result.Data.NewSongsCount;
-            dataMap.Put(JobMapNameRegistry.ScanStatus, ScanStatus.Idle.ToString());
-            dataMap.Put(JobMapNameRegistry.Count, processedCount);
-            dataMap.Put(JobMapNameRegistry.NewArtistsCount, result.Data.NewArtistsCount);
-            dataMap.Put(JobMapNameRegistry.NewAlbumsCount, result.Data.NewAlbumsCount);
-            dataMap.Put(JobMapNameRegistry.NewSongsCount, result.Data.NewSongsCount);
+            dataMap[JobMapNameRegistry.ScanStatus] = ScanStatus.Idle.ToString();
+            dataMap[JobMapNameRegistry.Count] = processedCount;
+            dataMap[JobMapNameRegistry.NewArtistsCount] = result.Data.NewArtistsCount;
+            dataMap[JobMapNameRegistry.NewAlbumsCount] = result.Data.NewAlbumsCount;
+            dataMap[JobMapNameRegistry.NewSongsCount] = result.Data.NewSongsCount;
             await libraryService.CreateLibraryScanHistory(inboundLibrary, new LibraryScanHistory
             {
                 CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow),
@@ -175,7 +175,7 @@ public sealed class LibraryInboundProcessJob(
                 if (context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.ChainOnComplete) &&
                     context.MergedJobDataMap.GetBoolean(MelodeeJobExecutionContext.ChainOnComplete))
                 {
-                    jobDataMap.Put(MelodeeJobExecutionContext.ChainOnComplete, true);
+                    jobDataMap[MelodeeJobExecutionContext.ChainOnComplete] = true;
                 }
 
                 await scheduler.TriggerJob(nextJobKey, jobDataMap, context.CancellationToken).ConfigureAwait(false);

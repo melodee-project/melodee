@@ -180,7 +180,7 @@ public class LibraryInsertJob(
             }
 
             var librariesToProcess = libraries.Data.Where(x => x.TypeValue == LibraryType.Storage).ToArray();
-            _dataMap.Put(JobMapNameRegistry.ScanStatus, nameof(ScanStatus.InProcess));
+            _dataMap[JobMapNameRegistry.ScanStatus] = nameof(ScanStatus.InProcess);
 
             var totalMelodeeFilesProcessed = 0;
             var totalMelodeeFilesToProcess = 0;
@@ -373,8 +373,8 @@ public class LibraryInsertJob(
                         $"Completed library [{libraryIndex.library.Name}]"));
             }
 
-            _dataMap.Put(JobMapNameRegistry.ScanStatus, nameof(ScanStatus.Idle));
-            _dataMap.Put(JobMapNameRegistry.Count, _totalAlbumsInserted + _totalArtistsInserted + _totalSongsInserted);
+            _dataMap[JobMapNameRegistry.ScanStatus] = nameof(ScanStatus.Idle);
+            _dataMap[JobMapNameRegistry.Count] = _totalAlbumsInserted + _totalArtistsInserted + _totalSongsInserted;
 
             var stopSummary =
                 $"Processed [{totalMelodeeFilesProcessed}] albums, inserted [{_totalAlbumsInserted}] albums, [{_totalSongsInserted}] songs";
@@ -749,11 +749,10 @@ public class LibraryInsertJob(
 
     private void UpdateDataMap()
     {
-        _dataMap.Put(
-            JobMapNameRegistry.Count,
+        _dataMap[JobMapNameRegistry.Count] =
             _totalAlbumsInserted +
             _totalArtistsInserted +
-            _totalSongsInserted);
+            _totalSongsInserted;
     }
 
     private static bool IsAlbumUniqueConstraint(DbUpdateException ex)
