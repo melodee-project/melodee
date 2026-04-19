@@ -38,7 +38,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         return number.ToString("N0");
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryScanSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryScanSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var overallStartTime = Stopwatch.GetTimestamp();

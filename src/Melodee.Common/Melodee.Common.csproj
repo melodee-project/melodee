@@ -22,6 +22,8 @@
     <PackageReference Include="Crc32.NET" />
     <PackageReference Include="CsvHelper" />
     <PackageReference Include="Dapper" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
     <PackageReference Include="Fastenshtein" />
     <PackageReference Include="FFMpegCore" />
     <PackageReference Include="FluentValidation" />
@@ -35,8 +37,6 @@
     <PackageReference Include="Jint" />
     <PackageReference Include="K4os.Hash.xxHash" />
     <PackageReference Include="LiteDB" />
-    <PackageReference Include="Lucene.Net" />
-    <PackageReference Include="Lucene.Net.Analysis.Common" />
     <PackageReference Include="Mapster" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.AspNetCore.Http" />
@@ -79,11 +79,6 @@
     <PackageReference Include="System.Linq.Dynamic.Core" />
     <PackageReference Include="System.ServiceModel.Syndication" />
     <PackageReference Include="z440.atl.core" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore/DecentDB.EntityFrameworkCore.csproj" />
-    <ProjectReference Include="../../../decentdb/bindings/dotnet/src/DecentDB.EntityFrameworkCore.NodaTime/DecentDB.EntityFrameworkCore.NodaTime.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -12,7 +12,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class UserListCommand : CommandBase<UserListSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, UserListSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserListSettings settings, CancellationToken cancellationToken)
     {
         try
         {

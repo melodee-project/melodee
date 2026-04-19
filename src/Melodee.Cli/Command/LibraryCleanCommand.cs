@@ -19,7 +19,7 @@ public class LibraryCleanCommand : CommandBase<LibraryCleanSettings>
         return number.ToString("N0");
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryCleanSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryCleanSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

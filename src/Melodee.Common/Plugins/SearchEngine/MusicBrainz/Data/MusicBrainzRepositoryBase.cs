@@ -1,10 +1,5 @@
 using System.Collections.Concurrent;
 using System.Globalization;
-using Lucene.Net.Analysis.Standard;
-using Lucene.Net.Documents;
-using Lucene.Net.Index;
-using Lucene.Net.Store;
-using Lucene.Net.Util;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Enums;
@@ -35,7 +30,6 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
     : IMusicBrainzRepository
 {
     public const int MaxIndexSize = 255;
-    private const LuceneVersion AppLuceneVersion = LuceneVersion.LUCENE_48;
 
     protected readonly ConcurrentBag<Album> LoadedMaterializedAlbums = [];
     protected readonly ConcurrentBag<ArtistRelation> LoadedMaterializedArtistRelations = [];
@@ -142,50 +136,6 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
         LoadedMaterializedAlbums.Clear();
         GC.Collect();
         GC.WaitForPendingFinalizers();
-    }
-
-    /// <summary>
-    /// Creates a Lucene search index from the materialized artists.
-    /// Should be called after artists are materialized but before they are cleared from memory.
-    /// </summary>
-    protected void CreateLuceneIndex(string luceneIndexPath, IReadOnlyCollection<Artist> artists, ImportProgressCallback? progressCallback)
-    {
-        using (Operation.At(LogEventLevel.Debug).Time("MusicBrainzRepository: Created Lucene Index"))
-        {
-            if (System.IO.Directory.Exists(luceneIndexPath))
-            {
-                System.IO.Directory.Delete(luceneIndexPath, true);
-            }
-
-            progressCallback?.Invoke("Creating Index", 0, artists.Count, "Building Lucene search index...");
-
-            using var dir = FSDirectory.Open(luceneIndexPath);
-            var analyzer = new StandardAnalyzer(AppLuceneVersion);
-            var indexConfig = new IndexWriterConfig(AppLuceneVersion, analyzer);
-            using var writer = new IndexWriter(dir, indexConfig);
-
-            var indexCount = 0;
-            foreach (var artist in artists)
-            {
-                var artistDoc = new Document
-                {
-                    new StringField(nameof(Artist.MusicBrainzIdRaw), artist.MusicBrainzIdRaw, Field.Store.YES),
-                    new StringField(nameof(Artist.NameNormalized), artist.NameNormalized, Field.Store.YES),
-                    new TextField(nameof(Artist.AlternateNames), artist.AlternateNames ?? string.Empty, Field.Store.YES)
-                };
-                writer.AddDocument(artistDoc);
-
-                indexCount++;
-                if (indexCount % 50000 == 0)
-                {
-                    progressCallback?.Invoke("Creating Index", indexCount, artists.Count,
-                        $"Indexed {indexCount:N0} / {artists.Count:N0} artists");
-                }
-            }
-
-            writer.Flush(false, false);
-            progressCallback?.Invoke("Creating Index", artists.Count, artists.Count, "Lucene index complete");
-        }
     }
 
     /// <summary>
@@ -366,11 +316,7 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
         LoadedMaterializedArtists.Clear();
         LoadedMaterializedArtistRelations.Clear();
 
-        // Create Lucene index FIRST while we still have artist data
-        var luceneIndexPath = Path.Combine(storagePath, "lucene");
-        CreateLuceneIndex(luceneIndexPath, artistsList, progressCallback);
-
-        // Clear raw artist intermediate data - no longer needed after Lucene indexing
+        // Clear raw artist intermediate data after materialization to reduce peak memory use.
         Logger.Debug("MusicBrainzRepository: Clearing artist intermediate data to free memory...");
         ClearArtistIntermediateData();
         progressCallback?.Invoke("Memory Cleanup", 1, 1, "Freed artist intermediate data");

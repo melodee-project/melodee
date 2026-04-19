@@ -19,7 +19,7 @@ namespace Melodee.Cli.Command;
 
 public sealed class DoctorCommand : CommandBase<DoctorSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings, CancellationToken cancellationToken)
     {
         var startedAt = Stopwatch.StartNew();
 

@@ -1,145 +1,144 @@
 <Project ToolsVersion="15.0">
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Ardalis.GuardClauses" Version="5.0.0" />
-    <PackageVersion Include="Asp.Versioning.Http" Version="8.1.1" />
-    <PackageVersion Include="Asp.Versioning.Mvc" Version="8.1.1" />
-    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.1" />
-    <PackageVersion Include="AuralizeBlazor" Version="3.0.4" />
-    <PackageVersion Include="BCrypt.Net-Next" Version="4.1.0" />
-    <PackageVersion Include="Blazor.Bootstrap" Version="3.2.0" />
-    <PackageVersion Include="Blazored.SessionStorage" Version="2.4.0" />
-    <PackageVersion Include="ChoETL" Version="1.2.1.68" />
-    <PackageVersion Include="coverlet.collector" Version="8.0.1">
+    <PackageVersion Include="Ardalis.GuardClauses" Version="*" />
+    <PackageVersion Include="Asp.Versioning.Http" Version="*" />
+    <PackageVersion Include="Asp.Versioning.Mvc" Version="*" />
+    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="*" />
+    <PackageVersion Include="AuralizeBlazor" Version="*" />
+    <PackageVersion Include="BCrypt.Net-Next" Version="*" />
+    <PackageVersion Include="Blazor.Bootstrap" Version="*" />
+    <PackageVersion Include="Blazored.SessionStorage" Version="*" />
+    <PackageVersion Include="ChoETL" Version="*" />
+    <PackageVersion Include="coverlet.collector" Version="*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
-    <PackageVersion Include="Crc32.NET" Version="1.2.0" />
-    <PackageVersion Include="CsvHelper" Version="33.1.0" />
-    <PackageVersion Include="Dapper" Version="2.1.72" />
-    <PackageVersion Include="DecentDB.EntityFrameworkCore" Version="1.8.1" />
-    <PackageVersion Include="DecentDB.EntityFrameworkCore.Design" Version="1.8.1" />
-    <PackageVersion Include="DecentDB.EntityFrameworkCore.NodaTime" Version="1.8.1" />
-    <PackageVersion Include="Fastenshtein" Version="1.0.12" />
-    <PackageVersion Include="FbNetExternalEngine.Integration" Version="6.0.0" />
-    <PackageVersion Include="FFMpegCore" Version="5.4.0" />
-    <PackageVersion Include="FluentAssertions" Version="8.9.0" />
-    <PackageVersion Include="FluentValidation" Version="12.1.1" />
-    <PackageVersion Include="Hashids.net" Version="1.7.0" />
-    <PackageVersion Include="Hqub.Last.fm" Version="2.5.1" />
-    <PackageVersion Include="HtmlAgilityPack" Version="1.12.4" />
-    <PackageVersion Include="IdGen" Version="3.0.7" />
-    <PackageVersion Include="IdSharp.Common" Version="2.0.3" />
-    <PackageVersion Include="IdSharp.Tagging" Version="2.0.3" />
-    <PackageVersion Include="JetBrains.Annotations" Version="2025.2.4" />
-    <PackageVersion Include="Jint" Version="4.6.3" />
-    <PackageVersion Include="K4os.Hash.xxHash" Version="1.0.8" />
-    <PackageVersion Include="LiteDB" Version="5.0.21" />
-    <PackageVersion Include="Lucene.Net" Version="4.8.0-beta00017" />
-    <PackageVersion Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
-    <PackageVersion Include="Mapster" Version="10.0.3" />
-    <PackageVersion Include="Markdig" Version="1.1.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.AspNetCore.Http" Version="2.3.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
+    <PackageVersion Include="Crc32.NET" Version="*" />
+    <PackageVersion Include="CsvHelper" Version="*" />
+    <PackageVersion Include="Dapper" Version="*" />
+    <PackageVersion Include="DecentDB.EntityFrameworkCore" Version="*" />
+    <PackageVersion Include="DecentDB.EntityFrameworkCore.Design" Version="*" />
+    <PackageVersion Include="DecentDB.EntityFrameworkCore.NodaTime" Version="*" />
+    <PackageVersion Include="Fastenshtein" Version="*" />
+    <PackageVersion Include="FbNetExternalEngine.Integration" Version="*" />
+    <PackageVersion Include="FFMpegCore" Version="*" />
+    <PackageVersion Include="FluentAssertions" Version="*" />
+    <PackageVersion Include="FluentValidation" Version="*" />
+    <PackageVersion Include="Hashids.net" Version="*" />
+    <PackageVersion Include="Hqub.Last.fm" Version="*" />
+    <PackageVersion Include="HtmlAgilityPack" Version="*" />
+    <PackageVersion Include="IdGen" Version="*" />
+    <PackageVersion Include="IdSharp.Common" Version="*" />
+    <PackageVersion Include="IdSharp.Tagging" Version="*" />
+    <PackageVersion Include="JetBrains.Annotations" Version="*" />
+    <PackageVersion Include="Jint" Version="*" />
+    <PackageVersion Include="K4os.Hash.xxHash" Version="*" />
+    <PackageVersion Include="LiteDB" Version="*" />
+    <PackageVersion Include="Mapster" Version="*" />
+    <PackageVersion Include="Markdig" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Http" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="*" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="*" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.1">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="*" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.16.0" />
-    <PackageVersion Include="Microsoft.Net.Http.Headers" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
-    <PackageVersion Include="MailKit" Version="4.15.1" />
-    <PackageVersion Include="MimeKit" Version="4.15.1" />
-    <PackageVersion Include="MimeTypes" Version="2.5.2" />
-    <PackageVersion Include="Moq" Version="4.20.72" />
-    <PackageVersion Include="NAudio" Version="2.2.1" />
-    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageVersion Include="NodaTime" Version="3.3.1" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.1" />
-    <PackageVersion Include="Polly" Version="8.6.6" />
-    <PackageVersion Include="Polly.Core" Version="8.6.6" />
-    <PackageVersion Include="PSC.Blazor.Components.MarkdownEditor" Version="8.0.8" />
-    <PackageVersion Include="Quartz.AspNetCore" Version="3.16.1" />
-    <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.16.1" />
-    <PackageVersion Include="Quartz.Jobs" Version="3.16.1" />
-    <PackageVersion Include="Quartz.Plugins.TimeZoneConverter" Version="3.16.1" />
-    <PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="3.16.1" />
-    <PackageVersion Include="Radzen.Blazor" Version="10.0.5" />
-    <PackageVersion Include="Rebus" Version="8.9.0" />
-    <PackageVersion Include="Rebus.ServiceProvider" Version="10.7.2" />
-    <PackageVersion Include="Serilog" Version="4.3.1" />
-    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
-    <PackageVersion Include="Serilog.Formatting.Compact" Version="3.0.0" />
-    <PackageVersion Include="Serilog.Settings.AppSettings" Version="3.0.0" />
-    <PackageVersion Include="Serilog.Settings.Configuration" Version="10.0.0" />
-    <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
-    <PackageVersion Include="SerilogTimings" Version="3.1.0" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.13.13" />
-    <PackageVersion Include="SharpZipLib" Version="1.4.2" />
-    <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageVersion Include="SmartFormat" Version="3.6.1" />
-    <PackageVersion Include="Spectre.Console" Version="0.54.0" />
-    <PackageVersion Include="Spectre.Console.Cli" Version="0.53.1" />
-    <PackageVersion Include="Spectre.Console.Json" Version="0.54.0" />
-    <PackageVersion Include="SpotifyAPI.Web" Version="7.4.2" />
-    <PackageVersion Include="Sqids" Version="3.2.1" />
-    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.5" />
-    <PackageVersion Include="System.Linq.Dynamic.Core" Version="1.7.1" />
-    <PackageVersion Include="System.Net.Http" Version="4.3.4" />
-    <PackageVersion Include="System.Reactive" Version="6.1.0" />
-    <PackageVersion Include="System.Resources.Extensions" Version="8.0.0" />
-    <PackageVersion Include="System.ServiceModel.Syndication" Version="10.0.5" />
-    <PackageVersion Include="Toolbelt.Blazor.HotKeys2" Version="5.1.0" />
-    <PackageVersion Include="Xamarin.UITest" Version="4.3.4" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5">
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="*" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="*" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="*" />
+    <PackageVersion Include="Microsoft.Net.Http.Headers" Version="*" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="*" />
+    <PackageVersion Include="MailKit" Version="*" />
+    <PackageVersion Include="MimeKit" Version="*" />
+    <PackageVersion Include="MimeTypes" Version="*" />
+    <PackageVersion Include="Moq" Version="*" />
+    <PackageVersion Include="NAudio" Version="*" />
+    <PackageVersion Include="Newtonsoft.Json" Version="*" />
+    <PackageVersion Include="NodaTime" Version="*" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="*" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="*" />
+    <PackageVersion Include="Polly" Version="*" />
+    <PackageVersion Include="Polly.Core" Version="*" />
+    <PackageVersion Include="PSC.Blazor.Components.MarkdownEditor" Version="*" />
+    <PackageVersion Include="Quartz.AspNetCore" Version="*" />
+    <PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="*" />
+    <PackageVersion Include="Quartz.Jobs" Version="*" />
+    <PackageVersion Include="Quartz.Plugins.TimeZoneConverter" Version="*" />
+    <PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="*" />
+    <PackageVersion Include="Radzen.Blazor" Version="*" />
+    <PackageVersion Include="Rebus" Version="*" />
+    <PackageVersion Include="Rebus.ServiceProvider" Version="*" />
+    <PackageVersion Include="Serilog" Version="*" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="*" />
+    <PackageVersion Include="Serilog.Formatting.Compact" Version="*" />
+    <PackageVersion Include="Serilog.Settings.AppSettings" Version="*" />
+    <PackageVersion Include="Serilog.Settings.Configuration" Version="*" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="*" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="*" />
+    <PackageVersion Include="SerilogTimings" Version="*" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="*" />
+    <PackageVersion Include="SharpZipLib" Version="*" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="*" />
+    <PackageVersion Include="SmartFormat" Version="*" />
+    <PackageVersion Include="Spectre.Console" Version="*" />
+    <PackageVersion Include="Spectre.Console.Cli" Version="*" />
+    <PackageVersion Include="Spectre.Console.Json" Version="*" />
+    <PackageVersion Include="SpotifyAPI.Web" Version="*" />
+    <PackageVersion Include="Sqids" Version="*" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="*" />
+    <PackageVersion Include="System.IO.Hashing" Version="*" />
+    <PackageVersion Include="System.Linq.Dynamic.Core" Version="*" />
+    <PackageVersion Include="System.Net.Http" Version="*" />
+    <PackageVersion Include="System.Reactive" Version="*" />
+    <PackageVersion Include="System.Resources.Extensions" Version="*" />
+    <PackageVersion Include="System.ServiceModel.Syndication" Version="*" />
+    <PackageVersion Include="Toolbelt.Blazor.HotKeys2" Version="*" />
+    <PackageVersion Include="Xamarin.UITest" Version="*" />
+    <PackageVersion Include="xunit" Version="*" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
-    <PackageVersion Include="z440.atl.core" Version="7.11.0" />
-    <PackageVersion Include="bunit" Version="2.6.2" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.5" />
-    <PackageVersion Include="Spectre.Console.Testing" Version="0.54.0" />
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="NBomber" Version="6.3.0" />
-    <PackageVersion Include="Google.Apis.Auth" Version="1.73.0" />
-    <PackageVersion Include="NodaTime.Testing" Version="3.3.1" />
-    <PackageVersion Include="NUnit" Version="4.2.2" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
-    <PackageVersion Include="HtmlSanitizer" Version="9.1.893-beta" />
-    <PackageVersion Include="AngleSharp" Version="1.4.0" />
-    <PackageVersion Include="AngleSharp.Css" Version="1.0.0-beta.159" />
-    <PackageVersion Include="Microsoft.Playwright" Version="1.52.0" />
-    <PackageVersion Include="Microsoft.Playwright.Xunit" Version="1.52.0" />
+    <PackageVersion Include="z440.atl.core" Version="*" />
+    <PackageVersion Include="bunit" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="*" />
+    <PackageVersion Include="Spectre.Console.Testing" Version="*" />
+    <PackageVersion Include="BenchmarkDotNet" Version="*" />
+    <PackageVersion Include="NBomber" Version="*" />
+    <PackageVersion Include="Google.Apis.Auth" Version="*" />
+    <PackageVersion Include="NodaTime.Testing" Version="*" />
+    <PackageVersion Include="NUnit" Version="*" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="*" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="*" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="*" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="*" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="*" />
+    <PackageVersion Include="HtmlSanitizer" Version="*-*" />
+    <PackageVersion Include="AngleSharp" Version="*" />
+    <PackageVersion Include="AngleSharp.Css" Version="*-*" />
+    <PackageVersion Include="Microsoft.Playwright" Version="*" />
+    <PackageVersion Include="Microsoft.Playwright.Xunit" Version="*" />
   </ItemGroup>
 </Project>

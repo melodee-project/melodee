@@ -14,7 +14,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class ArtistStatsCommand : CommandBase<ArtistStatsSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ArtistStatsSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ArtistStatsSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();

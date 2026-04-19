@@ -11,7 +11,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class SearchCommand : CommandBase<SearchSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, SearchSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SearchSettings settings, CancellationToken cancellationToken)
     {
         try
         {

@@ -33,7 +33,7 @@ public class JobRunCommand : CommandBase<JobRunSettings>
         ["NowPlayingCleanupJob"] = typeof(NowPlayingCleanupJob)
     };
 
-    public override async Task<int> ExecuteAsync(CommandContext context, JobRunSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, JobRunSettings settings, CancellationToken cancellationToken)
     {
         var jobName = settings.JobName.Trim();
 

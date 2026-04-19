@@ -11,7 +11,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class SystemInfoCommand : CommandBase<SystemInfoSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, SystemInfoSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, SystemInfoSettings settings, CancellationToken cancellationToken)
     {
         try
         {

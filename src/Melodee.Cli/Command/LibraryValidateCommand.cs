@@ -23,7 +23,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class LibraryValidateCommand : CommandBase<LibraryValidateSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryValidateSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryValidateSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var startTime = Stopwatch.GetTimestamp();

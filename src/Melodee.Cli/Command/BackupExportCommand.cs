@@ -12,7 +12,7 @@ namespace Melodee.Cli.Command;
 
 public sealed class BackupExportCommand : CommandBase<BackupExportSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, BackupExportSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, BackupExportSettings settings, CancellationToken cancellationToken)
     {
         var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();

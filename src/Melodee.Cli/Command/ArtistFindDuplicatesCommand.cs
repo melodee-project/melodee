@@ -13,7 +13,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class ArtistFindDuplicatesCommand : CommandBase<ArtistFindDuplicatesSettings>
 {
-    public override async Task<int> ExecuteAsync(
+    protected override async Task<int> ExecuteAsync(
         CommandContext context,
         ArtistFindDuplicatesSettings settings,
         CancellationToken cancellationToken)

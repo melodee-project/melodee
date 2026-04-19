@@ -16,7 +16,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class AlbumSearchCommand : CommandBase<AlbumSearchSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, AlbumSearchSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, AlbumSearchSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var albumService = scope.ServiceProvider.GetRequiredService<AlbumService>();

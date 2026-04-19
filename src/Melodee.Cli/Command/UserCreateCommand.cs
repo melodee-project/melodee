@@ -11,7 +11,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class UserCreateCommand : CommandBase<UserCreateSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, UserCreateSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserCreateSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var userProfileService = scope.ServiceProvider.GetRequiredService<UserProfileService>();
