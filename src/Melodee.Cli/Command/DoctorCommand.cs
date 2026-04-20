@@ -273,37 +273,38 @@ public sealed class CliDoctorService : DoctorServiceBase
                 await RunCheckAsync(progress, checks, "Database: MusicBrainz (DecentDB)", async () =>
                 {
                     var checkSw = Stopwatch.StartNew();
-                    try
-                    {
-                        await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
-                        var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-                        var cs = GetConnectionString("MusicBrainzConnection");
-                        var fileInfo = DescribeFileDatabasePath(cs);
-                        var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
-                        return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", canConnect, details, checkSw.Elapsed);
-                    }
-                    catch (Exception ex)
-                    {
-                        return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", false, ex.Message, checkSw.Elapsed);
-                    }
+                    var (canQuery, _, error) = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
+                    var cs = GetConnectionString("MusicBrainzConnection");
+                    var fileInfo = DescribeFileDatabasePath(cs);
+                    var details = canQuery
+                        ? $"OK; {fileInfo}"
+                        : string.IsNullOrWhiteSpace(error)
+                            ? $"Unable to query; {fileInfo}"
+                            : $"{error}; {fileInfo}";
+                    return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", canQuery, details, checkSw.Elapsed);
                 });
 
                 await RunCheckAsync(progress, checks, "Database: ArtistSearchEngine (DecentDB)", async () =>
                 {
                     var checkSw = Stopwatch.StartNew();
-                    try
+                    var cs = GetConnectionString("ArtistSearchEngineConnection");
+                    var fileInfo = DescribeFileDatabasePath(cs);
+                    if (!HasNonEmptyFileBackedDatabase(cs))
                     {
-                        await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
-                        var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-                        var cs = GetConnectionString("ArtistSearchEngineConnection");
-                        var fileInfo = DescribeFileDatabasePath(cs);
-                        var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
-                        return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", canConnect, details, checkSw.Elapsed);
+                        return new DoctorCheckResult(
+                            "Database: ArtistSearchEngine (DecentDB)",
+                            false,
+                            $"Artist search engine database is empty or not initialized; {fileInfo}",
+                            checkSw.Elapsed);
                     }
-                    catch (Exception ex)
-                    {
-                        return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", false, ex.Message, checkSw.Elapsed);
-                    }
+
+                    var (canQuery, error) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
+                    var details = canQuery
+                        ? $"OK; {fileInfo}"
+                        : string.IsNullOrWhiteSpace(error)
+                            ? $"Unable to query; {fileInfo}"
+                            : $"{error}; {fileInfo}";
+                    return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", canQuery, details, checkSw.Elapsed);
                 });
 
                 await RunCheckAsync(progress, checks, "Library Paths", async () =>
@@ -389,6 +390,75 @@ public sealed class CliDoctorService : DoctorServiceBase
         catch
         {
             return "DataSource=(unparseable)";
+        }
+    }
+
+    private static bool HasNonEmptyFileBackedDatabase(string connectionString)
+    {
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var dataSource = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+            return !string.IsNullOrWhiteSpace(dataSource)
+                   && File.Exists(dataSource)
+                   && new FileInfo(dataSource).Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<(bool CanQuery, string? Error)> ProbeArtistSearchDatabaseAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+            await db.Database.EnsureCreatedAsync(cancellationToken);
+            if (db.Database.IsRelational())
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
+                    ON "Artists" ("IsLocked", "LastRefreshed")
+                    """,
+                    cancellationToken);
+            }
+
+            _ = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            _ = await db.Albums
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private async Task<(bool CanQuery, bool HasArtistData, string? Error)> ProbeMusicBrainzDatabaseAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var firstArtistId = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, firstArtistId != 0, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, false, ex.Message);
         }
     }
 }

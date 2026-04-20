@@ -62,15 +62,29 @@ public class DoctorServiceTests
     }
 
     [Fact]
-    public async Task NeedsAttentionAsync_HealthyFastPath_DoesNotOpenDecentDbContexts()
+    public async Task NeedsAttentionAsync_HealthyDecentDbConnections_ReturnsFalse()
     {
         ConfigurePrimaryDatabaseCanConnect();
 
-        var musicBrainzPath = CreateNonEmptyFile("musicbrainz-fast-path");
-        var artistSearchPath = CreateNonEmptyFile("artist-search-fast-path");
+        var musicBrainzPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-fast-path-{Guid.NewGuid():N}.ddb");
+        var artistSearchPath = Path.Combine(Path.GetTempPath(), $"artist-search-fast-path-{Guid.NewGuid():N}.ddb");
 
         try
         {
+            var musicBrainzOptions = CreateMusicBrainzOptions(musicBrainzPath);
+            await using (var musicBrainzContext = new MusicBrainzDbContext(musicBrainzOptions))
+            {
+                await musicBrainzContext.Database.EnsureCreatedAsync();
+            }
+            ConfigureMusicBrainzDatabase(musicBrainzOptions);
+
+            var artistSearchOptions = CreateArtistSearchOptions(artistSearchPath);
+            await using (var artistSearchContext = new ArtistSearchEngineServiceDbContext(artistSearchOptions))
+            {
+                await artistSearchContext.Database.EnsureCreatedAsync();
+            }
+            ConfigureArtistSearchDatabase(artistSearchOptions);
+
             var configuration = CreateConfiguration(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
@@ -84,15 +98,55 @@ public class DoctorServiceTests
             Assert.False(result);
             _musicBrainzDbContextFactory.Verify(
                 x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()),
-                Times.Never);
+                Times.Once);
             _artistSearchEngineDbContextFactory.Verify(
                 x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()),
-                Times.Never);
+                Times.Once);
         }
         finally
         {
-            DeleteFileIfExists(musicBrainzPath);
-            DeleteFileIfExists(artistSearchPath);
+            DeleteDatabaseArtifacts(musicBrainzPath);
+            DeleteDatabaseArtifacts(artistSearchPath);
+        }
+    }
+
+    [Fact]
+    public async Task NeedsAttentionAsync_WhenArtistSearchDatabaseCannotBeOpened_ReturnsTrue()
+    {
+        ConfigurePrimaryDatabaseCanConnect();
+
+        var musicBrainzPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-openable-{Guid.NewGuid():N}.ddb");
+        var artistSearchPath = CreateNonEmptyFile("artist-search-unsupported");
+
+        try
+        {
+            var musicBrainzOptions = CreateMusicBrainzOptions(musicBrainzPath);
+            await using (var musicBrainzContext = new MusicBrainzDbContext(musicBrainzOptions))
+            {
+                await musicBrainzContext.Database.EnsureCreatedAsync();
+            }
+            ConfigureMusicBrainzDatabase(musicBrainzOptions);
+
+            _artistSearchEngineDbContextFactory
+                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("unsupported database format version: 3"));
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+            });
+            var service = CreateService(configuration);
+
+            var result = await service.NeedsAttentionAsync();
+
+            Assert.True(result);
+        }
+        finally
+        {
+            DeleteDatabaseArtifacts(musicBrainzPath);
+            DeleteDatabaseArtifacts(artistSearchPath);
         }
     }
 
@@ -304,6 +358,90 @@ public class DoctorServiceTests
     }
 
     [Fact]
+    public async Task RunAllChecksAsync_WhenDecentDbCannotBeOpened_ConnectionStringInfoReflectsFailure()
+    {
+        ConfigurePrimaryDatabaseCanConnect();
+
+        var musicBrainzPath = CreateNonEmptyFile("musicbrainz-unsupported");
+        var artistSearchPath = CreateNonEmptyFile("artist-search-unsupported");
+
+        try
+        {
+            _musicBrainzDbContextFactory
+                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("unsupported database format version: 3"));
+            _artistSearchEngineDbContextFactory
+                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("unsupported database format version: 3"));
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+            });
+            var service = CreateService(configuration);
+
+            var results = await service.RunAllChecksAsync();
+
+            var musicBrainzConnection = results.ConnectionStrings.Single(x => x.Name == "MusicBrainzConnection");
+            Assert.Equal(false, musicBrainzConnection.CanConnect);
+            Assert.Contains("unsupported database format version: 3", musicBrainzConnection.ConnectionError);
+
+            var artistSearchConnection = results.ConnectionStrings.Single(x => x.Name == "ArtistSearchEngineConnection");
+            Assert.Equal(false, artistSearchConnection.CanConnect);
+            Assert.Contains("unsupported database format version: 3", artistSearchConnection.ConnectionError);
+        }
+        finally
+        {
+            DeleteDatabaseArtifacts(musicBrainzPath);
+            DeleteDatabaseArtifacts(artistSearchPath);
+        }
+    }
+
+    [Fact]
+    public async Task RunAllChecksAsync_WhenArtistSearchDatabaseCannotBeQueried_SystemCheckReflectsFailure()
+    {
+        ConfigurePrimaryDatabaseCanConnect();
+
+        var musicBrainzPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-openable-{Guid.NewGuid():N}.ddb");
+        var artistSearchPath = CreateNonEmptyFile("artist-search-unsupported");
+
+        try
+        {
+            var musicBrainzOptions = CreateMusicBrainzOptions(musicBrainzPath);
+            await using (var musicBrainzContext = new MusicBrainzDbContext(musicBrainzOptions))
+            {
+                await musicBrainzContext.Database.EnsureCreatedAsync();
+            }
+            ConfigureMusicBrainzDatabase(musicBrainzOptions);
+
+            _artistSearchEngineDbContextFactory
+                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("unsupported database format version: 3"));
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+            });
+            var service = CreateService(configuration);
+
+            var results = await service.RunAllChecksAsync();
+
+            var artistSearchCheck = results.Checks.Single(x => x.Name == "ArtistSearchEngineDatabase");
+            Assert.False(artistSearchCheck.Success);
+            Assert.Contains("unsupported database format version: 3", artistSearchCheck.Details);
+        }
+        finally
+        {
+            DeleteDatabaseArtifacts(musicBrainzPath);
+            DeleteDatabaseArtifacts(artistSearchPath);
+        }
+    }
+
+    [Fact]
     public async Task RunAllChecksAsync_ReturnsEnvironmentVariableInfo()
     {
         var configuration = CreateValidConfiguration();
@@ -426,9 +564,23 @@ public class DoctorServiceTests
             .ReturnsAsync(() => new MusicBrainzDbContext(options));
     }
 
+    private void ConfigureArtistSearchDatabase(DbContextOptions<ArtistSearchEngineServiceDbContext> options)
+    {
+        _artistSearchEngineDbContextFactory
+            .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new ArtistSearchEngineServiceDbContext(options));
+    }
+
     private static DbContextOptions<MusicBrainzDbContext> CreateMusicBrainzOptions(string path)
     {
         return new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB($"Data Source={path}")
+            .Options;
+    }
+
+    private static DbContextOptions<ArtistSearchEngineServiceDbContext> CreateArtistSearchOptions(string path)
+    {
+        return new DbContextOptionsBuilder<ArtistSearchEngineServiceDbContext>()
             .UseDecentDB($"Data Source={path}")
             .Options;
     }
@@ -446,5 +598,14 @@ public class DoctorServiceTests
         {
             File.Delete(path);
         }
+    }
+
+    private static void DeleteDatabaseArtifacts(string path)
+    {
+        DeleteFileIfExists(path);
+        DeleteFileIfExists($"{path}.wal");
+        DeleteFileIfExists($"{path}-wal");
+        DeleteFileIfExists($"{path}.shm");
+        DeleteFileIfExists($"{path}-shm");
     }
 }

@@ -67,7 +67,16 @@ public sealed record SerilogLogPathInfo(string SinkName, string Path, bool Direc
 /// <summary>
 /// Information about a connection string.
 /// </summary>
-public sealed record ConnectionStringInfo(string Name, string MaskedValue, bool IsValid, bool IsFileBased, bool? FileExists, bool? FileWritable, string? FilePath);
+public sealed record ConnectionStringInfo(
+    string Name,
+    string MaskedValue,
+    bool IsValid,
+    bool IsFileBased,
+    bool? FileExists,
+    bool? FileWritable,
+    string? FilePath,
+    bool? CanConnect,
+    string? ConnectionError);
 
 /// <summary>
 /// Information about an environment variable.

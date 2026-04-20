@@ -237,8 +237,9 @@
                 @foreach (var cs in _connectionStrings.OrderBy(c => c.Name))
                 {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center" class="rz-p-2 rz-border-radius-1" Style="background: var(--rz-base-background-color); border: 1px solid var(--rz-base-300);">
-                        <RadzenIcon Icon="@(cs.IsValid ? "check_circle" : "cancel")"
-                                   Style="@($"color: var(--rz-{(cs.IsValid ? "success" : "danger")});")"/>
+                        <RadzenIcon Icon="@(IsConnectionStringHealthy(cs) ? "check_circle" : "cancel")"
+                                   Style="@($"color: var(--rz-{(IsConnectionStringHealthy(cs) ? "success" : "danger")});")"
+                                   title="@cs.ConnectionError"/>
                         <RadzenStack Gap="0" Style="flex: 1;">
                             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
                                 <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-color);"><strong>@cs.Name</strong></RadzenText>
@@ -255,6 +256,10 @@
                                 }
                             </RadzenStack>
                             <RadzenText TextStyle="TextStyle.Caption" Style="word-break: break-all; font-family: monospace; color: var(--rz-text-secondary-color);">@cs.MaskedValue</RadzenText>
+                            @if (!string.IsNullOrWhiteSpace(cs.ConnectionError))
+                            {
+                                <RadzenText TextStyle="TextStyle.Caption" Style="word-break: break-all; color: var(--rz-danger);">@cs.ConnectionError</RadzenText>
+                            }
                         </RadzenStack>
                     </RadzenStack>
                 }
@@ -495,7 +500,16 @@
         // Map connection strings
         foreach (var connStr in results.ConnectionStrings)
         {
-            _connectionStrings.Add(new ConnectionStringInfo(connStr.Name, connStr.MaskedValue, connStr.IsValid, connStr.IsFileBased, connStr.FileExists, connStr.FileWritable, connStr.FilePath));
+            _connectionStrings.Add(new ConnectionStringInfo(
+                connStr.Name,
+                connStr.MaskedValue,
+                connStr.IsValid,
+                connStr.IsFileBased,
+                connStr.FileExists,
+                connStr.FileWritable,
+                connStr.FilePath,
+                connStr.CanConnect,
+                connStr.ConnectionError));
         }
         
         // Map environment variables
@@ -781,13 +795,15 @@
             
             // Connection Strings (masked)
             connectionStrings = _connectionStrings.Select(c => new 
-            { 
+            {
                 name = c.Name, 
                 maskedValue = c.MaskedValue,
                 isValid = c.IsValid,
                 isFileBased = c.IsFileBased,
                 fileExists = c.FileExists,
-                fileWritable = c.FileWritable
+                fileWritable = c.FileWritable,
+                canConnect = c.CanConnect,
+                connectionError = c.ConnectionError
             }),
             
             // Serilog Log Paths
@@ -862,10 +878,30 @@
 
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
+    private static bool IsConnectionStringHealthy(ConnectionStringInfo connectionStringInfo)
+    {
+        if (!connectionStringInfo.IsValid)
+        {
+            return false;
+        }
+
+        if (!connectionStringInfo.IsFileBased)
+        {
+            return true;
+        }
+
+        if (connectionStringInfo.FileExists == false)
+        {
+            return false;
+        }
+
+        return connectionStringInfo.CanConnect is not false;
+    }
+
     private sealed record CheckResult(string Name, bool Success, string Details, TimeSpan Duration);
     private sealed record LibraryPathResult(string Name, string Type, string Path, bool Exists, bool Writable, string Details, long TotalBytes, long AvailableBytes, double UsedPercent, string DiskStatus, string DiskStatusStyle);
     private sealed record ConfigurableServiceResult(string Category, string Name, string SettingKey, bool Enabled);
-    private sealed record ConnectionStringInfo(string Name, string MaskedValue, bool IsValid, bool IsFileBased, bool? FileExists, bool? FileWritable, string? FilePath);
+    private sealed record ConnectionStringInfo(string Name, string MaskedValue, bool IsValid, bool IsFileBased, bool? FileExists, bool? FileWritable, string? FilePath, bool? CanConnect, string? ConnectionError);
     private sealed record EnvironmentVariableInfo(string Name, string MaskedValue, bool IsSet);
     private sealed record SerilogLogPathInfo(string SinkName, string Path, bool DirectoryExists, bool Writable);
     private sealed record SearchEngineApiKeyInfoLocal(string EngineName, string SettingKey, bool IsEnabled, bool IsConfigured, string Status, string StatusStyle);
@@ -899,4 +935,3 @@
         return $"{number:F2} {suffixes[counter]}";
     }
 }
-
