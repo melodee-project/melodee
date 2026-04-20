@@ -30,6 +30,7 @@ using Rebus.Bus;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
+using System.Linq.Expressions;
 using Artist = Melodee.Common.Models.OpenSubsonic.Artist;
 using dbModels = Melodee.Common.Data.Models;
 using Directory = Melodee.Common.Models.OpenSubsonic.Directory;
@@ -143,6 +144,33 @@ public class OpenSubsonicApiService(
     {
         if (!IsPodcastEpisodeId(id)) return null;
         return int.TryParse(id!.Substring("podcast:episode:".Length), out var episodeId) ? episodeId : null;
+    }
+
+    private static IQueryable<TEntity> WherePropertyMatchesAny<TEntity, TValue>(
+        IQueryable<TEntity> query,
+        Expression<Func<TEntity, TValue>> propertySelector,
+        IEnumerable<TValue> values)
+    {
+        var distinctValues = values.Distinct().ToArray();
+        if (distinctValues.Length == 0)
+        {
+            return query.Where(static _ => false);
+        }
+
+        var parameter = propertySelector.Parameters[0];
+        Expression? predicateBody = null;
+
+        foreach (var value in distinctValues)
+        {
+            var equalsExpression = Expression.Equal(
+                propertySelector.Body,
+                Expression.Constant(value, typeof(TValue)));
+            predicateBody = predicateBody == null
+                ? equalsExpression
+                : Expression.OrElse(predicateBody, equalsExpression);
+        }
+
+        return query.Where(Expression.Lambda<Func<TEntity, bool>>(predicateBody!, parameter));
     }
 
     private static Guid? ApiKeyFromId(string? id)
@@ -957,8 +985,11 @@ public class OpenSubsonicApiService(
             {
                 data.SongCount = SafeParser.ToNumber<short>(playlistSongsResult.Data.Count());
                 await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-                var dbSongsForPlaylist = await scopedContext.Songs
-                    .Where(s => playlistSongsResult.Data.Select(ps => ps.ApiKey).Contains(s.ApiKey))
+                var playlistSongApiKeys = playlistSongsResult.Data.Select(ps => ps.ApiKey).ToArray();
+                var dbSongsForPlaylist = await WherePropertyMatchesAny(
+                        scopedContext.Songs,
+                        s => s.ApiKey,
+                        playlistSongApiKeys)
                     .Include(s => s.Album).ThenInclude(x => x.Artist)
                     .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
                     .ToListAsync(cancellationToken)
@@ -2216,25 +2247,26 @@ public class OpenSubsonicApiService(
         await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
             var nowPlayingSongApiKeys = nowPlaying.Data.Select(x => x.Scrobble.SongApiKey).ToList();
-            var nowPlayingSongs = await (from s in scopedContext
-                        .Songs.Include(x => x.Album)
-                                         where nowPlayingSongApiKeys.Contains(s.ApiKey)
-                                         select s)
+            var nowPlayingSongs = await WherePropertyMatchesAny(
+                    scopedContext.Songs.Include(x => x.Album),
+                    s => s.ApiKey,
+                    nowPlayingSongApiKeys)
                 .AsNoTrackingWithIdentityResolution()
                 .ToArrayAsync(cancellationToken)
                 .ConfigureAwait(false);
             var nowPlayingSongIds = nowPlayingSongs.Select(x => x.Id).ToArray();
             var nowPlayingAlbumIds = nowPlayingSongs.Select(x => x.AlbumId).Distinct().ToArray();
-            var nowPlayingSongsAlbums = await (from a in scopedContext.Albums.Include(x => x.Artist)
-                                               where nowPlayingAlbumIds.Contains(a.Id)
-                                               select a)
+            var nowPlayingSongsAlbums = await WherePropertyMatchesAny(
+                    scopedContext.Albums.Include(x => x.Artist),
+                    a => a.Id,
+                    nowPlayingAlbumIds)
                 .AsNoTrackingWithIdentityResolution()
                 .ToArrayAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var nowPlayingUserSongs = await (from us in scopedContext.UserSongs
-                                             where us.UserId == authResponse.UserInfo.Id
-                                             where nowPlayingSongIds.Contains(us.Id)
-                                             select us)
+            var nowPlayingUserSongs = await WherePropertyMatchesAny(
+                    scopedContext.UserSongs.Where(us => us.UserId == authResponse.UserInfo.Id),
+                    us => us.SongId,
+                    nowPlayingSongIds)
                 .AsNoTrackingWithIdentityResolution()
                 .ToArrayAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -2478,11 +2510,12 @@ public class OpenSubsonicApiService(
                                  await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
                     {
                         var songIds = albumSongInfos.Select(x => x.Id).ToArray();
-                        var albumSongs = await scopedContext
-                            .Songs
+                        var albumSongs = await WherePropertyMatchesAny(
+                                scopedContext.Songs,
+                                x => x.Id,
+                                songIds)
                             .Include(x => x.Album).ThenInclude(x => x.Artist)
                             .Include(x => x.UserSongs.Where(ua => ua.UserId == authResponse.UserInfo.Id))
-                            .Where(x => songIds.Contains(x.Id))
                             .ToArrayAsync(cancellationToken)
                             .ConfigureAwait(false);
                         data = new Directory(albumInfo.CoverArt,
@@ -2844,10 +2877,13 @@ public class OpenSubsonicApiService(
             var topSongsResult = await artistSearchEngineService
                 .DoArtistTopSongsSearchAsync(artist, artistId, count, cancellationToken).ConfigureAwait(false);
             var songIds = topSongsResult.Data.Where(x => x.Id != null).Select(x => x.Id).ToArray();
-            var songs = await scopedContext
-                .Songs.Include(x => x.Album).ThenInclude(x => x.Artist)
+            var songs = await WherePropertyMatchesAny(
+                    scopedContext.Songs,
+                    x => x.Id,
+                    songIds)
+                .Include(x => x.Album).ThenInclude(x => x.Artist)
                 .Include(x => x.UserSongs.Where(us => us.UserId == authResponse.UserInfo.Id))
-                .Where(x => songIds.Contains(x.Id)).ToArrayAsync(cancellationToken).ConfigureAwait(false);
+                .ToArrayAsync(cancellationToken).ConfigureAwait(false);
             data = (from s in songs
                     join tsr in topSongsResult.Data on s.Id equals tsr.Id
                     orderby tsr.SortOrder

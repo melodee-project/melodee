@@ -199,6 +199,17 @@ public class SettingService : ServiceBase
     /// </summary>
     private static IQueryable<Setting> ApplySingleFilter(IQueryable<Setting> query, FilterOperatorInfo filter)
     {
+        var propertyType = typeof(Setting).GetProperty(filter.PropertyName)?.PropertyType;
+        if (propertyType == typeof(int))
+        {
+            return ApplyIntegerFilter(query, filter);
+        }
+
+        return ApplyStringFilter(query, filter);
+    }
+
+    private static IQueryable<Setting> ApplyStringFilter(IQueryable<Setting> query, FilterOperatorInfo filter)
+    {
         return filter.Operator switch
         {
             FilterOperator.Equals => query.Where(s => EF.Property<string>(s, filter.PropertyName) == filter.Value.ToString()),
@@ -211,14 +222,27 @@ public class SettingService : ServiceBase
             FilterOperator.IsNotNull => query.Where(s => EF.Property<string>(s, filter.PropertyName) != null),
             FilterOperator.IsEmpty => query.Where(s => EF.Property<string>(s, filter.PropertyName) == string.Empty),
             FilterOperator.IsNotEmpty => query.Where(s => EF.Property<string>(s, filter.PropertyName) != string.Empty),
-            FilterOperator.GreaterThan when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) > Convert.ToInt32(filter.Value)),
-            FilterOperator.GreaterThanOrEquals when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) >= Convert.ToInt32(filter.Value)),
-            FilterOperator.LessThan when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) < Convert.ToInt32(filter.Value)),
-            FilterOperator.LessThanOrEquals when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) <= Convert.ToInt32(filter.Value)),
+            _ => query
+        };
+    }
+
+    private static IQueryable<Setting> ApplyIntegerFilter(IQueryable<Setting> query, FilterOperatorInfo filter)
+    {
+        if (!filter.Value.IsNumericType())
+        {
+            return query;
+        }
+
+        var value = Convert.ToInt32(filter.Value);
+
+        return filter.Operator switch
+        {
+            FilterOperator.Equals => query.Where(s => EF.Property<int>(s, filter.PropertyName) == value),
+            FilterOperator.NotEquals => query.Where(s => EF.Property<int>(s, filter.PropertyName) != value),
+            FilterOperator.GreaterThan => query.Where(s => EF.Property<int>(s, filter.PropertyName) > value),
+            FilterOperator.GreaterThanOrEquals => query.Where(s => EF.Property<int>(s, filter.PropertyName) >= value),
+            FilterOperator.LessThan => query.Where(s => EF.Property<int>(s, filter.PropertyName) < value),
+            FilterOperator.LessThanOrEquals => query.Where(s => EF.Property<int>(s, filter.PropertyName) <= value),
             _ => query
         };
     }

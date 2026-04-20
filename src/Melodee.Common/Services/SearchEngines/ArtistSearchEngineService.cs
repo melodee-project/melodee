@@ -86,6 +86,11 @@ public class ArtistSearchEngineService(
         ArtistSearchEngineServiceDbContext context,
         CancellationToken cancellationToken)
     {
+        if (!context.Database.IsRelational())
+        {
+            return;
+        }
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"

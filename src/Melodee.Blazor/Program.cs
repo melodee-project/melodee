@@ -188,7 +188,6 @@ builder.Services.AddApiVersioning(options =>
 var useForwardedHeaders = SafeParser.ToBoolean(builder.Configuration["UseForwardedHeaders"]);
 if (useForwardedHeaders)
 {
-    Trace.WriteLine("Using forwarded headers");
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;

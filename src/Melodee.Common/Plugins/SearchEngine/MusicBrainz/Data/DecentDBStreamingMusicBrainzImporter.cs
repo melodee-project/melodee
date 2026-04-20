@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Melodee.Common.Extensions;
@@ -27,31 +28,24 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         var mbDumpPath = Path.Combine(storagePath, "staging/mbdump");
 
-        // Phase 1: Stream artist data to staging tables
         await ImportArtistStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Phase 2: Materialize artists using SQL
         await MaterializeArtistsAsync(context, progressCallback, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Phase 3: Materialize artist relations using SQL
         await MaterializeArtistRelationsAsync(context, progressCallback, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Phase 4: Drop artist staging tables
         await DropArtistStagingTablesAsync(context, progressCallback, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Phase 5: Stream album support data to staging tables
         var releaseCount = await ImportAlbumStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Phase 6: Materialize albums using SQL
         await MaterializeAlbumsAsync(context, releaseCount, progressCallback, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Phase 7: Drop album staging tables
         await DropAlbumStagingTablesAsync(context, progressCallback, cancellationToken);
     }
 
@@ -534,151 +528,73 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             var progressTotal = Math.Max(expectedAlbumCount, 1);
             progressCallback?.Invoke("Materializing Albums", 0, progressTotal, "Creating materialized albums from staging...");
 
-            var connection = context.Database.GetDbConnection();
-            if (connection.State != System.Data.ConnectionState.Open)
-            {
-                await connection.OpenAsync(cancellationToken);
-            }
-
-            var querySql = @"
-                SELECT 
-                    r.""Id"" AS ""ReleaseStagingId"",
-                    COALESCE(primary_artist.""MusicBrainzArtistId"", credit_artist.""MusicBrainzArtistId"") AS ""ArtistId"",
+            // PRINTF is not implemented in the DecentDB version in use, so we
+            // assemble the ISO-8601 literal via string concatenation + LPAD.
+            var insertSql = @"
+                INSERT INTO ""Album"" (""MusicBrainzArtistId"", ""MusicBrainzIdRaw"", ""Name"", ""NameNormalized"", ""SortName"",
+                                      ""ReleaseGroupMusicBrainzIdRaw"", ""ReleaseType"", ""ReleaseDate"", ""ContributorIds"")
+                SELECT
+                    acp.""ArtistId"",
                     r.""MusicBrainzIdRaw"",
                     r.""Name"",
                     r.""NameNormalized"",
                     r.""SortName"",
-                    rg.""MusicBrainzIdRaw"" AS ""RgMbId"",
+                    rg.""MusicBrainzIdRaw"",
                     rg.""ReleaseType"",
-                    rc.""DateYear"" AS ""RcYear"", rc.""DateMonth"" AS ""RcMonth"", rc.""DateDay"" AS ""RcDay"",
-                    rgm.""DateYear"" AS ""RgmYear"", rgm.""DateMonth"" AS ""RgmMonth"", rgm.""DateDay"" AS ""RgmDay""
+                    CASE
+                        WHEN rc.""ReleaseId"" IS NOT NULL THEN
+                            CAST(
+                                LPAD(CAST(rc.""DateYear"" AS TEXT), 4, '0') || '-' ||
+                                LPAD(CAST(rc.""DateMonth"" AS TEXT), 2, '0') || '-' ||
+                                LPAD(CAST(
+                                    CASE
+                                        WHEN rc.""DateMonth"" IN (1,3,5,7,8,10,12) AND rc.""DateDay"" > 31 THEN 31
+                                        WHEN rc.""DateMonth"" IN (4,6,9,11) AND rc.""DateDay"" > 30 THEN 30
+                                        WHEN rc.""DateMonth"" = 2 AND rc.""DateDay"" > 29 THEN 29
+                                        WHEN rc.""DateMonth"" = 2 AND rc.""DateDay"" = 29
+                                            AND NOT (rc.""DateYear"" % 4 = 0 AND (rc.""DateYear"" % 100 != 0 OR rc.""DateYear"" % 400 = 0))
+                                            THEN 28
+                                        ELSE rc.""DateDay""
+                                    END
+                                AS TEXT), 2, '0') || ' 00:00:00'
+                            AS TIMESTAMP)
+                        WHEN rgm.""DateYear"" > 0 AND rgm.""DateMonth"" > 0 AND rgm.""DateDay"" > 0 THEN
+                            CAST(
+                                LPAD(CAST(rgm.""DateYear"" AS TEXT), 4, '0') || '-' ||
+                                LPAD(CAST(rgm.""DateMonth"" AS TEXT), 2, '0') || '-' ||
+                                LPAD(CAST(
+                                    CASE
+                                        WHEN rgm.""DateMonth"" IN (1,3,5,7,8,10,12) AND rgm.""DateDay"" > 31 THEN 31
+                                        WHEN rgm.""DateMonth"" IN (4,6,9,11) AND rgm.""DateDay"" > 30 THEN 30
+                                        WHEN rgm.""DateMonth"" = 2 AND rgm.""DateDay"" > 29 THEN 29
+                                        WHEN rgm.""DateMonth"" = 2 AND rgm.""DateDay"" = 29
+                                            AND NOT (rgm.""DateYear"" % 4 = 0 AND (rgm.""DateYear"" % 100 != 0 OR rgm.""DateYear"" % 400 = 0))
+                                            THEN 28
+                                        ELSE rgm.""DateDay""
+                                    END
+                                AS TEXT), 2, '0') || ' 00:00:00'
+                            AS TIMESTAMP)
+                        ELSE NULL
+                    END,
+                    NULL
                 FROM ""ReleaseStaging"" r
                 INNER JOIN ""ReleaseGroupStaging"" rg ON rg.""ReleaseGroupId"" = r.""ReleaseGroupId""
                 LEFT JOIN ""ReleaseCountryResolvedStaging"" rc ON rc.""ReleaseId"" = r.""ReleaseId""
                 LEFT JOIN ""ReleaseGroupMetaStaging"" rgm ON rgm.""ReleaseGroupId"" = r.""ReleaseGroupId""
-                LEFT JOIN ""ArtistCreditPrimaryArtistStaging"" acp ON acp.""ArtistCreditId"" = r.""ArtistCreditId""
-                LEFT JOIN ""Artist"" primary_artist ON primary_artist.""MusicBrainzArtistId"" = acp.""ArtistId""
-                LEFT JOIN ""Artist"" credit_artist ON credit_artist.""MusicBrainzArtistId"" = r.""ArtistCreditId""
-                WHERE r.""Id"" > {0}
-                  AND r.""Name"" IS NOT NULL 
+                INNER JOIN ""ArtistCreditPrimaryArtistStaging"" acp ON acp.""ArtistCreditId"" = r.""ArtistCreditId""
+                WHERE r.""Name"" IS NOT NULL
                   AND r.""Name"" != ''
                   AND rg.""MusicBrainzIdRaw"" IS NOT NULL
-                  AND (primary_artist.""MusicBrainzArtistId"" IS NOT NULL OR credit_artist.""MusicBrainzArtistId"" IS NOT NULL)
                   AND (
                       rc.""ReleaseId"" IS NOT NULL OR
                       (rgm.""DateYear"" > 0 AND rgm.""DateMonth"" > 0 AND rgm.""DateDay"" > 0)
-                  )
-                ORDER BY r.""Id""
-                LIMIT {1}";
+                  )";
 
-            using var insertCmd = connection.CreateCommand();
-            insertCmd.CommandText = @"
-                INSERT INTO ""Album""
-                    (""MusicBrainzArtistId"", ""MusicBrainzIdRaw"", ""Name"", ""NameNormalized"", ""SortName"", ""ReleaseGroupMusicBrainzIdRaw"", ""ReleaseType"", ""ReleaseDate"", ""ContributorIds"")
-                VALUES
-                    (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8)";
+            var rowsAffected = await context.Database.ExecuteSqlRawAsync(insertSql, cancellationToken);
 
-            for (var i = 0; i <= 8; i++)
-            {
-                var param = insertCmd.CreateParameter();
-                param.ParameterName = $"@p{i}";
-                insertCmd.Parameters.Add(param);
-            }
-
-            insertCmd.Prepare();
-
-            var totalMaterialized = 0;
-            long lastReleaseStagingId = 0;
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var albums = new List<AlbumInsertRow>(BatchSize);
-                using (var queryCmd = connection.CreateCommand())
-                {
-                    queryCmd.CommandText = string.Format(CultureInfo.InvariantCulture, querySql, lastReleaseStagingId, BatchSize);
-                    using var reader = await queryCmd.ExecuteReaderAsync(cancellationToken);
-                    while (await reader.ReadAsync(cancellationToken))
-                    {
-                        lastReleaseStagingId = reader.GetInt64(0);
-
-                        var rcYear = reader.IsDBNull(8) ? 0 : reader.GetInt32(8);
-                        var rcMonth = reader.IsDBNull(9) ? 0 : reader.GetInt32(9);
-                        var rcDay = reader.IsDBNull(10) ? 0 : reader.GetInt32(10);
-                        var rgmYear = reader.IsDBNull(11) ? 0 : reader.GetInt32(11);
-                        var rgmMonth = reader.IsDBNull(12) ? 0 : reader.GetInt32(12);
-                        var rgmDay = reader.IsDBNull(13) ? 0 : reader.GetInt32(13);
-
-                        DateTime? releaseDate = null;
-                        if (rcYear > 0 && rcMonth > 0 && rcDay > 0)
-                        {
-                            releaseDate = SafeDate(rcYear, rcMonth, rcDay);
-                        }
-                        else if (rgmYear > 0 && rgmMonth > 0 && rgmDay > 0)
-                        {
-                            releaseDate = SafeDate(rgmYear, rgmMonth, rgmDay);
-                        }
-
-                        albums.Add(new AlbumInsertRow(
-                            reader.GetInt64(1),
-                            reader.GetString(2),
-                            reader.GetString(3),
-                            reader.GetString(4),
-                            reader.GetString(5),
-                            reader.GetString(6),
-                            reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
-                            releaseDate ?? DateTime.MinValue));
-                    }
-                }
-
-                if (albums.Count == 0)
-                {
-                    break;
-                }
-
-                using (var insertTransaction = connection.BeginTransaction())
-                {
-                    insertCmd.Transaction = insertTransaction;
-
-                    foreach (var album in albums)
-                    {
-                        insertCmd.Parameters[0].Value = album.MusicBrainzArtistId;
-                        insertCmd.Parameters[1].Value = album.MusicBrainzIdRaw;
-                        insertCmd.Parameters[2].Value = album.Name;
-                        insertCmd.Parameters[3].Value = album.NameNormalized;
-                        insertCmd.Parameters[4].Value = album.SortName;
-                        insertCmd.Parameters[5].Value = album.ReleaseGroupMusicBrainzIdRaw;
-                        insertCmd.Parameters[6].Value = album.ReleaseType;
-                        insertCmd.Parameters[7].Value = album.ReleaseDate;
-                        insertCmd.Parameters[8].Value = DBNull.Value;
-
-                        await insertCmd.ExecuteNonQueryAsync(cancellationToken);
-                    }
-
-                    insertTransaction.Commit();
-                    insertCmd.Transaction = null;
-                }
-
-                totalMaterialized += albums.Count;
-
-                progressCallback?.Invoke(
-                    "Materializing Albums",
-                    Math.Min(totalMaterialized, progressTotal),
-                    Math.Max(progressTotal, totalMaterialized),
-                    $"Materialized {totalMaterialized:N0} albums");
-            }
-
-            logger.Debug("DecentDbStreamingImporter: Materialized {Count} albums", totalMaterialized);
-            progressCallback?.Invoke("Materializing Albums", 1, 1, $"Materialized {totalMaterialized:N0} albums");
+            logger.Debug("DecentDbStreamingImporter: Materialized {Count} albums", rowsAffected);
+            progressCallback?.Invoke("Materializing Albums", 1, 1, $"Materialized {rowsAffected:N0} albums");
         }
-    }
-
-    private static DateTime? SafeDate(int year, int month, int day)
-    {
-        year = Math.Clamp(year, 1, 9999);
-        month = Math.Clamp(month, 1, 12);
-        day = Math.Clamp(day, 1, DateTime.DaysInMonth(year, month));
-        return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
     }
 
     #endregion

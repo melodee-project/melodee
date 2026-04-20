@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using FluentAssertions;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
+using Melodee.Tests.Common.Performance;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -9,7 +10,7 @@ namespace Melodee.Tests.Common.Plugins.SearchEngine.MusicBrainz;
 /// <summary>
 /// Benchmark tests for MusicBrainz import performance.
 /// These tests measure and report detailed timing for each phase of the import process.
-/// Run with: dotnet test --filter "FullyQualifiedName~MusicBrainzImportBenchmark" -v n
+/// Run with: MELODEE_RUN_PERF_TESTS=true dotnet test --filter "FullyQualifiedName~MusicBrainzImportBenchmark" -v n
 /// </summary>
 [Trait("Category", "Benchmark")]
 public class MusicBrainzImportBenchmark : IDisposable
@@ -52,11 +53,70 @@ public class MusicBrainzImportBenchmark : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    [Fact]
+    public async Task BenchmarkImport_SmallDataset_SmokeTest()
+    {
+        const int artistCount = 25;
+        const int albumsPerArtist = 2;
+
+        var storagePath = Path.Combine(_testDataPath, "smoke");
+        var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
+        var dbFile = Path.Combine(_testDbPath, "smoke.ddb");
+
+        var stats = MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount, albumsPerArtist);
+
+        var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB($"Data Source={dbFile}")
+            .Options;
+
+        await using var context = new MusicBrainzDbContext(dbOptions);
+        await context.Database.EnsureCreatedAsync();
+
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
+        var phaseTimings = new Dictionary<string, long>();
+        var currentPhase = string.Empty;
+        var phaseStopwatch = new Stopwatch();
+
+        void ProgressCallback(string phase, int current, int total, string? message)
+        {
+            if (phase != currentPhase)
+            {
+                if (!string.IsNullOrEmpty(currentPhase))
+                {
+                    phaseStopwatch.Stop();
+                    phaseTimings[currentPhase] = phaseStopwatch.ElapsedMilliseconds;
+                }
+
+                currentPhase = phase;
+                phaseStopwatch.Restart();
+            }
+        }
+
+        await importer.ImportAsync(
+            context,
+            storagePath,
+            ProgressCallback,
+            CancellationToken.None);
+
+        if (!string.IsNullOrEmpty(currentPhase))
+        {
+            phaseStopwatch.Stop();
+            phaseTimings[currentPhase] = phaseStopwatch.ElapsedMilliseconds;
+        }
+
+        var importedArtists = await context.Artists.CountAsync();
+        var importedAlbums = await context.Albums.CountAsync();
+
+        importedArtists.Should().Be(stats.ArtistCount);
+        importedAlbums.Should().BeGreaterThan(0);
+        phaseTimings.Should().NotBeEmpty();
+    }
+
     /// <summary>
     /// Comprehensive benchmark that measures all phases of the import process.
     /// This test outputs detailed timing information for performance analysis.
     /// </summary>
-    [Theory]
+    [PerformanceTheory]
     [InlineData(1000, 5)]   // Small: ~1K artists, ~5K albums
     [InlineData(5000, 5)]   // Medium: ~5K artists, ~25K albums
     [InlineData(10000, 5)]  // Large: ~10K artists, ~50K albums
@@ -150,7 +210,7 @@ public class MusicBrainzImportBenchmark : IDisposable
     /// <summary>
     /// Runs multiple iterations to get stable performance numbers.
     /// </summary>
-    [Fact]
+    [PerformanceFact]
     public async Task BenchmarkImport_MultipleIterations_ForStableMetrics()
     {
         const int iterations = 3;
@@ -210,7 +270,7 @@ public class MusicBrainzImportBenchmark : IDisposable
     /// <summary>
     /// Memory-focused benchmark that tracks peak memory usage.
     /// </summary>
-    [Theory]
+    [PerformanceTheory]
     [InlineData(5000, 5)]
     public async Task BenchmarkImport_TracksMemoryUsage(int artistCount, int albumsPerArtist)
     {

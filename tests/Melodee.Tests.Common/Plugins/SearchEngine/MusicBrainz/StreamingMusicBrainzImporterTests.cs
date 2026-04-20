@@ -3,6 +3,7 @@ using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
+using Melodee.Tests.Common.Performance;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Serilog;
@@ -123,7 +124,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         progressMessages.Should().NotBeEmpty();
     }
 
-    [Fact]
+    [PerformanceFact]
     public async Task ImportAsync_WithMediumTestData_CompletesInReasonableTime()
     {
         var mbDumpPath = Path.Combine(_testDataPath, "staging", "mbdump");
@@ -286,7 +287,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         albums[0].ReleaseDate.Should().Be(new DateTime(2020, 3, 4, 0, 0, 0, DateTimeKind.Utc));
     }
 
-    [Theory]
+    [PerformanceTheory]
     [InlineData(100, 3)]
     [InlineData(500, 5)]
     [InlineData(1000, 5)]
