@@ -64,6 +64,11 @@ public abstract class MusicBrainzRepositoryBase(ILogger logger, IMelodeeConfigur
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default);
 
+    public abstract Task<OperationResult<bool>> ImportData(
+        MusicBrainzImportRequest request,
+        ImportProgressCallback? progressCallback = null,
+        CancellationToken cancellationToken = default);
+
     protected static T[] LoadDataFromFileAsync<T>(string file, Func<string[], T> constructor,
         CancellationToken cancellationToken = default) where T : notnull
     {

@@ -124,6 +124,40 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         progressMessages.Should().NotBeEmpty();
     }
 
+    [Fact]
+    public async Task ImportAsync_WithLargeArtistCount_ReportsStreamedArtistMaterializationProgress()
+    {
+        var mbDumpPath = Path.Combine(_testDataPath, "batched", "staging", "mbdump");
+        var dbFile = Path.Combine(_testDbPath, "batched-musicbrainz.ddb");
+
+        MusicBrainzTestDataGenerator.GenerateTestData(mbDumpPath, artistCount: 6000, albumsPerArtist: 1);
+
+        var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB($"Data Source={dbFile}")
+            .Options;
+
+        await using var context = new MusicBrainzDbContext(dbOptions);
+        await context.Database.EnsureCreatedAsync();
+
+        var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
+        var progressMessages = new List<string>();
+
+        await importer.ImportAsync(
+            context,
+            Path.Combine(_testDataPath, "batched"),
+            (phase, current, total, msg) => progressMessages.Add($"{phase}: {msg}"),
+            CancellationToken.None);
+
+        var materializationMessages = progressMessages
+            .Where(message => message.StartsWith("Materializing Artists:", StringComparison.Ordinal))
+            .ToList();
+
+        materializationMessages.Count.Should().BeGreaterThanOrEqualTo(2);
+        materializationMessages.Should().Contain(message => message.Contains("Verifying streamed materialized artists", StringComparison.Ordinal));
+        materializationMessages.Should().Contain(message => message.Contains("from streamed source files", StringComparison.Ordinal));
+        materializationMessages.Should().Contain(message => message.Contains("alias lookup rows", StringComparison.Ordinal));
+    }
+
     [PerformanceFact]
     public async Task ImportAsync_WithMediumTestData_CompletesInReasonableTime()
     {
@@ -221,7 +255,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_WithDuplicateReleaseCountries_MaterializesSingleAlbumPerRelease()
+    public async Task ImportAsync_WithDuplicateReleaseCountries_UsesReleaseGroupDateAndMaterializesSingleAlbumPerRelease()
     {
         var storagePath = Path.Combine(_testDataPath, "duplicate-release-country");
         var mbDumpPath = Path.Combine(storagePath, "staging", "mbdump");
@@ -284,7 +318,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
 
         albums.Should().HaveCount(1);
         albums[0].MusicBrainzIdRaw.Should().Be("33333333-3333-3333-3333-333333333333");
-        albums[0].ReleaseDate.Should().Be(new DateTime(2020, 3, 4, 0, 0, 0, DateTimeKind.Utc));
+        albums[0].ReleaseDate.Should().Be(new DateTime(2019, 1, 1, 0, 0, 0, DateTimeKind.Utc));
     }
 
     [PerformanceTheory]

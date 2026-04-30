@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
 using Melodee.Common.Configuration;
@@ -140,21 +141,26 @@ public class DecentDBMusicBrainzRepository(
                             .GroupBy(x => x.ReleaseGroupMusicBrainzIdRaw)
                             .Select(rg => rg.OrderBy(x => x.ReleaseDate).First())
                             .ToArray());
+                    var aliasValuesByArtist = await LoadAliasValuesByArtistAsync(context, artistIds, cancellationToken);
 
                     foreach (var artist in foundArtists)
                     {
+                        var alternateNamesValues = artist.AlternateNamesValues
+                            .Concat(aliasValuesByArtist.GetValueOrDefault(artist.MusicBrainzArtistId, []))
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray();
                         var rank = artist.NameNormalized == query.NameNormalized ? 10 : 1;
-                        if (artist.AlternateNamesValues.Contains(query.NameNormalized))
+                        if (alternateNamesValues.Contains(query.NameNormalized))
                         {
                             rank++;
                         }
 
-                        if (artist.AlternateNamesValues.Contains(query.Name.CleanString().ToNormalizedString()))
+                        if (alternateNamesValues.Contains(query.Name.CleanString().ToNormalizedString()))
                         {
                             rank++;
                         }
 
-                        if (artist.AlternateNamesValues.Contains(query.NameNormalizedReversed))
+                        if (alternateNamesValues.Contains(query.NameNormalizedReversed))
                         {
                             rank++;
                         }
@@ -175,7 +181,7 @@ public class DecentDBMusicBrainzRepository(
 
                         data.Add(new ArtistSearchResult
                         {
-                            AlternateNames = artist.AlternateNames?.ToTags()?.ToArray() ?? [],
+                            AlternateNames = alternateNamesValues,
                             FromPlugin =
                                 $"{nameof(MusicBrainzArtistSearchEnginePlugin)}:{nameof(DecentDBMusicBrainzRepository)}",
                             UniqueId = SafeParser.Hash(artist.MusicBrainzId.ToString()),
@@ -249,35 +255,47 @@ public class DecentDBMusicBrainzRepository(
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
+        return await ImportData(new MusicBrainzImportRequest(), progressCallback, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<OperationResult<bool>> ImportData(
+        MusicBrainzImportRequest request,
+        ImportProgressCallback? progressCallback = null,
+        CancellationToken cancellationToken = default)
+    {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDBMusicBrainzRepository: ImportData (Streaming)"))
         {
             var configuration =
                 await configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
-            var storagePath = configuration.GetValue<string>(SettingRegistry.SearchEngineMusicBrainzStoragePath);
+            var storagePath = request.StoragePath ??
+                              configuration.GetValue<string>(SettingRegistry.SearchEngineMusicBrainzStoragePath);
             if (storagePath == null || !Directory.Exists(storagePath))
             {
                 logger.Warning("MusicBrainz storage path is invalid [{KeyName}]",
                     SettingRegistry.SearchEngineMusicBrainzStoragePath);
                 return new OperationResult<bool>
                 {
-                    Data = false
+                    Data = false,
+                    Type = OperationResponseType.Error,
+                    Errors = [new DirectoryNotFoundException(
+                        $"MusicBrainz storage path does not exist: {storagePath ?? "(null)"}")]
                 };
             }
 
             try
             {
-                await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                await context.Database.EnsureCreatedAsync(cancellationToken);
-
                 var importer = new DecentDBStreamingMusicBrainzImporter(logger);
 
                 await importer.ImportAsync(
-                    context,
+                    ct => CreateImportContextAsync(request.TargetDatabasePath, ct),
                     storagePath,
                     progressCallback,
                     cancellationToken);
 
+                await using var context = await CreateImportContextAsync(request.TargetDatabasePath, cancellationToken)
+                    .ConfigureAwait(false);
                 var artistCount = await context.Artists.CountAsync(cancellationToken);
                 var albumCount = await context.Albums.CountAsync(cancellationToken);
 
@@ -290,15 +308,63 @@ public class DecentDBMusicBrainzRepository(
                     Data = artistCount > 0 && albumCount > 0
                 };
             }
+            catch (OperationCanceledException)
+            {
+                logger.Warning("DecentDBMusicBrainzRepository: Import was cancelled");
+                throw;
+            }
             catch (Exception e)
             {
-                logger.Error(e, "DecentDBMusicBrainzRepository: Import failed");
+                var importException = CreateImportFailureException(e);
+                logger.Error("DecentDBMusicBrainzRepository: Import failed - {Message}", importException.Message);
+                logger.Debug(e, "DecentDBMusicBrainzRepository: Import failure details");
                 return new OperationResult<bool>
                 {
-                    Data = false
+                    Data = false,
+                    Type = OperationResponseType.Error,
+                    Errors = [importException]
                 };
             }
         }
+    }
+
+    private static Exception CreateImportFailureException(Exception exception)
+    {
+        if (exception is InvalidOperationException invalidOperationException &&
+            invalidOperationException.Message.Contains("at most 1000 values in an IN list", StringComparison.OrdinalIgnoreCase))
+        {
+            return new InvalidOperationException(
+                "MusicBrainz import exceeded the DecentDB IN-list limit during artist materialization. " +
+                "Rebuild the CLI or server binaries and rerun with the latest importer changes.",
+                exception);
+        }
+
+        return new InvalidOperationException($"MusicBrainz import failed: {exception.Message}", exception);
+    }
+
+    private async Task<MusicBrainzDbContext> CreateImportContextAsync(
+        string? targetDatabasePath,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(targetDatabasePath))
+        {
+            return await dbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using var baseContext = await dbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var connectionString = baseContext.Database.GetConnectionString()
+                               ?? throw new InvalidOperationException("MusicBrainzDbContext has no connection string configured.");
+        var builder = new DbConnectionStringBuilder
+        {
+            ConnectionString = connectionString
+        };
+        builder["Data Source"] = targetDatabasePath;
+
+        var options = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB(builder.ConnectionString)
+            .Options;
+
+        return new MusicBrainzDbContext(options);
     }
 
     /// <summary>
@@ -366,5 +432,31 @@ public class DecentDBMusicBrainzRepository(
             .OrderBy(a => a.SortName)
             .Take(maxResults)
             .ToArrayAsync(cancellationToken);
+    }
+
+    private static async Task<Dictionary<long, string[]>> LoadAliasValuesByArtistAsync(
+        MusicBrainzDbContext context,
+        long[] artistIds,
+        CancellationToken cancellationToken)
+    {
+        var aliasRows = await context.ArtistAliases
+            .AsNoTracking()
+            .Where(alias => artistIds.Contains(alias.MusicBrainzArtistId))
+            .Select(alias => new
+            {
+                alias.MusicBrainzArtistId,
+                alias.NameNormalized
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return aliasRows
+            .GroupBy(alias => alias.MusicBrainzArtistId)
+            .ToDictionary(
+                grouping => grouping.Key,
+                grouping => grouping
+                    .Select(alias => alias.NameNormalized)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(alias => alias, StringComparer.Ordinal)
+                    .ToArray());
     }
 }

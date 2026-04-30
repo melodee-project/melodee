@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Data.Common;
 using System.Globalization;
 using System.Text;
 using Melodee.Common.Extensions;
@@ -17,8 +17,10 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 /// </summary>
 public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 {
-    private const int BatchSize = 25000;
+    private const int StagingRowsPerInsertStatement = 1000;
+    private const int StagingRowsPerTransaction = 20000;
     private const int MaxIndexSize = 255;
+    private const int TotalImportSteps = 18;
 
     public async Task ImportAsync(
         MusicBrainzDbContext context,
@@ -26,27 +28,76 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
+        await ImportAsync(
+                _ => Task.FromResult(context),
+                storagePath,
+                progressCallback,
+                ownsCreatedContexts: false,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task ImportAsync(
+        Func<CancellationToken, Task<MusicBrainzDbContext>> contextFactory,
+        string storagePath,
+        ImportProgressCallback? progressCallback = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ImportAsync(
+                contextFactory,
+                storagePath,
+                progressCallback,
+                ownsCreatedContexts: true,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task ImportAsync(
+        Func<CancellationToken, Task<MusicBrainzDbContext>> contextFactory,
+        string storagePath,
+        ImportProgressCallback? progressCallback,
+        bool ownsCreatedContexts,
+        CancellationToken cancellationToken)
+    {
         var mbDumpPath = Path.Combine(storagePath, "staging/mbdump");
+        var context = await contextFactory(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (ownsCreatedContexts)
+            {
+                await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+            }
 
-        await ImportArtistStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
+            await ImportArtistStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken)
+                .ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
 
-        await MaterializeArtistsAsync(context, progressCallback, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
+            await MaterializeArtistsAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
 
-        await MaterializeArtistRelationsAsync(context, progressCallback, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
+            await MaterializeArtistRelationsAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
 
-        await DropArtistStagingTablesAsync(context, progressCallback, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
+            await DropArtistStagingTablesAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
 
-        var releaseCount = await ImportAlbumStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
+            var releaseCount = await ImportAlbumStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken)
+                .ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
 
-        await MaterializeAlbumsAsync(context, releaseCount, progressCallback, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
+            await MaterializeAlbumsAsync(context, releaseCount, progressCallback, cancellationToken).ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
 
-        await DropAlbumStagingTablesAsync(context, progressCallback, cancellationToken);
+            await DropAlbumStagingTablesAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
+            ResetContextState(context, cancellationToken);
+        }
+        finally
+        {
+            if (ownsCreatedContexts)
+            {
+                await context.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     #region Phase 1: Artist Staging Data
@@ -59,12 +110,18 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Artist staging data"))
         {
-            progressCallback?.Invoke("Loading Artists", 0, 4, "Streaming artist file to staging...");
+            await MusicBrainzSchemaInitializer.EnsureArtistAliasTableAsync(context, cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistRelation""", cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistAlias""", cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""Artist""", cancellationToken);
+            await DropMaterializedArtistLookupIndexesAsync(context, cancellationToken).ConfigureAwait(false);
+
+            progressCallback?.Invoke("Loading Artists", 0, 4, WithImportStep(1, "Streaming artist file to materialized table..."));
             var artistCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "artist"),
-                nameof(ArtistStaging),
-                ["ArtistId", "MusicBrainzIdRaw", "Name", "NameNormalized", "SortName"],
+                nameof(Artist),
+                ["MusicBrainzArtistId", "MusicBrainzIdRaw", "Name", "NameNormalized", "SortName"],
                 span =>
                 {
                     var p0 = GetColumn(span, 0);
@@ -85,14 +142,14 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     ];
                 },
                 cancellationToken);
-            progressCallback?.Invoke("Loading Artists", 1, 4, $"Streamed {artistCount:N0} artists to staging");
+            progressCallback?.Invoke("Loading Artists", 1, 4, WithImportStep(1, $"Streamed {artistCount:N0} artists to materialized table"));
 
-            progressCallback?.Invoke("Loading Artists", 1, 4, "Streaming artist aliases to staging...");
+            progressCallback?.Invoke("Loading Artists", 1, 4, WithImportStep(2, "Streaming artist aliases to lookup table..."));
             var aliasCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "artist_alias"),
-                nameof(ArtistAliasStaging),
-                ["ArtistId", "NameNormalized"],
+                "ArtistAlias",
+                ["MusicBrainzArtistId", "NameNormalized"],
                 span =>
                 {
                     var p1 = GetColumn(span, 1);
@@ -105,10 +162,12 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                         name.CleanString().TruncateLongString(MaxIndexSize)?.ToNormalizedString() ?? name
                     ];
                 },
-                cancellationToken);
-            progressCallback?.Invoke("Loading Artists", 2, 4, $"Streamed {aliasCount:N0} artist aliases to staging");
+                cancellationToken,
+                values => values[1] is null || values[1] is string text && string.IsNullOrEmpty(text),
+                onConflictDoNothing: true);
+            progressCallback?.Invoke("Loading Artists", 2, 4, WithImportStep(2, $"Streamed {aliasCount:N0} artist aliases to lookup table"));
 
-            progressCallback?.Invoke("Loading Artists", 2, 4, "Streaming links to staging...");
+            progressCallback?.Invoke("Loading Artists", 2, 4, WithImportStep(3, "Streaming links to staging..."));
             var linkCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "link"),
@@ -132,9 +191,9 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     ];
                 },
                 cancellationToken);
-            progressCallback?.Invoke("Loading Artists", 3, 4, $"Streamed {linkCount:N0} links to staging");
+            progressCallback?.Invoke("Loading Artists", 3, 4, WithImportStep(3, $"Streamed {linkCount:N0} links to staging"));
 
-            progressCallback?.Invoke("Loading Artists", 3, 4, "Streaming artist links to staging...");
+            progressCallback?.Invoke("Loading Artists", 3, 4, WithImportStep(4, "Streaming artist links to staging..."));
             var artistLinkCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "l_artist_artist"),
@@ -156,18 +215,9 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     ];
                 },
                 cancellationToken);
-            progressCallback?.Invoke("Loading Artists", 4, 4, $"Streamed {artistLinkCount:N0} artist links to staging");
+            progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(4, $"Streamed {artistLinkCount:N0} artist links to staging"));
 
-            progressCallback?.Invoke("Loading Artists", 4, 4, "Creating staging indices...");
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ArtistStaging_ArtistId" ON "ArtistStaging" ("ArtistId")""",
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ArtistAliasStaging_ArtistId" ON "ArtistAliasStaging" ("ArtistId")""",
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ArtistAliasStaging_NameNormalized" ON "ArtistAliasStaging" ("NameNormalized")""",
-                cancellationToken);
+            progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(5, "Creating staging indices..."));
             await context.Database.ExecuteSqlRawAsync(
                 """CREATE INDEX IF NOT EXISTS "IX_LinkArtistToArtistStaging_Artist0" ON "LinkArtistToArtistStaging" ("Artist0")""",
                 cancellationToken);
@@ -180,12 +230,140 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             await context.Database.ExecuteSqlRawAsync(
                 """CREATE INDEX IF NOT EXISTS "IX_LinkStaging_LinkId" ON "LinkStaging" ("LinkId")""",
                 cancellationToken);
-            progressCallback?.Invoke("Loading Artists", 4, 4, "Staging indices created");
-            progressCallback?.Invoke("Loading Artists", 4, 4, "Artist staging data loaded");
+            progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(5, "Rebuilding artist lookup indices..."));
+            await RebuildMaterializedArtistLookupIndexesAsync(context, cancellationToken).ConfigureAwait(false);
+            progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(5, "Staging indices created"));
+            progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(5, "Artist staging data loaded"));
         }
     }
 
     #endregion
+
+    private static async Task DropMaterializedArtistLookupIndexesAsync(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        foreach (var dropSql in new[]
+                 {
+                     """DROP INDEX IF EXISTS "IX_Artist_MusicBrainzIdRaw" """,
+                     """DROP INDEX IF EXISTS "IX_Artist_NameNormalized" """,
+                     """DROP INDEX IF EXISTS "IX_Artist_MusicBrainzArtistId" """,
+                     """DROP INDEX IF EXISTS "IX_ArtistAlias_NameNormalized" """,
+                     """DROP INDEX IF EXISTS "IX_ArtistAlias_MusicBrainzArtistId" """
+                 })
+        {
+            await context.Database.ExecuteSqlRawAsync(dropSql, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task RebuildMaterializedArtistLookupIndexesAsync(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_Artist_MusicBrainzIdRaw" ON "Artist" ("MusicBrainzIdRaw")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_Artist_NameNormalized" ON "Artist" ("NameNormalized")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_Artist_MusicBrainzArtistId" ON "Artist" ("MusicBrainzArtistId")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_ArtistAlias_NameNormalized" ON "ArtistAlias" ("NameNormalized")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_ArtistAlias_MusicBrainzArtistId" ON "ArtistAlias" ("MusicBrainzArtistId")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task DropAlbumStagingLookupIndexesAsync(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        foreach (var dropSql in new[]
+                 {
+                     """DROP INDEX IF EXISTS "IX_ArtistCreditStaging_ArtistCreditId" """,
+                     """DROP INDEX IF EXISTS "IX_ArtistCreditNameStaging_ArtistCreditId" """,
+                     """DROP INDEX IF EXISTS "IX_ArtistCreditNameStaging_ArtistId" """,
+                     """DROP INDEX IF EXISTS "IX_ReleaseCountryStaging_ReleaseId" """,
+                     """DROP INDEX IF EXISTS "IX_ReleaseGroupStaging_ReleaseGroupId" """,
+                     """DROP INDEX IF EXISTS "IX_ReleaseGroupMetaStaging_ReleaseGroupId" """,
+                     """DROP INDEX IF EXISTS "IX_ReleaseStaging_ReleaseId" """,
+                     """DROP INDEX IF EXISTS "IX_ReleaseStaging_ReleaseGroupId" """,
+                     """DROP INDEX IF EXISTS "IX_ReleaseStaging_ArtistCreditId" """
+                 })
+        {
+            await context.Database.ExecuteSqlRawAsync(dropSql, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task DropMaterializedAlbumLookupIndexesAsync(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        foreach (var dropSql in new[]
+                 {
+                     """DROP INDEX IF EXISTS "IX_Album_MusicBrainzIdRaw" """,
+                     """DROP INDEX IF EXISTS "IX_Album_MusicBrainzArtistId" """,
+                     """DROP INDEX IF EXISTS "IX_Album_NameNormalized" """
+                 })
+        {
+            await context.Database.ExecuteSqlRawAsync(dropSql, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task RebuildMaterializedAlbumLookupIndexesAsync(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_Album_MusicBrainzIdRaw" ON "Album" ("MusicBrainzIdRaw")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_Album_MusicBrainzArtistId" ON "Album" ("MusicBrainzArtistId")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """CREATE INDEX IF NOT EXISTS "IX_Album_NameNormalized" ON "Album" ("NameNormalized")""",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task EnsureAlbumHelperTablesAsync(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE IF NOT EXISTS "ReleaseCountryResolvedStaging" (
+                    "ReleaseId" BIGINT NOT NULL PRIMARY KEY,
+                    "DateYear" INTEGER NOT NULL,
+                    "DateMonth" INTEGER NOT NULL,
+                    "DateDay" INTEGER NOT NULL
+                )
+                """,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await context.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE IF NOT EXISTS "ArtistCreditPrimaryArtistStaging" (
+                    "ArtistCreditId" BIGINT NOT NULL PRIMARY KEY,
+                    "ArtistId" BIGINT NOT NULL
+                )
+                """,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     #region Phase 2: Materialize Artists
 
@@ -196,56 +374,26 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Materialize artists"))
         {
-            await MusicBrainzSchemaInitializer.EnsureArtistAliasTableAsync(context, cancellationToken);
-            progressCallback?.Invoke("Materializing Artists", 0, 2, "Creating materialized artists from staging...");
-
-            var insertSql = @"
-                INSERT INTO ""Artist"" (""MusicBrainzArtistId"", ""MusicBrainzIdRaw"", ""Name"", ""NameNormalized"", ""SortName"", ""AlternateNames"")
-                SELECT 
-                    a.""ArtistId"",
-                    a.""MusicBrainzIdRaw"",
-                    a.""Name"",
-                    a.""NameNormalized"",
-                    a.""SortName"",
-                    GROUP_CONCAT(alias_rows.""NameNormalized"", '|')
-                FROM ""ArtistStaging"" a
-                LEFT JOIN (
-                    SELECT
-                        DISTINCT aa.""ArtistId"" AS ""ArtistId"",
-                        aa.""NameNormalized"" AS ""NameNormalized""
-                    FROM ""ArtistAliasStaging"" aa
-                    WHERE aa.""NameNormalized"" IS NOT NULL
-                      AND aa.""NameNormalized"" != ''
-                ) alias_rows ON alias_rows.""ArtistId"" = a.""ArtistId""
-                GROUP BY
-                    a.""ArtistId"",
-                    a.""MusicBrainzIdRaw"",
-                    a.""Name"",
-                    a.""NameNormalized"",
-                    a.""SortName""";
-
-            var rowsAffected = await context.Database.ExecuteSqlRawAsync(insertSql, cancellationToken);
-            progressCallback?.Invoke("Materializing Artists", 1, 2, $"Inserted {rowsAffected:N0} artists, materializing alias lookup...");
-
-            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistAlias""", cancellationToken);
-
-            var aliasRowsAffected = await context.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO "ArtistAlias" ("MusicBrainzArtistId", "NameNormalized")
-                SELECT DISTINCT
-                    aa."ArtistId",
-                    aa."NameNormalized"
-                FROM "ArtistAliasStaging" aa
-                WHERE aa."NameNormalized" IS NOT NULL
-                  AND aa."NameNormalized" != ''
-                """,
-                cancellationToken);
+            var totalArtists = await context.Artists.CountAsync(cancellationToken);
+            var totalAliasRows = await context.ArtistAliases.CountAsync(cancellationToken);
+            var totalArtistsForProgress = Math.Max(totalArtists, 1);
+            progressCallback?.Invoke(
+                "Materializing Artists",
+                0,
+                totalArtistsForProgress,
+                WithImportStep(6, "Verifying streamed materialized artists..."));
 
             logger.Debug(
                 "DecentDbStreamingImporter: Materialized {Count} artists with {AliasRows} indexed alias rows",
-                rowsAffected,
-                aliasRowsAffected);
-            progressCallback?.Invoke("Materializing Artists", 2, 2, $"Materialized {rowsAffected:N0} artists");
+                totalArtists,
+                totalAliasRows);
+            progressCallback?.Invoke(
+                "Materializing Artists",
+                totalArtistsForProgress,
+                totalArtistsForProgress,
+                WithImportStep(
+                    6,
+                    $"Materialized {totalArtists:N0} artists with {totalAliasRows:N0} alias lookup rows from streamed source files"));
         }
     }
 
@@ -260,7 +408,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Materialize artist relations"))
         {
-            progressCallback?.Invoke("Materializing Relations", 0, 1, "Creating artist relations from staging...");
+            progressCallback?.Invoke("Materializing Relations", 0, 1, WithImportStep(7, "Creating artist relations from staging..."));
 
             var sql = @"
                 INSERT INTO ""ArtistRelation"" (""ArtistId"", ""RelatedArtistId"", ""ArtistRelationType"", ""SortOrder"", ""RelationStart"", ""RelationEnd"")
@@ -279,7 +427,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             var rowsAffected = await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
             logger.Debug("DecentDbStreamingImporter: Materialized {Count} artist relations", rowsAffected);
 
-            progressCallback?.Invoke("Materializing Relations", 1, 1, $"Materialized {rowsAffected:N0} artist relations");
+            progressCallback?.Invoke("Materializing Relations", 1, 1, WithImportStep(7, $"Materialized {rowsAffected:N0} artist relations"));
         }
     }
 
@@ -292,14 +440,14 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         ImportProgressCallback? progressCallback,
         CancellationToken cancellationToken)
     {
-        progressCallback?.Invoke("Cleanup", 0, 1, "Dropping artist staging tables...");
+        progressCallback?.Invoke("Cleanup", 0, 1, WithImportStep(8, "Dropping artist staging tables..."));
 
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistStaging""", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistAliasStaging""", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""LinkStaging""", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""LinkArtistToArtistStaging""", cancellationToken);
 
-        progressCallback?.Invoke("Cleanup", 1, 1, "Artist staging tables cleared");
+        progressCallback?.Invoke("Cleanup", 1, 1, WithImportStep(8, "Artist staging tables cleared"));
     }
 
     #endregion
@@ -314,27 +462,20 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Album staging data"))
         {
-            progressCallback?.Invoke("Loading Albums", 0, 6, "Streaming artist credits to staging...");
-            var creditCount = await StreamFileToStagingRawAsync(
-                context,
-                Path.Combine(mbDumpPath, "artist_credit"),
-                nameof(ArtistCreditStaging),
-                ["ArtistCreditId", "ArtistCount"],
-                span =>
-                {
-                    var p0 = GetColumn(span, 0);
-                    var p2 = GetColumn(span, 2);
-                    return [ToLong(p0), ToInt(p2)];
-                },
-                cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 1, 6, $"Streamed {creditCount:N0} artist credits");
+            await DropAlbumStagingLookupIndexesAsync(context, cancellationToken).ConfigureAwait(false);
+            await EnsureAlbumHelperTablesAsync(context, cancellationToken).ConfigureAwait(false);
+            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseCountryResolvedStaging""", cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditPrimaryArtistStaging""", cancellationToken);
 
-            progressCallback?.Invoke("Loading Albums", 1, 6, "Streaming artist credit names to staging...");
+            progressCallback?.Invoke("Loading Albums", 0, 6, WithImportStep(9, "Skipping unused artist credit staging..."));
+            progressCallback?.Invoke("Loading Albums", 1, 6, WithImportStep(9, "Artist credit staging skipped"));
+
+            progressCallback?.Invoke("Loading Albums", 1, 6, WithImportStep(10, "Streaming primary artist credits to helper table..."));
             var creditNameCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "artist_credit_name"),
-                nameof(ArtistCreditNameStaging),
-                ["ArtistCreditId", "Position", "ArtistId"],
+                "ArtistCreditPrimaryArtistStaging",
+                ["ArtistCreditId", "ArtistId"],
                 span =>
                 {
                     var p0 = GetColumn(span, 0);
@@ -342,27 +483,16 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     var p2 = GetColumn(span, 2);
                     return [ToLong(p0), ToInt(p1), ToLong(p2)];
                 },
-                cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 2, 6, $"Streamed {creditNameCount:N0} artist credit names");
+                cancellationToken,
+                values => values[1] is not int position || position != 0 || values[0] is not long creditId || creditId <= 0 || values[2] is not long artistId || artistId <= 0,
+                onConflictDoNothing: true,
+                valueProjector: values => [values[0], values[2]]);
+            progressCallback?.Invoke("Loading Albums", 2, 6, WithImportStep(10, $"Streamed {creditNameCount:N0} primary artist credits"));
 
-            progressCallback?.Invoke("Loading Albums", 2, 6, "Streaming release countries to staging...");
-            var countryCount = await StreamFileToStagingRawAsync(
-                context,
-                Path.Combine(mbDumpPath, "release_country"),
-                nameof(ReleaseCountryStaging),
-                ["ReleaseId", "DateYear", "DateMonth", "DateDay"],
-                span =>
-                {
-                    var p0 = GetColumn(span, 0);
-                    var p2 = GetColumn(span, 2);
-                    var p3 = GetColumn(span, 3);
-                    var p4 = GetColumn(span, 4);
-                    return [ToLong(p0), ToInt(p2), ToInt(p3), ToInt(p4)];
-                },
-                cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 3, 6, $"Streamed {countryCount:N0} release countries");
+            progressCallback?.Invoke("Loading Albums", 2, 6, WithImportStep(11, "Skipping release-country dates; using release-group dates..."));
+            progressCallback?.Invoke("Loading Albums", 3, 6, WithImportStep(11, "Release-country date staging skipped"));
 
-            progressCallback?.Invoke("Loading Albums", 3, 6, "Streaming release groups to staging...");
+            progressCallback?.Invoke("Loading Albums", 3, 6, WithImportStep(12, "Streaming release groups to staging..."));
             var groupCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "release_group"),
@@ -377,9 +507,9 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     return [ToLong(p0), ToString(p1), ToLong(p3), ToInt(p4)];
                 },
                 cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 4, 6, $"Streamed {groupCount:N0} release groups");
+            progressCallback?.Invoke("Loading Albums", 4, 6, WithImportStep(12, $"Streamed {groupCount:N0} release groups"));
 
-            progressCallback?.Invoke("Loading Albums", 4, 6, "Streaming release group meta to staging...");
+            progressCallback?.Invoke("Loading Albums", 4, 6, WithImportStep(13, "Streaming release group meta to staging..."));
             var metaCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "release_group_meta"),
@@ -394,9 +524,9 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     return [ToLong(p0), ToInt(p2), ToInt(p3), ToInt(p4)];
                 },
                 cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 5, 6, $"Streamed {metaCount:N0} release group meta");
+            progressCallback?.Invoke("Loading Albums", 5, 6, WithImportStep(13, $"Streamed {metaCount:N0} release group meta"));
 
-            progressCallback?.Invoke("Loading Albums", 5, 6, "Streaming releases to staging...");
+            progressCallback?.Invoke("Loading Albums", 5, 6, WithImportStep(14, "Streaming releases to staging..."));
             var releaseCount = await StreamFileToStagingRawAsync(
                 context,
                 Path.Combine(mbDumpPath, "release"),
@@ -424,9 +554,9 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     ];
                 },
                 cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 6, 6, $"Streamed {releaseCount:N0} releases");
+            progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(14, $"Streamed {releaseCount:N0} releases"));
 
-            progressCallback?.Invoke("Loading Albums", 6, 6, "Creating staging indices...");
+            progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(15, "Creating staging indices..."));
             await context.Database.ExecuteSqlRawAsync(
                 """CREATE INDEX IF NOT EXISTS "IX_ReleaseStaging_ReleaseGroupId" ON "ReleaseStaging" ("ReleaseGroupId")""",
                 cancellationToken);
@@ -442,72 +572,10 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             await context.Database.ExecuteSqlRawAsync(
                 """CREATE INDEX IF NOT EXISTS "IX_ReleaseGroupMetaStaging_ReleaseGroupId" ON "ReleaseGroupMetaStaging" ("ReleaseGroupId")""",
                 cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ReleaseCountryStaging_ReleaseId" ON "ReleaseCountryStaging" ("ReleaseId")""",
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ArtistCreditStaging_ArtistCreditId" ON "ArtistCreditStaging" ("ArtistCreditId")""",
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ArtistCreditNameStaging_ArtistCreditId" ON "ArtistCreditNameStaging" ("ArtistCreditId")""",
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """CREATE INDEX IF NOT EXISTS "IX_ArtistCreditNameStaging_ArtistId" ON "ArtistCreditNameStaging" ("ArtistId")""",
-                cancellationToken);
-            progressCallback?.Invoke("Loading Albums", 6, 6, "Staging indices created");
+            progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(15, "Staging indices created"));
 
-            progressCallback?.Invoke("Loading Albums", 6, 6, "Creating resolved helper tables...");
-            await context.Database.ExecuteSqlRawAsync(
-                """
-                CREATE TABLE IF NOT EXISTS "ReleaseCountryResolvedStaging" (
-                    "ReleaseId" BIGINT NOT NULL PRIMARY KEY,
-                    "DateYear" INTEGER NOT NULL,
-                    "DateMonth" INTEGER NOT NULL,
-                    "DateDay" INTEGER NOT NULL
-                )
-                """,
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseCountryResolvedStaging""", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO "ReleaseCountryResolvedStaging" ("ReleaseId", "DateYear", "DateMonth", "DateDay")
-                SELECT
-                    rc."ReleaseId",
-                    rc."DateYear",
-                    rc."DateMonth",
-                    rc."DateDay"
-                FROM "ReleaseCountryStaging" rc
-                INNER JOIN (
-                    SELECT
-                        "ReleaseId",
-                        MIN("Id") AS "ReleaseCountryStagingId"
-                    FROM "ReleaseCountryStaging"
-                    WHERE "DateYear" > 0 AND "DateMonth" > 0 AND "DateDay" > 0
-                    GROUP BY "ReleaseId"
-                ) rc_pick ON rc_pick."ReleaseCountryStagingId" = rc."Id"
-                """,
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """
-                CREATE TABLE IF NOT EXISTS "ArtistCreditPrimaryArtistStaging" (
-                    "ArtistCreditId" BIGINT NOT NULL PRIMARY KEY,
-                    "ArtistId" BIGINT NOT NULL
-                )
-                """,
-                cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditPrimaryArtistStaging""", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO "ArtistCreditPrimaryArtistStaging" ("ArtistCreditId", "ArtistId")
-                SELECT DISTINCT
-                    "ArtistCreditId",
-                    "ArtistId"
-                FROM "ArtistCreditNameStaging"
-                WHERE "Position" = 0
-                """,
-                cancellationToken);
-
-            progressCallback?.Invoke("Loading Albums", 6, 6, "Album staging data loaded");
+            progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(16, "Creating resolved helper tables..."));
+            progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(16, "Album staging data loaded"));
 
             return releaseCount;
         }
@@ -526,7 +594,8 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Materialize albums"))
         {
             var progressTotal = Math.Max(expectedAlbumCount, 1);
-            progressCallback?.Invoke("Materializing Albums", 0, progressTotal, "Creating materialized albums from staging...");
+            progressCallback?.Invoke("Materializing Albums", 0, progressTotal, WithImportStep(17, "Creating materialized albums from staging..."));
+            await DropMaterializedAlbumLookupIndexesAsync(context, cancellationToken).ConfigureAwait(false);
 
             // PRINTF is not implemented in the DecentDB version in use, so we
             // assemble the ISO-8601 literal via string concatenation + LPAD.
@@ -542,22 +611,6 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     rg.""MusicBrainzIdRaw"",
                     rg.""ReleaseType"",
                     CASE
-                        WHEN rc.""ReleaseId"" IS NOT NULL THEN
-                            CAST(
-                                LPAD(CAST(rc.""DateYear"" AS TEXT), 4, '0') || '-' ||
-                                LPAD(CAST(rc.""DateMonth"" AS TEXT), 2, '0') || '-' ||
-                                LPAD(CAST(
-                                    CASE
-                                        WHEN rc.""DateMonth"" IN (1,3,5,7,8,10,12) AND rc.""DateDay"" > 31 THEN 31
-                                        WHEN rc.""DateMonth"" IN (4,6,9,11) AND rc.""DateDay"" > 30 THEN 30
-                                        WHEN rc.""DateMonth"" = 2 AND rc.""DateDay"" > 29 THEN 29
-                                        WHEN rc.""DateMonth"" = 2 AND rc.""DateDay"" = 29
-                                            AND NOT (rc.""DateYear"" % 4 = 0 AND (rc.""DateYear"" % 100 != 0 OR rc.""DateYear"" % 400 = 0))
-                                            THEN 28
-                                        ELSE rc.""DateDay""
-                                    END
-                                AS TEXT), 2, '0') || ' 00:00:00'
-                            AS TIMESTAMP)
                         WHEN rgm.""DateYear"" > 0 AND rgm.""DateMonth"" > 0 AND rgm.""DateDay"" > 0 THEN
                             CAST(
                                 LPAD(CAST(rgm.""DateYear"" AS TEXT), 4, '0') || '-' ||
@@ -579,21 +632,21 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     NULL
                 FROM ""ReleaseStaging"" r
                 INNER JOIN ""ReleaseGroupStaging"" rg ON rg.""ReleaseGroupId"" = r.""ReleaseGroupId""
-                LEFT JOIN ""ReleaseCountryResolvedStaging"" rc ON rc.""ReleaseId"" = r.""ReleaseId""
                 LEFT JOIN ""ReleaseGroupMetaStaging"" rgm ON rgm.""ReleaseGroupId"" = r.""ReleaseGroupId""
                 INNER JOIN ""ArtistCreditPrimaryArtistStaging"" acp ON acp.""ArtistCreditId"" = r.""ArtistCreditId""
                 WHERE r.""Name"" IS NOT NULL
                   AND r.""Name"" != ''
                   AND rg.""MusicBrainzIdRaw"" IS NOT NULL
-                  AND (
-                      rc.""ReleaseId"" IS NOT NULL OR
-                      (rgm.""DateYear"" > 0 AND rgm.""DateMonth"" > 0 AND rgm.""DateDay"" > 0)
-                  )";
+                  AND rgm.""DateYear"" > 0
+                  AND rgm.""DateMonth"" > 0
+                  AND rgm.""DateDay"" > 0";
 
             var rowsAffected = await context.Database.ExecuteSqlRawAsync(insertSql, cancellationToken);
+            progressCallback?.Invoke("Materializing Albums", progressTotal, progressTotal, WithImportStep(17, "Rebuilding album lookup indices..."));
+            await RebuildMaterializedAlbumLookupIndexesAsync(context, cancellationToken).ConfigureAwait(false);
 
             logger.Debug("DecentDbStreamingImporter: Materialized {Count} albums", rowsAffected);
-            progressCallback?.Invoke("Materializing Albums", 1, 1, $"Materialized {rowsAffected:N0} albums");
+            progressCallback?.Invoke("Materializing Albums", 1, 1, WithImportStep(17, $"Materialized {rowsAffected:N0} albums"));
         }
     }
 
@@ -606,7 +659,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         ImportProgressCallback? progressCallback,
         CancellationToken cancellationToken)
     {
-        progressCallback?.Invoke("Cleanup", 0, 1, "Dropping album staging tables...");
+        progressCallback?.Invoke("Cleanup", 0, 1, WithImportStep(18, "Dropping album staging tables..."));
 
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditStaging""", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditNameStaging""", cancellationToken);
@@ -617,12 +670,25 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ReleaseCountryResolvedStaging""", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(@"DELETE FROM ""ArtistCreditPrimaryArtistStaging""", cancellationToken);
 
-        progressCallback?.Invoke("Cleanup", 1, 1, "Album staging tables cleared");
+        progressCallback?.Invoke("Cleanup", 1, 1, WithImportStep(18, "Album staging tables cleared"));
     }
 
     #endregion
 
     #region Helper Methods
+
+    private static void ResetContextState(
+        MusicBrainzDbContext context,
+        CancellationToken cancellationToken)
+    {
+        context.ChangeTracker.Clear();
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private static string WithImportStep(int stepNumber, string message)
+    {
+        return $"({stepNumber}/{TotalImportSteps}) {message}";
+    }
 
     private readonly record struct AlbumInsertRow(
         long MusicBrainzArtistId,
@@ -640,7 +706,10 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         string tableName,
         string[] columns,
         Func<ReadOnlySpan<char>, object?[]> parser,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<object?[], bool>? shouldSkipRow = null,
+        bool onConflictDoNothing = false,
+        Func<object?[], object?[]>? valueProjector = null)
     {
         if (!File.Exists(filePath))
         {
@@ -648,103 +717,207 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             return 0;
         }
 
+        var totalCount = 0;
+        var pendingRows = new List<object?[]>(StagingRowsPerTransaction);
         var connection = context.Database.GetDbConnection();
+
         if (connection.State != System.Data.ConnectionState.Open)
         {
-            await connection.OpenAsync(cancellationToken);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        var totalCount = 0;
-        var commandText = new StringBuilder();
-        commandText.Append($"INSERT INTO \"{tableName}\" (");
-        commandText.Append(string.Join(", ", columns.Select(column => $"\"{column}\"")));
-        commandText.Append(") VALUES (");
-        for (var i = 0; i < columns.Length; i++)
-        {
-            commandText.Append($"@p{i}");
-            if (i < columns.Length - 1)
-            {
-                commandText.Append(", ");
-            }
-        }
-
-        commandText.Append(')');
-
-        using var command = connection.CreateCommand();
-        command.CommandText = commandText.ToString();
-
-        for (var i = 0; i < columns.Length; i++)
-        {
-            var param = command.CreateParameter();
-            param.ParameterName = $"@p{i}";
-            command.Parameters.Add(param);
-        }
-
-        command.Prepare();
-
-        var transaction = connection.BeginTransaction();
-        command.Transaction = transaction;
-
-        try
-        {
-            using var reader = new StreamReader(filePath);
-            string? line;
-            while ((line = await reader.ReadLineAsync(cancellationToken)) is not null)
-            {
-                try
-                {
-                    var values = parser(line.AsSpan());
-                    for (var i = 0; i < values.Length; i++)
-                    {
-                        var value = values[i];
-                        if (value is string text && string.IsNullOrEmpty(text))
-                        {
-                            command.Parameters[i].Value = DBNull.Value;
-                        }
-                        else
-                        {
-                            command.Parameters[i].Value = value ?? DBNull.Value;
-                        }
-                    }
-
-                    await command.ExecuteNonQueryAsync(cancellationToken);
-                    totalCount++;
-
-                    if (totalCount % BatchSize == 0)
-                    {
-                        transaction.Commit();
-                        transaction.Dispose();
-                        transaction = connection.BeginTransaction();
-                        command.Transaction = transaction;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.Debug("DecentDbStreamingImporter: Skipped malformed line in {File}: {Error}",
-                        Path.GetFileName(filePath), ex.Message);
-                }
-            }
-
-            transaction.Commit();
-        }
-        catch
+        using var reader = new StreamReader(filePath);
+        string? line;
+        while ((line = await reader.ReadLineAsync(cancellationToken)) is not null)
         {
             try
             {
-                transaction.Rollback();
+                var values = parser(line.AsSpan());
+                if (shouldSkipRow?.Invoke(values) == true)
+                {
+                    continue;
+                }
+
+                if (valueProjector is not null)
+                {
+                    values = valueProjector(values);
+                }
+
+                pendingRows.Add(values);
+                totalCount++;
+
+                if (pendingRows.Count >= StagingRowsPerTransaction)
+                {
+                    await FlushPendingRowsAsync(
+                            connection,
+                            tableName,
+                            columns,
+                            pendingRows,
+                            cancellationToken,
+                            onConflictDoNothing)
+                        .ConfigureAwait(false);
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                logger.Debug("DecentDbStreamingImporter: Skipped malformed line in {File}: {Error}",
+                    Path.GetFileName(filePath), ex.Message);
+            }
+        }
+
+        if (pendingRows.Count > 0)
+        {
+            await FlushPendingRowsAsync(
+                    connection,
+                    tableName,
+                    columns,
+                    pendingRows,
+                    cancellationToken,
+                    onConflictDoNothing)
+                .ConfigureAwait(false);
+        }
+
+        return totalCount;
+    }
+
+    private static async Task FlushPendingRowsAsync(
+        DbConnection connection,
+        string tableName,
+        string[] columns,
+        List<object?[]> pendingRows,
+        CancellationToken cancellationToken,
+        bool onConflictDoNothing)
+    {
+        if (pendingRows.Count == 0)
+        {
+            return;
+        }
+
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        DbTransaction? transaction = null;
+        try
+        {
+            transaction = connection.BeginTransaction();
+
+            for (var offset = 0; offset < pendingRows.Count; offset += StagingRowsPerInsertStatement)
+            {
+                var rowCount = Math.Min(StagingRowsPerInsertStatement, pendingRows.Count - offset);
+                await using var command = CreateMultiRowInsertCommand(
+                    connection,
+                    transaction,
+                    tableName,
+                    columns,
+                    pendingRows,
+                    offset,
+                    rowCount,
+                    onConflictDoNothing);
+
+                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+            pendingRows.Clear();
+        }
+        catch
+        {
+            if (transaction != null)
+            {
+                try
+                {
+                    transaction.Rollback();
+                }
+                catch
+                {
+                }
             }
 
             throw;
         }
         finally
         {
-            transaction.Dispose();
+            transaction?.Dispose();
+        }
+    }
+
+    private static string BuildInsertCommandText(
+        string tableName,
+        string[] columns,
+        int rowCount,
+        bool onConflictDoNothing)
+    {
+        var commandText = new StringBuilder();
+        commandText.Append($"INSERT INTO \"{tableName}\" (");
+        commandText.Append(string.Join(", ", columns.Select(column => $"\"{column}\"")));
+        commandText.Append(") VALUES (");
+        for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+        {
+            if (rowIndex > 0)
+            {
+                commandText.Append(", (");
+            }
+
+            for (var columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+            {
+                if (columnIndex > 0)
+                {
+                    commandText.Append(", ");
+                }
+
+                commandText.Append($"@p{rowIndex}_{columnIndex}");
+            }
+
+            commandText.Append(')');
         }
 
-        return totalCount;
+        if (onConflictDoNothing)
+        {
+            commandText.Append(" ON CONFLICT DO NOTHING");
+        }
+
+        return commandText.ToString();
+    }
+
+    private static DbCommand CreateMultiRowInsertCommand(
+        DbConnection connection,
+        DbTransaction transaction,
+        string tableName,
+        string[] columns,
+        List<object?[]> pendingRows,
+        int offset,
+        int rowCount,
+        bool onConflictDoNothing)
+    {
+        var commandText = BuildInsertCommandText(tableName, columns, rowCount, onConflictDoNothing);
+        var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        command.Transaction = transaction;
+
+        for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+        {
+            var values = pendingRows[offset + rowIndex];
+            for (var columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+            {
+                var param = command.CreateParameter();
+                param.ParameterName = $"@p{rowIndex}_{columnIndex}";
+                var value = values[columnIndex];
+                if (value is string text && string.IsNullOrEmpty(text))
+                {
+                    param.Value = DBNull.Value;
+                }
+                else
+                {
+                    param.Value = value ?? DBNull.Value;
+                }
+
+                command.Parameters.Add(param);
+            }
+        }
+
+        return command;
     }
 
     #endregion

@@ -335,7 +335,7 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
     [Fact]
     public async Task ImportData_WithInvalidStoragePath_ReturnsFalse()
     {
-        var result = await _repository.ImportData(null);
+        var result = await _repository.ImportData(progressCallback: null);
 
         Assert.NotNull(result);
         Assert.False(result.Data);
