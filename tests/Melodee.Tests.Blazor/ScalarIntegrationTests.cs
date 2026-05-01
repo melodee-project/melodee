@@ -1,8 +1,6 @@
 using System.Net;
 using FluentAssertions;
 using Melodee.Common.Data;
-using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
-using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
