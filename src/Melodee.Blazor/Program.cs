@@ -127,30 +127,30 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-// Build connection string with optional pool-size overrides via environment variables
-var defaultConnString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(defaultConnString))
-{
-    throw new InvalidOperationException("Missing connection string 'DefaultConnection'");
-}
-
-var npgsqlBuilder = new NpgsqlConnectionStringBuilder(defaultConnString);
-var envMinPool = Environment.GetEnvironmentVariable("DB_MIN_POOL_SIZE");
-var envMaxPool = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
-if (int.TryParse(envMinPool, out var minPool) && minPool > 0)
-{
-    npgsqlBuilder.MinPoolSize = minPool;
-}
-if (int.TryParse(envMaxPool, out var maxPool) && maxPool > 0)
-{
-    npgsqlBuilder.MaxPoolSize = maxPool;
-}
-var effectiveConnString = npgsqlBuilder.ToString();
-
 // Skip database registration if running in integration test mode (tests provide their own)
 var skipDbRegistration = Environment.GetEnvironmentVariable("MELODEE_SKIP_DB_REGISTRATION") == "true";
 if (!skipDbRegistration)
 {
+    // Build connection string with optional pool-size overrides via environment variables
+    var defaultConnString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrWhiteSpace(defaultConnString))
+    {
+        throw new InvalidOperationException("Missing connection string 'DefaultConnection'");
+    }
+
+    var npgsqlBuilder = new NpgsqlConnectionStringBuilder(defaultConnString);
+    var envMinPool = Environment.GetEnvironmentVariable("DB_MIN_POOL_SIZE");
+    var envMaxPool = Environment.GetEnvironmentVariable("DB_MAX_POOL_SIZE");
+    if (int.TryParse(envMinPool, out var minPool) && minPool > 0)
+    {
+        npgsqlBuilder.MinPoolSize = minPool;
+    }
+    if (int.TryParse(envMaxPool, out var maxPool) && maxPool > 0)
+    {
+        npgsqlBuilder.MaxPoolSize = maxPool;
+    }
+    var effectiveConnString = npgsqlBuilder.ToString();
+
     builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
         opt.UseNpgsql(effectiveConnString, o
             => o.UseNodaTime()
