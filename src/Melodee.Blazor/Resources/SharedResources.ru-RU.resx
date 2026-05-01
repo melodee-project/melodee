@@ -62,6 +62,12 @@
   <data name="Navigation.Dashboard" xml:space="preserve">
     <value>Панель управления</value>
   </data>
+  <data name="Onboarding.EnterValue" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enter value</value>
+  </data>
+  <data name="Onboarding.Save" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Save</value>
+  </data>
   <data name="Navigation.Artists" xml:space="preserve">
     <value>Исполнители</value>
   </data>

@@ -61,6 +61,12 @@
   <data name="Navigation.Dashboard" xml:space="preserve">
     <value>Nástěnka</value>
   </data>
+  <data name="Onboarding.EnterValue" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enter value</value>
+  </data>
+  <data name="Onboarding.Save" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Save</value>
+  </data>
   <data name="Navigation.Library" xml:space="preserve">
     <value>Knihovna</value>
   </data>

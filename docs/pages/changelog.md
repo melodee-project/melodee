@@ -1,5 +1,3 @@
-## [Unreleased]
-
 ---
 title: Changelog
 permalink: /changelog/
@@ -17,9 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Added** — New features, endpoints, UI pages, or configuration options.
 - **Changed** — Modifications to existing functionality or behavior.
 - **Deprecated** — Features that will be removed in a future release.
-- **Removed** — Features that were removed in this release.
+- **Removed** — Features removed in this release.
 - **Fixed** — Bug fixes and error corrections.
 - **Security** — Vulnerability patches and security hardening.
+
+---
+
+## [Unreleased]
 
 ---
 
@@ -29,12 +31,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard now loads progressively with skeleton placeholders; each data section renders independently as its query completes instead of blocking the entire page.
 - Inline setting editor on the Onboarding verification step — failed configuration checks (e.g., `system.baseUrl`) now show a text input and Save button so admins can fix settings without navigating away.
+- Inline setting editor on the Onboarding blocking page — same inline fix capability when redirected for missing configuration.
 - `Disabled` parameter on the `ThemeSelector` component for use in read‑only profile forms.
+- Theme-aware skeleton loading placeholders — dark gray on dark themes, light gray on light themes.
+- Serilog timing instrumentation on `DoctorService.NeedsAttentionAsync` for diagnosing slow health checks.
+
+### Changed
+
+- `DoctorService.NeedsAttentionAsync` fast path now uses lightweight file-existence checks for MusicBrainz and ArtistSearch databases instead of full DB probes, reducing dashboard first-render time by ~5 seconds.
+- Dashboard header spinner (`MainLayoutProxyService.ShowSpinner`) now reflects the actual loading state of all dashboard sections.
 
 ### Fixed
 
 - Dashboard `OnInitializedAsync` no longer runs twice during prerender/interactive transition, eliminating duplicate database queries on page load.
 - Profile page crash caused by missing `Disabled` parameter on `ThemeSelector`.
+- Light theme (`theme-default`) sidebar and panel menu now use a white background instead of falling back to dark styles.
+- Onboarding blocking page now allows admins to enter and save missing setting values inline.
 
 ---
 
