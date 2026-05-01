@@ -111,7 +111,6 @@ public sealed class ScriptOrchestrationService : IScriptOrchestrationService
             SelectedOverrideId = null,
             ScriptKey = config.SettingKey,
             ScriptHash = scriptHash,
-            Message = evaluationResult.ErrorMessage,
             OnDeny = onDeny
         };
     }

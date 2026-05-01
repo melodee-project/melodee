@@ -29,7 +29,7 @@ public class ScriptValidationServiceTests
         var configService = new Mock<IScriptConfigurationService>();
         configService
             .Setup(x => x.GetScriptConfigAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ScriptConfig());
+            .ReturnsAsync(new ScriptConfig { TimeoutMs = 5000 });
 
         var validationService = new ScriptValidationService(
             configService.Object,
@@ -59,7 +59,7 @@ public class ScriptValidationServiceTests
         var configService = new Mock<IScriptConfigurationService>();
         configService
             .Setup(x => x.GetScriptConfigAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ScriptConfig());
+            .ReturnsAsync(new ScriptConfig { TimeoutMs = 5000 });
 
         var validationService = new ScriptValidationService(
             configService.Object,
@@ -89,7 +89,7 @@ public class ScriptValidationServiceTests
         var configService = new Mock<IScriptConfigurationService>();
         configService
             .Setup(x => x.GetScriptConfigAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ScriptConfig());
+            .ReturnsAsync(new ScriptConfig { TimeoutMs = 5000 });
 
         var validationService = new ScriptValidationService(
             configService.Object,

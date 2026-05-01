@@ -63,7 +63,8 @@ public class ScriptOrchestrationServiceTests
                 OnDeny = "skip"
             },
             SettingKey = "script.directoryProcessingStart",
-            SettingEtag = "1"
+            SettingEtag = "1",
+            TimeoutMs = 5000
         };
 
         var configService = new Mock<IScriptConfigurationService>();
@@ -104,7 +105,8 @@ public class ScriptOrchestrationServiceTests
                 OnDeny = "skip"
             },
             SettingKey = "script.directoryProcessingStart",
-            SettingEtag = "1"
+            SettingEtag = "1",
+            TimeoutMs = 5000
         };
 
         var configService = new Mock<IScriptConfigurationService>();
