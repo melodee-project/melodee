@@ -29,16 +29,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: true
-          GITLEAKS_ENABLE_SARIF: true
-          GITLEAKS_SARIF_FILE: gitleaks.sarif
+      - name: Run gitleaks on pull request commits
+        if: github.event_name == 'pull_request'
+        uses: docker://zricethezav/gitleaks:v8.30.0
+        with:
+          args: detect --source . --redact --report-format sarif --report-path gitleaks.sarif --exit-code 1 --log-opts=${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+      - name: Run gitleaks on pushed commits
+        if: github.event_name == 'push'
+        uses: docker://zricethezav/gitleaks:v8.30.0
+        with:
+          args: detect --source . --redact --report-format sarif --report-path gitleaks.sarif --exit-code 1 --log-opts=${{ github.event.before }}..${{ github.sha }}
 
       - name: Upload SARIF results
-        if: always()
+        if: always() && hashFiles('gitleaks.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gitleaks.sarif

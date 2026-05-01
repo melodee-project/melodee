@@ -1,0 +1,15 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.4
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        postgresql-client \
+        curl \
+        lbzip2 \
+        && rm -rf /var/lib/apt/lists/*
+
+COPY scan/publish/ .
+
+ENTRYPOINT ["dotnet", "server.dll"]
