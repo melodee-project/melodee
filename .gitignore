@@ -121,6 +121,9 @@ x86/
 bld/
 [Bb]in/
 [Oo]bj/
+# Windows-style build output paths accidentally created on Unix filesystems
+*[Bb]in\\*
+*[Oo]bj\\*
 [Ll]og/
 [Ll]ogs/
 
