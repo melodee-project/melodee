@@ -1,4 +1,5 @@
 @using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Services
 @using Melodee.Common.Services.Setup
 @using Melodee.Blazor.Services
 @inherits MelodeeComponentBase
@@ -20,11 +21,32 @@
         <RadzenStack Gap="0.5rem">
             @foreach (var item in _items)
             {
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenIcon Icon="@(item.Success ? "check_circle" : "error")"
-                                 IconColor="@(item.Success ? Radzen.Colors.Success : Radzen.Colors.Danger)"/>
-                    <RadzenText Text="@item.Name"/>
-                    <RadzenText Text="@item.Details" TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);"/>
+                <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="@(item.Success ? "check_circle" : "error")"
+                                     IconColor="@(item.Success ? Radzen.Colors.Success : Radzen.Colors.Danger)"/>
+                        <RadzenText Text="@item.Name"/>
+                        <RadzenText Text="@item.Details" TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);"/>
+                    </RadzenStack>
+                    @if (!item.Success && !string.IsNullOrEmpty(item.SettingKey))
+                    {
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-left: 2rem;">
+                            <RadzenTextBox @bind-Value="@_settingValues[item.SettingKey]"
+                                           Placeholder="@L("Onboarding.EnterValue")"
+                                           Style="flex: 1; max-width: 400px;"/>
+                            <RadzenButton Click="@(() => SaveSettingAsync(item.SettingKey!))"
+                                          Text="@L("Onboarding.Save")"
+                                          Icon="save"
+                                          Size="ButtonSize.Small"
+                                          ButtonStyle="ButtonStyle.Primary"
+                                          IsBusy="@_savingKeys.Contains(item.SettingKey)"/>
+                            @if (_saveResults.TryGetValue(item.SettingKey, out var saveResult))
+                            {
+                                <RadzenIcon Icon="@(saveResult ? "check_circle" : "error")"
+                                             IconColor="@(saveResult ? Radzen.Colors.Success : Radzen.Colors.Danger)"/>
+                            }
+                        </RadzenStack>
+                    }
                 </RadzenStack>
             }
         </RadzenStack>
@@ -71,10 +93,14 @@
     private bool _isReady;
     private bool _isCompleting;
     private bool _isRefreshing;
+    private HashSet<string> _savingKeys = new();
+    private Dictionary<string, string> _settingValues = new();
+    private Dictionary<string, bool> _saveResults = new();
 
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
     [Inject] private ChecklistService ChecklistService { get; set; } = null!;
+    [Inject] private SettingService SettingService { get; set; } = null!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public EventCallback OnComplete { get; set; }
@@ -92,6 +118,7 @@
     private async Task RefreshStatusAsync()
     {
         _isRefreshing = true;
+        _saveResults.Clear();
         try
         {
             await OnboardingStateService.RefreshSetupStatusAsync();
@@ -101,10 +128,48 @@
             _totalCount = _items.Count;
             _blockingCount = status.BlockingItems.Count;
             _isReady = status.IsReady;
+
+            foreach (var item in _items.Where(i => !string.IsNullOrEmpty(i.SettingKey) && !i.Success))
+            {
+                if (!_settingValues.ContainsKey(item.SettingKey!))
+                {
+                    _settingValues[item.SettingKey!] = string.Empty;
+                }
+            }
         }
         finally
         {
             _isRefreshing = false;
+        }
+    }
+
+    private async Task SaveSettingAsync(string key)
+    {
+        if (!_settingValues.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            _saveResults[key] = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _savingKeys.Add(key);
+        try
+        {
+            var result = await SettingService.SetAsync(key, value.Trim());
+            _saveResults[key] = result.IsSuccess;
+
+            if (result.IsSuccess)
+            {
+                await RefreshStatusAsync();
+            }
+        }
+        catch
+        {
+            _saveResults[key] = false;
+        }
+        finally
+        {
+            _savingKeys.Remove(key);
         }
     }
 

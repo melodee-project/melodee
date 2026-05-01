@@ -14,11 +14,13 @@
                 ValueProperty="Value"
                 Change="@OnThemeChangedAsync"
                 Style="width: 100%"
-                Loading="@_loading"/>
+                Loading="@_loading"
+                Disabled="@Disabled"/>
 
 @code {
     [Parameter] public string? Value { get; set; }
     [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
 
     private string _selectedTheme = "melodee-dark";
     private bool _loading = true;

@@ -9,6 +9,30 @@ html, body {
 }
 
 /* Theme-specific styles for sidebar and header */
+body.theme-default .rz-sidebar,
+body.theme-default .rz-header {
+  background-color: #ffffff;
+  color: #333333;
+}
+
+body.theme-default .rz-panel-menu {
+  background-color: #ffffff;
+}
+
+body.theme-default .rz-panel-menu-item {
+  color: #333333;
+}
+
+body.theme-default .rz-panel-menu-item:hover {
+  background-color: #e8eaed;
+  color: #333333;
+}
+
+body.theme-default .rz-panel-menu-item.rz-state-active {
+  background-color: #e8eaed;
+  color: #333333;
+}
+
 body.theme-standard .rz-sidebar,
 body.theme-standard .rz-header {
   background-color: #f5f7fa;
@@ -104,6 +128,19 @@ body.theme-material .rz-panel-menu-item:hover {
   color: #ffffff;
 }
 
+
+/* Skeleton loading placeholder — theme-aware */
+.skeleton-placeholder {
+  background-color: var(--rz-base-200, #f0f0f0);
+}
+
+body.theme-dark .skeleton-placeholder,
+body.theme-standard-dark .skeleton-placeholder,
+body.theme-humanistic-dark .skeleton-placeholder,
+body.theme-software-dark .skeleton-placeholder,
+body.theme-material-dark .skeleton-placeholder {
+  background-color: var(--rz-base-800, #2a2a2a);
+}
 
 /* Prevent layout shifts by reserving space for images */
 img {

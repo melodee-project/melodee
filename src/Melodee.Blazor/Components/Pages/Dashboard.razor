@@ -8,6 +8,7 @@
 @using Melodee.Common.Models
 @using Melodee.Common.Models.Collection
 @using Melodee.Common.Models.Collection.Extensions
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using NodaTime
 @using TextStyle = Radzen.Blazor.TextStyle
@@ -23,6 +24,7 @@
 @inject NavigationManager NavigationManager
 @inject IDoctorService DoctorService
 @inject AuthenticationStateProvider DashboardAuthenticationStateProvider
+@inject MainLayoutProxyService MainLayoutProxyService
 
 <PageTitle>@L("Navigation.Dashboard")</PageTitle>
 
@@ -31,7 +33,13 @@
 <RadzenStack Gap="1rem">
 
   @* Admin Health Warning Banner *@
-  @if (_showHealthWarning && _isAdmin)
+  @if (_healthLoading)
+  {
+    <RadzenCard Style="height: 60px;" class="skeleton-placeholder">
+      <RadzenSkeleton Style="height: 100%;" />
+    </RadzenCard>
+  }
+  else if (_showHealthWarning && _isAdmin)
   {
     <RadzenCard class="rz-background-color-danger-lighter" Style="cursor: pointer;" @onclick="@(() => NavigationManager.NavigateTo("/admin/doctor"))">
       <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
@@ -46,7 +54,13 @@
     </RadzenCard>
   }
 
-  @if (_userPins.Length > 0)
+  @if (_pinsLoading)
+  {
+    <RadzenCard Style="height: 80px;" class="skeleton-placeholder">
+      <RadzenSkeleton Style="height: 100%;" />
+    </RadzenCard>
+  }
+  else if (_userPins.Length > 0)
   {
     <RadzenRow>
     <RadzenPanel AllowCollapse="true">
@@ -73,43 +87,70 @@
     </RadzenRow>
   }
 
-  <RadzenRow>
-    @foreach (var kpi in _userKpis)
-    {
-      <RadzenColumn Size="6" SizeSM="4" SizeMD="3" SizeLG="2">
-        <RadzenCard>
-          <RadzenStack Gap="0.25rem">
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-              <RadzenIcon Icon="@kpi.Icon" Style="font-size: 1.25rem; opacity: 0.7;"/>
-              <RadzenText TextStyle="TextStyle.Overline" Style="margin: 0;">@LocalizeStatisticTitle(kpi.Title)</RadzenText>
+  @if (_kpisLoading)
+  {
+    <RadzenRow>
+      @for (int i = 0; i < 6; i++)
+      {
+        <RadzenColumn Size="6" SizeSM="4" SizeMD="3" SizeLG="2">
+          <RadzenCard Style="height: 80px;" class="skeleton-placeholder">
+            <RadzenSkeleton Style="height: 100%;" />
+          </RadzenCard>
+        </RadzenColumn>
+      }
+    </RadzenRow>
+  }
+  else
+  {
+    <RadzenRow>
+      @foreach (var kpi in _userKpis)
+      {
+        <RadzenColumn Size="6" SizeSM="4" SizeMD="3" SizeLG="2">
+          <RadzenCard>
+            <RadzenStack Gap="0.25rem">
+              <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="@kpi.Icon" Style="font-size: 1.25rem; opacity: 0.7;"/>
+                <RadzenText TextStyle="TextStyle.Overline" Style="margin: 0;">@LocalizeStatisticTitle(kpi.Title)</RadzenText>
+              </RadzenStack>
+              <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">@kpi.Data</RadzenText>
             </RadzenStack>
-            <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">@kpi.Data</RadzenText>
-          </RadzenStack>
-        </RadzenCard>
-      </RadzenColumn>
-    }
-  </RadzenRow>
+          </RadzenCard>
+        </RadzenColumn>
+      }
+    </RadzenRow>
+  }
 
   <RadzenRow>
     <RadzenColumn Size="12" SizeMD="6">
       <RadzenCard>
         <RadzenText TextStyle="TextStyle.H6">@L("Dashboard.YourPlaysLast30Days")</RadzenText>
-        <RadzenChart Style="height: 200px;">
-          <RadzenLineSeries Data="@_playsPerDay" CategoryProperty="DayAsDateTime" ValueProperty="Value" Title="@L("Dashboard.Plays")" Smooth="true">
-            <RadzenCategoryAxis Step="@TimeSpan.FromDays(7)" FormatString="{0:MM/dd}">
-              <RadzenAxisTitle Text="@L("Dashboard.Date")"/>
-            </RadzenCategoryAxis>
-            <RadzenValueAxis>
-              <RadzenAxisTitle Text="@L("Dashboard.Plays")"/>
-            </RadzenValueAxis>
-          </RadzenLineSeries>
-        </RadzenChart>
+        @if (_playsLoading)
+        {
+          <RadzenSkeleton Style="height: 200px;" />
+        }
+        else
+        {
+          <RadzenChart Style="height: 200px;">
+            <RadzenLineSeries Data="@_playsPerDay" CategoryProperty="DayAsDateTime" ValueProperty="Value" Title="@L("Dashboard.Plays")" Smooth="true">
+              <RadzenCategoryAxis Step="@TimeSpan.FromDays(7)" FormatString="{0:MM/dd}">
+                <RadzenAxisTitle Text="@L("Dashboard.Date")"/>
+              </RadzenCategoryAxis>
+              <RadzenValueAxis>
+                <RadzenAxisTitle Text="@L("Dashboard.Plays")"/>
+              </RadzenValueAxis>
+            </RadzenLineSeries>
+          </RadzenChart>
+        }
       </RadzenCard>
     </RadzenColumn>
     <RadzenColumn Size="12" SizeMD="6">
       <RadzenCard>
         <RadzenText TextStyle="TextStyle.H6">@L("Dashboard.TopPlayedSongsLast30Days")</RadzenText>
-        @if (_topSongs.Length > 0)
+        @if (_topSongsLoading)
+        {
+          <RadzenSkeleton Style="height: 200px;" />
+        }
+        else if (_topSongs.Length > 0)
         {
           <RadzenDataGrid TItem="TopItemStat"
                           Data="@_topSongs"
@@ -137,7 +178,13 @@
     </RadzenColumn>
   </RadzenRow>
 
-  @if (_recentlyPlayed.Length > 0)
+  @if (_recentlyPlayedLoading)
+  {
+    <RadzenCard Style="height: 120px;" class="skeleton-placeholder">
+      <RadzenSkeleton Style="height: 100%;" />
+    </RadzenCard>
+  }
+  else if (_recentlyPlayed.Length > 0)
   {
     <RadzenPanel AllowCollapse="true">
       <HeaderTemplate>
@@ -162,7 +209,13 @@
     </RadzenPanel>
   }
 
-  @if (_unreadRequests.Length > 0)
+  @if (_requestsLoading)
+  {
+    <RadzenCard Style="height: 150px;" class="skeleton-placeholder">
+      <RadzenSkeleton Style="height: 100%;" />
+    </RadzenCard>
+  }
+  else if (_unreadRequests.Length > 0)
   {
     <RadzenPanel AllowCollapse="true">
       <HeaderTemplate>
@@ -208,65 +261,85 @@
     </RadzenPanel>
   }
 
-  <RadzenPanel AllowCollapse="true">
-    <HeaderTemplate>
-      <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-m-0">
-        <RadzenIcon Icon="person" class="rz-me-1"/>
-        @L("Dashboard.RecentlyAddedArtists")
-      </RadzenText>
-    </HeaderTemplate>
-    <ChildContent>
-      @if (_latestArtists.Length > 0)
-      {
-        <RadzenStack
-          Orientation="Orientation.Horizontal"
-          Wrap="FlexWrap.Wrap"
-          JustifyContent="JustifyContent.Left"
-          class="rz-p-1"
-          Gap="10px">
-          @foreach (var artist in _latestArtists)
-          {
-            <ArtistDataInfoCardComponent Artist="@artist"/>
-          }
-        </RadzenStack>
-      }
-      else
-      {
-        <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7; padding: 1rem;">@L("Dashboard.NoArtistsFound")</RadzenText>
-      }
-    </ChildContent>
-  </RadzenPanel>
-  <RadzenPanel AllowCollapse="true">
-    <HeaderTemplate>
-      <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-m-0">
-        <RadzenIcon Icon="album" class="rz-me-1"/>
-        @L("Dashboard.RecentlyAddedAlbums")
-      </RadzenText>
-    </HeaderTemplate>
-    <ChildContent>
-      @if (_latestAlbums.Length > 0)
-      {
-        <RadzenStack
-          Orientation="Orientation.Horizontal"
-          Wrap="FlexWrap.Wrap"
-          JustifyContent="JustifyContent.Left"
-          class="rz-p-1"
-          Gap="10px">
-          @foreach (var album in _latestAlbums)
-          {
-            <AlbumDataInfoCardComponent Album="@album"/>
-          }
-        </RadzenStack>
-      }
-      else
-      {
-        <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7; padding: 1rem;">@L("Dashboard.NoAlbumsFound")</RadzenText>
-      }
-    </ChildContent>
-  </RadzenPanel>
+  @if (_artistsLoading)
+  {
+    <RadzenCard Style="height: 150px;" class="skeleton-placeholder">
+      <RadzenSkeleton Style="height: 100%;" />
+    </RadzenCard>
+  }
+  else
+  {
+    <RadzenPanel AllowCollapse="true">
+      <HeaderTemplate>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-m-0">
+          <RadzenIcon Icon="person" class="rz-me-1"/>
+          @L("Dashboard.RecentlyAddedArtists")
+        </RadzenText>
+      </HeaderTemplate>
+      <ChildContent>
+        @if (_latestArtists.Length > 0)
+        {
+          <RadzenStack
+            Orientation="Orientation.Horizontal"
+            Wrap="FlexWrap.Wrap"
+            JustifyContent="JustifyContent.Left"
+            class="rz-p-1"
+            Gap="10px">
+            @foreach (var artist in _latestArtists)
+            {
+              <ArtistDataInfoCardComponent Artist="@artist"/>
+            }
+          </RadzenStack>
+        }
+        else
+        {
+          <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7; padding: 1rem;">@L("Dashboard.NoArtistsFound")</RadzenText>
+        }
+      </ChildContent>
+    </RadzenPanel>
+  }
+
+  @if (_albumsLoading)
+  {
+    <RadzenCard Style="height: 150px;" class="skeleton-placeholder">
+      <RadzenSkeleton Style="height: 100%;" />
+    </RadzenCard>
+  }
+  else
+  {
+    <RadzenPanel AllowCollapse="true">
+      <HeaderTemplate>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-display-flex rz-m-0">
+          <RadzenIcon Icon="album" class="rz-me-1"/>
+          @L("Dashboard.RecentlyAddedAlbums")
+        </RadzenText>
+      </HeaderTemplate>
+      <ChildContent>
+        @if (_latestAlbums.Length > 0)
+        {
+          <RadzenStack
+            Orientation="Orientation.Horizontal"
+            Wrap="FlexWrap.Wrap"
+            JustifyContent="JustifyContent.Left"
+            class="rz-p-1"
+            Gap="10px">
+            @foreach (var album in _latestAlbums)
+            {
+              <AlbumDataInfoCardComponent Album="@album"/>
+            }
+          </RadzenStack>
+        }
+        else
+        {
+          <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.7; padding: 1rem;">@L("Dashboard.NoAlbumsFound")</RadzenText>
+        }
+      </ChildContent>
+    </RadzenPanel>
+  }
 </RadzenStack>
 
 @code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
 
     private AlbumDataInfo[] _latestAlbums = [];
     private ArtistDataInfo[] _latestArtists = [];
@@ -279,6 +352,17 @@
     private Request[] _unreadRequests = [];
     private bool _showHealthWarning;
     private bool _isAdmin;
+
+    private bool _healthLoading = true;
+    private bool _pinsLoading = true;
+    private bool _kpisLoading = true;
+    private bool _playsLoading = true;
+    private bool _topSongsLoading = true;
+    private bool _recentlyPlayedLoading = true;
+    private bool _requestsLoading = true;
+    private bool _artistsLoading = true;
+    private bool _albumsLoading = true;
+    private bool _isLoading => _healthLoading || _pinsLoading || _kpisLoading || _playsLoading || _topSongsLoading || _recentlyPlayedLoading || _requestsLoading || _artistsLoading || _albumsLoading;
 
     private short _latestPageSize;
     private LocalDate _rangeStart;
@@ -311,6 +395,12 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
+
+        if (HttpContext != null)
+        {
+            return;
+        }
+
         DashboardAuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         _isAdmin = CurrentUser?.IsAdmin() == true;
 
@@ -324,96 +414,248 @@
         _rangeStart = today.PlusDays(-29);
 
         var userApiKey = CurrentUser?.ToApiGuid() ?? Guid.Empty;
+        var userId = CurrentUser?.UserId() ?? 0;
 
-        var albumLatestTask = AlbumService.ListAsync(new PagedRequest
+        MainLayoutProxyService.ShowSpinner = true;
+
+        _ = LoadHealthAsync();
+        _ = LoadPinsAsync(userId);
+        _ = LoadKpisAsync(userApiKey);
+        _ = LoadPlaysAsync(userApiKey);
+        _ = LoadTopSongsAsync(userApiKey);
+        _ = LoadRecentlyPlayedAsync(userApiKey);
+        _ = LoadRequestsAsync(userId);
+        _ = LoadArtistsAsync();
+        _ = LoadAlbumsAsync();
+    }
+
+    private void UpdateSpinner()
+    {
+        var anyLoading = _healthLoading || _pinsLoading || _kpisLoading || _playsLoading || _topSongsLoading || _recentlyPlayedLoading || _requestsLoading || _artistsLoading || _albumsLoading;
+        MainLayoutProxyService.ShowSpinner = anyLoading;
+    }
+
+    private async Task LoadHealthAsync()
+    {
+        try
         {
-            PageSize = _latestPageSize,
-            OrderBy = new Dictionary<string, string>
-            {
-                { nameof(AlbumDataInfo.CreatedAt), PagedRequest.OrderDescDirection }
-            }
-        });
-
-        var artistLatestTask = ArtistService.ListAsync(new PagedRequest
-        {
-            PageSize = _latestPageSize,
-            OrderBy = new Dictionary<string, string>
-            {
-                { nameof(ArtistDataInfo.CreatedAt), PagedRequest.OrderDescDirection }
-            }
-        });
-
-        var userTask = UserProfileService.GetAsync(CurrentUser?.UserId() ?? 0);
-        var kpiTask = StatisticsService.GetUserKpisAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
-        var playsTask = StatisticsService.GetUserSongPlaysPerDayAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
-        var topSongsTask = StatisticsService.GetUserTopPlayedSongsAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId, 10);
-        var recentlyPlayedTask = StatisticsService.GetUserRecentlyPlayedSongsAsync(userApiKey, 10);
-        var unreadRequestsTask = RequestActivityService.GetUnreadRequestsAsync(CurrentUser?.UserId() ?? 0, new PagedRequest { PageSize = 10 });
-
-        var healthCheckTask = DashboardHealthWarningEvaluator.ShouldShowAsync(CurrentUser, DoctorService);
-
-        var tasksToAwait = new List<Task>
-        {
-            albumLatestTask,
-            artistLatestTask,
-            userTask,
-            kpiTask,
-            playsTask,
-            topSongsTask,
-            recentlyPlayedTask,
-            unreadRequestsTask,
-            healthCheckTask
-        };
-        await Task.WhenAll(tasksToAwait);
-
-        _latestAlbums = albumLatestTask.Result.Data.ToArray();
-        _latestArtists = artistLatestTask.Result.Data.ToArray();
-        _userKpis = kpiTask.Result.Data ?? [];
-        _playsPerDay = playsTask.Result.Data ?? [];
-        _topSongs = topSongsTask.Result.Data ?? [];
-        _recentlyPlayed = recentlyPlayedTask.Result.Data ?? [];
-        _unreadRequests = unreadRequestsTask.Result.Data.ToArray();
-        _showHealthWarning = healthCheckTask.Result;
-
-        if (userTask.Result is { IsSuccess: true, Data: not null })
-        {
-            _userPins = userTask.Result.Data.Pins.ToArray();
+            _showHealthWarning = await DashboardHealthWarningEvaluator.ShouldShowAsync(CurrentUser, DoctorService);
         }
-
-        if (_recentlyPlayed.Length > 0)
+        catch
         {
-            _recentlyPlayedSongs = _recentlyPlayed
-                .Where(x => x.ApiKey.HasValue)
-                .Select(x =>
-                {
-                    var parts = x.Extra?.Split('|') ?? [];
-                    var albumApiKey = parts.Length > 0 && Guid.TryParse(parts[0], out var albumGuid) ? albumGuid : Guid.Empty;
-                    var artistApiKey = parts.Length > 1 && Guid.TryParse(parts[1], out var artistGuid) ? artistGuid : Guid.Empty;
-                    var albumName = parts.Length > 2 ? parts[2] : string.Empty;
-                    var artistName = parts.Length > 3 ? parts[3] : string.Empty;
-                    var songNumber = parts.Length > 4 && int.TryParse(parts[4], out var num) ? num : 0;
-                    var duration = parts.Length > 5 && double.TryParse(parts[5], out var dur) ? dur : 0;
+            _showHealthWarning = false;
+        }
+        finally
+        {
+            _healthLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
-                    return new SongDataInfo(
-                        x.Id ?? 0,
-                        x.ApiKey!.Value,
-                        false,
-                        x.Label,
-                        x.Label.ToNormalizedString() ?? string.Empty,
-                        songNumber,
-                        LocalDate.MinIsoValue,
-                        albumName,
-                        albumApiKey,
-                        artistName,
-                        artistApiKey,
-                        0,
-                        duration,
-                        Instant.MinValue,
-                        string.Empty,
-                        false,
-                        0);
-                })
-                .ToArray();
+    private async Task LoadPinsAsync(int userId)
+    {
+        try
+        {
+            var userTask = await UserProfileService.GetAsync(userId);
+            if (userTask is { IsSuccess: true, Data: not null })
+            {
+                _userPins = userTask.Data.Pins.ToArray();
+            }
+        }
+        catch
+        {
+            _userPins = [];
+        }
+        finally
+        {
+            _pinsLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadKpisAsync(Guid userApiKey)
+    {
+        try
+        {
+            var result = await StatisticsService.GetUserKpisAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
+            _userKpis = result.Data ?? [];
+        }
+        catch
+        {
+            _userKpis = [];
+        }
+        finally
+        {
+            _kpisLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadPlaysAsync(Guid userApiKey)
+    {
+        try
+        {
+            var result = await StatisticsService.GetUserSongPlaysPerDayAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId);
+            _playsPerDay = result.Data ?? [];
+        }
+        catch
+        {
+            _playsPerDay = [];
+        }
+        finally
+        {
+            _playsLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadTopSongsAsync(Guid userApiKey)
+    {
+        try
+        {
+            var result = await StatisticsService.GetUserTopPlayedSongsAsync(userApiKey, _rangeStart, _rangeEnd, _timeZoneId, 10);
+            _topSongs = result.Data ?? [];
+        }
+        catch
+        {
+            _topSongs = [];
+        }
+        finally
+        {
+            _topSongsLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadRecentlyPlayedAsync(Guid userApiKey)
+    {
+        try
+        {
+            var result = await StatisticsService.GetUserRecentlyPlayedSongsAsync(userApiKey, 10);
+            _recentlyPlayed = result.Data ?? [];
+
+            if (_recentlyPlayed.Length > 0)
+            {
+                _recentlyPlayedSongs = _recentlyPlayed
+                    .Where(x => x.ApiKey.HasValue)
+                    .Select(x =>
+                    {
+                        var parts = x.Extra?.Split('|') ?? [];
+                        var albumApiKey = parts.Length > 0 && Guid.TryParse(parts[0], out var albumGuid) ? albumGuid : Guid.Empty;
+                        var artistApiKey = parts.Length > 1 && Guid.TryParse(parts[1], out var artistGuid) ? artistGuid : Guid.Empty;
+                        var albumName = parts.Length > 2 ? parts[2] : string.Empty;
+                        var artistName = parts.Length > 3 ? parts[3] : string.Empty;
+                        var songNumber = parts.Length > 4 && int.TryParse(parts[4], out var num) ? num : 0;
+                        var duration = parts.Length > 5 && double.TryParse(parts[5], out var dur) ? dur : 0;
+
+                        return new SongDataInfo(
+                            x.Id ?? 0,
+                            x.ApiKey!.Value,
+                            false,
+                            x.Label,
+                            x.Label.ToNormalizedString() ?? string.Empty,
+                            songNumber,
+                            LocalDate.MinIsoValue,
+                            albumName,
+                            albumApiKey,
+                            artistName,
+                            artistApiKey,
+                            0,
+                            duration,
+                            Instant.MinValue,
+                            string.Empty,
+                            false,
+                            0);
+                    })
+                    .ToArray();
+            }
+        }
+        catch
+        {
+            _recentlyPlayed = [];
+            _recentlyPlayedSongs = [];
+        }
+        finally
+        {
+            _recentlyPlayedLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadRequestsAsync(int userId)
+    {
+        try
+        {
+            var result = await RequestActivityService.GetUnreadRequestsAsync(userId, new PagedRequest { PageSize = 10 });
+            _unreadRequests = result.Data.ToArray();
+        }
+        catch
+        {
+            _unreadRequests = [];
+        }
+        finally
+        {
+            _requestsLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadArtistsAsync()
+    {
+        try
+        {
+            var result = await ArtistService.ListAsync(new PagedRequest
+            {
+                PageSize = _latestPageSize,
+                OrderBy = new Dictionary<string, string>
+                {
+                    { nameof(ArtistDataInfo.CreatedAt), PagedRequest.OrderDescDirection }
+                }
+            });
+            _latestArtists = result.Data.ToArray();
+        }
+        catch
+        {
+            _latestArtists = [];
+        }
+        finally
+        {
+            _artistsLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadAlbumsAsync()
+    {
+        try
+        {
+            var result = await AlbumService.ListAsync(new PagedRequest
+            {
+                PageSize = _latestPageSize,
+                OrderBy = new Dictionary<string, string>
+                {
+                    { nameof(AlbumDataInfo.CreatedAt), PagedRequest.OrderDescDirection }
+                }
+            });
+            _latestAlbums = result.Data.ToArray();
+        }
+        catch
+        {
+            _latestAlbums = [];
+        }
+        finally
+        {
+            _albumsLoading = false;
+            UpdateSpinner();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
