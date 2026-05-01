@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using Serilog;
 using Album = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Album;
-using ArtistAliasLookup = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.ArtistAliasLookup;
 using Artist = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Artist;
+using ArtistAliasLookup = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.ArtistAliasLookup;
 
 namespace Melodee.Tests.Common.Plugins.SearchEngine;
 

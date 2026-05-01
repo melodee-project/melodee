@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http;
 using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;

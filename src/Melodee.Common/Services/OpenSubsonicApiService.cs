@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -30,7 +31,6 @@ using Rebus.Bus;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
-using System.Linq.Expressions;
 using Artist = Melodee.Common.Models.OpenSubsonic.Artist;
 using dbModels = Melodee.Common.Data.Models;
 using Directory = Melodee.Common.Models.OpenSubsonic.Directory;

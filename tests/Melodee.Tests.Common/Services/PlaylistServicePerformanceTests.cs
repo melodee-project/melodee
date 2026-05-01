@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Melodee.Common.Data.Models;
-using NodaTime;
 using Melodee.Tests.Common.Performance;
+using NodaTime;
 
 namespace Melodee.Tests.Common.Services;
 

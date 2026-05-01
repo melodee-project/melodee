@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Globalization;
 using System.Text;
 using Melodee.Common.Extensions;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized;
