@@ -36,15 +36,6 @@ jobs:
           fail-on-severity: high
           # Comment on pull requests with details
           comment-summary-in-pr: on-failure
-          # Output format for GitHub Security tab
-          sarif-output: srp-results.sarif
-
-      - name: Upload SARIF results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: srp-results.sarif
-          category: "dependency-review"
 
   container-scan:
     name: Container Image Scan
@@ -58,6 +49,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.104
+
+      - name: Publish application for scanning
+        run: dotnet publish src/Melodee.Blazor/Melodee.Blazor.csproj -c Release -o scan/publish --self-contained false -p:PublishTrimmed=false
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -65,6 +64,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: .github/docker/Dockerfile.container-scan
           load: true
           tags: melodee:latest
           cache-from: type=gha
@@ -80,7 +80,7 @@ jobs:
           limit-severity-skip: false
 
       - name: Upload SARIF results
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
@@ -100,7 +100,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.104
 
       - name: Check for vulnerable NuGet packages
         run: |
