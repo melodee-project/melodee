@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Ardalis.GuardClauses;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
@@ -293,10 +294,10 @@ public class ArtistSearchEngineService(
                         query = query.OrderBy(x => x.Id);
                     }
 
-                    // Apply pagination and get results with album counts in a single query
-                    artists = await query
-                        .Skip(pagedRequest.SkipValue)
-                        .Take(pagedRequest.TakeValue)
+                    // Keep DecentDB from evaluating a correlated album-count subquery per artist row.
+                    // Also avoid EF-generated LIMIT/OFFSET parameters because DecentDB rejects skipped
+                    // parameter numbering when this projection has no WHERE parameters.
+                    artists = (await query
                         .Select(x => new Artist
                         {
                             Id = x.Id,
@@ -312,12 +313,28 @@ public class ArtistSearchEngineService(
                             LastFmId = x.LastFmId,
                             SpotifyId = x.SpotifyId,
                             IsLocked = x.IsLocked,
-                            LastRefreshed = x.LastRefreshed,
-                            AlbumCount =
-                                scopedContext.Albums.Count(a => a.ArtistId == x.Id) // This will be optimized by EF Core
+                            LastRefreshed = x.LastRefreshed
                         })
                         .ToArrayAsync(cancellationToken)
-                        .ConfigureAwait(false);
+                        .ConfigureAwait(false))
+                        .Skip(pagedRequest.SkipValue)
+                        .Take(pagedRequest.TakeValue)
+                        .ToArray();
+
+                    var artistIds = artists.Select(x => x.Id).ToArray();
+                    if (artistIds.Length > 0)
+                    {
+                        var albumArtistIds = await GetAlbumArtistIdsAsync(scopedContext, artistIds, cancellationToken)
+                            .ConfigureAwait(false);
+                        var albumCountsByArtistId = albumArtistIds
+                            .GroupBy(x => x)
+                            .ToDictionary(x => x.Key, x => x.Count());
+
+                        foreach (var artist in artists)
+                        {
+                            artist.AlbumCount = albumCountsByArtistId.GetValueOrDefault(artist.Id);
+                        }
+                    }
                 }
             }
         }
@@ -1388,5 +1405,45 @@ public class ArtistSearchEngineService(
         var lambda = System.Linq.Expressions.Expression.Lambda<Func<Artist, bool>>(andExpression, parameter);
 
         return query.Where(lambda);
+    }
+
+    private static async Task<int[]> GetAlbumArtistIdsAsync(
+        ArtistSearchEngineServiceDbContext context,
+        int[] artistIds,
+        CancellationToken cancellationToken)
+    {
+        var sql = $"""
+                   SELECT "ArtistId"
+                   FROM "Albums"
+                   WHERE "ArtistId" IN ({string.Join(',', artistIds)})
+                   """;
+
+        var result = new List<int>();
+        var connection = context.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
+        if (shouldCloseConnection)
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                result.Add(Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture));
+            }
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+            {
+                await connection.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        return result.ToArray();
     }
 }

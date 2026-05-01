@@ -1,5 +1,8 @@
 using Melodee.Blazor.Controllers.Melodee.Models.ArtistLookup;
+using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
+using Album = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Album;
+using Artist = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Artist;
 
 namespace Melodee.Tests.Common.Services.SearchEngines;
 
@@ -52,6 +55,75 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
 
         // Assert
         Assert.NotNull(result);
+    }
+
+    #endregion
+
+    #region ListAsync Tests
+
+    [Fact]
+    public async Task ListAsync_WithAlbums_ReturnsPagedArtistsWithAlbumCounts()
+    {
+        var service = GetArtistSearchEngineService();
+        await service.InitializeAsync();
+
+        var firstArtist = new Artist
+        {
+            Name = "First Artist",
+            NameNormalized = "FIRSTARTIST",
+            SortName = "First Artist"
+        };
+        var secondArtist = new Artist
+        {
+            Name = "Second Artist",
+            NameNormalized = "SECONDARTIST",
+            SortName = "Second Artist"
+        };
+        var thirdArtist = new Artist
+        {
+            Name = "Third Artist",
+            NameNormalized = "THIRDARTIST",
+            SortName = "Third Artist"
+        };
+
+        await using (var context = await MockArtistSearchEngineFactory().CreateDbContextAsync())
+        {
+            context.Artists.AddRange(firstArtist, secondArtist, thirdArtist);
+            await context.SaveChangesAsync();
+
+            context.Albums.AddRange(
+                NewAlbum(firstArtist, "First Album", 2001),
+                NewAlbum(firstArtist, "Second Album", 2002),
+                NewAlbum(secondArtist, "Only Album", 2003));
+            await context.SaveChangesAsync();
+        }
+
+        var result = await service.ListAsync(new PagedRequest
+        {
+            Page = 1,
+            PageSize = 2,
+            OrderBy = new Dictionary<string, string> { { nameof(Artist.Id), PagedRequest.OrderAscDirection } }
+        });
+
+        var artists = result.Data?.ToArray() ?? [];
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(2, artists.Length);
+        Assert.Equal(2, artists[0].AlbumCount);
+        Assert.Equal(1, artists[1].AlbumCount);
+    }
+
+    private static Album NewAlbum(Artist artist, string name, int year)
+    {
+        return new Album
+        {
+            Artist = artist,
+            ArtistId = artist.Id,
+            Name = name,
+            NameNormalized = name.Replace(" ", string.Empty).ToUpperInvariant(),
+            SortName = name,
+            AlbumType = 1,
+            Year = year
+        };
     }
 
     #endregion

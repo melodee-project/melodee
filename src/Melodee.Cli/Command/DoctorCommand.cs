@@ -289,6 +289,17 @@ public sealed class CliDoctorService : DoctorServiceBase
                     var checkSw = Stopwatch.StartNew();
                     var cs = GetConnectionString("ArtistSearchEngineConnection");
                     var fileInfo = DescribeFileDatabasePath(cs);
+                    var dataSource = GetDataSourceFromConnectionString(cs);
+                    if (!HasNonEmptyFileBackedDatabase(cs) &&
+                        !string.IsNullOrWhiteSpace(dataSource) &&
+                        Directory.Exists(Path.GetDirectoryName(dataSource)))
+                    {
+                        _logger.Information("[{JobName}] Creating new empty artist search engine database at [{Path}]", nameof(DoctorCommand), dataSource);
+                        await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+                        await db.Database.EnsureCreatedAsync(cancellationToken);
+                        fileInfo = DescribeFileDatabasePath(cs);
+                    }
+
                     if (!HasNonEmptyFileBackedDatabase(cs))
                     {
                         return new DoctorCheckResult(
@@ -406,6 +417,19 @@ public sealed class CliDoctorService : DoctorServiceBase
         catch
         {
             return false;
+        }
+    }
+
+    private static string? GetDataSourceFromConnectionString(string connectionString)
+    {
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            return builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+        }
+        catch
+        {
+            return null;
         }
     }
 

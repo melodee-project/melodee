@@ -954,6 +954,13 @@ public class MusicBrainzUpdateDatabaseJob(
         var walPath = $"{databasePath}.wal";
         var walBytesBefore = File.Exists(walPath) ? new FileInfo(walPath).Length : 0;
         var executablePath = ResolveDecentDbExecutablePath();
+
+        if (!File.Exists(executablePath))
+        {
+            Logger.Warning("[{JobName}] DecentDB CLI tool not found at '{ExecutablePath}'. Skipping WAL checkpoint. The import will still function correctly, but the WAL file may remain until the database is next opened by a process that supports checkpointing.", nameof(MusicBrainzUpdateDatabaseJob), executablePath);
+            return;
+        }
+
         var processInfo = new ProcessStartInfo
         {
             FileName = executablePath,
