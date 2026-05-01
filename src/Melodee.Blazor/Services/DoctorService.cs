@@ -10,7 +10,6 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Doctor;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
-using Serilog;
 using Serilog.Events;
 using SerilogTimings;
 

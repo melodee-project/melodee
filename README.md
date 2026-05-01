@@ -39,7 +39,7 @@ Built on .NET 10 with PostgreSQL and first-class container support, it's a great
 - **🎉 Party Mode**: Shared listening sessions with a collaborative queue and DJ/Listener roles
 - **🎧 User Device Profiles**: Per-user and per-device transcoding profiles for automatic codec/bitrate selection
 - **📜 Event Scripting Hooks**: JavaScript-based event scripting for customizing user authentication, media processing, and feature access
-- **🐳 Container Ready**: Full Docker/Podman support with PostgreSQL
+- **🐳 Pre-built Containers**: Multi-arch Docker images (linux/amd64, linux/arm64) published to GHCR — pull and run with `docker pull ghcr.io/melodee-project/melodee:latest`
 
 ## 🌐 Try the Demo
 
@@ -132,6 +132,25 @@ python3 scripts/run-container-setup.py --start
 ```
 
 The script handles preflight checks, runtime detection, secure configuration, building, and startup.
+
+### Pre-built Container Images
+
+Melodee publishes **pre-built, multi-arch images** (linux/amd64, linux/arm64) to GitHub Container Registry on every release. No build step required:
+
+```bash
+# Pull the latest pre-built image
+docker pull ghcr.io/melodee-project/melodee:latest
+
+# Or pin to a specific version
+docker pull ghcr.io/melodee-project/melodee:2.0.1
+```
+
+To use pre-built images with compose, set the `MELODEE_IMAGE` environment variable before running `compose up`:
+
+```bash
+export MELODEE_IMAGE=ghcr.io/melodee-project/melodee:latest
+docker compose up -d
+```
 
 📖 **Full installation guide**: [melodee.org/installing](https://melodee.org/installing/)
 
