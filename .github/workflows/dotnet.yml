@@ -65,6 +65,15 @@ jobs:
       continue-on-error: false
 
     - name: Test with coverage
+      env:
+        ConnectionStrings__DefaultConnection: "Host=localhost;Database=melodee_test;Username=test;Password=test"
+        ConnectionStrings__ArtistSearchEngineConnection: "Data Source=:memory:"
+        ConnectionStrings__MusicBrainzConnection: "Data Source=:memory:"
+        Jwt__Key: "testkeytestkeytestkeytestkeytestkeytestkeytestkeytestkey"
+        Jwt__Issuer: "test"
+        Jwt__Audience: "test"
+        security__secretKey: "testsecretkeytestsecretkeytestsecretkey"
+        QuartzDisabled: "true"
       run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory coverage/results
     - name: Generate coverage report
       run: |
