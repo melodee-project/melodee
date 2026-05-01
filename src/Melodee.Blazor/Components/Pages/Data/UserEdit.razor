@@ -5,7 +5,7 @@
 @using Melodee.Common.Data.Models
 @using Melodee.Common.Data.Models.Extensions
 
-@inject UserService UserService
+@inject UserProfileService UserProfileService
 @inject LibraryService LibraryService
 @inject SettingService SettingService
 @inject NotificationService NotificationService
@@ -88,7 +88,7 @@
     {
         if (!IsNew)
         {
-            var result = await UserService.GetByApiKeyAsync(ApiKey);
+            var result = await UserProfileService.GetByApiKeyAsync(ApiKey);
             if (result.Data != null)
             {
                 _user = result.Data;
@@ -107,7 +107,7 @@
     {
         if (IsNew)
         {
-            var reg = await UserService.RegisterAsync(_user.UserName, _user.Email, _plainPassword, null);
+            var reg = await UserProfileService.RegisterAsync(_user.UserName, _user.Email, _plainPassword, null);
             if (!reg.IsSuccess || reg.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = string.Join(";", reg.Messages ?? []) });
@@ -119,8 +119,8 @@
         _user.IsAdmin = _roleChoice == 2;
         _user.IsEditor = _roleChoice == 1;
 
-        var original = await UserService.GetByApiKeyAsync(_user.ApiKey);
-        var save = await UserService.UpdateAsync(original.Data!, _user);
+        var original = await UserProfileService.GetByApiKeyAsync(_user.ApiKey);
+        var save = await UserProfileService.UpdateAsync(original.Data!, _user);
         NotificationService.Notify(new NotificationMessage { Severity = save.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error, Summary = save.IsSuccess ? L("Status.Saved") : L("Status.Error"), Detail = save.IsSuccess ? L("Message.UserSaved") : string.Join(";", save.Messages ?? []) });
         if (save.IsSuccess)
         {
@@ -132,7 +132,7 @@
     {
         await using var ms = new MemoryStream();
         await e.File.OpenReadStream(_maxUploadSize).CopyToAsync(ms);
-        var save = await UserService.SaveProfileImageAsync(_user.Id, ms.ToArray());
+        var save = await UserProfileService.SaveProfileImageAsync(_user.Id, ms.ToArray());
         NotificationService.Notify(new NotificationMessage { Severity = save.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error, Summary = save.IsSuccess ? L("Status.Saved") : L("Status.Error"), Detail = save.IsSuccess ? L("Message.AvatarUpdated") : string.Join(";", save.Messages ?? []) });
         await OnParametersSetAsync();
         StateHasChanged();

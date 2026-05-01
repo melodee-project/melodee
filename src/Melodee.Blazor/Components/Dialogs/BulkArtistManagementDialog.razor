@@ -1,0 +1,460 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Blazor.Controllers.Melodee.Models.ArtistLookup
+@using Melodee.Common.Configuration
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Data.Models.Extensions
+@using Melodee.Common.Enums
+@using Melodee.Common.Extensions
+@using Melodee.Common.Models
+@using Melodee.Common.Models.Collection
+@using Melodee.Common.Models.SearchEngines
+@using Melodee.Common.Plugins.SearchEngine
+@using Melodee.Common.Services.Scanning
+@using Melodee.Common.Services.SearchEngines
+@using ModelArtist = Melodee.Common.Models.Artist
+
+@inherits MelodeeComponentBase
+
+@inject AlbumDiscoveryService AlbumDiscoveryService
+@inject ArtistSearchEngineService ArtistSearchEngineService
+@inject MediaEditService MediaEditService
+@inject ArtistService ArtistService
+@inject LibraryService LibraryService
+@inject IMelodeeConfigurationFactory ConfigurationFactory
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@inject MainLayoutProxyService MainLayoutProxyService
+@inject ILogger Logger
+
+<RadzenStack Gap="1rem" Style="max-height: 80vh; overflow-y: auto;">
+    <RadzenText Text="@L("BulkArtistManagement.Title")" TextStyle="TextStyle.H6"/>
+
+    @if (_isLoading)
+    {
+        <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
+            <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate"/>
+            <RadzenText Text="@L("BulkArtistManagement.Loading")" class="rz-text-secondary"/>
+        </RadzenStack>
+    }
+    else if (_invalidArtistGroups.Length == 0)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+            @L("BulkArtistManagement.NoInvalidArtists")
+        </RadzenAlert>
+    }
+    else
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+            @L("BulkArtistManagement.FoundCount", _invalidArtistGroups.Length, _invalidArtistGroups.Sum(g => g.Albums.Length))
+        </RadzenAlert>
+
+        @if (_hasError)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+                @_errorMessage
+            </RadzenAlert>
+        }
+
+        @if (_isProcessing)
+        {
+            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-4">
+                <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate"/>
+                <RadzenText Text="@L("BulkArtistManagement.Processing")" class="rz-text-secondary"/>
+                <RadzenText Text="@($"{_processedCount}/{_invalidArtistGroups.Length}")" class="rz-text-secondary"/>
+            </RadzenStack>
+        }
+
+        <RadzenStack Gap="0.5rem">
+            @foreach (var artistGroup in _invalidArtistGroups)
+            {
+                <RadzenCard Style="border: 1px solid var(--rz-base-300);">
+                    <RadzenStack Gap="1rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenText Text="@artistGroup.ArtistName" TextStyle="TextStyle.Subtitle1" class="rz-font-weight-bold"/>
+                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@($"{artistGroup.Albums.Length} albums")"/>
+                        </RadzenStack>
+
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenTextBox @bind-Value="@artistGroup.SearchQuery"
+                                           Placeholder="@L("BulkArtistManagement.SearchPlaceholder")"
+                                           Style="flex: 1"
+                                           Name="@($"Search_{artistGroup.ArtistName.Replace(" ", "_")}")"
+                                           @onkeyup="@(args => OnSearchKeyUpAsync(artistGroup, args))"
+                                           Disabled="@_isProcessing"/>
+                            <RadzenButton Icon="search"
+                                          Text="@L("Actions.Search")"
+                                          Click="@(() => SearchArtistAsync(artistGroup))"
+                                          Disabled="@(_isProcessing || string.IsNullOrWhiteSpace(artistGroup.SearchQuery))"
+                                          ButtonStyle="ButtonStyle.Primary"
+                                          Size="ButtonSize.Small"/>
+                        </RadzenStack>
+
+                        @if (artistGroup.IsSearching)
+                        {
+                            <RadzenStack AlignItems="AlignItems.Center" class="rz-p-2">
+                                <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate"/>
+                                <RadzenText Text="@L("BulkArtistManagement.Searching")" class="rz-text-secondary"/>
+                            </RadzenStack>
+                        }
+                        else if (artistGroup.SearchResults != null && artistGroup.SearchResults.Length > 0)
+                        {
+                            <RadzenStack Gap="0.5rem" Style="max-height: 300px; overflow-y: auto;">
+                                @foreach (var result in artistGroup.SearchResults)
+                                {
+                                    var isSelected = artistGroup.SelectedResult != null && artistGroup.SelectedResult.UniqueId == result.UniqueId;
+                                    <RadzenCard Click="@(() => SelectArtistResult(artistGroup, result))"
+                                              Style="@(isSelected ? "border: 2px solid var(--rz-primary);" : "border: 1px solid var(--rz-base-200);")">
+                                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                                            @if (!string.IsNullOrEmpty(result.ThumbnailUrl))
+                                            {
+                                                <RadzenImage Path="@result.ThumbnailUrl"
+                                                             Style="width: 48px; height: 48px; object-fit: cover;"
+                                                             AlternateText="@result.Name"/>
+                                            }
+                                            <RadzenStack Style="flex: 1">
+                                                <RadzenText TextStyle="TextStyle.Body1" class="rz-font-weight-bold">
+                                                    @result.Name
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.Caption" class="rz-text-secondary">
+                                                    @L("BulkArtistManagement.FromProvider", result.FromPlugin)
+                                                </RadzenText>
+                                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" Wrap="FlexWrap.Wrap">
+                                                    @if (result.MusicBrainzId.HasValue)
+                                                    {
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@($"MB: {result.MusicBrainzId.Value.ToString()[..8]}...")"/>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(result.SpotifyId))
+                                                    {
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Spotify: {result.SpotifyId}")"/>
+                                                    }
+                                                </RadzenStack>
+                                            </RadzenStack>
+                                            <RadzenCheckBox TValue="bool"
+                                                            Value="@isSelected"
+                                                            Change="@(() => SelectArtistResult(artistGroup, result))"/>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                }
+                            </RadzenStack>
+                        }
+                        else if (artistGroup.HasSearched)
+                        {
+                            <RadzenText Text="@L("BulkArtistManagement.NoResults")" class="rz-text-secondary rz-text-align-center rz-p-2"/>
+                        }
+
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                            <RadzenButton Text="@L("Actions.Skip")"
+                                          ButtonStyle="ButtonStyle.Light"
+                                          Size="ButtonSize.Small"
+                                          Click="@(() => SkipArtist(artistGroup))"
+                                          Disabled="@_isProcessing"/>
+                            @if (artistGroup.SelectedResult != null)
+                            {
+                                <RadzenButton Text="@L("Actions.AddSelected")"
+                                              ButtonStyle="ButtonStyle.Primary"
+                                              Size="ButtonSize.Small"
+                                              Click="@(() => AddSelectedArtist(artistGroup))"
+                                              Disabled="@_isProcessing"/>
+                            }
+                            else if (artistGroup.HasSearched && (artistGroup.SearchResults == null || artistGroup.SearchResults.Length == 0))
+                            {
+                                <RadzenButton Text="@L("Actions.AddAsNewArtist")"
+                                              ButtonStyle="ButtonStyle.Secondary"
+                                              Size="ButtonSize.Small"
+                                              Click="@(() => AddAsNewArtist(artistGroup))"
+                                              Disabled="@_isProcessing"/>
+                            }
+                        </RadzenStack>
+                    </RadzenStack>
+                </RadzenCard>
+            }
+        </RadzenStack>
+    }
+</RadzenStack>
+
+<RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" class="rz-mt-4">
+    <RadzenButton Text="@L("Actions.Cancel")"
+                  ButtonStyle="ButtonStyle.Light"
+                  Click="@Cancel"
+                  Disabled="@_isProcessing"/>
+    <RadzenButton Text="@L("Actions.SaveChanges")"
+                  Icon="save"
+                  ButtonStyle="ButtonStyle.Primary"
+                  Click="@SaveChanges"
+                  Disabled="@(_isProcessing || _invalidArtistGroups.All(g => g.SelectedResult == null && !g.IsSkipped))"/>
+</RadzenStack>
+
+@code {
+    private FileSystemDirectoryInfo _libraryDirectory = null!;
+    private InvalidArtistGroup[] _invalidArtistGroups = [];
+    private bool _isLoading = true;
+    private bool _isProcessing;
+    private bool _hasError;
+    private string _errorMessage = string.Empty;
+    private int _processedCount;
+    private int _updatedCount;
+
+    [Parameter]
+    public Guid LibraryApiKey { get; set; }
+
+    [Parameter]
+    public IList<AlbumDataInfo> SelectedAlbums { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadInvalidArtistsAsync();
+    }
+
+    private async Task LoadInvalidArtistsAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var libraryResult = await LibraryService.GetByApiKeyAsync(LibraryApiKey);
+            if (!libraryResult.IsSuccess || libraryResult.Data == null)
+            {
+                _hasError = true;
+                _errorMessage = "Unable to load library.";
+                return;
+            }
+
+            _libraryDirectory = libraryResult.Data.ToFileSystemDirectoryInfo();
+
+            var invalidAlbums = SelectedAlbums
+                .Where(a => a.NeedsAttentionReasonsValue.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists))
+                .ToArray();
+
+            _invalidArtistGroups = invalidAlbums
+                .GroupBy(a => a.ArtistName.ToNormalizedString() ?? a.ArtistName)
+                .Select(g => new InvalidArtistGroup
+                {
+                    ArtistName = g.Key,
+                    SearchQuery = g.Key,
+                    Albums = g.ToArray(),
+                    AlbumIds = g.Select(a => a.Id).ToArray()
+                })
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            _hasError = true;
+            _errorMessage = ex.Message;
+            Logger.Error(ex, "Failed to load invalid artists");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OnSearchKeyUpAsync(InvalidArtistGroup artistGroup, KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !string.IsNullOrWhiteSpace(artistGroup.SearchQuery))
+        {
+            _ = SearchArtistAsync(artistGroup);
+        }
+    }
+
+    private async Task SearchArtistAsync(InvalidArtistGroup artistGroup)
+    {
+        if (string.IsNullOrWhiteSpace(artistGroup.SearchQuery))
+        {
+            return;
+        }
+
+        artistGroup.IsSearching = true;
+        artistGroup.SearchResults = null;
+        artistGroup.SelectedResult = null;
+        artistGroup.HasSearched = false;
+
+        try
+        {
+            var configuration = await ConfigurationFactory.GetConfigurationAsync();
+            await ArtistSearchEngineService.InitializeAsync(configuration);
+
+            var artistQuery = new ArtistQuery
+            {
+                Name = artistGroup.SearchQuery
+            };
+
+            var result = await ArtistSearchEngineService.DoSearchAsync(artistQuery, 10);
+
+            if (result.IsSuccess && result.Data != null)
+            {
+                artistGroup.SearchResults = result.Data.ToArray();
+            }
+
+            artistGroup.HasSearched = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Failed to search for artist {ArtistName}", artistGroup.ArtistName);
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Search Failed",
+                Detail = $"Unable to search for artist: {artistGroup.ArtistName}"
+            });
+        }
+        finally
+        {
+            artistGroup.IsSearching = false;
+        }
+    }
+
+    private void SelectArtistResult(InvalidArtistGroup artistGroup, ArtistSearchResult result)
+    {
+        artistGroup.SelectedResult = artistGroup.SelectedResult?.UniqueId == result.UniqueId ? null : result;
+    }
+
+    private void SkipArtist(InvalidArtistGroup artistGroup)
+    {
+        artistGroup.IsSkipped = true;
+        artistGroup.SelectedResult = null;
+    }
+
+    private void AddSelectedArtist(InvalidArtistGroup artistGroup)
+    {
+        if (artistGroup.SelectedResult == null)
+        {
+            return;
+        }
+
+        artistGroup.NewArtist = new ModelArtist(
+            artistGroup.SelectedResult.Name,
+            artistGroup.SelectedResult.Name.ToNormalizedString() ?? artistGroup.SelectedResult.Name,
+            artistGroup.SelectedResult.SortName)
+        {
+            MusicBrainzId = artistGroup.SelectedResult.MusicBrainzId,
+            SpotifyId = artistGroup.SelectedResult.SpotifyId,
+            AmgId = artistGroup.SelectedResult.AmgId,
+            DiscogsId = artistGroup.SelectedResult.DiscogsId,
+            ItunesId = artistGroup.SelectedResult.ItunesId,
+            WikiDataId = artistGroup.SelectedResult.WikiDataId,
+            LastFmId = artistGroup.SelectedResult.LastFmId,
+            SearchEngineResultUniqueId = artistGroup.SelectedResult.UniqueId
+        };
+    }
+
+    private void AddAsNewArtist(InvalidArtistGroup artistGroup)
+    {
+        artistGroup.NewArtist = new ModelArtist(
+            artistGroup.ArtistName,
+            artistGroup.ArtistName.ToNormalizedString() ?? artistGroup.ArtistName,
+            artistGroup.ArtistName.ToTitleCase());
+    }
+
+    private async Task SaveChanges()
+    {
+        _isProcessing = true;
+        _processedCount = 0;
+        _updatedCount = 0;
+        _hasError = false;
+        _errorMessage = string.Empty;
+
+        var artistsToProcess = _invalidArtistGroups
+            .Where(g => g.NewArtist != null && !g.IsSkipped)
+            .ToArray();
+
+        try
+        {
+            MainLayoutProxyService.ToggleSpinnerVisible();
+
+            foreach (var artistGroup in artistsToProcess)
+            {
+                try
+                {
+                    var artistToAdd = artistGroup.NewArtist!;
+
+                    if (artistToAdd.ArtistDbId == null && artistToAdd.MusicBrainzId == null)
+                    {
+                        var libraryResult = await LibraryService.GetStagingLibraryAsync();
+                        if (libraryResult.IsSuccess && libraryResult.Data != null)
+                        {
+                            var newArtist = new Melodee.Common.Data.Models.Artist
+                            {
+                                Name = artistToAdd.Name,
+                                NameNormalized = artistToAdd.NameNormalized,
+                                SortName = artistToAdd.SortName,
+                                Directory = string.Empty,
+                                LibraryId = libraryResult.Data.Id,
+                                CreatedAt = NodaTime.Instant.FromDateTimeUtc(DateTime.UtcNow)
+                            };
+
+                            var addResult = await ArtistService.AddArtistAsync(newArtist);
+                            if (addResult.IsSuccess && addResult.Data != null)
+                            {
+                                artistToAdd = artistToAdd with { ArtistDbId = addResult.Data.Id };
+                            }
+                        }
+                    }
+
+                    var updateResult = await MediaEditService.UpdateArtistForAlbumsAsync(
+                        _libraryDirectory,
+                        artistGroup.AlbumIds,
+                        artistToAdd);
+
+                    if (updateResult.IsSuccess)
+                    {
+                        _updatedCount++;
+                    }
+
+                    _processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "Failed to update artist {ArtistName}", artistGroup.ArtistName);
+                }
+            }
+
+            if (_updatedCount > 0)
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = "Artists Updated",
+                    Detail = $"Successfully updated {_updatedCount} artist group(s)."
+                });
+
+                DialogService.Close(true);
+            }
+            else
+            {
+                _hasError = true;
+                _errorMessage = "No artists were updated. Please check your selections and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _hasError = true;
+            _errorMessage = ex.Message;
+            Logger.Error(ex, "Failed to save bulk artist changes");
+        }
+        finally
+        {
+            _isProcessing = false;
+            MainLayoutProxyService.ToggleSpinnerVisible(false);
+        }
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+
+    private class InvalidArtistGroup
+    {
+        public string ArtistName { get; set; } = string.Empty;
+        public string SearchQuery { get; set; } = string.Empty;
+        public AlbumDataInfo[] Albums { get; set; } = [];
+        public int[] AlbumIds { get; set; } = [];
+        public ArtistSearchResult[]? SearchResults { get; set; }
+        public ArtistSearchResult? SelectedResult { get; set; }
+        public ModelArtist? NewArtist { get; set; }
+        public bool IsSearching { get; set; }
+        public bool HasSearched { get; set; }
+        public bool IsSkipped { get; set; }
+    }
+}

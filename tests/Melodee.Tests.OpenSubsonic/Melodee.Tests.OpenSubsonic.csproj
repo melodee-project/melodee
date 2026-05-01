@@ -29,7 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Melodee.Blazor\Melodee.Blazor.csproj" />
+    <ProjectReference Include="..\..\src\Melodee.Blazor\Melodee.Blazor.csproj">
+      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+      <OutputItemType>Reference</OutputItemType>
+    </ProjectReference>
     <ProjectReference Include="..\..\src\Melodee.Common\Melodee.Common.csproj" />
   </ItemGroup>
 
@@ -47,5 +50,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <Target Name="CopyDepsFiles" AfterTargets="Build">
+    <Copy SourceFiles="..\..\src\Melodee.Blazor\bin\$(Configuration)\$(TargetFramework)\server.deps.json"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="..\..\src\Melodee.Blazor\bin\$(Configuration)\$(TargetFramework)\server.runtimeconfig.json"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

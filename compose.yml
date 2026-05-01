@@ -30,7 +30,7 @@ services:
     environment:
       - DB_PASSWORD=${DB_PASSWORD}
       - ConnectionStrings__DefaultConnection=Host=melodee-db;Port=5432;Database=melodeedb;Username=melodeeuser;Password=${DB_PASSWORD};Pooling=true;MinPoolSize=${DB_MIN_POOL_SIZE:-10};MaxPoolSize=${DB_MAX_POOL_SIZE:-50};SSL Mode=Disable;Include Error Detail=true
-      - ConnectionStrings__MusicBrainzConnection=Data Source=/app/storage/_search-engines/musicbrainz/musicbrainz.db
+      - ConnectionStrings__MusicBrainzConnection=Data Source=/app/storage/_search-engines/musicbrainz/musicbrainz.ddb;
       - ConnectionStrings__ArtistSearchEngineConnection=Data Source=/app/storage/_search-engines/artistSearchEngine.db;Cache=Shared
       - DB_MIN_POOL_SIZE=${DB_MIN_POOL_SIZE:-10}
       - DB_MAX_POOL_SIZE=${DB_MAX_POOL_SIZE:-50}

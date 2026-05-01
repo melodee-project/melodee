@@ -12,7 +12,7 @@ namespace Melodee.Common.Services;
 /// <summary>
 /// Service for managing party session endpoint registry operations.
 /// </summary>
-public sealed class PartySessionEndpointRegistryService : ServiceBase, IPartySessionEndpointRegistryService
+public sealed class PartySessionEndpointRegistryService : ServiceBase
 {
     private const string CacheKeyTemplate = "urn:party:endpoint:{0}";
 

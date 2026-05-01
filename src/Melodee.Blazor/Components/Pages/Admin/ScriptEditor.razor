@@ -1,0 +1,729 @@
+@page "/admin/scripts/{EventName}"
+@inherits MelodeeComponentBase
+@using System.Text.Json
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
+
+@inject IScriptAdminService ScriptAdminService
+@inject IScriptEvaluationService ScriptEvaluationService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@inject NavigationManager NavigationManager
+
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>@L("AdminScriptEditor.PageTitle")</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb Class="rz-pb-5">
+        <RadzenBreadCrumbItem Path="/" Text="@L("Navigation.Dashboard")"/>
+        <RadzenBreadCrumbItem Icon="admin_panel_settings" Text="@L("Navigation.Admin")"/>
+        <RadzenBreadCrumbItem Path="/admin/scripts" Icon="code" Text="@L("AdminScripts.PageTitle")"/>
+        <RadzenBreadCrumbItem Icon="edit" Text="@EventName"/>
+    </RadzenBreadCrumb>
+
+    <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenText TextStyle="TextStyle.H4">
+                <RadzenIcon Icon="code" class="rz-me-1"/>
+                @EventName
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenBadge BadgeStyle="@(_config.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
+                             Text="@(_config.Enabled ? L("Common.Yes") : L("Common.No"))"/>
+            </RadzenStack>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.End" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="@L("Actions.Save")" Icon="save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@SaveAsync"/>
+                <RadzenButton Text="@L("Actions.Delete")" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@DeleteAsync"/>
+                <RadzenButton Text="@L("Actions.Back")" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@Back"/>
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">
+            <RadzenIcon Icon="tune" class="rz-me-1"/>
+            @L("AdminScriptEditor.ConfigurationTab")
+        </RadzenText>
+
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="2">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenLabel Text="@L("AdminScriptEditor.Enabled")" Component="ScriptEnabled"/>
+                    <RadzenSwitch @bind-Value="_config.Enabled" Name="ScriptEnabled"/>
+                </RadzenStack>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.TimeoutMs")" Variant="Variant.Outlined" AllowFloatingLabel="false">
+                    <ChildContent>
+                        <RadzenNumeric @bind-Value="_config.TimeoutMs" TValue="int" Min="1" Step="10" Style="width: 100%" aria-label="@L("AdminScriptEditor.TimeoutMs")"/>
+                    </ChildContent>
+                    <Helper>
+                        <RadzenText TextStyle="TextStyle.Caption">@L("AdminScriptEditor.TimeoutMsHelper")</RadzenText>
+                    </Helper>
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3">
+                <RadzenFormField Text="@L("AdminScriptEditor.MaxStatements")" Variant="Variant.Outlined" AllowFloatingLabel="false">
+                    <ChildContent>
+                        <RadzenNumeric @bind-Value="_config.MaxStatements" TValue="int" Min="1" Step="1000" Style="width: 100%" aria-label="@L("AdminScriptEditor.MaxStatements")"/>
+                    </ChildContent>
+                    <Helper>
+                        <RadzenText TextStyle="TextStyle.Caption">@L("AdminScriptEditor.MaxStatementsHelper")</RadzenText>
+                    </Helper>
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenFormField Text="@L("AdminScriptEditor.DefaultOnDeny")" Variant="Variant.Outlined" AllowFloatingLabel="false">
+                    <RadzenDropDown Data="@_denyActions"
+                                    @bind-Value="_config.Default.OnDeny"
+                                    Style="width: 100%"
+                                    aria-label="@L("AdminScriptEditor.DefaultOnDeny")"/>
+                </RadzenFormField>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenStack Gap="0.5rem" class="rz-mt-3">
+            <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.Body")</RadzenText>
+            <MonacoEditor @bind-Value="_config.Default.Body"
+                          Height="420px"
+                          Language="javascript"
+                          CtxCompletions="_ctxCompletions"
+                          ScriptConfigCompletions="ScriptConfigCompletionItems"
+                          Placeholder="@L("AdminScriptEditor.DefaultBodyPlaceholder")"/>
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" RowGap="0.5rem">
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenText TextStyle="TextStyle.H6">
+                    <RadzenIcon Icon="rule" class="rz-me-1"/>
+                    @L("AdminScriptEditor.OverridesTab")
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">@L("AdminScriptEditor.OverridesHelp")</RadzenText>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                    <RadzenButton Text="@L("AdminScriptEditor.AddOverride")"
+                                  Icon="add"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Small"
+                                  Click="@AddOverride"/>
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenDataGrid @ref="_overrideGrid"
+                        Data="@_config.Overrides"
+                        TItem="ScriptOverrideConfig"
+                        AllowPaging="true"
+                        PageSize="10"
+                        EditMode="@DataGridEditMode.Single"
+                        RowUpdate="@OnUpdateOverride"
+                        Style="margin-top: 1rem;">
+            <Columns>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.Enabled)" Title="@L("AdminScriptEditor.OverrideEnabled")" Width="110px">
+                    <Template Context="item">
+                        @{
+                            var enabledText = item.Enabled ? L("Common.Yes") : L("Common.No");
+                        }
+                        <RadzenBadge BadgeStyle="@(item.Enabled ? BadgeStyle.Success : BadgeStyle.Secondary)"
+                                     Text="@enabledText"/>
+                    </Template>
+                    <EditTemplate Context="item">
+                        <RadzenSwitch @bind-Value="item.Enabled"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.LibraryId)" Title="@L("AdminScriptEditor.LibraryId")" Width="120px">
+                    <EditTemplate Context="item">
+                        <RadzenNumeric @bind-Value="item.LibraryId" TValue="int?" Min="0" Step="1" Style="width: 100%"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.PathPrefix)" Title="@L("AdminScriptEditor.PathPrefix")" Width="220px">
+                    <EditTemplate Context="item">
+                        <RadzenTextBox @bind-Value="item.PathPrefix" Style="width: 100%"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(ScriptOverrideConfig.OnDeny)" Title="@L("AdminScriptEditor.OnDeny")" Width="140px">
+                    <EditTemplate Context="item">
+                        <RadzenDropDown Data="@_denyActions" @bind-Value="item.OnDeny" Style="width: 100%"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Title="@L("AdminScriptEditor.Body")" Width="140px">
+                    <Template Context="item">
+                        <RadzenButton Icon="edit"
+                                      Text="@L("Actions.Edit")"
+                                      ButtonStyle="ButtonStyle.Light"
+                                      Size="ButtonSize.Small"
+                                      Click="@(_ => EditOverrideBodyAsync(item))"/>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Context="item" Width="160px" TextAlign="TextAlign.Right" Filterable="false" Sortable="false">
+                    <Template Context="item">
+                        <RadzenButton Icon="edit"
+                                      ButtonStyle="ButtonStyle.Light"
+                                      Variant="Variant.Flat"
+                                      Size="ButtonSize.Medium"
+                                      Click="@(_ => EditOverrideRow(item))"
+                                      @onclick:stopPropagation="true"
+                                      title="@L("Actions.Edit")"/>
+                        <RadzenButton Icon="check"
+                                      ButtonStyle="ButtonStyle.Success"
+                                      Variant="Variant.Flat"
+                                      Size="ButtonSize.Medium"
+                                      class="rz-ms-1"
+                                      Click="@(_ => SaveOverrideRow(item))"
+                                      @onclick:stopPropagation="true"
+                                      title="@L("Actions.Save")"/>
+                        <RadzenButton Icon="delete"
+                                      ButtonStyle="ButtonStyle.Danger"
+                                      Variant="Variant.Flat"
+                                      Size="ButtonSize.Medium"
+                                      class="rz-ms-1"
+                                      Click="@(_ => RemoveOverride(item))"
+                                      @onclick:stopPropagation="true"
+                                      title="@L("Actions.Delete")"/>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">
+            <RadzenIcon Icon="help" class="rz-me-1"/>
+            @L("AdminScriptEditor.ContextTab")
+        </RadzenText>
+
+        <RadzenStack Gap="0.75rem">
+            <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
+                @L("AdminScriptEditor.ContextHelp")
+            </RadzenAlert>
+
+            @if (_ctxFields.Count == 0)
+            {
+                <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.ContextNoInfo")</RadzenText>
+            }
+            else
+            {
+                <RadzenDataGrid Data="@_ctxFields"
+                                TItem="CtxField"
+                                AllowPaging="false"
+                                AllowSorting="false"
+                                AllowFiltering="false">
+                    <Columns>
+                        <RadzenDataGridColumn Property="@nameof(CtxField.Name)" Title="@L("AdminScriptEditor.ContextField")" Width="240px"/>
+                        <RadzenDataGridColumn Property="@nameof(CtxField.Type)" Title="@L("AdminScriptEditor.ContextType")" Width="160px"/>
+                        <RadzenDataGridColumn Property="@nameof(CtxField.Description)" Title="@L("AdminScriptEditor.ContextDescription")"/>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">
+            <RadzenIcon Icon="play_arrow" class="rz-me-1"/>
+            @L("AdminScriptEditor.TestTab")
+        </RadzenText>
+
+        <RadzenStack Gap="0.75rem">
+            <RadzenAlert AllowClose="false" Severity="AlertSeverity.Info">
+                @L("AdminScriptEditor.TestHelp")
+            </RadzenAlert>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="@L("AdminScriptEditor.TestScript")" Variant="Variant.Outlined">
+                        <RadzenDropDown Data="@_testTargets"
+                                        @bind-Value="_selectedTestTarget"
+                                        Style="width: 100%"/>
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenText TextStyle="TextStyle.H6">@L("AdminScriptEditor.MockContextJson")</RadzenText>
+            <MonacoEditor @bind-Value="_mockContextJson" Height="280px" Language="json" Placeholder="{}"/>
+
+            <RadzenButton Text="@L("AdminScriptEditor.RunTest")"
+                          Icon="play_arrow"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Click="@RunTestAsync"/>
+
+            @if (_testResult != null)
+            {
+                <RadzenCard>
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenText TextStyle="TextStyle.Subtitle2">@L("AdminScriptEditor.TestResult")</RadzenText>
+                        <RadzenBadge BadgeStyle="@(_testResult.Result ? BadgeStyle.Success : BadgeStyle.Danger)"
+                                     Text="@(_testResult.Result ? L("AdminScriptEditor.Allowed") : L("AdminScriptEditor.Denied"))"/>
+                        <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.DurationMs", (int)_testResult.Duration.TotalMilliseconds)</RadzenText>
+                        @if (!string.IsNullOrWhiteSpace(_testResult.ErrorMessage))
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2">@L("AdminScriptEditor.Error")</RadzenText>
+                            <RadzenText Style="white-space: pre-wrap">@_testResult.ErrorMessage</RadzenText>
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+        </RadzenStack>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    [Parameter] public string EventName { get; set; } = string.Empty;
+
+    private ScriptConfig _config = new();
+    private int? _settingId;
+    private RadzenDataGrid<ScriptOverrideConfig> _overrideGrid = null!;
+
+    private readonly string[] _denyActions = ["skip", "delete", "quarantine"];
+    private string _mockContextJson = "{}";
+    private ScriptEvaluationResult? _testResult;
+    private IReadOnlyList<CtxField> _ctxFields = [];
+    private IReadOnlyList<MonacoCompletionItem> _ctxCompletions = [];
+
+    private readonly string[] _testTargets =
+    [
+        "default",
+        "override"
+    ];
+
+    private string _selectedTestTarget = "default";
+
+    private static readonly IReadOnlyList<MonacoCompletionItem> ScriptConfigCompletionItems =
+    [
+        new MonacoCompletionItem { Label = "eventName", Detail = "string" },
+        new MonacoCompletionItem { Label = "settingKey", Detail = "string" },
+        new MonacoCompletionItem { Label = "timeoutMs", Detail = "number" },
+        new MonacoCompletionItem { Label = "maxStatements", Detail = "number" },
+        new MonacoCompletionItem { Label = "onDeny", Detail = "string" },
+        new MonacoCompletionItem { Label = "isOverride", Detail = "boolean" },
+        new MonacoCompletionItem { Label = "libraryId", Detail = "number|null" },
+        new MonacoCompletionItem { Label = "pathPrefix", Detail = "string|null" }
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+
+        _testResult = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (string.IsNullOrWhiteSpace(EventName))
+        {
+            return;
+        }
+
+        _ctxFields = GetContextFields(EventName);
+        _ctxCompletions = _ctxFields
+            .Select(field => new MonacoCompletionItem
+            {
+                Label = field.Name,
+                Detail = field.Type,
+                Documentation = field.Description,
+                InsertText = field.Name
+            })
+            .ToArray();
+
+        _mockContextJson = GetDefaultMockContextJson(EventName);
+        _settingId = null;
+        _config = CreateNewScriptConfig();
+
+        var existing = await ScriptAdminService.GetAsync(EventName);
+        if (existing == null)
+        {
+            return;
+        }
+
+        _settingId = existing.Setting.Id;
+        _config = existing.Config;
+
+        if (string.IsNullOrWhiteSpace(_config.Default.Body) && !string.IsNullOrWhiteSpace(_config.DefaultBody))
+        {
+            _config = _config with
+            {
+                Default = _config.Default with
+                {
+                    Body = _config.DefaultBody ?? string.Empty
+                }
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(_config.Default.Body))
+        {
+            _config = _config with
+            {
+                Default = _config.Default with
+                {
+                    Body = "function check(ctx, scriptConfig) { return true; }"
+                }
+            };
+        }
+    }
+
+    private static ScriptConfig CreateNewScriptConfig()
+    {
+        return new ScriptConfig
+        {
+            Enabled = true,
+            Default = new ScriptDefaultConfig
+            {
+                Body = "function check(ctx, scriptConfig) { return true; }",
+                OnDeny = "skip",
+                Enabled = true
+            },
+            Overrides = []
+        };
+    }
+
+    private void Back()
+    {
+        NavigationManager.NavigateTo("/admin/scripts");
+    }
+
+    private async Task SaveAsync()
+    {
+        var result = await ScriptAdminService.UpsertAsync(EventName, _config);
+        if (result.IsSuccess && result.Data)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Duration = ToastTime,
+                Summary = L("AdminScriptEditor.Saved"),
+                Detail = EventName
+            });
+            return;
+        }
+
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Error,
+            Duration = ToastTime * 2,
+            Summary = L("AdminScriptEditor.SaveFailed"),
+            Detail = string.Join(", ", result.Messages ?? [])
+        });
+    }
+
+    private async Task DeleteAsync()
+    {
+        var confirmed = await DialogService.Confirm(
+            L("AdminScripts.DeleteConfirmMessage", EventName),
+            L("AdminScripts.DeleteConfirmTitle"),
+            new ConfirmOptions
+            {
+                OkButtonText = L("Actions.Delete"),
+                CancelButtonText = L("Actions.Cancel")
+            });
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var result = await ScriptAdminService.DeleteAsync(EventName);
+        if (result.IsSuccess && result.Data)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Duration = ToastTime,
+                Summary = L("AdminScripts.DeletedSuccess"),
+                Detail = EventName
+            });
+
+            Back();
+            return;
+        }
+
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Error,
+            Duration = ToastTime * 2,
+            Summary = L("AdminScripts.DeleteFailed"),
+            Detail = string.Join(", ", result.Messages ?? [])
+        });
+    }
+
+    private void AddOverride()
+    {
+        _config.Overrides.Add(new ScriptOverrideConfig
+        {
+            Enabled = true,
+            LibraryId = null,
+            PathPrefix = null,
+            OnDeny = "skip",
+            Body = "function check(ctx, scriptConfig) { return true; }"
+        });
+    }
+
+    private async Task EditOverrideRow(ScriptOverrideConfig item)
+    {
+        await _overrideGrid.EditRow(item);
+    }
+
+    private async Task SaveOverrideRow(ScriptOverrideConfig item)
+    {
+        await _overrideGrid.UpdateRow(item);
+    }
+
+    private void RemoveOverride(ScriptOverrideConfig item)
+    {
+        _config.Overrides.Remove(item);
+    }
+
+    private Task OnUpdateOverride(ScriptOverrideConfig item)
+    {
+        return Task.CompletedTask;
+    }
+
+    private async Task EditOverrideBodyAsync(ScriptOverrideConfig item)
+    {
+        var result = await DialogService.OpenAsync<ScriptOverrideBodyDialog>(
+            L("AdminScriptEditor.EditOverrideBodyTitle"),
+            new Dictionary<string, object?>
+            {
+                { "Body", item.Body },
+                { "CtxCompletions", _ctxCompletions },
+                { "ScriptConfigCompletions", ScriptConfigCompletionItems }
+            },
+            new DialogOptions
+            {
+                Width = "900px",
+                Height = "640px",
+                Resizable = true,
+                Draggable = true
+            });
+
+        if (result is string body)
+        {
+            item.Body = body;
+        }
+    }
+
+    private async Task RunTestAsync()
+    {
+        _testResult = null;
+
+        object? ctx;
+        try
+        {
+            using var document = JsonDocument.Parse(_mockContextJson);
+            ctx = document.RootElement.Clone();
+        }
+        catch (Exception ex)
+        {
+            _testResult = new ScriptEvaluationResult
+            {
+                Result = true,
+                IsDefault = true,
+                ErrorMessage = ex.Message
+            };
+            return;
+        }
+
+        var scriptBody = _selectedTestTarget == "override" && _config.Overrides.Count > 0
+            ? _config.Overrides[0].Body
+            : _config.Default.Body;
+
+        var scriptConfig = new
+        {
+            eventName = EventName,
+            onDeny = _selectedTestTarget == "override" && _config.Overrides.Count > 0 ? _config.Overrides[0].OnDeny : _config.Default.OnDeny
+        };
+
+        _testResult = await ScriptEvaluationService.EvaluateScriptAsync(
+            scriptBody,
+            ctx!,
+            scriptConfig,
+            _config,
+            CancellationToken.None);
+    }
+
+    private static string GetDefaultMockContextJson(string eventName)
+    {
+        return eventName switch
+        {
+            ScriptEventNames.DirectoryProcessingStart or ScriptEventNames.DirectoryProcessingDelete =>
+                """
+                {
+                  "libraryId": 1,
+                  "relativePath": "Incoming/Example",
+                  "directoryName": "Example",
+                  "totalFilesCount": 12,
+                  "totalSizeMegabytes": 123.45,
+                  "mostRecentModified": "2026-01-24T12:34:56Z",
+                  "mediaFilesCount": 10,
+                  "totalDurationMinutes": 42.0,
+                  "trackNumbers": [1,2,3,4,5,6,7,8,9,10],
+                  "hasTrackNumberGaps": false
+                }
+                """,
+            ScriptEventNames.UserRegistrationStart =>
+                """
+                {
+                  "userNameLength": 12,
+                  "emailDomain": "example.com",
+                  "clientIp": "127.0.0.1",
+                  "userAgent": "Mozilla/5.0",
+                  "now": "2026-01-24T12:34:56Z"
+                }
+                """,
+            ScriptEventNames.UserLoginStart =>
+                """
+                {
+                  "userId": 123,
+                  "roles": ["admin"],
+                  "clientIp": "127.0.0.1",
+                  "userAgent": "Mozilla/5.0",
+                  "now": "2026-01-24T12:34:56Z"
+                }
+                """,
+            ScriptEventNames.UserProfileUpdateStart =>
+                """
+                {
+                  "userId": 123,
+                  "emailDomain": "example.com",
+                  "profileChangesCount": 1,
+                  "clientIp": "127.0.0.1",
+                  "userAgent": "Mozilla/5.0",
+                  "now": "2026-01-24T12:34:56Z"
+                }
+                """,
+            ScriptEventNames.PlaylistCreateStart =>
+                """
+                {
+                  "userId": 123,
+                  "nameLength": 16,
+                  "initialSongCount": 25,
+                  "now": "2026-01-24T12:34:56Z"
+                }
+                """,
+            ScriptEventNames.PodcastChannelAddStart =>
+                """
+                {
+                  "userId": 123,
+                  "feedUrl": "https://example.com/feed.xml",
+                  "isNewSubscription": true,
+                  "now": "2026-01-24T12:34:56Z"
+                }
+                """,
+            ScriptEventNames.RequestCreateStart =>
+                """
+                {
+                  "userId": 123,
+                  "requestType": "song",
+                  "isFirstRequestToday": true,
+                  "dailyRequestCount": 2,
+                  "now": "2026-01-24T12:34:56Z"
+                }
+                """,
+            _ => "{}"
+        };
+    }
+
+    private sealed record CtxField(string Name, string Type, string Description);
+    private sealed record CtxFieldDefinition(string Name, string Type, string DescriptionKey);
+
+    private IReadOnlyList<CtxField> GetContextFields(string eventName)
+    {
+        var definitions = eventName switch
+        {
+            ScriptEventNames.DirectoryProcessingStart or ScriptEventNames.DirectoryProcessingDelete => DirectoryProcessingCtx,
+            ScriptEventNames.UserRegistrationStart => UserRegistrationCtx,
+            ScriptEventNames.UserLoginStart => UserLoginCtx,
+            ScriptEventNames.UserProfileUpdateStart => UserProfileUpdateCtx,
+            ScriptEventNames.PlaylistCreateStart => PlaylistCreateCtx,
+            ScriptEventNames.PodcastChannelAddStart => PodcastChannelAddCtx,
+            ScriptEventNames.RequestCreateStart => RequestCreateCtx,
+            _ => []
+        };
+
+        return definitions
+            .Select(d => new CtxField(d.Name, d.Type, L(d.DescriptionKey)))
+            .ToArray();
+    }
+
+    private static readonly CtxFieldDefinition[] DirectoryProcessingCtx =
+    [
+        new("libraryId", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.LibraryId"),
+        new("relativePath", "string", "AdminScriptEditor.Ctx.DirectoryProcessing.RelativePath"),
+        new("directoryName", "string", "AdminScriptEditor.Ctx.DirectoryProcessing.DirectoryName"),
+        new("totalFilesCount", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.TotalFilesCount"),
+        new("totalSizeMegabytes", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.TotalSizeMegabytes"),
+        new("mostRecentModified", "string", "AdminScriptEditor.Ctx.DirectoryProcessing.MostRecentModified"),
+        new("mediaFilesCount", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.MediaFilesCount"),
+        new("totalDurationMinutes", "number", "AdminScriptEditor.Ctx.DirectoryProcessing.TotalDurationMinutes"),
+        new("trackNumbers", "number[]", "AdminScriptEditor.Ctx.DirectoryProcessing.TrackNumbers"),
+        new("hasTrackNumberGaps", "boolean", "AdminScriptEditor.Ctx.DirectoryProcessing.HasTrackNumberGaps")
+    ];
+
+    private static readonly CtxFieldDefinition[] UserRegistrationCtx =
+    [
+        new("userNameLength", "number", "AdminScriptEditor.Ctx.UserRegistration.UserNameLength"),
+        new("emailDomain", "string", "AdminScriptEditor.Ctx.UserRegistration.EmailDomain"),
+        new("clientIp", "string", "AdminScriptEditor.Ctx.UserRegistration.ClientIp"),
+        new("userAgent", "string", "AdminScriptEditor.Ctx.UserRegistration.UserAgent"),
+        new("now", "string", "AdminScriptEditor.Ctx.UserRegistration.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] UserLoginCtx =
+    [
+        new("userId", "number|null", "AdminScriptEditor.Ctx.UserLogin.UserId"),
+        new("roles", "string[]", "AdminScriptEditor.Ctx.UserLogin.Roles"),
+        new("clientIp", "string", "AdminScriptEditor.Ctx.UserLogin.ClientIp"),
+        new("userAgent", "string", "AdminScriptEditor.Ctx.UserLogin.UserAgent"),
+        new("now", "string", "AdminScriptEditor.Ctx.UserLogin.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] UserProfileUpdateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.UserProfileUpdate.UserId"),
+        new("emailDomain", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.EmailDomain"),
+        new("profileChangesCount", "number", "AdminScriptEditor.Ctx.UserProfileUpdate.ProfileChangesCount"),
+        new("clientIp", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.ClientIp"),
+        new("userAgent", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.UserAgent"),
+        new("now", "string", "AdminScriptEditor.Ctx.UserProfileUpdate.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] PlaylistCreateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.PlaylistCreate.UserId"),
+        new("nameLength", "number", "AdminScriptEditor.Ctx.PlaylistCreate.NameLength"),
+        new("initialSongCount", "number", "AdminScriptEditor.Ctx.PlaylistCreate.InitialSongCount"),
+        new("now", "string", "AdminScriptEditor.Ctx.PlaylistCreate.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] PodcastChannelAddCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.PodcastChannelAdd.UserId"),
+        new("feedUrl", "string", "AdminScriptEditor.Ctx.PodcastChannelAdd.FeedUrl"),
+        new("isNewSubscription", "boolean", "AdminScriptEditor.Ctx.PodcastChannelAdd.IsNewSubscription"),
+        new("now", "string", "AdminScriptEditor.Ctx.PodcastChannelAdd.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] ShareCreateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.ShareCreate.UserId"),
+        new("shareType", "string", "AdminScriptEditor.Ctx.ShareCreate.ShareType"),
+        new("itemCount", "number", "AdminScriptEditor.Ctx.ShareCreate.ItemCount"),
+        new("expirationDays", "number|null", "AdminScriptEditor.Ctx.ShareCreate.ExpirationDays"),
+        new("now", "string", "AdminScriptEditor.Ctx.ShareCreate.Now")
+    ];
+
+    private static readonly CtxFieldDefinition[] RequestCreateCtx =
+    [
+        new("userId", "number", "AdminScriptEditor.Ctx.RequestCreate.UserId"),
+        new("requestType", "string", "AdminScriptEditor.Ctx.RequestCreate.RequestType"),
+        new("isFirstRequestToday", "boolean", "AdminScriptEditor.Ctx.RequestCreate.IsFirstRequestToday"),
+        new("dailyRequestCount", "number", "AdminScriptEditor.Ctx.RequestCreate.DailyRequestCount"),
+        new("now", "string", "AdminScriptEditor.Ctx.RequestCreate.Now")
+    ];
+}

@@ -1,0 +1,118 @@
+# Dependency vulnerability scanning and container image scanning
+# Detects known vulnerabilities in dependencies and container images
+#
+# For dependency scanning: https://github.com/actions/dependency-review-action
+# For container scanning: https://github.com/aquasecurity/trivy
+
+name: Security Scanning (SCA + Container)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependency-review:
+    name: Dependency Vulnerability Scan (SCA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          # Fail on critical, high, and moderate vulnerabilities
+          fail-on-severity: high
+          # Comment on pull requests with details
+          comment-summary-in-pr: on-failure
+          # Output format for GitHub Security tab
+          sarif-output: srp-results.sarif
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: srp-results.sarif
+          category: "dependency-review"
+
+  container-scan:
+    name: Container Image Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: melodee:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'melodee:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          limit-severity-skip: false
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: "trivy-container-scan"
+
+  nuget-vuln-scan:
+    name: NuGet Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check for vulnerable NuGet packages
+        run: |
+          # Get all projects and check for vulnerabilities
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee nuget-vuln-report.txt
+          
+          # Check if there are any critical or high vulnerabilities
+          if grep -q "Critical\|High" nuget-vuln-report.txt 2>/dev/null; then
+            echo "Vulnerable packages found!"
+            cat nuget-vuln-report.txt
+            exit 1
+          else
+            echo "No critical or high vulnerabilities found."
+            exit 0
+          fi

@@ -1,9 +1,10 @@
 using System.Security.Claims;
 using Asp.Versioning;
+using Melodee.Blazor.Controllers.Melodee.Extensions;
 using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
-using Melodee.Common.Data;
+using Melodee.Common.Enums.PartyMode;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using PartyPlaybackStateEntity = Melodee.Common.Data.Models.PartyPlaybackState;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -26,8 +28,8 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PartyPlaybackController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IPartySessionService partySessionService,
-    IPartyPlaybackService partyPlaybackService,
+    PartySessionService partySessionService,
+    PartyPlaybackService partyPlaybackService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,
@@ -41,10 +43,10 @@ public sealed class PartyPlaybackController(
     private ILogger<PartyPlaybackController> Logger { get; } = logger;
 
     /// <summary>
-    /// Gets the playback state for a party session.
+    /// Gets playback state for a party session.
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetState(Guid sessionId, CancellationToken cancellationToken = default)
     {
@@ -57,7 +59,7 @@ public sealed class PartyPlaybackController(
                 : ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to get playback state");
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPartyPlaybackStateDto());
     }
 
     /// <summary>
@@ -65,7 +67,7 @@ public sealed class PartyPlaybackController(
     /// </summary>
     [HttpPost]
     [Route("play")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
@@ -95,7 +97,7 @@ public sealed class PartyPlaybackController(
             return HandlePlaybackError(result);
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPartyPlaybackStateDto());
     }
 
     /// <summary>
@@ -103,7 +105,7 @@ public sealed class PartyPlaybackController(
     /// </summary>
     [HttpPost]
     [Route("pause")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
@@ -133,15 +135,53 @@ public sealed class PartyPlaybackController(
             return HandlePlaybackError(result);
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPartyPlaybackStateDto());
     }
 
     /// <summary>
-    /// Skips to the next track.
+    /// Stops playback.
     /// </summary>
     [HttpPost]
-    [Route("skip")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [Route("stop")]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Stop(
+        Guid sessionId,
+        [FromBody] PlaybackIntentRequest? request,
+        CancellationToken cancellationToken = default)
+    {
+        var user = HttpContext.User;
+        var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+        if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
+        {
+            return ApiUnauthorized();
+        }
+
+        var result = await partyPlaybackService.UpdateIntentAsync(
+            sessionId,
+            PlaybackIntent.Stop,
+            null,
+            userId,
+            request?.ExpectedRevision ?? 0,
+            cancellationToken
+        ).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            return HandlePlaybackError(result);
+        }
+
+        return Ok(result.Data.ToPartyPlaybackStateDto());
+    }
+
+    /// <summary>
+    /// Skips to next track.
+    /// </summary>
+    [HttpPost]
+    [Route("next")]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
@@ -171,7 +211,7 @@ public sealed class PartyPlaybackController(
             return HandlePlaybackError(result);
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPartyPlaybackStateDto());
     }
 
     /// <summary>
@@ -179,7 +219,7 @@ public sealed class PartyPlaybackController(
     /// </summary>
     [HttpPost]
     [Route("seek")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
@@ -214,15 +254,15 @@ public sealed class PartyPlaybackController(
             return HandlePlaybackError(result);
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPartyPlaybackStateDto());
     }
 
     /// <summary>
-    /// Sets the volume level.
+    /// Sets volume level.
     /// </summary>
     [HttpPost]
     [Route("volume")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
@@ -258,10 +298,10 @@ public sealed class PartyPlaybackController(
             return HandlePlaybackError(result);
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPartyPlaybackStateDto());
     }
 
-    private IActionResult HandlePlaybackError(OperationResult<Common.Data.Models.PartyPlaybackState> result)
+    private IActionResult HandlePlaybackError(OperationResult<PartyPlaybackStateEntity> result)
     {
         return result.Type switch
         {

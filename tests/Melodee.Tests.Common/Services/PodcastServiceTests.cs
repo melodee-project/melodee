@@ -1,3 +1,4 @@
+using DecentDB.EntityFrameworkCore;
 using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
@@ -7,7 +8,6 @@ using Melodee.Common.Enums;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Security;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using NodaTime;
@@ -17,7 +17,7 @@ namespace Melodee.Tests.Common.Services;
 
 public class PodcastServiceTests : IAsyncDisposable
 {
-    private readonly System.Data.Common.DbConnection _connection;
+    private readonly string _tempDbDir;
     private readonly DbContextOptions<MelodeeDbContext> _dbOptions;
     private readonly ILogger _logger;
     private readonly ICacheManager _cacheManager;
@@ -29,13 +29,12 @@ public class PodcastServiceTests : IAsyncDisposable
 
     public PodcastServiceTests()
     {
-        // Use DbConnection to ensure all contexts share the same in-memory database
-        _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
+        _tempDbDir = Path.Combine(Path.GetTempPath(), $"melodee-podcast-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDbDir);
+        var dbFile = Path.Combine(_tempDbDir, "melodee.ddb");
 
-        // Pass the connection object (not connection string) to share the database
         _dbOptions = new DbContextOptionsBuilder<MelodeeDbContext>()
-            .UseSqlite(_connection, x => x.UseNodaTime())
+            .UseDecentDB($"Data Source={dbFile}", x => x.UseNodaTime())
             .Options;
 
         using (var context = new MelodeeDbContext(_dbOptions))
@@ -74,9 +73,21 @@ public class PodcastServiceTests : IAsyncDisposable
         return factoryMock.Object;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await _connection.DisposeAsync();
+        try
+        {
+            if (Directory.Exists(_tempDbDir))
+            {
+                Directory.Delete(_tempDbDir, true);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     private PodcastService CreateService() =>

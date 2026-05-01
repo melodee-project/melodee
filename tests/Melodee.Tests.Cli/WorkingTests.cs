@@ -1,4 +1,3 @@
-using Xunit;
 using FluentAssertions;
 
 namespace Melodee.Tests.Cli;

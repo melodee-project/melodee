@@ -1,0 +1,178 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Configuration
+@using Melodee.Common.Constants
+@using Melodee.Common.Data
+@using Melodee.Common.Services
+@using Microsoft.EntityFrameworkCore
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.RequiredSettingsHeading")"/>
+    <RadzenText Text="@L("Onboarding.RequiredSettingsDescription")"/>
+
+    @if (_settings.Count == 0)
+    {
+        <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Success" Icon="check_circle">
+            <RadzenText Text="@L("Onboarding.RequiredSettingsNone")"/>
+        </RadzenAlert>
+    }
+    else
+    {
+        @foreach (var setting in _settings)
+        {
+            <RadzenCard>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText Text="@setting.Key" TextStyle="TextStyle.Subtitle2"/>
+                    <RadzenFormField Text="@L("Onboarding.RequiredSettingValue")">
+                        <RadzenTextBox @bind-Value="setting.Value"
+                                       Style="width: 100%;"
+                                       Disabled="@setting.IsReadOnly"
+                                       Type="@(setting.IsSecret ? "password" : "text")"
+                                       Change="@(() => ValidateSetting(setting))"/>
+                    </RadzenFormField>
+                    @if (!string.IsNullOrEmpty(setting.Error))
+                    {
+                        <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                            <RadzenText Text="@setting.Error"/>
+                        </RadzenAlert>
+                    }
+                    @if (setting.IsReadOnly)
+                    {
+                        <RadzenText Text="@L("Onboarding.SetViaEnvironment")" TextStyle="TextStyle.Caption"/>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+        }
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving" Disabled="@_hasErrors"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private readonly List<RequiredSettingModel> _settings = new();
+    private bool _isSaving;
+    private bool _hasErrors;
+
+    [Inject] private IDbContextFactory<MelodeeDbContext> ContextFactory { get; set; } = null!;
+    [Inject] private SettingService SettingService { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    private static readonly HashSet<string> SkippedKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        SettingRegistry.SystemBaseUrl,
+        SettingRegistry.SystemSiteName,
+        SettingRegistry.SecuritySecretKey
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRequiredSettingsAsync();
+    }
+
+    private async Task LoadRequiredSettingsAsync()
+    {
+        _settings.Clear();
+
+        var importData = OnboardingStateService.GetImportData();
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var requiredSettings = await context.Settings
+            .Where(s => s.Value == MelodeeConfiguration.RequiredNotSetValue)
+            .OrderBy(s => s.Key)
+            .ToListAsync();
+
+        foreach (var setting in requiredSettings)
+        {
+            if (SkippedKeys.Contains(setting.Key))
+            {
+                continue;
+            }
+
+            var isReadOnly = MelodeeConfigurationFactory.IsSetViaEnvironmentVariable(setting.Key);
+            var value = string.Empty;
+            if (!isReadOnly && importData != null)
+            {
+                var imported = importData.Settings.FirstOrDefault(s => s.Key.Equals(setting.Key, StringComparison.OrdinalIgnoreCase));
+                if (imported != null && !string.IsNullOrWhiteSpace(imported.Value))
+                {
+                    value = imported.Value;
+                }
+            }
+
+            _settings.Add(new RequiredSettingModel
+            {
+                Key = setting.Key,
+                Value = value,
+                IsReadOnly = isReadOnly,
+                IsSecret = IsSecretKey(setting.Key)
+            });
+        }
+
+        _hasErrors = _settings.Count == 0 ? false : _settings.Any(s => !s.IsReadOnly && string.IsNullOrWhiteSpace(s.Value));
+    }
+
+    private void ValidateSetting(RequiredSettingModel setting)
+    {
+        setting.Error = null;
+
+        if (!setting.IsReadOnly && string.IsNullOrWhiteSpace(setting.Value))
+        {
+            setting.Error = L("Onboarding.RequiredSettingMissing");
+        }
+
+        _hasErrors = _settings.Any(s => !s.IsReadOnly && !string.IsNullOrEmpty(s.Error));
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next()
+    {
+        foreach (var setting in _settings)
+        {
+            ValidateSetting(setting);
+        }
+
+        if (_hasErrors)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            foreach (var setting in _settings.Where(s => !s.IsReadOnly))
+            {
+                await SettingService.SetAsync(setting.Key, setting.Value ?? string.Empty, CancellationToken.None);
+            }
+
+            await OnboardingStateService.RefreshSetupStatusAsync();
+            await OnNext.InvokeAsync();
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static bool IsSecretKey(string key)
+    {
+        return key.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("password", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class RequiredSettingModel
+    {
+        public string Key { get; init; } = string.Empty;
+        public string? Value { get; set; }
+        public bool IsReadOnly { get; init; }
+        public bool IsSecret { get; init; }
+        public string? Error { get; set; }
+    }
+}

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Melodee.Common.Extensions;
 
 namespace Melodee.Common.Models.OpenSubsonic;
@@ -16,12 +17,19 @@ public sealed record Bookmark(
     string Username,
     string? Comment,
     string Created,
-    string Change,
-    Child Entry) : IOpenSubsonicToXml
+    [property: JsonPropertyName("changed")] string Change,
+    Child[] Entry) : IOpenSubsonicToXml
 {
     public string ToXml(string? nodeName = null)
     {
-        return
-            $"<bookmark position=\"{Position}\" username=\"{Username.ToSafeXmlString()}\" comment=\"{Comment.ToSafeXmlString()}\" created=\"{Created}\" changed=\"{Change}\">{((IOpenSubsonicToXml)Entry).ToXml("entry")}</bookmark>";
+        var result =
+            $"<bookmark position=\"{Position}\" username=\"{Username.ToSafeXmlString()}\" comment=\"{Comment.ToSafeXmlString()}\" created=\"{Created}\" changed=\"{Change}\">";
+        foreach (var child in Entry)
+        {
+            result += child.ToXml("entry");
+        }
+
+        result += "</bookmark>";
+        return result;
     }
 }

@@ -2,7 +2,6 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Models;
-using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Jukebox;
 using Melodee.Common.Services.Playback;
@@ -18,8 +17,6 @@ public class SubsonicJukeboxServiceTests
     private readonly Mock<ICacheManager> _cacheManagerMock;
     private readonly Mock<IDbContextFactory<MelodeeDbContext>> _contextFactoryMock;
     private readonly Mock<IMelodeeConfigurationFactory> _configurationFactoryMock;
-    private readonly Mock<IPartyQueueService> _partyQueueServiceMock;
-    private readonly Mock<IPartyPlaybackService> _partyPlaybackServiceMock;
 
     public SubsonicJukeboxServiceTests()
     {
@@ -32,22 +29,21 @@ public class SubsonicJukeboxServiceTests
         configMock.Setup(x => x.GetValue<bool>(SettingRegistry.JukeboxEnabled)).Returns(false);
         _configurationFactoryMock.Setup(x => x.GetConfigurationAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(configMock.Object);
-
-        _partyQueueServiceMock = new Mock<IPartyQueueService>();
-        _partyPlaybackServiceMock = new Mock<IPartyPlaybackService>();
     }
 
     private SubsonicJukeboxService CreateService()
     {
         var playbackBackendServiceMock = new Mock<IPlaybackBackendService>();
 
+        // PartyQueueService and PartyPlaybackService are not used when jukebox is disabled,
+        // so we pass null. These are sealed classes that cannot be mocked.
         return new SubsonicJukeboxService(
             _loggerMock.Object,
             _cacheManagerMock.Object,
             _contextFactoryMock.Object,
             _configurationFactoryMock.Object,
-            _partyQueueServiceMock.Object,
-            _partyPlaybackServiceMock.Object,
+            null!,
+            null!,
             playbackBackendServiceMock.Object);
     }
 

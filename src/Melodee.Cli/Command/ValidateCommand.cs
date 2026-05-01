@@ -20,7 +20,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class ValidateCommand : CommandBase<ValidateSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ValidateSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ValidateSettings settings, CancellationToken cancellationToken)
     {
         var isValid = false;
 

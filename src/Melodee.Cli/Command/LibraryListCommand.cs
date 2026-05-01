@@ -13,7 +13,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class LibraryListCommand : CommandBase<LibraryListSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryListSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryListSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

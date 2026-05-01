@@ -1,17 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Melodee.Common.Configuration;
-using Melodee.Common.Constants;
-using Melodee.Common.Data.Models;
-using Melodee.Common.Enums;
-using Melodee.Common.Models.OpenSubsonic.Requests;
-using Melodee.Common.Utility;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using NodaTime;
-using Xunit;
-using Xunit.Abstractions;
 
 namespace Melodee.Tests.OpenSubsonic;
 
@@ -33,7 +22,7 @@ public static class SubsonicSchemaValidator
             TypeName = "MusicFolder",
             Attributes = new Dictionary<string, FieldType>
             {
-                ["id"] = FieldType.Integer,
+                ["id"] = FieldType.String,
                 ["name"] = FieldType.String
             },
             RequiredAttributes = new[] { "id" }
@@ -53,10 +42,21 @@ public static class SubsonicSchemaValidator
             TypeName = "Index",
             Children = new Dictionary<string, FieldDefinition>
             {
-                ["artist"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Artist" }
+                ["artist"] = new FieldDefinition { Type = FieldType.Array, ItemType = "artist" }
             }
         },
         ["artist"] = new ElementDefinition
+        {
+            TypeName = "Artist",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["name"] = FieldType.String,
+                ["albumCount"] = FieldType.Integer
+            },
+            RequiredAttributes = new[] { "id", "name" }
+        },
+        ["Artist"] = new ElementDefinition
         {
             TypeName = "Artist",
             Attributes = new Dictionary<string, FieldType>
@@ -72,7 +72,7 @@ public static class SubsonicSchemaValidator
             TypeName = "ArtistsID3",
             Children = new Dictionary<string, FieldDefinition>
             {
-                ["index"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Index" }
+                ["index"] = new FieldDefinition { Type = FieldType.Array, ItemType = "index" }
             }
         },
         ["album"] = new ElementDefinition
@@ -96,6 +96,38 @@ public static class SubsonicSchemaValidator
             RequiredAttributes = new[] { "id", "name" }
         },
         ["song"] = new ElementDefinition
+        {
+            TypeName = "Child",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["parent"] = FieldType.String,
+                ["title"] = FieldType.String,
+                ["artist"] = FieldType.String,
+                ["album"] = FieldType.String,
+                ["genre"] = FieldType.String,
+                ["coverArt"] = FieldType.String,
+                ["duration"] = FieldType.Integer,
+                ["bitRate"] = FieldType.Integer,
+                ["path"] = FieldType.String,
+                ["fileSize"] = FieldType.Long,
+                ["isDir"] = FieldType.Boolean,
+                ["albumId"] = FieldType.String,
+                ["artistId"] = FieldType.String,
+                ["year"] = FieldType.Integer,
+                ["track"] = FieldType.Integer,
+                ["discNumber"] = FieldType.Integer,
+                ["created"] = FieldType.DateTime,
+                ["releaseDate"] = FieldType.DateTime,
+                ["genreId"] = FieldType.String,
+                ["crc32"] = FieldType.String,
+                ["suffix"] = FieldType.String,
+                ["contentType"] = FieldType.String,
+                ["size"] = FieldType.Long
+            },
+            RequiredAttributes = new[] { "id" }
+        },
+        ["Child"] = new ElementDefinition
         {
             TypeName = "Child",
             Attributes = new Dictionary<string, FieldType>
@@ -207,7 +239,7 @@ public static class SubsonicSchemaValidator
             TypeName = "Playlist",
             Attributes = new Dictionary<string, FieldType>
             {
-                ["id"] = FieldType.Integer,
+                ["id"] = FieldType.String,
                 ["name"] = FieldType.String,
                 ["owner"] = FieldType.String,
                 ["public"] = FieldType.Boolean,
@@ -228,7 +260,7 @@ public static class SubsonicSchemaValidator
             TypeName = "PlaylistWithSongs",
             Attributes = new Dictionary<string, FieldType>
             {
-                ["id"] = FieldType.Integer,
+                ["id"] = FieldType.String,
                 ["name"] = FieldType.String,
                 ["owner"] = FieldType.String,
                 ["public"] = FieldType.Boolean,
@@ -255,6 +287,15 @@ public static class SubsonicSchemaValidator
             Children = new Dictionary<string, FieldDefinition>
             {
                 ["verse"] = new FieldDefinition { Type = FieldType.Array, ItemType = "LyricsVerse" }
+            }
+        },
+        ["LyricsVerse"] = new ElementDefinition
+        {
+            TypeName = "LyricsVerse",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["start"] = FieldType.Long,
+                ["value"] = FieldType.String
             }
         },
         ["starred"] = new ElementDefinition
@@ -284,6 +325,28 @@ public static class SubsonicSchemaValidator
             {
                 ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "NowPlayingEntry" }
             }
+        },
+        ["NowPlayingEntry"] = new ElementDefinition
+        {
+            TypeName = "NowPlayingEntry",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["parent"] = FieldType.String,
+                ["title"] = FieldType.String,
+                ["artist"] = FieldType.String,
+                ["album"] = FieldType.String,
+                ["genre"] = FieldType.String,
+                ["coverArt"] = FieldType.String,
+                ["duration"] = FieldType.Integer,
+                ["bitRate"] = FieldType.Integer,
+                ["path"] = FieldType.String,
+                ["username"] = FieldType.String,
+                ["minutesAgo"] = FieldType.Integer,
+                ["playerId"] = FieldType.Integer,
+                ["playerName"] = FieldType.String
+            },
+            RequiredAttributes = new[] { "id", "username", "minutesAgo" }
         },
         ["user"] = new ElementDefinition
         {
@@ -321,6 +384,121 @@ public static class SubsonicSchemaValidator
             Children = new Dictionary<string, FieldDefinition>
             {
                 ["album"] = new FieldDefinition { Type = FieldType.Array, ItemType = "AlbumChild" }
+            }
+        },
+        ["internetRadioStations"] = new ElementDefinition
+        {
+            TypeName = "InternetRadioStations",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["internetRadioStation"] = new FieldDefinition { Type = FieldType.Array, ItemType = "InternetRadioStation" }
+            }
+        },
+        ["InternetRadioStation"] = new ElementDefinition
+        {
+            TypeName = "InternetRadioStation",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["name"] = FieldType.String,
+                ["streamUrl"] = FieldType.String,
+                ["homePageUrl"] = FieldType.String
+            },
+            RequiredAttributes = new[] { "id", "name", "streamUrl" }
+        },
+        ["scanStatus"] = new ElementDefinition
+        {
+            TypeName = "ScanStatus",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["scanning"] = FieldType.Boolean,
+                ["count"] = FieldType.Integer
+            },
+            RequiredAttributes = new[] { "scanning", "count" }
+        },
+        ["bookmarks"] = new ElementDefinition
+        {
+            TypeName = "Bookmarks",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["bookmark"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Bookmark" }
+            }
+        },
+        ["Bookmark"] = new ElementDefinition
+        {
+            TypeName = "Bookmark",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["position"] = FieldType.Integer,
+                ["username"] = FieldType.String,
+                ["comment"] = FieldType.String,
+                ["created"] = FieldType.DateTime,
+                ["changed"] = FieldType.DateTime
+            },
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            },
+            RequiredAttributes = new[] { "position", "username", "created", "changed" }
+        },
+        ["shares"] = new ElementDefinition
+        {
+            TypeName = "Shares",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["share"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Share" }
+            }
+        },
+        ["Share"] = new ElementDefinition
+        {
+            TypeName = "Share",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["url"] = FieldType.String,
+                ["description"] = FieldType.String,
+                ["username"] = FieldType.String,
+                ["created"] = FieldType.DateTime,
+                ["expires"] = FieldType.DateTime,
+                ["lastVisited"] = FieldType.DateTime,
+                ["visitCount"] = FieldType.Integer
+            },
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            },
+            RequiredAttributes = new[] { "id", "url", "username", "created", "visitCount" }
+        },
+        ["similarSongs"] = new ElementDefinition
+        {
+            TypeName = "SimilarSongs",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["similarSongs2"] = new ElementDefinition
+        {
+            TypeName = "SimilarSongs2",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["songsByGenre"] = new ElementDefinition
+        {
+            TypeName = "SongsByGenre",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["topSongs"] = new ElementDefinition
+        {
+            TypeName = "TopSongs",
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
             }
         },
         ["AlbumChild"] = new ElementDefinition
@@ -362,9 +540,9 @@ public static class SubsonicSchemaValidator
             },
             Children = new Dictionary<string, FieldDefinition>
             {
-                ["artist"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Artist" },
+                ["artist"] = new FieldDefinition { Type = FieldType.Array, ItemType = "artist" },
                 ["album"] = new FieldDefinition { Type = FieldType.Array, ItemType = "AlbumChild" },
-                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+                ["song"] = new FieldDefinition { Type = FieldType.Array, ItemType = "song" }
             }
         },
         ["searchResult3"] = new ElementDefinition
@@ -467,6 +645,42 @@ public static class SubsonicSchemaValidator
             {
                 ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
             }
+        },
+        ["playQueue"] = new ElementDefinition
+        {
+            TypeName = "PlayQueue",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["current"] = FieldType.String,
+                ["position"] = FieldType.Long,
+                ["username"] = FieldType.String,
+                ["changed"] = FieldType.DateTime,
+                ["changedBy"] = FieldType.String
+            },
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            }
+        },
+        ["share"] = new ElementDefinition
+        {
+            TypeName = "Share",
+            Attributes = new Dictionary<string, FieldType>
+            {
+                ["id"] = FieldType.String,
+                ["url"] = FieldType.String,
+                ["description"] = FieldType.String,
+                ["username"] = FieldType.String,
+                ["created"] = FieldType.DateTime,
+                ["expires"] = FieldType.DateTime,
+                ["lastVisited"] = FieldType.DateTime,
+                ["visitCount"] = FieldType.Integer
+            },
+            Children = new Dictionary<string, FieldDefinition>
+            {
+                ["entry"] = new FieldDefinition { Type = FieldType.Array, ItemType = "Child" }
+            },
+            RequiredAttributes = new[] { "id", "url", "username", "created", "visitCount" }
         }
     };
 
@@ -483,6 +697,25 @@ public static class SubsonicSchemaValidator
         if (!ElementDefinitions.TryGetValue(elementName, out var definition))
         {
             errors.Add($"Unknown element type '{elementName}' - cannot validate against XSD");
+            return errors;
+        }
+
+        // Handle the case where the element is an array (e.g., openSubsonicExtensions returns an array directly)
+        if (element is JsonArray topLevelArray)
+        {
+            // If this element has children defined with an array type, validate each item in the array
+            if (definition.Children != null && definition.Children.Count > 0)
+            {
+                var childDef = definition.Children.First();
+                if (childDef.Value.Type == FieldType.Array && childDef.Value.ItemType != null)
+                {
+                    foreach (var item in topLevelArray)
+                    {
+                        var itemErrors = ValidateResponseElement(childDef.Value.ItemType, item);
+                        errors.AddRange(itemErrors.Select(e => $"  {e}"));
+                    }
+                }
+            }
             return errors;
         }
 
@@ -544,24 +777,45 @@ public static class SubsonicSchemaValidator
 
     private static string? ValidateFieldType(string elementName, string fieldName, JsonNode fieldValue, FieldType expectedType)
     {
+        var kind = fieldValue.GetValueKind();
         switch (expectedType)
         {
             case FieldType.Integer:
-                if (fieldValue.GetValueKind() != JsonValueKind.Number)
+                // Accept number or string representation of integer
+                if (kind != JsonValueKind.Number)
+                {
+                    if (kind == JsonValueKind.String && int.TryParse(fieldValue.ToString(), out _))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be an integer";
+                }
                 break;
             case FieldType.Long:
-                if (fieldValue.GetValueKind() != JsonValueKind.Number)
+                // Accept number, string representation of long, or empty string (treated as 0)
+                if (kind != JsonValueKind.Number)
+                {
+                    var strVal = fieldValue.ToString();
+                    if (kind == JsonValueKind.String && (string.IsNullOrEmpty(strVal) || long.TryParse(strVal, out _)))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be a long/integer";
+                }
                 break;
             case FieldType.Boolean:
-                if (fieldValue.GetValueKind() != JsonValueKind.True &&
-                    fieldValue.GetValueKind() != JsonValueKind.False)
+                // Accept boolean or string representation ("true"/"false")
+                if (kind != JsonValueKind.True && kind != JsonValueKind.False)
+                {
+                    if (kind == JsonValueKind.String && bool.TryParse(fieldValue.ToString(), out _))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be a boolean";
+                }
                 break;
             case FieldType.Double:
-                if (fieldValue.GetValueKind() != JsonValueKind.Number)
+                // Accept number or string representation of double
+                if (kind != JsonValueKind.Number)
+                {
+                    if (kind == JsonValueKind.String && double.TryParse(fieldValue.ToString(), out _))
+                        break;
                     return $"Field '{elementName}/{fieldName}' should be a double";
+                }
                 break;
             case FieldType.DateTime:
                 var dateStr = fieldValue.ToString();

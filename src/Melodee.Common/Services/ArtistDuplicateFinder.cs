@@ -12,7 +12,7 @@ namespace Melodee.Common.Services;
 /// <summary>
 /// Service for detecting duplicate artists based on external IDs, name similarity, and album overlap.
 /// </summary>
-public sealed partial class ArtistDuplicateFinder : IArtistDuplicateFinder
+public sealed partial class ArtistDuplicateFinder
 {
     private readonly ILogger _logger;
     private readonly IDbContextFactory<MelodeeDbContext> _contextFactory;

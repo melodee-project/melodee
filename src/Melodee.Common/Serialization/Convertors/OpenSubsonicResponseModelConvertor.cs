@@ -125,19 +125,21 @@ public class OpenSubsonicResponseModelConvertor : JsonConverter<ResponseModel>
         writer.WritePropertyName("openSubsonic");
         writer.WriteBooleanValue(true);
 
-        if (!string.IsNullOrEmpty(value.ResponseData.DataPropertyName))
+        var hasData = value.ResponseData.Data != null;
+        var hasDetailPropertyName = !string.IsNullOrEmpty(value.ResponseData.DataDetailPropertyName);
+
+        // Only write DataPropertyName if we have data or need the wrapper object
+        if (!string.IsNullOrEmpty(value.ResponseData.DataPropertyName) && (hasData || hasDetailPropertyName))
         {
             writer.WritePropertyName(value.ResponseData.DataPropertyName);
         }
-
-        var hasDetailPropertyName = !string.IsNullOrEmpty(value.ResponseData.DataDetailPropertyName);
 
         if (hasDetailPropertyName)
         {
             writer.WriteStartObject();
         }
 
-        if (value.ResponseData.Data != null)
+        if (hasData)
         {
             if (hasDetailPropertyName)
             {

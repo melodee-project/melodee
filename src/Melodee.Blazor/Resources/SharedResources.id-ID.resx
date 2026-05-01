@@ -946,6 +946,148 @@
   <data name="Profile.Saving" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Saving...</value>
   </data>
+  <data name="Profile.DeviceProfiles" xml:space="preserve">
+    <value>Profil Perangkat</value>
+  </data>
+  <data name="Profile.ManageDeviceProfiles" xml:space="preserve">
+    <value>Kelola Profil Perangkat</value>
+  </data>
+  <data name="Profile.NewDeviceProfile" xml:space="preserve">
+    <value>Profil Perangkat Baru</value>
+  </data>
+  <data name="Profile.NoDeviceProfiles" xml:space="preserve">
+    <value>Tidak ada profil perangkat yang ditemukan</value>
+  </data>
+  <data name="Profile.ProfileName" xml:space="preserve">
+    <value>Nama</value>
+  </data>
+  <data name="Profile.DirectPlay" xml:space="preserve">
+    <value>Mainkan Langsung</value>
+  </data>
+  <data name="Profile.Codec" xml:space="preserve">
+    <value>Codec</value>
+  </data>
+  <data name="Profile.MaxBitrate" xml:space="preserve">
+    <value>Bitrate Maks</value>
+  </data>
+  <data name="Profile.Default" xml:space="preserve">
+    <value>Bawaan</value>
+  </data>
+  <data name="Profile.Priority" xml:space="preserve">
+    <value>Prioritas</value>
+  </data>
+  <data name="Profile.Actions" xml:space="preserve">
+    <value>Tindakan</value>
+  </data>
+  <data name="Profile.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Profile.SetAsDefault" xml:space="preserve">
+    <value>Atur sebagai bawaan</value>
+  </data>
+  <data name="Profile.Delete" xml:space="preserve">
+    <value>Hapus</value>
+  </data>
+  <data name="Profile.Yes" xml:space="preserve">
+    <value>Ya</value>
+  </data>
+  <data name="Profile.No" xml:space="preserve">
+    <value>Tidak</value>
+  </data>
+  <data name="Profile.LoadDeviceProfilesFailed" xml:space="preserve">
+    <value>Gagal memuat profil perangkat</value>
+  </data>
+  <data name="Profile.DefaultProfileSet" xml:space="preserve">
+    <value>Profil bawaan diatur</value>
+  </data>
+  <data name="Profile.DefaultProfileSetDetail" xml:space="preserve">
+    <value>Profil '{0}' telah diatur sebagai bawaan</value>
+  </data>
+  <data name="Profile.DefaultProfileSetFailed" xml:space="preserve">
+    <value>Gagal mengatur profil bawaan</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleted" xml:space="preserve">
+    <value>Profil dihapus</value>
+  </data>
+  <data name="Profile.DeviceProfileDeletedDetail" xml:space="preserve">
+    <value>Profil '{0}' telah dihapus</value>
+  </data>
+  <data name="Profile.DeviceProfileDeleteFailed" xml:space="preserve">
+    <value>Gagal menghapus profil</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileConfirmation" xml:space="preserve">
+    <value>Apakah Anda yakin ingin menghapus profil '{0}'?</value>
+  </data>
+  <data name="Profile.DeleteDeviceProfileTitle" xml:space="preserve">
+    <value>Hapus Profil</value>
+  </data>
+  <data name="Profile.DeviceProfileDetails" xml:space="preserve">
+    <value>Detail Profil Perangkat</value>
+  </data>
+  <data name="Profile.EnterProfileNamePlaceholder" xml:space="preserve">
+    <value>Masukkan nama profil</value>
+  </data>
+  <data name="Profile.ProfileNameRequired" xml:space="preserve">
+    <value>Nama profil wajib diisi</value>
+  </data>
+  <data name="Profile.EnableDirectPlay" xml:space="preserve">
+    <value>Aktifkan Mainkan Langsung</value>
+  </data>
+  <data name="Profile.TargetCodec" xml:space="preserve">
+    <value>Codec Target</value>
+  </data>
+  <data name="Profile.SelectCodecPlaceholder" xml:space="preserve">
+    <value>Pilih codec</value>
+  </data>
+
+  <data name="Profile.EnterBitratePlaceholder" xml:space="preserve">
+    <value>Masukkan bitrate dalam kbps</value>
+  </data>
+  <data name="Profile.BitrateHelpText" xml:space="preserve">
+    <value>Bitrate maksimum dalam kilobit per detik</value>
+  </data>
+  <data name="Profile.ResampleRate" xml:space="preserve">
+    <value>Frekuensi Pengambilan Ulang</value>
+  </data>
+  <data name="Profile.EnterResampleRatePlaceholder" xml:space="preserve">
+    <value>Masukkan frekuensi pengambilan ulang dalam Hz</value>
+  </data>
+  <data name="Profile.ResampleRateHelpText" xml:space="preserve">
+    <value>Frekuensi pengambilan target dalam hertz</value>
+  </data>
+  <data name="Profile.EnterPriorityPlaceholder" xml:space="preserve">
+    <value>Masukkan prioritas (0-100)</value>
+  </data>
+  <data name="Profile.PriorityHelpText" xml:space="preserve">
+    <value>Nilai lebih tinggi memiliki prioritas lebih tinggi</value>
+  </data>
+  <data name="Profile.MakeDefaultProfile" xml:space="preserve">
+    <value>Jadikan profil ini sebagai bawaan</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdated" xml:space="preserve">
+    <value>Profil diperbarui</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdatedDetail" xml:space="preserve">
+    <value>Profil '{0}' telah diperbarui</value>
+  </data>
+  <data name="Profile.DeviceProfileCreated" xml:space="preserve">
+    <value>Profil dibuat</value>
+  </data>
+  <data name="Profile.DeviceProfileCreatedDetail" xml:space="preserve">
+    <value>Profil '{0}' telah dibuat</value>
+  </data>
+  <data name="Profile.DeviceProfileUpdateFailed" xml:space="preserve">
+    <value>Gagal memperbarui profil</value>
+  </data>
+  <data name="Profile.DeviceProfileCreationFailed" xml:space="preserve">
+    <value>Gagal membuat profil</value>
+  </data>
+  <data name="Profile.DeviceProfileOperationFailed" xml:space="preserve">
+    <value>Operasi gagal</value>
+  </data>
+  <data name="Profile.EditDeviceProfile" xml:space="preserve">
+    <value>Edit Profil Perangkat</value>
+  </data>
   <data name="Profile.LinkedAccounts" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Linked Accounts</value>
   </data>
@@ -4127,10 +4269,10 @@
     <value>[NEEDS TRANSLATION] Database: PostgreSQL</value>
   </data>
   <data name="AdminDoctor.Check.MusicBrainzDatabase" xml:space="preserve">
-    <value>[NEEDS TRANSLATION] Database: MusicBrainz (SQLite)</value>
+    <value>[NEEDS TRANSLATION] Database: MusicBrainz</value>
   </data>
   <data name="AdminDoctor.Check.ArtistSearchEngineDatabase" xml:space="preserve">
-    <value>[NEEDS TRANSLATION] Database: ArtistSearchEngine (SQLite)</value>
+    <value>[NEEDS TRANSLATION] Database: ArtistSearchEngine (DecentDB)</value>
   </data>
   <data name="AdminDoctor.Check.LibraryPaths" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Library Paths</value>
@@ -5784,5 +5926,579 @@
   </data>
   <data name="Common.Success" xml:space="preserve">
     <value>[NEEDS TRANSLATION] Success</value>
+  </data>
+<data name="AdminDashboard.ApplyImport" xml:space="preserve"><value>[NEEDS TRANSLATION] Apply Import</value></data><data name="AdminDashboard.ChooseFile" xml:space="preserve"><value>[NEEDS TRANSLATION] Choose File</value></data><data name="AdminDashboard.ConfigurationImportExport" xml:space="preserve"><value>[NEEDS TRANSLATION] Configuration Import/Export</value></data><data name="AdminDashboard.ExportConfiguration" xml:space="preserve"><value>[NEEDS TRANSLATION] Export Configuration</value></data><data name="AdminDashboard.ExportError" xml:space="preserve"><value>[NEEDS TRANSLATION] Export failed: {0}</value></data><data name="AdminDashboard.ExportMayContainSecrets" xml:space="preserve"><value>[NEEDS TRANSLATION] Export file may contain sensitive settings like API keys. Handle with care.</value></data><data name="AdminDashboard.ExportSuccess" xml:space="preserve"><value>[NEEDS TRANSLATION] Exported {0} settings and {1} libraries</value></data><data name="AdminDashboard.ImportContainsSecrets" xml:space="preserve"><value>[NEEDS TRANSLATION] Import contains sensitive settings. These will be imported as-is.</value></data><data name="AdminDashboard.ImportError" xml:space="preserve"><value>[NEEDS TRANSLATION] Import error: {0}</value></data><data name="AdminDashboard.ImportFailed" xml:space="preserve"><value>[NEEDS TRANSLATION] Import failed</value></data><data name="AdminDashboard.ImportInvalid" xml:space="preserve"><value>[NEEDS TRANSLATION] Invalid import file</value></data><data name="AdminDashboard.ImportPreview" xml:space="preserve"><value>[NEEDS TRANSLATION] Import Preview</value></data><data name="AdminDashboard.ImportPreviewReady" xml:space="preserve"><value>[NEEDS TRANSLATION] Ready to import {0} settings and {1} libraries</value></data><data name="AdminDashboard.ImportSchemaMismatch" xml:space="preserve"><value>[NEEDS TRANSLATION] Schema version mismatch. Expected 1.0, got {0}</value></data><data name="AdminDashboard.ImportSuccess" xml:space="preserve"><value>[NEEDS TRANSLATION] Imported {0} settings and {1} libraries</value></data><data name="AdminDashboard.LibrariesCount" xml:space="preserve"><value>[NEEDS TRANSLATION] Libraries: {0}</value></data><data name="AdminDashboard.OverwriteExisting" xml:space="preserve"><value>[NEEDS TRANSLATION] Overwrite existing values</value></data><data name="AdminDashboard.SettingsCount" xml:space="preserve"><value>[NEEDS TRANSLATION] Settings: {0}</value></data><data name="AdminDashboard.SkipNullValues" xml:space="preserve"><value>[NEEDS TRANSLATION] Skip null values</value></data><data name="AdminDashboard.SkippedReasons" xml:space="preserve"><value>[NEEDS TRANSLATION] Skipped items</value></data><data name="Common.Back" xml:space="preserve"><value>[NEEDS TRANSLATION] Back</value></data><data name="Common.Cancel" xml:space="preserve"><value>[NEEDS TRANSLATION] Cancel</value></data><data name="Common.Error" xml:space="preserve"><value>[NEEDS TRANSLATION] Error</value></data><data name="Common.Loading" xml:space="preserve"><value>[NEEDS TRANSLATION] Loading...</value></data><data name="Common.Next" xml:space="preserve"><value>[NEEDS TRANSLATION] Next</value></data><data name="Common.Save" xml:space="preserve"><value>[NEEDS TRANSLATION] Save</value></data><data name="Onboarding.AdminDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Create an administrator account to manage your Melodee server.</value></data><data name="Onboarding.AdminExists" xml:space="preserve"><value>[NEEDS TRANSLATION] An administrator account already exists.</value></data><data name="Onboarding.AdminHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Admin Account</value></data><data name="Onboarding.BaseUrlInvalid" xml:space="preserve"><value>[NEEDS TRANSLATION] Please enter a valid URL (e.g., https://your-server.com)</value></data><data name="Onboarding.BaseUrlLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Base URL</value></data><data name="Onboarding.BaseUrlPreviewHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Preview URLs</value></data><data name="Onboarding.BaseUrlPreviewImage" xml:space="preserve"><value>[NEEDS TRANSLATION] Image URL example: {0}</value></data><data name="Onboarding.BaseUrlPreviewShare" xml:space="preserve"><value>[NEEDS TRANSLATION] Share URL example: {0}</value></data><data name="Onboarding.BaseUrlRequired" xml:space="preserve"><value>[NEEDS TRANSLATION] Base URL is required.</value></data><data name="Onboarding.BaseUrlUnreachable" xml:space="preserve"><value>[NEEDS TRANSLATION] Unable to reach the base URL. Please verify it is correct and accessible.</value></data><data name="Onboarding.BlockingDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Unable to verify your server's configuration. Please check the following issues:</value></data><data name="Onboarding.BlockingItemsRemaining" xml:space="preserve"><value>[NEEDS TRANSLATION] Complete the remaining {0} items to finish setup.</value></data><data name="Onboarding.BlockingPageTitle" xml:space="preserve"><value>[NEEDS TRANSLATION] Setup Required</value></data><data name="Onboarding.BlockingSummaryHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Blocking items detected</value></data><data name="Onboarding.BlockingSummaryNone" xml:space="preserve"><value>[NEEDS TRANSLATION] No blocking items detected.</value></data><data name="Onboarding.BrandingHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Site Branding</value></data><data name="Onboarding.CannotDetermineStatus" xml:space="preserve"><value>[NEEDS TRANSLATION] Cannot Determine Setup Status</value></data><data name="Onboarding.ChecklistFileName" xml:space="preserve"><value>[NEEDS TRANSLATION] melodee-checklist-{0:yyyy-MM-dd}.md</value></data><data name="Onboarding.ChecklistNotConfigured" xml:space="preserve"><value>[NEEDS TRANSLATION] Not configured</value></data><data name="Onboarding.ChecklistTemplate" xml:space="preserve"><value>[NEEDS TRANSLATION] # Melodee Setup Checklist
+
+Generated: {0} UTC
+Site: {1}
+
+&gt; **Legal Reminder**: Add only media you own/are licensed to use.
+&gt; **Review Note**: Legal team should review this checklist text for compliance.
+
+## Overview
+
+Welcome to Melodee! This checklist will help you get your media library organized and ready for use.
+
+## Library Paths
+
+| Library Type | Path |
+|--------------|------|
+| Inbound | `{2}` |
+| Staging | `{3}` |
+| Storage | `{4}` |
+
+## Getting Started
+
+### 1. Add Media to Inbound Library
+
+Copy your music files to the **Inbound** directory. Melodee will scan and process them.
+
+**Recommended folder structure:**
+```
+{2}/
+  Artist Name/
+    Album Name/
+      01 Song Title.mp3
+      02 Another Song.flac
+      cover.jpg
+```
+
+### 2. Processing Workflow
+
+1. Files are placed in the **Inbound** directory
+2. Melodee scans and validates files
+3. Metadata is fetched from MusicBrainz
+4. Files are organized into the **Staging** area
+5. After review, files move to **Storage** for playback
+
+### 3. First Library Scan
+
+After adding media, trigger a scan:
+
+```bash
+# Scan a specific library
+mcli library scan --name Inbound
+
+# Or scan all libraries
+mcli library scan --all
+```
+
+### 4. Verify in the UI
+
+Use the Melodee admin UI to confirm libraries and settings:
+
+- Libraries page
+- Admin Settings
+- Jobs
+
+### 5. Optional Features
+
+- Configure podcasts (RSS feeds you control or subscribe to)
+- Enable search engines for artwork and metadata
+
+## Command Reference
+
+### Library Management
+
+| Command | Description |
+|---------|-------------|
+| `mcli library list` | List all configured libraries |
+| `mcli library scan --name &lt;name&gt;` | Scan a specific library |
+| `mcli library status &lt;name&gt;` | Check library scan status |
+
+### Media Operations
+
+| Command | Description |
+|---------|-------------|
+| `mcli doctor` | Run system diagnostics |
+| `mcli backup export` | Export system configuration |
+| `mcli player play` | Start playback (if configured) |
+
+### Admin Commands
+
+| Command | Description |
+|---------|-------------|
+| `mcli admin users` | Manage user accounts |
+| `mcli settings list` | View all settings |
+| `mcli settings set &lt;key&gt; &lt;value&gt;` | Update a setting |
+
+## Next Steps
+
+1. [x] Complete onboarding wizard
+2. [ ] Add media to Inbound library
+3. [ ] Run initial library scan
+4. [ ] Review and organize your collection
+5. [ ] Configure user accounts and permissions
+
+## Troubleshooting
+
+### Doctor Command
+
+Run `mcli doctor` to diagnose common issues:
+
+```bash
+mcli doctor
+```
+
+Common fixes:
+- Ensure library paths are writable
+- Check database connectivity
+- Verify disk space availability
+
+## Additional Resources
+
+- Documentation: https://melodee.org
+- API Reference: {5}/scalar/v1
+- Source Code: https://github.com/melodee-project/melodee
+
+---
+
+*Generated by Melodee {6}*</value></data><data name="Onboarding.ChooseFile" xml:space="preserve"><value>[NEEDS TRANSLATION] Choose File</value></data><data name="Onboarding.CompleteSetup" xml:space="preserve"><value>[NEEDS TRANSLATION] Complete Setup</value></data><data name="Onboarding.ConfirmPasswordLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Confirm Password</value></data><data name="Onboarding.CopySecretKey" xml:space="preserve"><value>[NEEDS TRANSLATION] Copy Secret Key</value></data><data name="Onboarding.CopySecretKeySuccess" xml:space="preserve"><value>[NEEDS TRANSLATION] Secret key copied to clipboard.</value></data><data name="Onboarding.CreateDirectory" xml:space="preserve"><value>[NEEDS TRANSLATION] Create Directory</value></data><data name="Onboarding.DownloadChecklist" xml:space="preserve"><value>[NEEDS TRANSLATION] Getting Started Checklist</value></data><data name="Onboarding.DownloadChecklistButton" xml:space="preserve"><value>[NEEDS TRANSLATION] Download Checklist (Markdown)</value></data><data name="Onboarding.ExplainDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Melodee uses three main library types to organize your media collection. Here's how they work together.</value></data><data name="Onboarding.ExplainHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Understanding Library Types</value></data><data name="Onboarding.GenerateSecretKey" xml:space="preserve"><value>[NEEDS TRANSLATION] Generate Secret Key</value></data><data name="Onboarding.ImportApplied" xml:space="preserve"><value>[NEEDS TRANSLATION] Imported {0} settings and {1} libraries. Continuing with remaining setup steps...</value></data><data name="Onboarding.ImportError" xml:space="preserve"><value>[NEEDS TRANSLATION] Failed to parse import file. Please ensure it's a valid Melodee export file.</value></data><data name="Onboarding.ImportExistingLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Import existing configuration (optional)</value></data><data name="Onboarding.ImportInvalid" xml:space="preserve"><value>[NEEDS TRANSLATION] The import file is empty or invalid.</value></data><data name="Onboarding.ImportLibrariesCount" xml:space="preserve"><value>[NEEDS TRANSLATION] {0} libraries</value></data><data name="Onboarding.ImportSettingsCount" xml:space="preserve"><value>[NEEDS TRANSLATION] {0} settings</value></data><data name="Onboarding.ImportSuccess" xml:space="preserve"><value>[NEEDS TRANSLATION] Successfully imported {0} settings and {1} libraries.</value></data><data name="Onboarding.InboundLibraryDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] The Inbound library is where you drop new music files. Melodee scans this location for new content, validates file formats, and fetches metadata. Files are processed here before being moved to staging.</value></data><data name="Onboarding.InboundLibraryTitle" xml:space="preserve"><value>[NEEDS TRANSLATION] Inbound Library</value></data><data name="Onboarding.ItemsCompleted" xml:space="preserve"><value>[NEEDS TRANSLATION] {0} of {1} setup items completed</value></data><data name="Onboarding.PasswordLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Password</value></data><data name="Onboarding.PasswordNoMatch" xml:space="preserve"><value>[NEEDS TRANSLATION] Passwords do not match.</value></data><data name="Onboarding.PasswordTooShort" xml:space="preserve"><value>[NEEDS TRANSLATION] Password must be at least {0} characters long.</value></data><data name="Onboarding.PathAbsoluteRequired" xml:space="preserve"><value>[NEEDS TRANSLATION] Path must be absolute.</value></data><data name="Onboarding.PathCreateError" xml:space="preserve"><value>[NEEDS TRANSLATION] Failed to create directory: {0}</value></data><data name="Onboarding.PathInvalid" xml:space="preserve"><value>[NEEDS TRANSLATION] Path is invalid.</value></data><data name="Onboarding.PathLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Path</value></data><data name="Onboarding.PathOverlap" xml:space="preserve"><value>[NEEDS TRANSLATION] Path overlaps with {0} library</value></data><data name="Onboarding.PathRequired" xml:space="preserve"><value>[NEEDS TRANSLATION] Path is required</value></data><data name="Onboarding.PathTestMissing" xml:space="preserve"><value>[NEEDS TRANSLATION] Path does not exist.</value></data><data name="Onboarding.PathTestNotWritable" xml:space="preserve"><value>[NEEDS TRANSLATION] Path exists but is not writable.</value></data><data name="Onboarding.PathTestWritable" xml:space="preserve"><value>[NEEDS TRANSLATION] Path exists and is writable.</value></data><data name="Onboarding.PathTooLong" xml:space="preserve"><value>[NEEDS TRANSLATION] Path exceeds {0} characters. Consider shortening it.</value></data><data name="Onboarding.PathTraversalInvalid" xml:space="preserve"><value>[NEEDS TRANSLATION] Path cannot contain traversal sequences (.. or .)</value></data><data name="Onboarding.PathsDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Configure the paths where Melodee will store and process your media files.</value></data><data name="Onboarding.PathsHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Library Paths</value></data><data name="Onboarding.ReadyToComplete" xml:space="preserve"><value>[NEEDS TRANSLATION] Your server is configured and ready to use!</value></data><data name="Onboarding.RefreshStatus" xml:space="preserve"><value>[NEEDS TRANSLATION] Refresh Status</value></data><data name="Onboarding.RegenerateKey" xml:space="preserve"><value>[NEEDS TRANSLATION] Regenerate Key</value></data><data name="Onboarding.RegenerateKeyConfirm" xml:space="preserve"><value>[NEEDS TRANSLATION] Are you sure you want to regenerate the secret key? This will invalidate any existing encrypted data.</value></data><data name="Onboarding.RegenerateKeyTitle" xml:space="preserve"><value>[NEEDS TRANSLATION] Regenerate Secret Key</value></data><data name="Onboarding.RequiredSettingMissing" xml:space="preserve"><value>[NEEDS TRANSLATION] Value is required.</value></data><data name="Onboarding.RequiredSettingValue" xml:space="preserve"><value>[NEEDS TRANSLATION] Value</value></data><data name="Onboarding.RequiredSettingsDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] These settings are required for onboarding and still need values.</value></data><data name="Onboarding.RequiredSettingsHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Required Settings</value></data><data name="Onboarding.RequiredSettingsNone" xml:space="preserve"><value>[NEEDS TRANSLATION] No additional required settings found.</value></data><data name="Onboarding.RetryButton" xml:space="preserve"><value>[NEEDS TRANSLATION] Retry</value></data><data name="Onboarding.SecurityHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Security Configuration</value></data><data name="Onboarding.SecuritySecretDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Melodee requires a secret key for secure operations. This key is stored securely in your database.</value></data><data name="Onboarding.SecuritySecretLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Secret Key</value></data><data name="Onboarding.SetViaEnvironment" xml:space="preserve"><value>[NEEDS TRANSLATION] Set via environment variable</value></data><data name="Onboarding.SetupProgress" xml:space="preserve"><value>[NEEDS TRANSLATION] Your Setup Progress</value></data><data name="Onboarding.SiteNameLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Site Name</value></data><data name="Onboarding.SiteNameRequired" xml:space="preserve"><value>[NEEDS TRANSLATION] Site name is required.</value></data><data name="Onboarding.StagingLibraryDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] The Staging library holds processed music files that have been organized but not yet finalized. Review albums here before they are moved to your permanent storage library.</value></data><data name="Onboarding.StagingLibraryTitle" xml:space="preserve"><value>[NEEDS TRANSLATION] Staging Library</value></data><data name="Onboarding.StorageLibraryDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] The Storage library is your permanent music collection. Files here are organized by artist and album, ready for playback and streaming. You can have multiple storage libraries.</value></data><data name="Onboarding.StorageLibraryTitle" xml:space="preserve"><value>[NEEDS TRANSLATION] Storage Library</value></data><data name="Onboarding.SupportLink" xml:space="preserve"><value>[NEEDS TRANSLATION] View documentation</value></data><data name="Onboarding.TestPath" xml:space="preserve"><value>[NEEDS TRANSLATION] Test Path</value></data><data name="Onboarding.TestUrl" xml:space="preserve"><value>[NEEDS TRANSLATION] Test URL</value></data><data name="Onboarding.UrlTestSuccess" xml:space="preserve"><value>[NEEDS TRANSLATION] URL is reachable</value></data><data name="Onboarding.UsernameLabel" xml:space="preserve"><value>[NEEDS TRANSLATION] Username</value></data><data name="Onboarding.UsernameRequired" xml:space="preserve"><value>[NEEDS TRANSLATION] Username is required.</value></data><data name="Onboarding.VerifyDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Review your configuration and complete the setup.</value></data><data name="Onboarding.VerifyHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Ready to Complete</value></data><data name="Onboarding.WelcomeDescription" xml:space="preserve"><value>[NEEDS TRANSLATION] Let's get your music server set up. This wizard will guide you through the initial configuration.</value></data><data name="Onboarding.WelcomeHeading" xml:space="preserve"><value>[NEEDS TRANSLATION] Welcome to Melodee</value></data><data name="Onboarding.WizardTitle" xml:space="preserve"><value>[NEEDS TRANSLATION] Setup Wizard</value></data><data name="UserGroups.NoExplicitLibraryAccess" xml:space="preserve"><value>No explicit library access restrictions. This group has access to all libraries that are not restricted to specific user groups.</value></data>
+<data name="PlaylistImportDialog.Title" xml:space="preserve"><value>Import M3U/M3U8 Playlist</value></data><data name="PlaylistImportDialog.Description" xml:space="preserve"><value>Upload an M3U or M3U8 playlist file to import songs into a new Melodee playlist. Songs that match your library will be added immediately. Missing songs will be tracked and can be added later.</value></data><data name="PlaylistImportDialog.PlaylistName" xml:space="preserve"><value>Playlist Name</value></data><data name="PlaylistImportDialog.PlaylistNamePlaceholder" xml:space="preserve"><value>Leave empty to use filename</value></data><data name="PlaylistImportDialog.SelectFile" xml:space="preserve"><value>Select M3U/M3U8 File</value></data><data name="PlaylistImportDialog.Error.InvalidFileType" xml:space="preserve"><value>Only .m3u and .m3u8 files are supported</value></data><data name="PlaylistImportDialog.Error.NotAuthenticated" xml:space="preserve"><value>You must be logged in to import playlists</value></data><data name="PlaylistImportDialog.Error.ImportFailed" xml:space="preserve"><value>Failed to import playlist</value></data><data name="PlaylistImportDialog.ImportSuccess" xml:space="preserve"><value>Import Successful</value></data><data name="PlaylistImportDialog.ImportSuccessDetail" xml:space="preserve"><value>Imported {0} of {1} songs. Missing songs will be tracked.</value></data><data name="PlaylistImportDialog.TotalEntries" xml:space="preserve"><value>Total Entries</value></data><data name="PlaylistImportDialog.MatchedCount" xml:space="preserve"><value>Matched Songs</value></data><data name="PlaylistImportDialog.MissingCount" xml:space="preserve"><value>Missing Songs</value></data><data name="PlaylistImportDialog.MissingReferences" xml:space="preserve"><value>Missing References</value></data><data name="PlaylistImportDialog.MoreMissing" xml:space="preserve"><value>more</value></data><data name="Actions.ImportPlaylist" xml:space="preserve"><value>Import Playlist</value></data><data name="Navigation.UserGroups" xml:space="preserve"><value>User Groups</value></data><data name="UserGroups.MemberCount" xml:space="preserve"><value>Members</value></data><data name="UserGroups.AddGroup" xml:space="preserve"><value>Add User Group</value></data><data name="UserGroups.EditGroup" xml:space="preserve"><value>Edit User Group</value></data><data name="UserGroups.NewGroup" xml:space="preserve"><value>New User Group</value></data><data name="UserGroups.EditGroupTitle" xml:space="preserve"><value>Edit {0}</value></data><data name="UserGroups.GroupNamePlaceholder" xml:space="preserve"><value>Enter group name</value></data><data name="UserGroups.GroupDescriptionPlaceholder" xml:space="preserve"><value>Enter group description</value></data><data name="UserGroups.Members" xml:space="preserve"><value>Members</value></data><data name="UserGroups.SelectUsersPlaceholder" xml:space="preserve"><value>Select users</value></data><data name="UserGroups.LibraryAccess" xml:space="preserve"><value>Library Access</value></data><data name="UserGroups.LibrariesUsingThisGroup" xml:space="preserve"><value>Libraries using this group for access control</value></data><data name="UserGroups.GroupCreated" xml:space="preserve"><value>User group created successfully</value></data><data name="UserGroups.GroupSaved" xml:space="preserve"><value>User group saved successfully</value></data><data name="UserGroups.GroupDeleted" xml:space="preserve"><value>User group deleted successfully</value></data><data name="UserGroups.ConfirmDeleteTitle" xml:space="preserve"><value>Confirm Delete</value></data><data name="UserGroups.ConfirmDeleteMessage" xml:space="preserve"><value>Are you sure you want to delete user group '{0}'?</value></data><data name="LibraryEdit.AccessControl" xml:space="preserve"><value>Access Control</value></data><data name="LibraryEdit.RestrictAccessToGroups" xml:space="preserve"><value>Restrict access to specific user groups</value></data><data name="LibraryEdit.AccessControlHelp" xml:space="preserve"><value>When disabled, library is accessible to all authenticated users. When enabled, only users in selected groups can access.</value></data><data name="LibraryEdit.AllowedGroups" xml:space="preserve"><value>Allowed Groups</value></data><data name="LibraryEdit.SelectGroupsPlaceholder" xml:space="preserve"><value>Select user groups</value></data><data name="LibraryEdit.AllowedGroupsHelp" xml:space="preserve"><value>Users must be members of at least one selected group to access this library.</value></data>  <data name="Actions.AddAsNewArtist" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Add as New Artist</value>
+  </data>
+
+  <data name="Actions.AddSelected" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Add Selected</value>
+  </data>
+
+  <data name="Actions.Skip" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Skip</value>
+  </data>
+
+  <data name="BulkArtistManagement.FoundCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Found {0} unique invalid artist(s) affecting {1} album(s).</value>
+  </data>
+
+  <data name="BulkArtistManagement.FromProvider" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] From {0}</value>
+  </data>
+
+  <data name="BulkArtistManagement.Loading" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Loading albums...</value>
+  </data>
+
+  <data name="BulkArtistManagement.NoInvalidArtists" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] No albums with invalid artists found in the selected items.</value>
+  </data>
+
+  <data name="BulkArtistManagement.NoResults" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] No matching artists found.</value>
+  </data>
+
+  <data name="BulkArtistManagement.Processing" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Updating albums...</value>
+  </data>
+
+  <data name="BulkArtistManagement.Searching" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Searching...</value>
+  </data>
+
+  <data name="BulkArtistManagement.SearchPlaceholder" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Search for this artist in MusicBrainz/Spotify...</value>
+  </data>
+
+  <data name="BulkArtistManagement.Title" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Manage Invalid Artists</value>
+  </data>
+
+  <data name="Navigation.Scripts" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Scripts</value>
+  </data>
+
+  <data name="AdminScripts.PageTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Scripts</value>
+  </data>
+
+  <data name="AdminScripts.SelectEvent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Select an event</value>
+  </data>
+
+  <data name="AdminScripts.Create" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Create</value>
+  </data>
+
+  <data name="AdminScripts.EventName" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Event</value>
+  </data>
+
+  <data name="AdminScripts.Enabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enabled</value>
+  </data>
+
+  <data name="AdminScripts.DefaultOnDeny" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Default on deny</value>
+  </data>
+
+  <data name="AdminScripts.Overrides" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Overrides</value>
+  </data>
+
+  <data name="AdminScripts.LastUpdated" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Last updated (UTC)</value>
+  </data>
+
+  <data name="AdminScripts.Status" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Status</value>
+  </data>
+
+  <data name="AdminScripts.InvalidConfig" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Invalid</value>
+  </data>
+
+  <data name="AdminScripts.DeleteConfirmTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Confirm delete</value>
+  </data>
+
+  <data name="AdminScripts.DeleteConfirmMessage" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Delete script for event '{0}'?</value>
+  </data>
+
+  <data name="AdminScripts.DeletedSuccess" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Deleted</value>
+  </data>
+
+  <data name="AdminScripts.DeleteFailed" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Delete failed</value>
+  </data>
+
+  <data name="AdminScriptEditor.PageTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Script editor</value>
+  </data>
+
+  <data name="AdminScriptEditor.ConfigurationTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Configuration</value>
+  </data>
+
+  <data name="AdminScriptEditor.Enabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enabled</value>
+  </data>
+
+  <data name="AdminScriptEditor.TimeoutMs" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Timeout (ms)</value>
+  </data>
+
+  <data name="AdminScriptEditor.MaxStatements" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Max statements</value>
+  </data>
+
+  <data name="AdminScriptEditor.DefaultOnDeny" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Default on deny</value>
+  </data>
+
+  <data name="AdminScriptEditor.DefaultBody" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Default script</value>
+  </data>
+
+  <data name="AdminScriptEditor.DefaultBodyPlaceholder" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enter JavaScript…</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverridesTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Overrides</value>
+  </data>
+
+  <data name="AdminScriptEditor.AddOverride" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Add override</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverridesHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Overrides apply when library/path matches. The first matching override is used.</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverrideEnabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Enabled</value>
+  </data>
+
+  <data name="AdminScriptEditor.LibraryId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Library ID</value>
+  </data>
+
+  <data name="AdminScriptEditor.PathPrefix" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path prefix</value>
+  </data>
+
+  <data name="AdminScriptEditor.OnDeny" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] On deny</value>
+  </data>
+
+  <data name="AdminScriptEditor.Body" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Body</value>
+  </data>
+
+  <data name="AdminScriptEditor.EditOverrideBodyTitle" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Edit override body</value>
+  </data>
+
+  <data name="AdminScriptEditor.OverrideBodyHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Edit the JavaScript body for this override.</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Test</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Execute the current script text with mock JSON.</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestScript" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Script</value>
+  </data>
+
+  <data name="AdminScriptEditor.MockContextJson" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Mock context (JSON)</value>
+  </data>
+
+  <data name="AdminScriptEditor.RunTest" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Run test</value>
+  </data>
+
+  <data name="AdminScriptEditor.TestResult" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Test result</value>
+  </data>
+
+  <data name="AdminScriptEditor.Allowed" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Allowed</value>
+  </data>
+
+  <data name="AdminScriptEditor.Denied" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Denied</value>
+  </data>
+
+  <data name="AdminScriptEditor.DurationMs" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Duration: {0} ms</value>
+  </data>
+
+  <data name="AdminScriptEditor.Error" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Error</value>
+  </data>
+
+  <data name="AdminScriptEditor.Saved" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Saved</value>
+  </data>
+
+  <data name="AdminScriptEditor.SaveFailed" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Save failed</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextTab" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Context</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextHelp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Fields available on the ctx object for this event. Access them using camelCase (for example ctx.libraryId).</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextNoInfo" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] No context information is available for this event.</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextField" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Field</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextType" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Type</value>
+  </data>
+
+  <data name="AdminScriptEditor.ContextDescription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Description</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.LibraryId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Library ID.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.RelativePath" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Path relative to the library root.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.DirectoryName" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Directory name (last path segment).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TotalFilesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Total files found in the directory.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TotalSizeMegabytes" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Total directory size in megabytes (MB).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.MostRecentModified" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Most recent file modified timestamp (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.MediaFilesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Media files detected in the directory.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TotalDurationMinutes" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Total duration of detected media files, in minutes.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.TrackNumbers" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Track numbers extracted from media tags.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.DirectoryProcessing.HasTrackNumberGaps" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] True if track numbers have gaps or do not start at 1.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.UserNameLength" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Length of the requested username.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.EmailDomain" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Domain portion of the email address.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.ClientIp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Client IP address (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.UserAgent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User-Agent string (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserRegistration.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID if the user is known; otherwise null.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.Roles" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Roles associated with the user at login time.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.ClientIp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Client IP address (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.UserAgent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User-Agent string (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserLogin.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID being updated.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.EmailDomain" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Domain portion of the user email address.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.ProfileChangesCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Number of changed profile fields in the request.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.ClientIp" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Client IP address (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.UserAgent" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User-Agent string (if available).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.UserProfileUpdate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID creating the playlist.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.NameLength" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Length of the playlist name.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.InitialSongCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Number of songs initially included.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PlaylistCreate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID adding the podcast channel.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.FeedUrl" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Podcast feed URL as provided by the user.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.IsNewSubscription" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] True if this adds a new subscription.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.PodcastChannelAdd.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID creating the share.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.ShareType" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Type of share (for example album, song, playlist).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.ItemCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Number of items being shared.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.ExpirationDays" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Expiration in days if set; otherwise null.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.ShareCreate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.UserId" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] User ID creating the request.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.RequestType" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Request type (for example song, album, artist).</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.IsFirstRequestToday" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] True if this is the user’s first request today.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.DailyRequestCount" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] How many requests the user has made today.</value>
+  </data>
+
+  <data name="AdminScriptEditor.Ctx.RequestCreate.Now" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Current server time (ISO-8601).</value>
+  </data>
+
+  <data name="Auth.LoginDisabledByAdmin" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Login has been disabled by the administrator.</value>
+  </data>
+
+  <data name="Profile.ReadOnlyByAdmin" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Your profile is currently read-only due to administrator settings.</value>
+  </data>
+
+  <data name="Actions.Disabled" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Action disabled by administrator</value>
+  </data>
+
+  <data name="AdminScriptEditor.TimeoutMsHelper" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Max script execution time before termination</value>
+  </data>
+
+  <data name="AdminScriptEditor.MaxStatementsHelper" xml:space="preserve">
+    <value>[NEEDS TRANSLATION] Max JavaScript statements allowed per execution</value>
   </data>
 </root>

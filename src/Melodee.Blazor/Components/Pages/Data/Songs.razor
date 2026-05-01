@@ -126,7 +126,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedSongs.Any() != true ? false : !_songs.All(i => _selectedSongs.Contains(i)) ? null : _songs.Any(i => _selectedSongs.Contains(i)))"
                             Change="@(args => _selectedSongs = args == true ? _songs.ToList() : [])"/>
                     </HeaderTemplate>
@@ -137,7 +137,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedSongs.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>
@@ -240,6 +240,16 @@
         _statistics = statResult?.Data ?? [];
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            _grid.OrderByDescending(nameof(SongDataInfo.CreatedAt));
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (Filter != null)
@@ -270,6 +280,10 @@
             {
                 sorting = args.Sorts.Where(x => x.Property != null && x.SortOrder != null)
                     .ToDictionary(x => x.Property!, x => x.SortOrder == SortOrder.Ascending ? PagedRequest.OrderAscDirection : PagedRequest.OrderDescDirection);
+            }
+            else
+            {
+                sorting = new Dictionary<string, string> { { nameof(SongDataInfo.CreatedAt), PagedRequest.OrderDescDirection } };
             }
 
             FilterOperatorInfo[]? filters = null;
@@ -337,12 +351,19 @@
 
     private async void MergeSelectedButtonClick()
     {
-        await DialogService.OpenAsync(L("Data.MergeSongs"), ds =>
-            @<div>
-                <RadzenText>@L("Data.SongMergingInfo")</RadzenText>
-                <RadzenButton Text="@L("Data.OK")" Click="@(() => ds.Close())" class="rz-mt-3"/>
-            </div>,
-            new DialogOptions { Width = "500px" });
+        try
+        {
+            await DialogService.OpenAsync(L("Data.MergeSongs"), ds =>
+                @<div>
+                    <RadzenText>@L("Data.SongMergingInfo")</RadzenText>
+                    <RadzenButton Text="@L("Data.OK")" Click="@(() => ds.Close())" class="rz-mt-3"/>
+                </div>,
+                new DialogOptions { Width = "500px" });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error in MergeSelectedButtonClick for Songs");
+        }
     }
 
 

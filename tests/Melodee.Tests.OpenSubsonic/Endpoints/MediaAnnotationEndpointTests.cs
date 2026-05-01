@@ -12,7 +12,7 @@ public class MediaAnnotationEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task Star_Item_ReturnsOk()
     {
-        var response = await GetAsync("star?id=song:00000000-0000-0000-0000-000000000001");
+        var response = await GetAsync($"star?id=song_{TestSongApiKey}");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("\"status\":\"ok\"");
@@ -21,7 +21,7 @@ public class MediaAnnotationEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task Unstar_Item_ReturnsOk()
     {
-        var response = await GetAsync("unstar?id=song:00000000-0000-0000-0000-000000000001");
+        var response = await GetAsync($"unstar?id=song_{TestSongApiKey}");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("\"status\":\"ok\"");
@@ -30,7 +30,7 @@ public class MediaAnnotationEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task SetRating_WithValidRating_ReturnsOk()
     {
-        var response = await GetAsync("setRating?id=song:00000000-0000-0000-0000-000000000001&rating=5");
+        var response = await GetAsync($"setRating?id=song_{TestSongApiKey}&rating=5");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("\"status\":\"ok\"");
@@ -39,7 +39,7 @@ public class MediaAnnotationEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task Scrobble_WithSubmission_ReturnsOk()
     {
-        var response = await GetAsync("scrobble?id=song:00000000-0000-0000-0000-000000000001&submission=true");
+        var response = await GetAsync($"scrobble?id=song_{TestSongApiKey}&submission=true");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("\"status\":\"ok\"");
@@ -48,7 +48,7 @@ public class MediaAnnotationEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task Scrobble_WithNowPlaying_ReturnsOk()
     {
-        var response = await GetAsync("scrobble?id=song:00000000-0000-0000-0000-000000000001&submission=false");
+        var response = await GetAsync($"scrobble?id=song_{TestSongApiKey}&submission=false");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("\"status\":\"ok\"");

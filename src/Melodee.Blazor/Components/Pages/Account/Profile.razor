@@ -1,180 +1,295 @@
 @page "/account/profile"
 @using System.ComponentModel.DataAnnotations
 @using System.Net.Http.Json
+@using Melodee.Common.Data.Models
 @using Melodee.Common.Data.Models.Extensions
+@using Melodee.Common.Models
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
 @using Melodee.Common.Services.Security
 @using Microsoft.Extensions.Options
 @using NodaTime
 @inherits MelodeeComponentBase
 @inject NotificationService NotificationService
 @inject DialogService DialogService
+@inject UserProfileService UserProfileService
+@inject UserDeviceProfileService UserDeviceProfileService
 @inject UserService UserService
-@inject LibraryService LibraryService
-@inject IAuthService AuthService
-@inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject IOptions<GoogleAuthOptions> GoogleAuthOptions
 @inject IJSRuntime JsRuntime
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject ILocalizationService ProfileLocalizationService
+@inject IBlazorEventScriptService BlazorEventScriptService
+@inject IHttpContextAccessor HttpContextAccessor
 
 @implements IAsyncDisposable
+
+@using Radzen.Blazor
 
 <RadzenCard class="profile-card">
     <div class="profile-container">
         <h1 class="rz-text-title">@L("Profile.YourProfile")</h1>
 
-        <div class="profile-grid">
-            <div class="profile-image-section">
-                <div class="profile-image-container">
-                    @if (_newSelectedProfileImage != null)
-                    {
-                        <RadzenImage Path="@_newSelectedProfileImage.ImageBase64"
-                                     Style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%;"/>
-                    }
-                    else if (!string.IsNullOrEmpty(UserProfile.ProfilePicturePath))
-                    {
-                        <RadzenImage Path="@(UserProfile.ProfilePicturePath + $"?v={DateTime.Now.Ticks}")"
-                                     Style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%;"/>
-                    }
-                    else
-                    {
-                        <RadzenIcon Icon="account_circle" IconStyle="IconStyle.Primary" Style="font-size: 8rem;"/>
-                    }
-                </div>
+        @if (_isProfileReadOnly)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" 
+                         Shade="Shade.Lighter" 
+                         AllowClose="false"
+                         class="rz-mb-4">
+                @(_profileReadOnlyMessage ?? L("Profile.ReadOnlyByAdmin"))
+            </RadzenAlert>
+        }
 
-                <RadzenButton
-                    Text="@L("Profile.ChangeProfilePicture")"
-                    class="rz-my-2"
-                    Icon="photo_camera"
-                    ButtonStyle="ButtonStyle.Secondary"
-                    Click="@OpenFileUploadDialog"/>
-            </div>
+        <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
+            <Tabs>
+                <RadzenTabsItem Title="@L("Profile.ProfileInformation")" Icon="person">
+                    <div class="profile-grid">
+                        <div class="profile-image-section">
+                            <div class="profile-image-container">
+                                @if (_newSelectedProfileImage != null)
+                                {
+                                    <RadzenImage Path="@_newSelectedProfileImage.ImageBase64"
+                                                 Style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%;"/>
+                                }
+                                else if (!string.IsNullOrEmpty(UserProfile.ProfilePicturePath))
+                                {
+                                    <RadzenImage Path="@(UserProfile.ProfilePicturePath + $"?v={DateTime.Now.Ticks}")"
+                                                 Style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%;"/>
+                                }
+                                else
+                                {
+                                    <RadzenIcon Icon="account_circle" IconStyle="IconStyle.Primary" Style="font-size: 8rem;"/>
+                                }
+                            </div>
 
-            <div class="profile-info-section">
-                <RadzenTemplateForm TItem="UserProfileModel" Data="@UserProfile" Submit="@SaveProfileAsync">
-                    <RadzenStack Gap="1rem">
-                        <RadzenFieldset Text="@L("Profile.ProfileInformation")">
-                            <RadzenStack Gap="1rem">
-                                <RadzenFormField Text="@L("Profile.Username")" Variant="Variant.Outlined">
-                                    <RadzenTextBox @bind-Value="@UserProfile.Username" Name="Username"/>
-                                    <RadzenRequiredValidator Text="@L("Profile.UsernameRequired")" Component="Username"/>
-                                </RadzenFormField>
+                            <RadzenButton
+                                Text="@L("Profile.ChangeProfilePicture")"
+                                class="rz-my-2"
+                                Icon="photo_camera"
+                                ButtonStyle="ButtonStyle.Secondary"
+                                Disabled="@_isProfileReadOnly"
+                                Click="@OpenFileUploadDialog"/>
+                        </div>
 
-                                <RadzenFormField Text="@L("Profile.Email")" Variant="Variant.Outlined">
-                                    <RadzenTextBox @bind-Value="@UserProfile.Email" Name="Email"/>
-                                    <RadzenRequiredValidator Text="@L("Profile.EmailRequired")" Component="Email"/>
-                                    <RadzenEmailValidator Text="@L("Profile.EmailInvalid")" Component="Email"/>
-                                </RadzenFormField>
+                        <div class="profile-info-section">
+                            <RadzenTemplateForm TItem="UserProfileModel" Data="@UserProfile" Submit="@SaveProfileAsync">
+                                <RadzenStack Gap="1rem">
+                                    <RadzenFieldset Text="@L("Profile.ProfileInformation")">
+                                        <RadzenStack Gap="1rem">
+                                            <RadzenFormField Text="@L("Profile.Username")" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@UserProfile.Username" Name="Username" Disabled="@_isProfileReadOnly"/>
+                                                <RadzenRequiredValidator Text="@L("Profile.UsernameRequired")" Component="Username"/>
+                                            </RadzenFormField>
 
-                                <RadzenFormField Text="@L("Profile.Bio")" Variant="Variant.Outlined">
-                                    <RadzenTextArea @bind-Value="@UserProfile.Bio" Name="Bio" Rows="4" MaxLength="500"/>
-                                </RadzenFormField>
+                                            <RadzenFormField Text="@L("Profile.Email")" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@UserProfile.Email" Name="Email" Disabled="@_isProfileReadOnly"/>
+                                                <RadzenRequiredValidator Text="@L("Profile.EmailRequired")" Component="Email"/>
+                                                <RadzenEmailValidator Text="@L("Profile.EmailInvalid")" Component="Email"/>
+                                            </RadzenFormField>
 
-                                <RadzenFormField Text="@L("Profile.TimeZone")" Variant="Variant.Outlined">
-                                    <RadzenDropDown @bind-Value="@UserProfile.TimeZoneId"
-                                                    Name="TimeZoneId"
-                                                    Data="@_timeZoneIds"
-                                                    AllowFiltering="true"
-                                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                                    Style="width: 100%"/>
-                                    <RadzenText TextStyle="TextStyle.Caption">@L("Profile.DefaultsToUTC")</RadzenText>
-                                </RadzenFormField>
+                                            <RadzenFormField Text="@L("Profile.Bio")" Variant="Variant.Outlined">
+                                                <RadzenTextArea @bind-Value="@UserProfile.Bio" Name="Bio" Rows="4" MaxLength="500" Disabled="@_isProfileReadOnly"/>
+                                            </RadzenFormField>
 
-                                <RadzenFormField Text="@L("Profile.Language")" Variant="Variant.Outlined">
-                                    <RadzenDropDown @bind-Value="@UserProfile.PreferredLanguage"
-                                                    Name="PreferredLanguage"
-                                                    Data="@ProfileLocalizationService.SupportedCultures"
-                                                    TextProperty="DisplayName"
-                                                    ValueProperty="Name"
-                                                    AllowClear="true"
-                                                    Placeholder="@L("Profile.LanguageDefault")"
-                                                    Style="width: 100%"/>
-                                    <RadzenText TextStyle="TextStyle.Caption">@L("Profile.LanguageHelp")</RadzenText>
-                                </RadzenFormField>
+                                            <RadzenFormField Text="@L("Profile.TimeZone")" Variant="Variant.Outlined">
+                                                <RadzenDropDown @bind-Value="@UserProfile.TimeZoneId"
+                                                                Name="TimeZoneId"
+                                                                Data="@_timeZoneIds"
+                                                                AllowFiltering="true"
+                                                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                                                Disabled="@_isProfileReadOnly"
+                                                                Style="width: 100%"/>
+                                                <RadzenText TextStyle="TextStyle.Caption">@L("Profile.DefaultsToUTC")</RadzenText>
+                                            </RadzenFormField>
 
-                                <RadzenFormField Text="@L("Profile.Theme")" Variant="Variant.Outlined">
-                                    <ThemeSelector Value="@UserProfile.PreferredTheme" ValueChanged="OnThemeValueChangedAsync"/>
-                                </RadzenFormField>
-                            </RadzenStack>
-                        </RadzenFieldset>
+                                            <RadzenFormField Text="@L("Profile.Language")" Variant="Variant.Outlined">
+                                                <RadzenDropDown @bind-Value="@UserProfile.PreferredLanguage"
+                                                                Name="PreferredLanguage"
+                                                                Data="@ProfileLocalizationService.SupportedCultures"
+                                                                TextProperty="DisplayName"
+                                                                ValueProperty="Name"
+                                                                AllowClear="true"
+                                                                Placeholder="@L("Profile.LanguageDefault")"
+                                                                Disabled="@_isProfileReadOnly"
+                                                                Style="width: 100%"/>
+                                                <RadzenText TextStyle="TextStyle.Caption">@L("Profile.LanguageHelp")</RadzenText>
+                                            </RadzenFormField>
 
-                        <RadzenButton Text="@L("Profile.SaveChanges")"
-                                      Icon="save"
-                                      ButtonStyle="ButtonStyle.Primary"
-                                      ButtonType="ButtonType.Submit"
-                                      IsBusy="@_isSaving"
-                                      BusyText="@L("Profile.Saving")"/>
-                    </RadzenStack>
-                </RadzenTemplateForm>
-                
-                @if (_googleAuthEnabled)
-                {
-                    <RadzenFieldset Text="@L("Profile.LinkedAccounts")" class="rz-mt-4">
-                        <RadzenStack Gap="1rem">
-                            <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
-                                <RadzenColumn>
-                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                        <svg width="24" height="24" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-                                            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                                            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-                                            <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
-                                            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-                                        </svg>
-                                        <RadzenText TextStyle="TextStyle.Body1">@L("Profile.Google")</RadzenText>
-                                    </RadzenStack>
-                                </RadzenColumn>
-                                <RadzenColumn>
-                                    @if (_isGoogleLinked)
-                                    {
-                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@L("Profile.Linked")" />
-                                            @if (!string.IsNullOrEmpty(_linkedGoogleEmail))
-                                            {
-                                                <RadzenText TextStyle="TextStyle.Caption">@_linkedGoogleEmail</RadzenText>
-                                            }
-                                            <RadzenButton Text="@L("Profile.Unlink")"
-                                                          ButtonStyle="ButtonStyle.Danger"
-                                                          Variant="Variant.Outlined"
-                                                          Size="ButtonSize.Small"
-                                                          Click="@OnUnlinkGoogleClick"
-                                                          IsBusy="@_isUnlinkingGoogle"
-                                                          BusyText="@L("Profile.Unlinking")"
-                                                          aria-label="Unlink Google account"/>
+                                            <RadzenFormField Text="@L("Profile.Theme")" Variant="Variant.Outlined">
+                                                <ThemeSelector Value="@UserProfile.PreferredTheme" ValueChanged="OnThemeValueChangedAsync" Disabled="@_isProfileReadOnly"/>
+                                            </RadzenFormField>
                                         </RadzenStack>
-                                    }
-                                    else
-                                    {
-                                        <RadzenButton Text="@L("Profile.LinkGoogleAccount")"
-                                                      ButtonStyle="ButtonStyle.Secondary"
-                                                      Variant="Variant.Outlined"
-                                                      Size="ButtonSize.Small"
-                                                      Click="@OnLinkGoogleClick"
-                                                      IsBusy="@_isLinkingGoogle"
-                                                      BusyText="@L("Profile.Linking")"
-                                                      aria-label="Link Google account"/>
-                                    }
-                                </RadzenColumn>
-                            </RadzenRow>
-                            
-                            @if (!string.IsNullOrEmpty(_googleLinkError))
+                                    </RadzenFieldset>
+
+                                    <RadzenButton Text="@L("Profile.SaveChanges")"
+                                                  Icon="save"
+                                                  ButtonStyle="ButtonStyle.Primary"
+                                                  ButtonType="ButtonType.Submit"
+                                                  Disabled="@_isProfileReadOnly"
+                                                  IsBusy="@_isSaving"
+                                                  BusyText="@L("Profile.Saving")"/>
+                                </RadzenStack>
+                            </RadzenTemplateForm>
+
+                            @if (_googleAuthEnabled)
                             {
-                                <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" AllowClose="true" Close="@(() => _googleLinkError = null)">
-                                    @_googleLinkError
-                                </RadzenAlert>
+                                <RadzenFieldset Text="@L("Profile.LinkedAccounts")" class="rz-mt-4">
+                                    <RadzenStack Gap="1rem">
+                                        <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                            <RadzenColumn>
+                                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                    <svg width="24" height="24" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                                                        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                                                        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                                                        <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                                                        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                                                    </svg>
+                                                    <RadzenText TextStyle="TextStyle.Body1">@L("Profile.Google")</RadzenText>
+                                                </RadzenStack>
+                                            </RadzenColumn>
+                                            <RadzenColumn>
+                                                @if (_isGoogleLinked)
+                                                {
+                                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@L("Profile.Linked")" />
+                                                        @if (!string.IsNullOrEmpty(_linkedGoogleEmail))
+                                                        {
+                                                            <RadzenText TextStyle="TextStyle.Caption">@_linkedGoogleEmail</RadzenText>
+                                                        }
+                                                        <RadzenButton Text="@L("Profile.Unlink")"
+                                                                      ButtonStyle="ButtonStyle.Danger"
+                                                                      Variant="Variant.Outlined"
+                                                                      Size="ButtonSize.Small"
+                                                                      Click="@OnUnlinkGoogleClick"
+                                                                      IsBusy="@_isUnlinkingGoogle"
+                                                                      BusyText="@L("Profile.Unlinking")"
+                                                                      aria-label="Unlink Google account"/>
+                                                    </RadzenStack>
+                                                }
+                                                else
+                                                {
+                                                    <RadzenButton Text="@L("Profile.LinkGoogleAccount")"
+                                                                  ButtonStyle="ButtonStyle.Secondary"
+                                                                  Variant="Variant.Outlined"
+                                                                  Size="ButtonSize.Small"
+                                                                  Click="@OnLinkGoogleClick"
+                                                                  IsBusy="@_isLinkingGoogle"
+                                                                  BusyText="@L("Profile.Linking")"
+                                                                  aria-label="Link Google account"/>
+                                                }
+                                            </RadzenColumn>
+                                        </RadzenRow>
+
+                                        @if (!string.IsNullOrEmpty(_googleLinkError))
+                                        {
+                                            <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" AllowClose="true" Close="@(() => _googleLinkError = null)">
+                                                @_googleLinkError
+                                            </RadzenAlert>
+                                        }
+
+                                        @if (!string.IsNullOrEmpty(_googleLinkSuccess))
+                                        {
+                                            <RadzenAlert AlertStyle="AlertStyle.Success" Shade="Shade.Lighter" AllowClose="true" Close="@(() => _googleLinkSuccess = null)">
+                                                @_googleLinkSuccess
+                                            </RadzenAlert>
+                                        }
+                                    </RadzenStack>
+                                </RadzenFieldset>
                             }
-                            
-                            @if (!string.IsNullOrEmpty(_googleLinkSuccess))
-                            {
-                                <RadzenAlert AlertStyle="AlertStyle.Success" Shade="Shade.Lighter" AllowClose="true" Close="@(() => _googleLinkSuccess = null)">
-                                    @_googleLinkSuccess
-                                </RadzenAlert>
-                            }
-                        </RadzenStack>
-                    </RadzenFieldset>
-                }
-            </div>
-        </div>
+                        </div>
+                    </div>
+                </RadzenTabsItem>
+
+                <RadzenTabsItem Title="@L("Profile.DeviceProfiles")" Icon="devices">
+                    <div class="device-profiles-container">
+                        <div class="device-profiles-header">
+                            <h2>@L("Profile.ManageDeviceProfiles")</h2>
+                            <RadzenButton
+                                Text="@L("Profile.NewDeviceProfile")"
+                                Icon="add"
+                                ButtonStyle="ButtonStyle.Primary"
+                                Click="@OpenNewDeviceProfileDialog" />
+                        </div>
+
+                        <RadzenDataGrid
+                            @ref="_deviceProfilesGrid"
+                            Data="@_userDeviceProfiles"
+                            AllowFiltering="true"
+                            AllowSorting="true"
+                            AllowPaging="true"
+                            PageSize="10"
+                            EmptyText="@L("Profile.NoDeviceProfiles")"
+                            class="rz-datagrid-striped">
+
+                            <Columns>
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Property="Name" Title="@L("Profile.ProfileName")" Sortable="true" Filterable="true" />
+
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Property="DirectPlay" Title="@L("Profile.DirectPlay")" Sortable="true" Filterable="true">
+                                    <Template Context="item">
+                                        <RadzenCheckBox @bind-Value="@item.DirectPlay" ReadOnly="true" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Property="TargetCodec" Title="@L("Profile.Codec")" Sortable="true" Filterable="true" />
+
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Property="MaxBitrate" Title="@L("Profile.MaxBitrate")" Sortable="true" Filterable="true">
+                                    <Template Context="item">
+                                        @(item.MaxBitrate.HasValue ? $"{item.MaxBitrate} kbps" : "-")
+                                    </Template>
+                                </RadzenDataGridColumn>
+
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Property="IsDefaultProfile" Title="@L("Profile.Default")" Sortable="true" Filterable="true">
+                                    <Template Context="item">
+                                        @if (item.IsDefaultProfile)
+                                        {
+                                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@L("Profile.Yes")" />
+                                        }
+                                        else
+                                        {
+                                            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@L("Profile.No")" />
+                                        }
+                                    </Template>
+                                </RadzenDataGridColumn>
+
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Property="Priority" Title="@L("Profile.Priority")" Sortable="true" Filterable="true" />
+
+                                <RadzenDataGridColumn TItem="UserDeviceProfile" Title="@L("Profile.Actions")" TextAlign="TextAlign.Right" Width="200px">
+                                    <Template>
+                                        <RadzenButton
+                                            Text="@L("Profile.Edit")"
+                                            ButtonStyle="ButtonStyle.Secondary"
+                                            Size="ButtonSize.Small"
+                                            Click="() => OpenEditDeviceProfileDialog(context)"
+                                            Icon="edit"
+                                            Class="rz-button-sm rz-mr-2" />
+
+                                        @if (!context.IsDefaultProfile)
+                                        {
+                                            <RadzenButton
+                                                Text="@L("Profile.SetAsDefault")"
+                                                ButtonStyle="ButtonStyle.Info"
+                                                Size="ButtonSize.Small"
+                                                Click="() => SetAsDefaultProfile(context)"
+                                                Icon="star"
+                                                Class="rz-button-sm rz-mr-2" />
+                                        }
+
+                                        <RadzenButton
+                                            Text="@L("Profile.Delete")"
+                                            ButtonStyle="ButtonStyle.Danger"
+                                            Size="ButtonSize.Small"
+                                            Click="() => DeleteDeviceProfile(context)"
+                                             Icon="delete"
+                                             Class="rz-button-sm" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            </Columns>
+                        </RadzenDataGrid>
+                    </div>
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
     </div>
 </RadzenCard>
 
@@ -184,7 +299,12 @@
     private bool _isSaving;
     private string? _errorMessage;
     private ImageSearchResult? _newSelectedProfileImage;
-    
+
+    // Device profiles state
+    private List<UserDeviceProfile> _userDeviceProfiles = new();
+    private RadzenDataGrid<UserDeviceProfile>? _deviceProfilesGrid;
+    private int _selectedTabIndex = 0;
+
     // Google linking state
     private bool _googleAuthEnabled;
     private bool _isGoogleLinked;
@@ -195,6 +315,10 @@
     private string? _googleLinkSuccess;
     private DotNetObjectReference<Profile>? _dotNetRef;
     private bool _googleInitialized;
+    
+    // Profile update script state
+    private bool _isProfileReadOnly;
+    private string? _profileReadOnlyMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -203,7 +327,7 @@
         _timeZoneIds = DateTimeZoneProviders.Tzdb.Ids.OrderBy(x => x).ToArray();
         _googleAuthEnabled = GoogleAuthOptions.Value.Enabled && !string.IsNullOrEmpty(GoogleAuthOptions.Value.ClientId);
 
-        var user = await UserService.GetAsync(CurrentUser!.UserId());
+        var user = await UserProfileService.GetAsync(CurrentUser!.UserId());
         UserProfile = new UserProfileModel
         {
             Username = user.Data!.UserName,
@@ -214,11 +338,79 @@
             PreferredTheme = user.Data!.PreferredTheme ?? "default",
             ProfilePicturePath = $"/images/{user.Data.ToApiKey()}/{MelodeeConfiguration.DefaultThumbNailSize}"
         };
-        
+
+        // Load device profiles
+        await LoadDeviceProfilesAsync();
+
         // Check if Google is linked
         if (_googleAuthEnabled)
         {
             await LoadGoogleLinkStatusAsync();
+        }
+        
+        // Evaluate UserProfileUpdateStart script
+        await EvaluateProfileScriptAsync();
+    }
+    
+    private async Task EvaluateProfileScriptAsync()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+            var clientIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = httpContext?.Request.Headers.UserAgent.ToString() ?? "unknown";
+            
+            var context = new UserProfileUpdateContext
+            {
+                UserId = CurrentUser!.UserId(),
+                EmailDomain = UserProfile.Email?.Split('@').LastOrDefault() ?? string.Empty,
+                ProfileChangesCount = 0,
+                ClientIp = clientIp,
+                UserAgent = userAgent,
+                Now = DateTime.UtcNow.ToString("O")
+            };
+            
+            var result = await BlazorEventScriptService.EvaluateUserProfileUpdateAsync(context);
+            
+            if (!result.Result && !result.IsDefault)
+            {
+                _isProfileReadOnly = true;
+                _profileReadOnlyMessage = result.Message;
+            }
+        }
+        catch
+        {
+            // Script errors default to allowing the action
+        }
+    }
+
+    private async Task LoadDeviceProfilesAsync()
+    {
+        try
+        {
+            var result = await UserDeviceProfileService.ListByUserAsync(CurrentUser!.UserId(), new PagedRequest { Page = 1, PageSize = 100 }, CancellationToken.None);
+            _userDeviceProfiles = result.Data.ToList();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = L("Profile.LoadDeviceProfilesFailed"),
+                Detail = ex.Message,
+                Duration = 5000
+            });
+        }
+    }
+
+    private async Task OnTabChange(int tabIndex)
+    {
+        _selectedTabIndex = tabIndex;
+
+        // Load device profiles when switching to the device profiles tab
+        if (tabIndex == 1) // Device Profiles tab
+        {
+            await LoadDeviceProfilesAsync();
         }
     }
     
@@ -404,7 +596,7 @@
             UserProfile.PreferredTheme = newTheme;
 
             // Save theme to database immediately
-            var user = await UserService.GetAsync(CurrentUser!.UserId());
+            var user = await UserProfileService.GetAsync(CurrentUser!.UserId());
             if (!user.IsSuccess || user.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage
@@ -418,7 +610,7 @@
             }
 
             user.Data.PreferredTheme = newTheme;
-            var saveResult = await UserService.UpdateAsync(user.Data, user.Data);
+            var saveResult = await UserProfileService.UpdateAsync(user.Data, user.Data);
             if (!saveResult.IsSuccess || !saveResult.Data)
             {
                 NotificationService.Notify(new NotificationMessage
@@ -459,7 +651,7 @@
         {
             _isSaving = true;
 
-            var user = await UserService.GetAsync(CurrentUser!.UserId());
+            var user = await UserProfileService.GetAsync(CurrentUser!.UserId());
 
             var tz = string.IsNullOrWhiteSpace(model.TimeZoneId) ? "UTC" : model.TimeZoneId.Trim();
             if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(tz) == null)
@@ -485,7 +677,7 @@
             user.Data!.PreferredLanguage = newLanguage;
             user.Data!.PreferredTheme = UserProfile.PreferredTheme ?? "default";
 
-            var saveResult = await UserService.UpdateAsync(user.Data, user.Data);
+            var saveResult = await UserProfileService.UpdateAsync(user.Data, user.Data);
             if (!saveResult.IsSuccess || !saveResult.Data)
             {
                 NotificationService.Notify(new NotificationMessage
@@ -499,15 +691,11 @@
             }
 
             // Ensure server-side cache is refreshed and UI will re-read the updated timezone on next load.
-            await UserService.GetAsync(user.Data.Id);
-
-            var configuration = await ConfigurationFactory.GetConfigurationAsync();
-            var userImageLibrary = await LibraryService.GetUserImagesLibraryAsync();
-            await AuthService.Login(user.Data.ToUserInfo().ToClaimsPrincipal(configuration, userImageLibrary.Data.Path));
+            await UserProfileService.GetAsync(user.Data.Id);
 
             if (_newSelectedProfileImage?.ImageBytes != null)
             {
-                await UserService.SaveProfileImageAsync(user.Data.Id, _newSelectedProfileImage.ImageBytes);
+                await UserProfileService.SaveProfileImageAsync(user.Data.Id, _newSelectedProfileImage.ImageBytes);
             }
 
             NotificationService.Notify(new NotificationMessage
@@ -553,7 +741,160 @@
             _isSaving = false;
         }
     }
-    
+
+    #region Device Profile Management
+
+    private async Task OpenNewDeviceProfileDialog()
+    {
+        var dialogOptions = new DialogOptions
+        {
+            Width = "600px",
+            Height = "auto",
+            Draggable = true,
+            Resizable = true,
+            ShowTitle = true
+        };
+
+        var result = await DialogService.OpenAsync<DeviceProfileDialog>(
+            L("Profile.NewDeviceProfile"),
+            new Dictionary<string, object?>
+            {
+                {"UserId", CurrentUser!.UserId()},
+                {"UserProfileService", UserProfileService},
+                {"UserDeviceProfileService", UserDeviceProfileService}
+            },
+            dialogOptions);
+
+        if (result != null)
+        {
+            await LoadDeviceProfilesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenEditDeviceProfileDialog(UserDeviceProfile profile)
+    {
+        var dialogOptions = new DialogOptions
+        {
+            Width = "600px",
+            Height = "auto",
+            Draggable = true,
+            Resizable = true,
+            ShowTitle = true
+        };
+
+        var result = await DialogService.OpenAsync<DeviceProfileDialog>(
+            L("Profile.EditDeviceProfile"),
+            new Dictionary<string, object?>
+            {
+                {"UserId", CurrentUser!.UserId()},
+                {"UserProfileService", UserProfileService},
+                {"UserDeviceProfileService", UserDeviceProfileService},
+                {"DeviceProfile", profile}
+            },
+            dialogOptions);
+
+        if (result != null)
+        {
+            await LoadDeviceProfilesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetAsDefaultProfile(UserDeviceProfile profile)
+    {
+        try
+        {
+            // Update the profile to be the default
+            profile.IsDefaultProfile = true;
+
+            var result = await UserDeviceProfileService.UpdateAsync(profile, CancellationToken.None);
+            if (result.IsSuccess)
+            {
+                await LoadDeviceProfilesAsync();
+                StateHasChanged();
+
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = L("Profile.DefaultProfileSet"),
+                    Detail = L("Profile.DefaultProfileSetDetail", profile.Name),
+                    Duration = 3000
+                });
+            }
+            else
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = L("Profile.DefaultProfileSetFailed"),
+                    Detail = string.Join("; ", result.Messages ?? []),
+                    Duration = 5000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = L("Profile.DefaultProfileSetFailed"),
+                Detail = ex.Message,
+                Duration = 5000
+            });
+        }
+    }
+
+    private async Task DeleteDeviceProfile(UserDeviceProfile profile)
+    {
+        var confirmed = await DialogService.Confirm(
+            L("Profile.DeleteDeviceProfileConfirmation", profile.Name),
+            L("Profile.DeleteDeviceProfileTitle"),
+            new ConfirmOptions { OkButtonText = L("Profile.Delete"), CancelButtonText = L("Actions.Cancel") });
+
+        if (confirmed != true) return;
+
+        try
+        {
+            var result = await UserDeviceProfileService.DeleteAsync(profile.Id, CancellationToken.None);
+            if (result.IsSuccess)
+            {
+                _userDeviceProfiles.Remove(profile);
+                StateHasChanged();
+
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = L("Profile.DeviceProfileDeleted"),
+                    Detail = L("Profile.DeviceProfileDeletedDetail", profile.Name),
+                    Duration = 3000
+                });
+            }
+            else
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = L("Profile.DeviceProfileDeleteFailed"),
+                    Detail = string.Join("; ", result.Messages ?? []),
+                    Duration = 5000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = L("Profile.DeviceProfileDeleteFailed"),
+                Detail = ex.Message,
+                Duration = 5000
+            });
+        }
+    }
+
+    #endregion
+
     public async ValueTask DisposeAsync()
     {
         if (_googleInitialized)

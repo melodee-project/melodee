@@ -7,6 +7,7 @@ using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
+using Melodee.Common.Models.Scripting;
 using Melodee.Common.Models.SpecialArtists;
 using Melodee.Common.Plugins.Conversion;
 using Melodee.Common.Plugins.Conversion.Image;
@@ -20,6 +21,7 @@ using Melodee.Common.Plugins.Scripting;
 using Melodee.Common.Plugins.Validation;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
@@ -47,7 +49,10 @@ public sealed class DirectoryProcessorToStagingService(
     ArtistSearchEngineService artistSearchEngineService,
     AlbumImageSearchEngineService albumImageSearchEngineService,
     IHttpClientFactory httpClientFactory,
-    IFileSystemService fileSystemService)
+    IFileSystemService fileSystemService,
+    IScriptOrchestrationService scriptOrchestrationService,
+    IDirectoryContextProvider directoryContextProvider,
+    DenyActionHandlerFactory denyActionHandlerFactory)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
@@ -186,6 +191,14 @@ public sealed class DirectoryProcessorToStagingService(
 
     public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
         FileSystemDirectoryInfo fileSystemDirectoryInfo, Instant? lastProcessDate, int? maxAlbumsToProcess,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, null, cancellationToken);
+    }
+
+    public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo, Instant? lastProcessDate, int? maxAlbumsToProcess,
+        int? libraryId,
         CancellationToken cancellationToken = default)
     {
         CheckInitialized();
@@ -342,6 +355,7 @@ public sealed class DirectoryProcessorToStagingService(
                         albumsIdsSeen,
                         songsIdsSeen,
                         runContext,
+                        libraryId,
                         ct);
                     numberOfAlbumsProcessed += processingResult.Item1;
                     numberOfValidAlbumsProcessed += processingResult.Item2;
@@ -482,6 +496,7 @@ public sealed class DirectoryProcessorToStagingService(
         ConcurrentBag<long?> albumsIdsSeen,
         ConcurrentBag<Guid> songsIdsSeen,
         DirectoryRunContext runContext,
+        int? libraryId,
         CancellationToken cancellationToken)
     {
         using var operation = Operation.At(LogEventLevel.Debug)
@@ -494,6 +509,16 @@ public sealed class DirectoryProcessorToStagingService(
         Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
         try
         {
+            // Script evaluation hooks - process delete event first, then start event
+            var scriptResult = await EvaluateDirectoryScriptsAsync(
+                directoryInfoToProcess,
+                cancellationToken);
+
+            if (!scriptResult.ShouldContinue)
+            {
+                return (numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
+            }
+
             var dontDeleteExistingMelodeeFiles = _configuration.GetValue<bool>(SettingRegistry.ProcessingDontDeleteExistingMelodeeDataFiles);
 
             if (!dontDeleteExistingMelodeeFiles)
@@ -1163,5 +1188,79 @@ public sealed class DirectoryProcessorToStagingService(
 
         runContext.AddAlbumProcessingTime((long)Stopwatch.GetElapsedTime(albumStartTicks).TotalMilliseconds);
         return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
+    }
+
+    private record DirectoryScriptEvaluationResult(bool ShouldContinue, string? Message = null);
+
+    private async Task<DirectoryScriptEvaluationResult> EvaluateDirectoryScriptsAsync(
+        FileSystemDirectoryInfo directory,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var context = await directoryContextProvider.BuildContextAsync(directory, _songPlugins, cancellationToken);
+
+            Logger.Debug("Script context for [{Directory}]: TotalFilesCount={TotalFilesCount}, TotalDurationMinutes={TotalDurationMinutes}, HasTrackNumberGaps={HasTrackNumberGaps}, MediaFilesCount={MediaFilesCount}",
+                directory.Path, context.TotalFilesCount, context.TotalDurationMinutes, context.HasTrackNumberGaps, context.MediaFilesCount);
+
+            // Evaluate DirectoryProcessingDelete script first
+            var deleteResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
+                ScriptEventNames.DirectoryProcessingDelete,
+                context,
+                cancellationToken);
+
+            Logger.Debug("DirectoryProcessingDelete result: Result={Result}, IsDefault={IsDefault}, OnDeny={OnDeny}",
+                deleteResult.Result, deleteResult.IsDefault, deleteResult.OnDeny);
+
+            if (deleteResult.Result && !deleteResult.IsDefault)
+            {
+                var onDeny = deleteResult.OnDeny?.ToLowerInvariant() ?? "delete";
+                if (onDeny == "delete")
+                {
+                    var handler = denyActionHandlerFactory.CreateHandler("delete");
+                    var deleteSuccess = await handler.ExecuteAsync(directory.Path, cancellationToken);
+                    LogAndRaiseEvent(
+                        deleteSuccess ? LogEventLevel.Information : LogEventLevel.Warning,
+                        "DirectoryProcessingDelete script returned true; directory [{0}] {1}",
+                        null,
+                        directory.Path,
+                        deleteSuccess ? "deleted" : "delete failed, continuing processing");
+
+                    if (deleteSuccess)
+                    {
+                        return new DirectoryScriptEvaluationResult(false, "Directory deleted by script");
+                    }
+                }
+            }
+
+            // Evaluate DirectoryProcessingStart script
+            var startResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
+                ScriptEventNames.DirectoryProcessingStart,
+                context,
+                cancellationToken);
+
+            if (!startResult.Result && !startResult.IsDefault)
+            {
+                var onDeny = startResult.OnDeny?.ToLowerInvariant() ?? "skip";
+                var handler = denyActionHandlerFactory.CreateHandler(onDeny);
+
+                await handler.ExecuteAsync(directory.Path, cancellationToken);
+                LogAndRaiseEvent(
+                    LogEventLevel.Information,
+                    "DirectoryProcessingStart script returned false; directory [{0}] action [{1}]",
+                    null,
+                    directory.Path,
+                    onDeny);
+
+                return new DirectoryScriptEvaluationResult(false, startResult.Message ?? $"Skipped by script with action: {onDeny}");
+            }
+
+            return new DirectoryScriptEvaluationResult(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning(ex, "Error evaluating directory scripts for [{Path}], continuing with processing", directory.Path);
+            return new DirectoryScriptEvaluationResult(true);
+        }
     }
 }

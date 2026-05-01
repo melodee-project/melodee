@@ -2,6 +2,9 @@
 
 @inherits MelodeeComponentBase
 @using Melodee.Common.Filtering
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
+@using NodaTime
 @using FilterOperator = Melodee.Common.Filtering.FilterOperator
 @using Request = Melodee.Common.Data.Models.Request
 
@@ -13,6 +16,7 @@
 @inject DialogService DialogService
 @inject TooltipService TooltipService
 @inject NavigationManager NavigationManager
+@inject IBlazorEventScriptService BlazorEventScriptService
 
 <PageTitle>@L("Requests.PageTitle")</PageTitle>
 
@@ -34,6 +38,8 @@
                 <RadzenButton Icon="add" Text="@L("Requests.NewRequest")"
                               Click="@NewRequestClick"
                               Size="ButtonSize.Small"
+                              Disabled="@_isRequestCreateDisabled"
+                              MouseEnter="@(args => { if (_isRequestCreateDisabled) ShowTooltip(args, _requestCreateDisabledMessage ?? L("Actions.Disabled")); })"
                               ButtonStyle="ButtonStyle.Primary"/>
             </RadzenStack>
         </RadzenColumn>
@@ -150,6 +156,9 @@
     RequestStatus? _selectedStatus;
     RequestCategory? _selectedCategory;
     bool _mineOnly;
+    
+    bool _isRequestCreateDisabled;
+    string? _requestCreateDisabledMessage;
 
     List<object> _statusOptions =
     [
@@ -168,8 +177,10 @@
         new { Text = "General", Value = RequestCategory.General }
     ];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        await base.OnInitializedAsync();
+        
         _statusOptions =
         [
             new { Text = L("RequestStatus.Pending"), Value = RequestStatus.Pending },
@@ -186,6 +197,40 @@
             new { Text = L("RequestCategory.AlbumCorrection"), Value = RequestCategory.AlbumCorrection },
             new { Text = L("RequestCategory.General"), Value = RequestCategory.General }
         ];
+        
+        await EvaluateRequestCreateScriptAsync();
+    }
+
+    private async Task EvaluateRequestCreateScriptAsync()
+    {
+        try
+        {
+            var context = new RequestCreateContext
+            {
+                UserId = CurrentUser?.UserId() ?? 0,
+                RequestType = string.Empty,
+                IsFirstRequestToday = true,
+                DailyRequestCount = 0,
+                Now = SystemClock.Instance.GetCurrentInstant().ToString()
+            };
+
+            var result = await BlazorEventScriptService.EvaluateRequestCreateAsync(context);
+            
+            if (!result.Result)
+            {
+                _isRequestCreateDisabled = true;
+                _requestCreateDisabledMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning(ex, "Error evaluating request create script, continuing as normal");
+        }
+    }
+    
+    private void ShowTooltip(ElementReference elementReference, string message)
+    {
+        TooltipService.Open(elementReference, message);
     }
 
     void OnPage(PagerEventArgs args)

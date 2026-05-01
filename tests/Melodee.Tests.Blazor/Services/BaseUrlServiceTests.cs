@@ -24,7 +24,7 @@ public class BaseUrlServiceTests
     }
 
     [Fact]
-    public void GetBaseUrl_WithValidConfiguration_ReturnsConfiguredUrl()
+    public async Task GetBaseUrl_WithValidConfiguration_ReturnsConfiguredUrl()
     {
         // Arrange
         const string expectedUrl = "https://example.com";
@@ -32,14 +32,14 @@ public class BaseUrlServiceTests
             .Returns(expectedUrl);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Equal(expectedUrl, result);
     }
 
     [Fact]
-    public void GetBaseUrl_WithValidConfigurationTrailingSlash_ReturnsUrlWithoutTrailingSlash()
+    public async Task GetBaseUrl_WithValidConfigurationTrailingSlash_ReturnsUrlWithoutTrailingSlash()
     {
         // Arrange
         const string configuredUrl = "https://example.com/";
@@ -48,14 +48,14 @@ public class BaseUrlServiceTests
             .Returns(configuredUrl);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Equal(expectedUrl, result);
     }
 
     [Fact]
-    public void GetBaseUrl_WithRequiredNotSetValue_FallsBackToHttpContext()
+    public async Task GetBaseUrl_WithRequiredNotSetValue_FallsBackToHttpContext()
     {
         // Arrange
         _mockConfiguration.Setup(x => x.GetValue<string>(SettingRegistry.SystemBaseUrl, null))
@@ -69,14 +69,14 @@ public class BaseUrlServiceTests
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(mockHttpContext.Object);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Equal("https://localhost:5000", result);
     }
 
     [Fact]
-    public void GetBaseUrl_WithNullConfiguration_FallsBackToHttpContext()
+    public async Task GetBaseUrl_WithNullConfiguration_FallsBackToHttpContext()
     {
         // Arrange
         _mockConfiguration.Setup(x => x.GetValue<string>(SettingRegistry.SystemBaseUrl, null))
@@ -90,14 +90,14 @@ public class BaseUrlServiceTests
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(mockHttpContext.Object);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Equal("http://api.example.com", result);
     }
 
     [Fact]
-    public void GetBaseUrl_WithEmptyConfiguration_FallsBackToHttpContext()
+    public async Task GetBaseUrl_WithEmptyConfiguration_FallsBackToHttpContext()
     {
         // Arrange
         _mockConfiguration.Setup(x => x.GetValue<string>(SettingRegistry.SystemBaseUrl, null))
@@ -111,14 +111,14 @@ public class BaseUrlServiceTests
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(mockHttpContext.Object);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Equal("https://melodee.app", result);
     }
 
     [Fact]
-    public void GetBaseUrl_WithInvalidConfigurationAndNoHttpContext_ReturnsNull()
+    public async Task GetBaseUrl_WithInvalidConfigurationAndNoHttpContext_ReturnsNull()
     {
         // Arrange
         _mockConfiguration.Setup(x => x.GetValue<string>(SettingRegistry.SystemBaseUrl, null))
@@ -126,7 +126,7 @@ public class BaseUrlServiceTests
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Null(result);
@@ -136,7 +136,7 @@ public class BaseUrlServiceTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void GetBaseUrl_WithInvalidConfigurationValues_FallsBackToHttpContext(string? invalidValue)
+    public async Task GetBaseUrl_WithInvalidConfigurationValues_FallsBackToHttpContext(string? invalidValue)
     {
         // Arrange
         _mockConfiguration.Setup(x => x.GetValue<string>(SettingRegistry.SystemBaseUrl, null))
@@ -150,7 +150,7 @@ public class BaseUrlServiceTests
         _mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(mockHttpContext.Object);
 
         // Act
-        var result = _service.GetBaseUrl();
+        var result = await _service.GetBaseUrlAsync();
 
         // Assert
         Assert.Equal("https://fallback.com", result);

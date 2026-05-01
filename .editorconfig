@@ -40,6 +40,15 @@ trim_trailing_whitespace = false
 indent_size = 2
 indent_style = space
 
+# Razor files
+[*.razor]
+# Razor markup formatting
+indent_size = 2
+indent_style = space
+
+# Remove unused usings (e.g., @using)
+dotnet_diagnostic.IDE0005.severity = warning
+
 # C# files
 [*.cs]
 #### Core EditorConfig Options ####
@@ -292,4 +301,3 @@ dotnet_naming_rule.public_field_should_be_pascal_case.style = pascal_case_style
 dotnet_naming_rule.local_should_be_camel_case.severity = suggestion
 dotnet_naming_rule.local_should_be_camel_case.symbols = local_symbols
 dotnet_naming_rule.local_should_be_camel_case.style = camel_case_style
-

@@ -17,7 +17,7 @@ namespace Melodee.Cli.Command;
 
 public class ShowTagsCommand : CommandBase<ShowTagsSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ShowTagsSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ShowTagsSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

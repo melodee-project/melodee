@@ -31,8 +31,8 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PartySessionEndpointRegistryController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IPartySessionEndpointRegistryService endpointRegistryService,
-    IPartySessionService partySessionService,
+    PartySessionEndpointRegistryService endpointRegistryService,
+    PartySessionService partySessionService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,

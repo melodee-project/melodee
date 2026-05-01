@@ -78,8 +78,8 @@ public sealed class SubsonicJukeboxService(
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IMelodeeConfigurationFactory configurationFactory,
-    IPartyQueueService partyQueueService,
-    IPartyPlaybackService partyPlaybackService,
+    PartyQueueService partyQueueService,
+    PartyPlaybackService partyPlaybackService,
     IPlaybackBackendService playbackBackendService)
     : ServiceBase(logger, cacheManager, contextFactory), ISubsonicJukeboxService
 {

@@ -1,29 +1,43 @@
+using System.Data.Common;
 using System.Diagnostics;
+using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
-using Microsoft.Data.Sqlite;
+using Melodee.Common.Services.Doctor;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 
 namespace Melodee.Blazor.Services;
 
 /// <summary>
-/// Service for performing system health checks and diagnostics.
+/// Blazor-specific Doctor service that extends the shared DoctorServiceBase
+/// with additional host-specific checks.
 /// </summary>
+/// <summary>
+/// Blazor-specific Doctor service that extends the shared DoctorServiceBase
+/// with additional host-specific checks.
+/// </summary>
+#pragma warning disable CS9124 // Suppress warning - parameters are intentionally captured for derived class use
 public sealed class DoctorService(
     IConfiguration configuration,
     IDbContextFactory<MelodeeDbContext> dbContextFactory,
     IDbContextFactory<MusicBrainzDbContext> musicBrainzDbContextFactory,
     IDbContextFactory<ArtistSearchEngineServiceDbContext> artistSearchEngineDbContextFactory,
     LibraryService libraryService,
+    IMelodeeConfigurationFactory configurationFactory,
     IWebHostEnvironment webHostEnvironment,
     IHttpContextAccessor httpContextAccessor,
-    ISchedulerFactory schedulerFactory) : IDoctorService
+    ISchedulerFactory schedulerFactory) : DoctorServiceBase(dbContextFactory, libraryService, configurationFactory), Melodee.Blazor.Services.IDoctorService
 {
+    private readonly IDbContextFactory<MelodeeDbContext> _dbContextFactory = dbContextFactory;
+    private readonly IDbContextFactory<MusicBrainzDbContext> _musicBrainzDbContextFactory = musicBrainzDbContextFactory;
+    private readonly IDbContextFactory<ArtistSearchEngineServiceDbContext> _artistSearchEngineDbContextFactory = artistSearchEngineDbContextFactory;
+    private readonly LibraryService _libraryService = libraryService;
+#pragma warning restore CS9124
     private static readonly string[] RequiredConnectionStrings =
     [
         "DefaultConnection",
@@ -45,165 +59,47 @@ public sealed class DoctorService(
 
     public async Task<bool> NeedsAttentionAsync(CancellationToken cancellationToken = default)
     {
-        // Check critical configuration
+        // Dashboard uses this fast path on first render, so keep it limited to
+        // cheap checks that still catch obviously unhealthy startup state.
         if (HasMissingConnectionStrings())
         {
             return true;
         }
 
-        // Check main database connectivity
+        if (await HasMusicBrainzConnectionIssuesAsync(cancellationToken))
+        {
+            return true;
+        }
+
+        if (await HasArtistSearchConnectionIssuesAsync(cancellationToken))
+        {
+            return true;
+        }
+
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            if (!await db.Database.CanConnectAsync(cancellationToken))
-            {
-                return true;
-            }
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return !await db.Database.CanConnectAsync(cancellationToken);
         }
         catch
         {
             return true;
         }
-
-        // Check MusicBrainz database
-        if (await IsMusicBrainzDatabaseEmptyAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check library paths
-        if (await HasLibraryPathIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check disk space
-        if (await HasDiskSpaceIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check library paths overlap
-        if (await HasLibraryPathOverlapAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check search engine API keys
-        if (await HasSearchEngineApiKeyIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check SMTP configuration if email is enabled
-        if (await HasSmtpConfigurationIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check JWT token strength
-        if (HasJwtTokenStrengthIssues())
-        {
-            return true;
-        }
-
-        // Check HTTPS in production
-        if (HasHttpsIssues())
-        {
-            return true;
-        }
-
-        // Check for default admin password
-        if (await HasDefaultAdminPasswordAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check scheduler status
-        if (await HasSchedulerIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check FFmpeg availability (critical for media conversion)
-        if (HasFFmpegIssues())
-        {
-            return true;
-        }
-
-        // Check memory pressure
-        if (HasMemoryPressureIssues())
-        {
-            return true;
-        }
-
-        // Check Jukebox configuration if enabled
-        if (await HasJukeboxConfigurationIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        // Check Podcast configuration if enabled
-        if (await HasPodcastConfigurationIssuesAsync(cancellationToken))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     public async Task<bool> IsMusicBrainzDatabaseEmptyAsync(CancellationToken cancellationToken = default)
     {
         var connectionString = configuration.GetConnectionString("MusicBrainzConnection");
-        if (string.IsNullOrWhiteSpace(connectionString))
+        if (!HasNonEmptyFileBackedDatabase(connectionString))
         {
             return true;
         }
 
-        try
-        {
-            var builder = new SqliteConnectionStringBuilder(connectionString);
-            var dataSource = builder.DataSource;
-
-            if (string.IsNullOrWhiteSpace(dataSource))
-            {
-                return true;
-            }
-
-            if (!File.Exists(dataSource))
-            {
-                return true;
-            }
-
-            var fileInfo = new FileInfo(dataSource);
-            if (fileInfo.Length == 0)
-            {
-                return true;
-            }
-
-            await using var db = await musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
-            if (!await db.Database.CanConnectAsync(cancellationToken))
-            {
-                return true;
-            }
-
-            try
-            {
-                var artistCount = await db.Artists.Take(1).CountAsync(cancellationToken);
-                return artistCount == 0;
-            }
-            catch
-            {
-                return true;
-            }
-        }
-        catch
-        {
-            return true;
-        }
+        var (canQuery, hasArtistData, _) = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
+        return !canQuery || !hasArtistData;
     }
 
-    public async Task<DoctorCheckResults> RunAllChecksAsync(CancellationToken cancellationToken = default)
+    public async Task<BlazorDoctorCheckResults> RunAllChecksAsync(CancellationToken cancellationToken = default)
     {
         var checks = new List<DoctorCheckResult>();
         var libraryPaths = new List<LibraryPathResult>();
@@ -214,26 +110,21 @@ public sealed class DoctorService(
         var diskSpaceInfo = new List<DiskSpaceInfo>();
         var searchEngineApiKeys = new List<SearchEngineApiKeyInfo>();
 
-        // Run all checks
-        checks.Add(await RunConfigurationCheckAsync(cancellationToken));
-        checks.Add(await RunDatabaseCheckAsync(cancellationToken));
+        // Run core checks using base class implementation
+        var coreResults = await RunCoreChecksAsync(cancellationToken);
+        checks.AddRange(coreResults.Checks);
+        libraryPaths.AddRange(coreResults.LibraryPaths);
+        configurableServices.AddRange(coreResults.ConfigurableServices);
 
+        // Run Blazor-specific checks
         var (musicBrainzCheck, isMusicBrainzEmpty) = await RunMusicBrainzDbCheckAsync(cancellationToken);
         checks.Add(musicBrainzCheck);
 
         checks.Add(await RunArtistSearchEngineDbCheckAsync(cancellationToken));
 
-        var (libraryCheck, libPaths) = await RunLibraryPathsCheckAsync(cancellationToken);
-        checks.Add(libraryCheck);
-        libraryPaths.AddRange(libPaths);
-
         var (serilogCheck, logPaths) = RunSerilogCheckAsync();
         checks.Add(serilogCheck);
         serilogLogPaths.AddRange(logPaths);
-
-        var (servicesCheck, services) = await RunConfigurableServicesCheckAsync(cancellationToken);
-        checks.Add(servicesCheck);
-        configurableServices.AddRange(services);
 
         // Disk space and path checks
         var (diskSpaceCheck, diskInfo) = await RunDiskSpaceCheckAsync(cancellationToken);
@@ -267,12 +158,12 @@ public sealed class DoctorService(
         checks.Add(await RunPodcastConfigurationCheckAsync(cancellationToken));
 
         // Gather connection string info
-        connectionStrings.AddRange(GatherConnectionStringInfo());
+        connectionStrings.AddRange(await GatherConnectionStringInfoAsync(cancellationToken));
 
         // Gather environment variable info
         environmentVariables.AddRange(GatherEnvironmentVariableInfo());
 
-        return new DoctorCheckResults
+        return new BlazorDoctorCheckResults
         {
             Checks = checks,
             LibraryPaths = libraryPaths,
@@ -302,7 +193,7 @@ public sealed class DoctorService(
     {
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return true;
@@ -323,67 +214,33 @@ public sealed class DoctorService(
         }
     }
 
-    private async Task<DoctorCheckResult> RunConfigurationCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            var missing = RequiredConnectionStrings
-                .Where(cs => string.IsNullOrWhiteSpace(configuration.GetConnectionString(cs)))
-                .ToList();
-
-            var success = missing.Count == 0;
-            var details = success
-                ? $"Environment={webHostEnvironment.EnvironmentName}"
-                : $"Missing: {string.Join(", ", missing)}";
-
-            return new DoctorCheckResult("Configuration", success, details, sw.Elapsed);
-        }
-        catch (Exception ex)
-        {
-            return new DoctorCheckResult("Configuration", false, ex.Message, sw.Elapsed);
-        }
-    }
-
-    private async Task<DoctorCheckResult> RunDatabaseCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            var details = canConnect
-                ? $"OK ({db.Database.ProviderName})"
-                : "Unable to connect";
-
-            return new DoctorCheckResult("PostgresDatabase", canConnect, details, sw.Elapsed);
-        }
-        catch (Exception ex)
-        {
-            return new DoctorCheckResult("PostgresDatabase", false, ex.Message, sw.Elapsed);
-        }
-    }
-
     private async Task<(DoctorCheckResult Check, bool IsEmpty)> RunMusicBrainzDbCheckAsync(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         try
         {
             var connectionString = configuration.GetConnectionString("MusicBrainzConnection") ?? "";
-            var fileInfo = DescribeSqlitePath(connectionString);
-
-            var isEmpty = await IsMusicBrainzDatabaseEmptyAsync(cancellationToken);
-
-            if (isEmpty)
+            var fileInfo = DescribeFileDatabasePath(connectionString);
+            if (!HasNonEmptyFileBackedDatabase(connectionString))
             {
                 return (new DoctorCheckResult("MusicBrainzDatabase", false, "MusicBrainz database is empty or not initialized", sw.Elapsed), true);
             }
 
-            await using var db = await musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
+            var (canQuery, hasArtistData, error) = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
+            if (!canQuery)
+            {
+                var details = string.IsNullOrWhiteSpace(error)
+                    ? $"Unable to query; {fileInfo}"
+                    : $"{error}; {fileInfo}";
+                return (new DoctorCheckResult("MusicBrainzDatabase", false, details, sw.Elapsed), true);
+            }
 
-            return (new DoctorCheckResult("MusicBrainzDatabase", canConnect, details, sw.Elapsed), false);
+            if (!hasArtistData)
+            {
+                return (new DoctorCheckResult("MusicBrainzDatabase", false, $"MusicBrainz database is empty or not initialized; {fileInfo}", sw.Elapsed), true);
+            }
+
+            return (new DoctorCheckResult("MusicBrainzDatabase", true, $"OK; {fileInfo}", sw.Elapsed), false);
         }
         catch (Exception ex)
         {
@@ -397,65 +254,28 @@ public sealed class DoctorService(
         try
         {
             var connectionString = configuration.GetConnectionString("ArtistSearchEngineConnection") ?? "";
-            var fileInfo = DescribeSqlitePath(connectionString);
+            var fileInfo = DescribeFileDatabasePath(connectionString);
+            if (!HasNonEmptyFileBackedDatabase(connectionString))
+            {
+                return new DoctorCheckResult(
+                    "ArtistSearchEngineDatabase",
+                    false,
+                    $"Artist search engine database is empty or not initialized; {fileInfo}",
+                    sw.Elapsed);
+            }
 
-            await using var db = await artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            var details = canConnect ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}";
+            var (canQuery, error) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
+            var details = canQuery
+                ? $"OK; {fileInfo}"
+                : string.IsNullOrWhiteSpace(error)
+                    ? $"Unable to query; {fileInfo}"
+                    : $"{error}; {fileInfo}";
 
-            return new DoctorCheckResult("ArtistSearchEngineDatabase", canConnect, details, sw.Elapsed);
+            return new DoctorCheckResult("ArtistSearchEngineDatabase", canQuery, details, sw.Elapsed);
         }
         catch (Exception ex)
         {
             return new DoctorCheckResult("ArtistSearchEngineDatabase", false, ex.Message, sw.Elapsed);
-        }
-    }
-
-    private async Task<(DoctorCheckResult Check, List<LibraryPathResult> Paths)> RunLibraryPathsCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        var paths = new List<LibraryPathResult>();
-
-        try
-        {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
-            if (!libs.IsSuccess)
-            {
-                return (new DoctorCheckResult("LibraryPaths", false, libs.Messages?.FirstOrDefault() ?? "Failed to list libraries", sw.Elapsed), paths);
-            }
-
-            foreach (var lib in libs.Data)
-            {
-                var exists = Directory.Exists(lib.Path);
-                var writable = exists && IsDirectoryWritable(lib.Path);
-                var details = GetLibraryPathDetails(exists, writable);
-
-                paths.Add(new LibraryPathResult(
-                    lib.Name,
-                    lib.TypeValue.ToString(),
-                    lib.Path,
-                    exists,
-                    writable,
-                    details));
-            }
-
-            var anyMissing = paths.Any(l => !l.Exists);
-            var anyNotWritable = paths.Any(l => l.Exists && !l.Writable);
-            var hasIssues = anyMissing || anyNotWritable;
-
-            var detailMessage = (anyMissing, anyNotWritable) switch
-            {
-                (true, true) => "Some paths missing and some not writable",
-                (true, false) => "Some paths missing",
-                (false, true) => "Some paths not writable",
-                _ => "All library paths OK"
-            };
-
-            return (new DoctorCheckResult("LibraryPaths", !hasIssues, detailMessage, sw.Elapsed), paths);
-        }
-        catch (Exception ex)
-        {
-            return (new DoctorCheckResult("LibraryPaths", false, ex.Message, sw.Elapsed), paths);
         }
     }
 
@@ -510,56 +330,8 @@ public sealed class DoctorService(
         }
     }
 
-    private async Task<(DoctorCheckResult Check, List<ConfigurableServiceResult> Services)> RunConfigurableServicesCheckAsync(CancellationToken cancellationToken)
-    {
-        var sw = Stopwatch.StartNew();
-        var services = new List<ConfigurableServiceResult>();
-
-        try
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            var settingsDict = await db.Settings
-                .Where(s => s.Key.Contains(".enabled"))
-                .ToDictionaryAsync(s => s.Key, s => s.Value, StringComparer.OrdinalIgnoreCase, cancellationToken);
-
-            var serviceDefinitions = new (string Category, string Name, string SettingKey)[]
-            {
-                ("Search Engine", "Brave", SettingRegistry.SearchEngineBraveEnabled),
-                ("Search Engine", "Deezer", SettingRegistry.SearchEngineDeezerEnabled),
-                ("Search Engine", "iTunes", SettingRegistry.SearchEngineITunesEnabled),
-                ("Search Engine", "Last.fm", SettingRegistry.SearchEngineLastFmEnabled),
-                ("Search Engine", "MusicBrainz", SettingRegistry.SearchEngineMusicBrainzEnabled),
-                ("Search Engine", "Spotify", SettingRegistry.SearchEngineSpotifyEnabled),
-                ("Search Engine", "Metal API", SettingRegistry.SearchEngineMetalApiEnabled),
-                ("Scrobbling", "Scrobbling", SettingRegistry.ScrobblingEnabled),
-                ("Scrobbling", "Last.fm", SettingRegistry.ScrobblingLastFmEnabled),
-                ("Processing", "Conversion", SettingRegistry.ConversionEnabled),
-                ("Processing", "Magic", SettingRegistry.MagicEnabled),
-                ("Processing", "Scripting", SettingRegistry.ScriptingEnabled),
-                ("Plugins", "CueSheet", SettingRegistry.PluginEnabledCueSheet),
-                ("Plugins", "M3U", SettingRegistry.PluginEnabledM3u),
-                ("Plugins", "NFO", SettingRegistry.PluginEnabledNfo),
-                ("Plugins", "Simple File Verification", SettingRegistry.PluginEnabledSimpleFileVerification),
-                ("System", "Email", SettingRegistry.EmailEnabled),
-            };
-
-            foreach (var (category, name, settingKey) in serviceDefinitions)
-            {
-                var enabled = settingsDict.TryGetValue(settingKey, out var value)
-                    && bool.TryParse(value, out var b) && b;
-                services.Add(new ConfigurableServiceResult(category, name, settingKey, enabled));
-            }
-
-            var enabledCount = services.Count(s => s.Enabled);
-            return (new DoctorCheckResult("ConfigurableServices", true, $"{enabledCount} of {services.Count} services enabled", sw.Elapsed), services);
-        }
-        catch (Exception ex)
-        {
-            return (new DoctorCheckResult("ConfigurableServices", false, ex.Message, sw.Elapsed), services);
-        }
-    }
-
-    private List<ConnectionStringInfo> GatherConnectionStringInfo()
+    private async Task<List<ConnectionStringInfo>> GatherConnectionStringInfoAsync(
+        CancellationToken cancellationToken)
     {
         var results = new List<ConnectionStringInfo>();
 
@@ -571,13 +343,15 @@ public sealed class DoctorService(
             bool? fileExists = null;
             bool? fileWritable = null;
             string? filePath = null;
+            bool? canConnect = null;
+            string? connectionError = null;
 
             if (isFileBased && isValid)
             {
                 try
                 {
-                    var builder = new SqliteConnectionStringBuilder(value);
-                    filePath = builder.DataSource;
+                    var builder = new DbConnectionStringBuilder { ConnectionString = value };
+                    filePath = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
                     if (!string.IsNullOrEmpty(filePath))
                     {
                         fileExists = File.Exists(filePath);
@@ -594,6 +368,21 @@ public sealed class DoctorService(
                 }
             }
 
+            if (isFileBased && HasNonEmptyFileBackedDatabase(value))
+            {
+                switch (name)
+                {
+                    case "MusicBrainzConnection":
+                        var musicBrainzState = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
+                        canConnect = musicBrainzState.CanQuery;
+                        connectionError = musicBrainzState.Error;
+                        break;
+                    case "ArtistSearchEngineConnection":
+                        (canConnect, connectionError) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
+                        break;
+                }
+            }
+
             results.Add(new ConnectionStringInfo(
                 name,
                 MaskConnectionString(value),
@@ -601,7 +390,9 @@ public sealed class DoctorService(
                 isFileBased,
                 fileExists,
                 fileWritable,
-                filePath));
+                filePath,
+                canConnect,
+                connectionError));
         }
 
         return results;
@@ -621,7 +412,7 @@ public sealed class DoctorService(
         return results;
     }
 
-    private static string DescribeSqlitePath(string connectionString)
+    private static string DescribeFileDatabasePath(string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -630,8 +421,8 @@ public sealed class DoctorService(
 
         try
         {
-            var builder = new SqliteConnectionStringBuilder(connectionString);
-            var path = builder.DataSource;
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var path = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
             if (string.IsNullOrEmpty(path))
             {
                 return "No data source in connection string";
@@ -662,6 +453,105 @@ public sealed class DoctorService(
             size /= 1024;
         }
         return $"{size:0.##} {sizes[order]}";
+    }
+
+    private bool HasConfiguredFileBackedDatabase(string connectionStringName)
+    {
+        return HasNonEmptyFileBackedDatabase(configuration.GetConnectionString(connectionStringName));
+    }
+
+    private async Task<bool> HasMusicBrainzConnectionIssuesAsync(CancellationToken cancellationToken)
+    {
+        if (!HasConfiguredFileBackedDatabase("MusicBrainzConnection"))
+        {
+            return true;
+        }
+
+        var (canQuery, _, _) = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
+        return !canQuery;
+    }
+
+    private async Task<bool> HasArtistSearchConnectionIssuesAsync(CancellationToken cancellationToken)
+    {
+        if (!HasConfiguredFileBackedDatabase("ArtistSearchEngineConnection"))
+        {
+            return true;
+        }
+
+        var (canQuery, _) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
+        return !canQuery;
+    }
+
+    private static bool HasNonEmptyFileBackedDatabase(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return false;
+        }
+
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var path = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+            return !string.IsNullOrWhiteSpace(path) && File.Exists(path) && new FileInfo(path).Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<(bool CanQuery, string? Error)> ProbeArtistSearchDatabaseAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+            await db.Database.EnsureCreatedAsync(cancellationToken);
+            if (db.Database.IsRelational())
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
+                    ON "Artists" ("IsLocked", "LastRefreshed")
+                    """,
+                    cancellationToken);
+            }
+
+            _ = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            _ = await db.Albums
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private async Task<(bool CanQuery, bool HasArtistData, string? Error)> ProbeMusicBrainzDatabaseAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var firstArtistId = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, firstArtistId != 0, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, false, ex.Message);
+        }
     }
 
     private static bool IsDirectoryWritable(string path)
@@ -739,7 +629,7 @@ public sealed class DoctorService(
     {
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return false;
@@ -777,7 +667,7 @@ public sealed class DoctorService(
     {
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess || libs.Data.Count() < 2)
             {
                 return false;
@@ -809,7 +699,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -847,7 +737,7 @@ public sealed class DoctorService(
 
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return (new DoctorCheckResult("DiskSpace", false, "Failed to list libraries", sw.Elapsed), diskInfo);
@@ -995,7 +885,7 @@ public sealed class DoctorService(
 
         try
         {
-            var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
+            var libs = await _libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
             if (!libs.IsSuccess)
             {
                 return (new DoctorCheckResult("LibraryPathOverlap", false, "Failed to list libraries", sw.Elapsed), overlaps);
@@ -1037,7 +927,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var searchEngineDefinitions = new (string Name, string EnabledKey, string? ApiKeyKey, string? SecretKey)[]
             {
@@ -1119,7 +1009,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1157,7 +1047,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1302,7 +1192,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var adminUser = await db.Users
                 .Where(u => u.IsAdmin && u.UserNameNormalized == "ADMIN")
@@ -1327,7 +1217,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var adminUser = await db.Users
                 .Where(u => u.IsAdmin && u.UserNameNormalized == "ADMIN")
@@ -1692,7 +1582,7 @@ public sealed class DoctorService(
         {
             var queryStart = Stopwatch.StartNew();
 
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             // Simple query to measure latency
             _ = await db.Settings.Take(1).CountAsync(cancellationToken);
@@ -1723,7 +1613,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1800,7 +1690,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1931,7 +1821,7 @@ public sealed class DoctorService(
     {
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {
@@ -1992,7 +1882,7 @@ public sealed class DoctorService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             var relevantKeys = new[]
             {

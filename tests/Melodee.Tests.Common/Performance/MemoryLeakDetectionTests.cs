@@ -8,7 +8,7 @@ namespace Melodee.Tests.Common.Performance;
 
 public class MemoryLeakDetectionTests : ServiceTestBase
 {
-    [Fact]
+    [PerformanceFact]
     public async Task RepeatedLargeQueryExecution_DoesNotLeakMemory()
     {
         // Arrange: user with many playlists to iterate via paging

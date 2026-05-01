@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Security.Claims;
 using Asp.Versioning;
+using Melodee.Blazor.Controllers.Melodee.Extensions;
 using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using NodaTime;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
@@ -27,9 +30,9 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PartyEndpointsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IPartySessionEndpointRegistryService endpointRegistryService,
-    IPartySessionService partySessionService,
-    IPartyPlaybackService partyPlaybackService,
+    PartySessionEndpointRegistryService endpointRegistryService,
+    PartySessionService partySessionService,
+    PartyPlaybackService partyPlaybackService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,
@@ -47,7 +50,7 @@ public sealed class PartyEndpointsController(
     /// </summary>
     [HttpPost]
     [Route("register")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartySessionEndpoint), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(EndpointDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register(
         [FromBody] RegisterEndpointRequest request,
@@ -72,7 +75,7 @@ public sealed class PartyEndpointsController(
             return ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to register endpoint");
         }
 
-        return CreatedAtAction(nameof(Get), new { id = result.Data.ApiKey }, result.Data);
+        return CreatedAtAction(nameof(Get), new { id = result.Data.ApiKey }, result.Data.ToEndpointDto(userId));
     }
 
     /// <summary>
@@ -80,10 +83,16 @@ public sealed class PartyEndpointsController(
     /// </summary>
     [HttpGet]
     [Route("{id:guid}")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartySessionEndpoint), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(EndpointDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken = default)
     {
+        var user = HttpContext.User;
+        var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+        var userId = string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var parsedUserId)
+            ? null
+            : parsedUserId;
+
         var result = await endpointRegistryService.GetAsync(id, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess || result.Data == null)
@@ -91,7 +100,7 @@ public sealed class PartyEndpointsController(
             return ApiNotFound("Endpoint");
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToEndpointDto(userId));
     }
 
     /// <summary>
@@ -99,7 +108,7 @@ public sealed class PartyEndpointsController(
     /// </summary>
     [HttpPut]
     [Route("{id:guid}/capabilities")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartySessionEndpoint), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(EndpointDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateCapabilities(
@@ -120,7 +129,13 @@ public sealed class PartyEndpointsController(
                 : ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to update capabilities");
         }
 
-        return Ok(result.Data);
+        var user = HttpContext.User;
+        var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+        var userId = string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var parsedUserId)
+            ? null
+            : parsedUserId;
+
+        return Ok(result.Data.ToEndpointDto(userId));
     }
 
     /// <summary>
@@ -128,7 +143,7 @@ public sealed class PartyEndpointsController(
     /// </summary>
     [HttpPost]
     [Route("{id:guid}/heartbeat")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartyPlaybackState), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Heartbeat(
@@ -151,59 +166,78 @@ public sealed class PartyEndpointsController(
                 return ApiUnauthorized();
             }
 
-            var playbackResult = await partyPlaybackService.UpdateFromHeartbeatAsync(
-                request.SessionApiKey.Value,
-                request.CurrentQueueItemApiKey,
-                request.PositionSeconds,
-                request.IsPlaying,
-                request.Volume,
-                userId,
-                cancellationToken
-            ).ConfigureAwait(false);
-
-            if (!playbackResult.IsSuccess)
+            var sessionResult = await partySessionService.GetAsync(request.SessionApiKey.Value, cancellationToken).ConfigureAwait(false);
+            if (!sessionResult.IsSuccess || sessionResult.Data == null)
             {
-                return playbackResult.Type == OperationResponseType.NotFound
-                    ? ApiNotFound("Party session")
-                    : ApiBadRequest(playbackResult.Errors?.FirstOrDefault()?.Message ?? "Failed to update playback state");
+                return ApiNotFound("Party session");
             }
 
-            return Ok(playbackResult.Data);
+            var session = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var sessionEntity = await session.PartySessions
+                .FirstOrDefaultAsync(x => x.ApiKey == request.SessionApiKey.Value, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (sessionEntity != null)
+            {
+                var playbackResult = await partyPlaybackService.UpdateLastHeartbeatAsync(
+                    sessionEntity.Id,
+                    id,
+                    cancellationToken
+                ).ConfigureAwait(false);
+
+                if (playbackResult.IsSuccess && playbackResult.Data != null)
+                {
+                    return Ok(playbackResult.Data.ToPartyPlaybackStateDto());
+                }
+            }
         }
 
-        return Ok(new { success = true });
+        var endpointResult = await endpointRegistryService.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        if (endpointResult.IsSuccess && endpointResult.Data != null)
+        {
+            var user = HttpContext.User;
+            var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+            var userId = string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var parsedUserId)
+                ? null
+                : parsedUserId;
+
+            return Ok(endpointResult.Data.ToEndpointDto(userId));
+        }
+
+        return ApiNotFound("Endpoint");
     }
 
     /// <summary>
-    /// Attaches an endpoint to a session.
+    /// Gets current playback state for an endpoint's active session.
     /// </summary>
-    [HttpPost]
-    [Route("{id:guid}/attach")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [HttpGet]
+    [Route("{id:guid}/state")]
+    [ProducesResponseType(typeof(Models.PartyPlaybackState), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AttachToSession(
-        Guid id,
-        [FromBody] AttachToSessionRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetStateAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var result = await endpointRegistryService.AttachToSessionAsync(
-            id,
-            request.SessionApiKey,
-            cancellationToken
-        ).ConfigureAwait(false);
-
-        if (!result.IsSuccess)
+        var endpointResult = await endpointRegistryService.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!endpointResult.IsSuccess || endpointResult.Data == null)
         {
-            return result.Type switch
-            {
-                OperationResponseType.NotFound => ApiNotFound("Endpoint or session"),
-                OperationResponseType.BadRequest => ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to attach endpoint"),
-                _ => ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to attach endpoint")
-            };
+            return ApiNotFound("Endpoint");
         }
 
-        return NoContent();
+        var endpoint = endpointResult.Data;
+        if (endpoint.OwnerUserId.HasValue)
+        {
+            var sessionResult = await partySessionService.GetActiveSessionForEndpointAsync(endpoint.ApiKey, cancellationToken).ConfigureAwait(false);
+            if (sessionResult.IsSuccess && sessionResult.Data != null)
+            {
+                var playbackResult = await partyPlaybackService.GetStateAsync(sessionResult.Data.Id, cancellationToken).ConfigureAwait(false);
+                if (playbackResult.IsSuccess && playbackResult.Data != null)
+                {
+                    return Ok(playbackResult.Data.ToPartyPlaybackStateDto());
+                }
+            }
+        }
+
+        return ApiBadRequest("No active playback state");
     }
 
     /// <summary>
@@ -212,9 +246,28 @@ public sealed class PartyEndpointsController(
     [HttpPost]
     [Route("{id:guid}/detach")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Detach(Guid id, CancellationToken cancellationToken = default)
     {
+        var user = HttpContext.User;
+        var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+        if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
+        {
+            return ApiUnauthorized();
+        }
+
+        var endpointResult = await endpointRegistryService.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!endpointResult.IsSuccess || endpointResult.Data == null)
+        {
+            return ApiNotFound("Endpoint");
+        }
+
+        if (endpointResult.Data.OwnerUserId.HasValue && endpointResult.Data.OwnerUserId != userId)
+        {
+            return ApiForbidden("You can only detach your own endpoints");
+        }
+
         var result = await endpointRegistryService.DetachAsync(id, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
@@ -222,80 +275,12 @@ public sealed class PartyEndpointsController(
             return ApiNotFound("Endpoint");
         }
 
+        Logger.LogInformation("User {UserId} detached endpoint {EndpointId}", userId, id);
+
         return NoContent();
     }
 }
 
-/// <summary>
-/// Request model for registering an endpoint.
-/// </summary>
-public record RegisterEndpointRequest
-{
-    /// <summary>
-    /// Name of the endpoint.
-    /// </summary>
-    public required string Name { get; init; }
-
-    /// <summary>
-    /// Type of the endpoint.
-    /// </summary>
-    public required PartySessionEndpointType Type { get; init; }
-
-    /// <summary>
-    /// JSON-encoded capabilities of the endpoint.
-    /// </summary>
-    public string? CapabilitiesJson { get; init; }
-}
-
-/// <summary>
-/// Request model for updating endpoint capabilities.
-/// </summary>
-public record UpdateCapabilitiesRequest
-{
-    /// <summary>
-    /// JSON-encoded capabilities.
-    /// </summary>
-    public required string CapabilitiesJson { get; init; }
-}
-
-/// <summary>
-/// Request model for sending a heartbeat.
-/// </summary>
-public record HeartbeatRequest
-{
-    /// <summary>
-    /// Optional session API key to update playback state for.
-    /// </summary>
-    public Guid? SessionApiKey { get; init; }
-
-    /// <summary>
-    /// Current queue item API key.
-    /// </summary>
-    public Guid? CurrentQueueItemApiKey { get; init; }
-
-    /// <summary>
-    /// Current playback position in seconds.
-    /// </summary>
-    public required double PositionSeconds { get; init; }
-
-    /// <summary>
-    /// Whether playback is currently active.
-    /// </summary>
-    public required bool IsPlaying { get; init; }
-
-    /// <summary>
-    /// Volume level between 0.0 and 1.0.
-    /// </summary>
-    public double? Volume { get; init; }
-}
-
-/// <summary>
-/// Request model for attaching an endpoint to a session.
-/// </summary>
-public record AttachToSessionRequest
-{
-    /// <summary>
-    /// Session API key to attach to.
-    /// </summary>
-    public required Guid SessionApiKey { get; init; }
-}
+public record RegisterEndpointRequest(string Name, PartySessionEndpointType Type, string? CapabilitiesJson = null);
+public record UpdateCapabilitiesRequest(string CapabilitiesJson);
+public record HeartbeatRequest(Guid? SessionApiKey);

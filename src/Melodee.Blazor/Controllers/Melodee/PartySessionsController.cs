@@ -26,9 +26,9 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PartySessionsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    IPartySessionService partySessionService,
-    IPartyQueueService partyQueueService,
-    IPartyPlaybackService partyPlaybackService,
+    PartySessionService partySessionService,
+    PartyQueueService partyQueueService,
+    PartyPlaybackService partyPlaybackService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,

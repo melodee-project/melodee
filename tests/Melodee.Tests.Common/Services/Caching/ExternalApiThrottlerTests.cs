@@ -93,7 +93,7 @@ public sealed class ExternalApiThrottlerTests
         for (var i = 1; i < timestamps.Count; i++)
         {
             var gap = (timestamps[i] - timestamps[i - 1]).TotalMilliseconds;
-            Assert.True(gap >= 100, $"Gap between requests was {gap}ms, expected >= 100ms");
+            Assert.True(gap >= 190, $"Gap between requests was {gap}ms, expected >= 190ms (with 200ms minInterval - 10ms tolerance)");
         }
     }
 

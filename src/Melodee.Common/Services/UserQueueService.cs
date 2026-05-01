@@ -20,7 +20,7 @@ public class UserQueueService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    UserService userService)
+    UserProfileService userProfileService)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     public async Task<PlayQueue?> GetPlayQueueForUserAsync(string username,
@@ -28,7 +28,7 @@ public class UserQueueService(
     {
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-        var user = await userService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
+        var user = await userProfileService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
         if (!user.IsSuccess || user.Data == null)
         {
             return null;
@@ -46,12 +46,18 @@ public class UserQueueService(
         }
 
         var current = usersPlayQues.FirstOrDefault(x => x.IsCurrentSong);
+        // Get the most recent LastUpdatedAt from any queue item, or use CreatedAt as fallback
+        var lastUpdated = usersPlayQues
+            .Select(x => x.LastUpdatedAt ?? x.CreatedAt)
+            .Max();
+        var changedDateTime = lastUpdated.ToString("yyyy-MM-ddTHH:mm:ss", null);
+
         return new PlayQueue
         {
             Current = current?.PlayQueId ?? 0,
             Position = current?.Position ?? 0,
             ChangedBy = current?.ChangedBy ?? user.Data.UserName,
-            Changed = current?.LastUpdatedAt.ToString() ?? string.Empty,
+            Changed = changedDateTime,
             Username = user.Data.UserName,
             Entry = usersPlayQues.Select(x => x.Song.ToApiChild(x.Song.Album, null)).ToArray()
         };
@@ -259,7 +265,7 @@ public class UserQueueService(
         // If the apikey is blank then remove any current saved que
         if (apiKeys == null)
         {
-            var user = await userService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
+            var user = await userProfileService.GetByUsernameAsync(username, cancellationToken).ConfigureAwait(false);
             if (user.IsSuccess && user.Data != null)
             {
                 var playQuesToDelete = await scopedContext.PlayQues
@@ -275,7 +281,7 @@ public class UserQueueService(
         else
         {
             var foundQuesSongApiKeys = new List<Guid>();
-            var user = await userService.GetByUsernameAsync(username, cancellationToken)
+            var user = await userProfileService.GetByUsernameAsync(username, cancellationToken)
                 .ConfigureAwait(false);
 
             if (!user.IsSuccess || user.Data == null)

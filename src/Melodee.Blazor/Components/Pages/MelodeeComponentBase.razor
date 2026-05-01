@@ -144,7 +144,7 @@
 
     protected async Task PlayAction(string dialogTitle, List<SongDataInfo> songs)
     {
-        await DialogService.OpenAsync<MusicPlayer>(dialogTitle, new Dictionary<string, object> { { "Songs", songs } },
+        await DialogService.OpenAsync<MusicPlayer>(dialogTitle, new Dictionary<string, object?> { { "Songs", songs } },
             new DialogOptions
             {
                 Resizable = false,

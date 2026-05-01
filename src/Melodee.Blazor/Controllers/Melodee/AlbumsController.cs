@@ -32,12 +32,15 @@ public sealed class AlbumsController(
     ISerializer serializer,
     EtagRepository etagRepository,
     UserService userService,
+    UserProfileService userProfileService,
     AlbumService albumService,
     IBlacklistService blacklistService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    ILogger<AlbumsController> logger) : ControllerBase(
+    ILogger<AlbumsController> logger,
+    UserRatingService userRatingService,
+    UserStarService userStarService) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -66,7 +69,7 @@ public sealed class AlbumsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AlbumById(Guid id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -100,7 +103,7 @@ public sealed class AlbumsController(
         string? q,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -313,7 +316,7 @@ public sealed class AlbumsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RecentlyAddedAsync(short limit, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -355,7 +358,7 @@ public sealed class AlbumsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AlbumSongsAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -410,7 +413,7 @@ public sealed class AlbumsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -427,7 +430,7 @@ public sealed class AlbumsController(
             return ApiBlacklisted();
         }
 
-        var toggleStarredResult = await userService.ToggleAlbumStarAsync(user.Id, apiKey, isStarred, cancellationToken).ConfigureAwait(false);
+        var toggleStarredResult = await userStarService.ToggleAlbumStarAsync(user.Id, apiKey, isStarred, cancellationToken).ConfigureAwait(false);
         if (toggleStarredResult.IsSuccess)
         {
             return Ok();
@@ -451,7 +454,7 @@ public sealed class AlbumsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -468,7 +471,7 @@ public sealed class AlbumsController(
             return ApiBlacklisted();
         }
 
-        var setRatingResult = await userService.SetAlbumRatingAsync(user.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
+        var setRatingResult = await userRatingService.SetAlbumRatingAsync(user.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
         if (setRatingResult.IsSuccess)
         {
             return Ok();
@@ -492,7 +495,7 @@ public sealed class AlbumsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -509,7 +512,7 @@ public sealed class AlbumsController(
             return ApiBlacklisted();
         }
 
-        var toggleHatedResult = await userService.ToggleAlbumHatedAsync(user.Id, apiKey, isHated, cancellationToken).ConfigureAwait(false);
+        var toggleHatedResult = await userStarService.ToggleAlbumHatedAsync(user.Id, apiKey, isHated, cancellationToken).ConfigureAwait(false);
         if (toggleHatedResult.IsSuccess)
         {
             return Ok();

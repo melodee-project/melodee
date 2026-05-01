@@ -1061,8 +1061,10 @@ public class AlbumService(
         try
         {
             var imageBytes = await httpClientFactory.BytesForImageUrlAsync(
+                null, // ssrfValidator - will be null in test scenarios
                 configuration.GetValue<string?>(SettingRegistry.SearchEngineUserAgent) ?? string.Empty,
                 imageUrl,
+                Logger,
                 cancellationToken);
             if (imageBytes != null)
             {

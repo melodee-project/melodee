@@ -13,7 +13,7 @@ namespace Melodee.Cli.Command;
 
 public class JobRunArtistSearchEngineDatabaseHousekeepingJobCommand : CommandBase<JobSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, JobSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, JobSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

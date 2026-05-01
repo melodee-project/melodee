@@ -18,7 +18,7 @@ namespace Melodee.Common.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.1")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -908,7 +908,7 @@ namespace Melodee.Common.Migrations
                             Description = "Files in this directory are scanned and Album information is gathered via processing.",
                             IsLocked = false,
                             Name = "Inbound",
-                            Path = "/storage/inbound/",
+                            Path = "/app/inbound/",
                             SortOrder = 0,
                             Type = 1
                         },
@@ -920,7 +920,7 @@ namespace Melodee.Common.Migrations
                             Description = "The staging directory to place processed files into (Inbound -> Staging -> Library).",
                             IsLocked = false,
                             Name = "Staging",
-                            Path = "/storage/staging/",
+                            Path = "/app/staging/",
                             SortOrder = 0,
                             Type = 2
                         },
@@ -932,7 +932,7 @@ namespace Melodee.Common.Migrations
                             Description = "The library directory to place processed, reviewed and ready to use music files into.",
                             IsLocked = false,
                             Name = "Storage",
-                            Path = "/storage/library/",
+                            Path = "/app/storage/",
                             SortOrder = 0,
                             Type = 3
                         },
@@ -944,7 +944,7 @@ namespace Melodee.Common.Migrations
                             Description = "Library where user images are stored.",
                             IsLocked = false,
                             Name = "User Images",
-                            Path = "/storage/images/users/",
+                            Path = "/app/user-images/",
                             SortOrder = 0,
                             Type = 4
                         },
@@ -956,7 +956,7 @@ namespace Melodee.Common.Migrations
                             Description = "Library where playlist data is stored.",
                             IsLocked = false,
                             Name = "Playlist Data",
-                            Path = "/storage/playlists/",
+                            Path = "/app/playlists/",
                             SortOrder = 0,
                             Type = 5
                         },
@@ -968,7 +968,7 @@ namespace Melodee.Common.Migrations
                             Description = "Library where templates are stored, organized by language code.",
                             IsLocked = false,
                             Name = "Templates",
-                            Path = "/storage/templates/",
+                            Path = "/app/templates/",
                             SortOrder = 0,
                             Type = 7
                         },
@@ -980,7 +980,7 @@ namespace Melodee.Common.Migrations
                             Description = "Library where podcast media files are stored.",
                             IsLocked = false,
                             Name = "Podcasts",
-                            Path = "/storage/podcasts/",
+                            Path = "/app/podcasts/",
                             SortOrder = 0,
                             Type = 8
                         },
@@ -992,10 +992,66 @@ namespace Melodee.Common.Migrations
                             Description = "Library where custom theme packs are stored.",
                             IsLocked = false,
                             Name = "Themes",
-                            Path = "/storage/themes/",
+                            Path = "/app/themes/",
                             SortOrder = 0,
                             Type = 9
                         });
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.LibraryAccessControl", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LibraryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("UserGroupId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("LibraryId");
+
+                    b.HasIndex("UserGroupId");
+
+                    b.HasIndex("LibraryId", "UserGroupId")
+                        .IsUnique();
+
+                    b.ToTable("LibraryAccessControls");
                 });
 
             modelBuilder.Entity("Melodee.Common.Data.Models.LibraryScanHistory", b =>
@@ -1032,7 +1088,15 @@ namespace Melodee.Common.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ForAlbumId");
+
+                    b.HasIndex("ForArtistId");
+
                     b.HasIndex("LibraryId");
+
+                    b.HasIndex("LibraryId", "CreatedAt");
 
                     b.ToTable("LibraryScanHistories");
                 });
@@ -1236,7 +1300,11 @@ namespace Melodee.Common.Migrations
 
                     b.HasIndex("EnqueuedByUserId");
 
+                    b.HasIndex("PartySessionId");
+
                     b.HasIndex("SongApiKey");
+
+                    b.HasIndex("SortOrder");
 
                     b.HasIndex("PartySessionId", "SortOrder");
 
@@ -1253,9 +1321,6 @@ namespace Melodee.Common.Migrations
 
                     b.Property<Guid?>("ActiveEndpointId")
                         .HasColumnType("uuid");
-
-                    b.Property<int?>("ActiveEndpointId1")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("ApiKey")
                         .HasColumnType("uuid");
@@ -1314,8 +1379,6 @@ namespace Melodee.Common.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ActiveEndpointId");
-
-                    b.HasIndex("ActiveEndpointId1");
 
                     b.HasIndex("ApiKey")
                         .IsUnique();
@@ -1690,6 +1753,150 @@ namespace Melodee.Common.Migrations
                         .IsUnique();
 
                     b.ToTable("PlaylistSong");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.PlaylistUploadedFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int?>("PlaylistId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("PlaylistId");
+
+                    b.HasIndex("UserId", "OriginalFileName");
+
+                    b.ToTable("PlaylistUploadedFiles");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.PlaylistUploadedFileItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<string>("HintsJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NormalizedReference")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("PlaylistUploadedFileId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RawReference")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int?>("SongId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("SongId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("PlaylistUploadedFileId", "SortOrder");
+
+                    b.ToTable("PlaylistUploadedFileItems");
                 });
 
             modelBuilder.Entity("Melodee.Common.Data.Models.PodcastChannel", b =>
@@ -4264,6 +4471,18 @@ namespace Melodee.Common.Migrations
                             Key = "mpd.enableDebugOutput",
                             SortOrder = 0,
                             Value = "false"
+                        },
+                        new
+                        {
+                            Id = 1927,
+                            ApiKey = new Guid("df8f5291-a7c1-797c-1dea-5d302116b2c9"),
+                            Category = 11,
+                            Comment = "Enable per-user and per-device transcoding profiles.",
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(0L),
+                            IsLocked = false,
+                            Key = "userDeviceProfile.enabled",
+                            SortOrder = 0,
+                            Value = "true"
                         });
                 });
 
@@ -4730,10 +4949,22 @@ namespace Melodee.Common.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<string>("OpenSubsonicSecretProtected")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<string>("PasswordEncrypted")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("PasswordHashAlgorithm")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("PasswordResetToken")
                         .HasMaxLength(64)
@@ -4933,6 +5164,86 @@ namespace Melodee.Common.Migrations
                     b.ToTable("UserArtists");
                 });
 
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserDeviceProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<bool>("DirectPlay")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefaultProfile")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("MaxBitrate")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int?>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ResampleRate")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("TargetCodec")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("UserId", "IsDefaultProfile");
+
+                    b.HasIndex("UserId", "PlayerId")
+                        .IsUnique();
+
+                    b.ToTable("UserDeviceProfiles");
+                });
+
             modelBuilder.Entity("Melodee.Common.Data.Models.UserEqualizerPreset", b =>
                 {
                     b.Property<int>("Id")
@@ -4998,6 +5309,125 @@ namespace Melodee.Common.Migrations
                         .IsUnique();
 
                     b.ToTable("UserEqualizerPresets");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("UserGroups");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ApiKey = new Guid("5dd33e32-e1b8-a880-64a9-fdf28e2da613"),
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(0L),
+                            Description = "Default group for all users",
+                            IsLocked = false,
+                            Name = "All Users",
+                            SortOrder = 0
+                        });
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserGroupMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ApiKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(62000)
+                        .HasColumnType("character varying(62000)");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("UserGroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKey")
+                        .IsUnique();
+
+                    b.HasIndex("UserGroupId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "UserGroupId")
+                        .IsUnique();
+
+                    b.ToTable("UserGroupMembers");
                 });
 
             modelBuilder.Entity("Melodee.Common.Data.Models.UserPin", b =>
@@ -5374,7 +5804,13 @@ namespace Melodee.Common.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IsNowPlaying");
+
                     b.HasIndex("PlayedAt");
+
+                    b.HasIndex("SongId");
+
+                    b.HasIndex("UserId");
 
                     b.HasIndex("SongId", "PlayedAt");
 
@@ -5502,6 +5938,25 @@ namespace Melodee.Common.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Melodee.Common.Data.Models.LibraryAccessControl", b =>
+                {
+                    b.HasOne("Melodee.Common.Data.Models.Library", "Library")
+                        .WithMany("AccessControls")
+                        .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Melodee.Common.Data.Models.UserGroup", "UserGroup")
+                        .WithMany("LibraryAccessControls")
+                        .HasForeignKey("UserGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Library");
+
+                    b.Navigation("UserGroup");
+                });
+
             modelBuilder.Entity("Melodee.Common.Data.Models.LibraryScanHistory", b =>
                 {
                     b.HasOne("Melodee.Common.Data.Models.Library", "Library")
@@ -5581,7 +6036,9 @@ namespace Melodee.Common.Migrations
                 {
                     b.HasOne("Melodee.Common.Data.Models.PartySessionEndpoint", "ActiveEndpoint")
                         .WithMany()
-                        .HasForeignKey("ActiveEndpointId1");
+                        .HasForeignKey("ActiveEndpointId")
+                        .HasPrincipalKey("ApiKey")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Melodee.Common.Data.Models.User", "OwnerUser")
                         .WithMany()
@@ -5683,6 +6140,40 @@ namespace Melodee.Common.Migrations
                         .IsRequired();
 
                     b.Navigation("Playlist");
+
+                    b.Navigation("Song");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.PlaylistUploadedFile", b =>
+                {
+                    b.HasOne("Melodee.Common.Data.Models.Playlist", "Playlist")
+                        .WithMany()
+                        .HasForeignKey("PlaylistId");
+
+                    b.HasOne("Melodee.Common.Data.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Playlist");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.PlaylistUploadedFileItem", b =>
+                {
+                    b.HasOne("Melodee.Common.Data.Models.PlaylistUploadedFile", "PlaylistUploadedFile")
+                        .WithMany("Items")
+                        .HasForeignKey("PlaylistUploadedFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Melodee.Common.Data.Models.Song", "Song")
+                        .WithMany()
+                        .HasForeignKey("SongId");
+
+                    b.Navigation("PlaylistUploadedFile");
 
                     b.Navigation("Song");
                 });
@@ -5888,6 +6379,23 @@ namespace Melodee.Common.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserDeviceProfile", b =>
+                {
+                    b.HasOne("Melodee.Common.Data.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId");
+
+                    b.HasOne("Melodee.Common.Data.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Melodee.Common.Data.Models.UserEqualizerPreset", b =>
                 {
                     b.HasOne("Melodee.Common.Data.Models.User", "User")
@@ -5897,6 +6405,25 @@ namespace Melodee.Common.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserGroupMember", b =>
+                {
+                    b.HasOne("Melodee.Common.Data.Models.UserGroup", "UserGroup")
+                        .WithMany("Members")
+                        .HasForeignKey("UserGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Melodee.Common.Data.Models.User", "User")
+                        .WithMany("GroupMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("UserGroup");
                 });
 
             modelBuilder.Entity("Melodee.Common.Data.Models.UserPin", b =>
@@ -6016,6 +6543,8 @@ namespace Melodee.Common.Migrations
 
             modelBuilder.Entity("Melodee.Common.Data.Models.Library", b =>
                 {
+                    b.Navigation("AccessControls");
+
                     b.Navigation("ScanHistories");
                 });
 
@@ -6031,6 +6560,11 @@ namespace Melodee.Common.Migrations
             modelBuilder.Entity("Melodee.Common.Data.Models.Playlist", b =>
                 {
                     b.Navigation("Songs");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.PlaylistUploadedFile", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Melodee.Common.Data.Models.PodcastChannel", b =>
@@ -6069,6 +6603,8 @@ namespace Melodee.Common.Migrations
                 {
                     b.Navigation("Bookmarks");
 
+                    b.Navigation("GroupMemberships");
+
                     b.Navigation("Pins");
 
                     b.Navigation("PlayQues");
@@ -6088,6 +6624,13 @@ namespace Melodee.Common.Migrations
                     b.Navigation("UserArtists");
 
                     b.Navigation("UserSongs");
+                });
+
+            modelBuilder.Entity("Melodee.Common.Data.Models.UserGroup", b =>
+                {
+                    b.Navigation("LibraryAccessControls");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,7 +1,7 @@
 @page "/account/logout"
 
 @inject NavigationManager NavigationManager
-@inject IAuthService AuthService
+@inject IJSRuntime JsRuntime
 
 @attribute [AllowAnonymous]
 
@@ -9,9 +9,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await AuthService.LogoutAsync();
-        StateHasChanged();
-        NavigationManager.NavigateTo("/account/login");
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync("melodeeAuth.signOut");
+        NavigationManager.NavigateTo("/login", forceLoad: true);
     }
 
 }

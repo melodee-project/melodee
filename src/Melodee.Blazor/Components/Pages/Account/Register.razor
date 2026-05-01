@@ -1,13 +1,17 @@
 @page "/account/register"
 @using Melodee.Blazor.Components
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
 
 @attribute [AllowAnonymous]
 
 @inject NavigationManager NavigationManager
-@inject UserService UserService
+@inject UserProfileService UserProfileService
 @inject NotificationService NotificationService
 @inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject ILocalizationService LocalizationService
+@inject IBlazorEventScriptService BlazorEventScriptService
+@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>@L("Auth.Register")</PageTitle>
 
@@ -158,7 +162,7 @@
                 <div class="registration-disabled">
                     <div class="registration-disabled-icon">🔒</div>
                     <RadzenText TextStyle="TextStyle.H5">@L("Auth.RegistrationClosed")</RadzenText>
-                    <p class="registration-disabled-text">@L("Auth.RegistrationClosedMessage")</p>
+                    <p class="registration-disabled-text">@(_registrationDisabledMessage ?? L("Auth.RegistrationClosedMessage"))</p>
                 </div>
             </div>
         }
@@ -238,6 +242,7 @@
 @code {
     bool _isLoading;
     bool _isRegistrationDisabled;
+    string? _registrationDisabledMessage;
     readonly ViewModels.Register _model = new();
     string? _registerPrivateCode;
     int _registerPrivateCodeLength;
@@ -251,6 +256,43 @@
         var config = await ConfigurationFactory.GetConfigurationAsync();
         _registerPrivateCodeLength = config.GetValue<string>(SettingRegistry.RegisterPrivateCode)?.Length ?? 0;
         _isRegistrationDisabled = config.GetValue<bool>(SettingRegistry.RegisterDisabled);
+        
+        // Evaluate UserRegistrationStart script if not already disabled
+        if (!_isRegistrationDisabled)
+        {
+            await EvaluateRegistrationScriptAsync();
+        }
+    }
+
+    private async Task EvaluateRegistrationScriptAsync()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+            var clientIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = httpContext?.Request.Headers.UserAgent.ToString() ?? "unknown";
+            
+            var context = new UserRegistrationContext
+            {
+                UserNameLength = 0,
+                EmailDomain = string.Empty,
+                ClientIp = clientIp,
+                UserAgent = userAgent,
+                Now = DateTime.UtcNow.ToString("O")
+            };
+            
+            var result = await BlazorEventScriptService.EvaluateUserRegistrationAsync(context);
+            
+            if (!result.Result && !result.IsDefault)
+            {
+                _isRegistrationDisabled = true;
+                _registrationDisabledMessage = result.Message;
+            }
+        }
+        catch
+        {
+            // Script errors default to allowing the action
+        }
     }
 
     void ShowErrorMessage(string? message)
@@ -275,7 +317,7 @@
         _isLoading = true;
         try
         {
-            var result = await UserService.RegisterAsync(
+            var result = await UserProfileService.RegisterAsync(
                 model.Username ?? string.Empty,
                 model.EmailAddress ?? string.Empty,
                 model.Password ?? string.Empty,

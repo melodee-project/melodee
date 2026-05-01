@@ -16,15 +16,15 @@ public class JukeboxEndpointTests : OpenSubsonicTestBase
         var response = await GetAsync("jukeboxControl?action=get");
         // The jukebox might be disabled by default, so we accept both OK and Gone
         response.StatusCode.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.Gone);
-        
+
         if (response.StatusCode == System.Net.HttpStatusCode.OK)
         {
             var content = await response.Content.ReadAsStringAsync();
             var json = JsonDocument.Parse(content);
             var root = json.RootElement.GetProperty("subsonic-response");
-            
+
             root.GetProperty("status").GetString().Should().Be("ok");
-            
+
             // Check if jukeboxPlaylist element exists when jukebox is enabled
             if (root.TryGetProperty("jukeboxPlaylist", out var playlistElement))
             {
@@ -39,15 +39,15 @@ public class JukeboxEndpointTests : OpenSubsonicTestBase
         var response = await GetAsync("jukeboxControl?action=status");
         // The jukebox might be disabled by default, so we accept both OK and Gone
         response.StatusCode.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.Gone);
-        
+
         if (response.StatusCode == System.Net.HttpStatusCode.OK)
         {
             var content = await response.Content.ReadAsStringAsync();
             var json = JsonDocument.Parse(content);
             var root = json.RootElement.GetProperty("subsonic-response");
-            
+
             root.GetProperty("status").GetString().Should().Be("ok");
-            
+
             // Check if jukeboxStatus element exists when jukebox is enabled
             if (root.TryGetProperty("jukeboxStatus", out var statusElement))
             {
@@ -93,7 +93,7 @@ public class JukeboxEndpointTests : OpenSubsonicTestBase
     [Fact]
     public async Task JukeboxControl_AddAction_AddsSongs()
     {
-        var response = await GetAsync("jukeboxControl?action=add&id=song:1");
+        var response = await GetAsync($"jukeboxControl?action=add&id=song_{TestSongApiKey}");
         // The jukebox might be disabled by default, so we accept both OK and Gone
         response.StatusCode.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.Gone);
     }

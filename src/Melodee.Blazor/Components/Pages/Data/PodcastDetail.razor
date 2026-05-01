@@ -576,7 +576,7 @@
         
         var result = await DialogService.OpenAsync<PodcastChannelSettingsDialog>(
             L("Podcast.ChannelSettings"),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { "ChannelId", _channelId },
                 { "UserId", CurrentUsersId },

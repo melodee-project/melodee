@@ -1,0 +1,201 @@
+@inherits MelodeeComponentBase
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Models.Collection
+
+@inject UserGroupService UserGroupService
+@inject UserProfileService UserService
+@inject LibraryService LibraryService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <RadzenTemplateForm TItem="UserGroup" Data="@_group" Submit="@OnSubmit">
+        <RadzenFieldset Text="@(_isNew ? L("UserGroups.NewGroup") : L("UserGroups.EditGroupTitle", _group.Name))">
+            <RadzenStack Gap="1rem">
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenFormField Text="@L("Label.Name")" Variant="Variant.Outlined" Style="width:100%">
+                            <RadzenTextBox @bind-Value="_group.Name" Placeholder="@L("UserGroups.GroupNamePlaceholder")" Style="width:100%" aria-label="@L("Label.Name")"/>
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenFormField Text="@L("Label.Description")" Variant="Variant.Outlined" Style="width:100%">
+                            <RadzenTextArea @bind-Value="_group.Description" Rows="3" Placeholder="@L("UserGroups.GroupDescriptionPlaceholder")" Style="width:100%" aria-label="@L("Label.Description")"/>
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                @if (!_isNew)
+                {
+                    <RadzenRow>
+                        <RadzenColumn Size="12">
+                            <RadzenFormField Text="@L("UserGroups.Members")" Variant="Variant.Outlined" Style="width:100%">
+                                <RadzenDropDown @bind-Value="_selectedUserIds" 
+                                               Data="@_availableUsers" 
+                                               TextProperty="@nameof(UserDataInfo.UserName)" 
+                                               ValueProperty="@nameof(UserDataInfo.Id)"
+                                               Multiple="true"
+                                               AllowClear="true"
+                                               Placeholder="@L("UserGroups.SelectUsersPlaceholder")"
+                                               Chips="true"
+                                               Style="width:100%"
+                                               aria-label="@L("UserGroups.Members")"/>
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    </RadzenRow>
+
+                    <RadzenRow>
+                        <RadzenColumn Size="12">
+                            <RadzenFormField Text="@L("UserGroups.LibraryAccess")" Variant="Variant.Outlined" Style="width:100%">
+                                <ChildContent>
+                                    <RadzenListBox @bind-Value="_librariesWithAccess"
+                                                  Data="@_availableLibraries"
+                                                  TextProperty="@nameof(Library.Name)"
+                                                  ValueProperty="@nameof(Library.Id)"
+                                                  Multiple="false"
+                                                  Style="width:100%; height: 150px"
+                                                  aria-label="@L("UserGroups.LibraryAccess")"/>
+                                </ChildContent>
+                                <Helper>
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-2">
+                                        @L("UserGroups.LibrariesUsingThisGroup")
+                                    </RadzenText>
+                                </Helper>
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+
+                <RadzenRow>
+                    <RadzenColumn Size="12">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                            <RadzenButton Text="@L("Actions.Cancel")" ButtonStyle="ButtonStyle.Secondary" Click="@(() => DialogService.Close(false))"/>
+                            <RadzenButton Icon="save" Text="@L("Actions.Save")" ButtonType="ButtonType.Submit"/>
+                        </RadzenStack>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenFieldset>
+    </RadzenTemplateForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public int? UserGroupId { get; set; }
+
+    bool _isNew => UserGroupId == null || UserGroupId == 0;
+    UserGroup _group = new() { Name = string.Empty, CreatedAt = default };
+    IEnumerable<UserDataInfo> _availableUsers = [];
+    IEnumerable<Library> _availableLibraries = [];
+    IEnumerable<int> _selectedUserIds = [];
+    IEnumerable<int> _librariesWithAccess = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        
+        // Load available users
+        var usersResult = await UserService.ListAsync(new Melodee.Common.Models.PagedRequest 
+        { 
+            Page = 1, 
+            PageSize = 1000 
+        });
+        if (usersResult.IsSuccess && usersResult.Data != null)
+        {
+            _availableUsers = usersResult.Data;
+        }
+
+        // Load available libraries
+        var librariesResult = await LibraryService.ListAsync(new Melodee.Common.Models.PagedRequest 
+        { 
+            Page = 1, 
+            PageSize = 1000 
+        });
+        if (librariesResult.IsSuccess && librariesResult.Data != null)
+        {
+            _availableLibraries = librariesResult.Data;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_isNew && UserGroupId.HasValue)
+        {
+            var result = await UserGroupService.GetByIdAsync(UserGroupId.Value);
+            if (result.IsSuccess && result.Data != null)
+            {
+                _group = result.Data;
+                _selectedUserIds = _group.Members?.Select(m => m.UserId).ToList() ?? [];
+                
+                // Find libraries that have this group in their access controls
+                var allLibrariesResult = await LibraryService.ListAsync(new Melodee.Common.Models.PagedRequest { Page = 1, PageSize = 1000 });
+                if (allLibrariesResult.IsSuccess && allLibrariesResult.Data != null)
+                {
+                    var librariesWithGroup = new List<int>();
+                    foreach (var lib in allLibrariesResult.Data)
+                    {
+                        var accessControlsResult = await LibraryService.GetLibraryAccessControlGroupIdsAsync(lib.Id);
+                        if (accessControlsResult.IsSuccess && (accessControlsResult.Data?.Contains(UserGroupId.Value) ?? false))
+                        {
+                            librariesWithGroup.Add(lib.Id);
+                        }
+                    }
+                    _librariesWithAccess = librariesWithGroup;
+                }
+            }
+        }
+    }
+
+    private async Task OnSubmit(UserGroup _)
+    {
+        if (_isNew)
+        {
+            var result = await UserGroupService.CreateAsync(_group);
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = result.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error,
+                Summary = result.IsSuccess ? L("Status.Created") : L("Status.Error"),
+                Detail = result.IsSuccess ? L("UserGroups.GroupCreated") : string.Join(";", result.Messages ?? [])
+            });
+            if (result.IsSuccess)
+            {
+                DialogService.Close(true);
+            }
+        }
+        else
+        {
+            var result = await UserGroupService.UpdateAsync(_group);
+            if (result.IsSuccess)
+            {
+                // Update group membership
+                var currentMemberIds = _group.Members?.Select(m => m.UserId).ToHashSet() ?? [];
+                var selectedIds = _selectedUserIds.ToHashSet();
+
+                // Add new members
+                foreach (var userId in selectedIds.Except(currentMemberIds))
+                {
+                    await UserGroupService.AddUserToGroupAsync(_group.Id, userId);
+                }
+
+                // Remove old members
+                foreach (var userId in currentMemberIds.Except(selectedIds))
+                {
+                    await UserGroupService.RemoveUserFromGroupAsync(_group.Id, userId);
+                }
+            }
+
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = result.IsSuccess ? NotificationSeverity.Success : NotificationSeverity.Error,
+                Summary = result.IsSuccess ? L("Status.Saved") : L("Status.Error"),
+                Detail = result.IsSuccess ? L("UserGroups.GroupSaved") : string.Join(";", result.Messages ?? [])
+            });
+            if (result.IsSuccess)
+            {
+                DialogService.Close(true);
+            }
+        }
+    }
+}

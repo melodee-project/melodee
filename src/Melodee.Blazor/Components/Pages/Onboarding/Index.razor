@@ -1,0 +1,119 @@
+@page "/onboarding"
+@using Melodee.Common.Services.Setup
+@using Melodee.Blazor.Services
+@using Melodee.Blazor.Components.Onboarding
+@using Melodee.Blazor.Components
+@using Serilog
+@inherits MelodeeComponentBase
+@inject ILogger Logger
+
+<PageTitle>@L("Onboarding.WizardTitle")</PageTitle>
+
+<RadzenStack Gap="1rem" Style="padding: 1rem;">
+    <RadzenProgressBar Value="@_progressPercent" ShowValue="true" Style="width: 100%;"/>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenHeading Level="2" Size="H2" Text="@L("Onboarding.WizardTitle")"/>
+
+        <RadzenText Text="@($"Step {_currentStep + 1} of {_steps.Length}")" TextStyle="TextStyle.Body1"/>
+    </RadzenStack>
+
+    <RadzenCard>
+        <RadzenStack>
+            @switch (_currentStep)
+            {
+                case 0:
+                    <OnboardingWelcome OnNext="NextStep"/>
+                    break;
+                case 1:
+                    <OnboardingBranding OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 2:
+                    <OnboardingSettings OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 3:
+                    <OnboardingSecurity OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 4:
+                    <OnboardingPaths OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 5:
+                    <OnboardingAdmin OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 6:
+                    <OnboardingExplain OnBack="PreviousStep" OnNext="NextStep"/>
+                    break;
+                case 7:
+                    <OnboardingVerify OnBack="PreviousStep" OnComplete="CompleteOnboarding"/>
+                    break;
+            }
+        </RadzenStack>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private int _currentStep;
+    private int _progressPercent;
+    private readonly string[] _steps = { "Welcome", "Branding", "Settings", "Security", "Paths", "Admin", "Explain", "Verify" };
+
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateProgressAsync();
+
+        var status = await OnboardingStateService.GetSetupStatusAsync();
+        var blockingItems = status.BlockingItems.ToList();
+
+        for (int i = 0; i < _steps.Length; i++)
+        {
+            var stepHasBlocking = blockingItems.Any(item => item.FixRoute?.Contains($"/onboarding/{_steps[i].ToLower()}", StringComparison.OrdinalIgnoreCase) ?? false);
+            if (stepHasBlocking && i > _currentStep)
+            {
+                _currentStep = i;
+                break;
+            }
+        }
+    }
+
+    private void NextStep()
+    {
+        if (_currentStep < _steps.Length - 1)
+        {
+            _currentStep++;
+            _ = UpdateProgressAsync();
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (_currentStep > 0)
+        {
+            _currentStep--;
+            _ = UpdateProgressAsync();
+        }
+    }
+
+    private async Task UpdateProgressAsync()
+    {
+        _progressPercent = (int)((double)(_currentStep + 1) / _steps.Length * 100);
+        await OnboardingStateService.RefreshSetupStatusAsync();
+    }
+
+    private async Task CompleteOnboarding()
+    {
+        Logger.Debug("[Onboarding Index] CompleteOnboarding called");
+        try
+        {
+            await OnboardingStateService.MarkOnboardingCompletedAsync();
+            Logger.Debug("[Onboarding Index] MarkOnboardingCompletedAsync completed, navigating to /");
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "[Onboarding Index] Error completing onboarding");
+            throw;
+        }
+    }
+}

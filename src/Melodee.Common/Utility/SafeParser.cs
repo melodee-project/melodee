@@ -235,7 +235,7 @@ public static class SafeParser
         }
 
         var i = input.ToString();
-        if (!string.IsNullOrEmpty(i) && i.Length > 0 && i[1] == ':')
+        if (!string.IsNullOrEmpty(i) && i.Length > 1 && i[1] == ':')
         {
             i = i.Substring(2, i.Length - 2);
         }

@@ -15,6 +15,7 @@ namespace Melodee.Mql.Api;
 /// </summary>
 [ApiController]
 [Route("api/v1/query")]
+[ApiExplorerSettings(IgnoreApi = true)]
 public class MqlController : ControllerBase
 {
     private readonly IMqlTokenizer _tokenizer;

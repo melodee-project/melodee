@@ -1,13 +1,14 @@
+using System.Data.Common;
 using System.Diagnostics;
 using System.Text.Json;
 using Melodee.Cli.CommandSettings;
-using Melodee.Common.Constants;
+using Melodee.Common.Configuration;
 using Melodee.Common.Data;
-using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
-using Microsoft.Data.Sqlite;
+using Melodee.Common.Services.Caching;
+using Melodee.Common.Services.Doctor;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,334 +19,74 @@ namespace Melodee.Cli.Command;
 
 public sealed class DoctorCommand : CommandBase<DoctorSettings>
 {
-    private sealed record CheckResult(string Name, bool Success, string Details, TimeSpan Duration);
-
-    private sealed record ConfigurableServiceResult(
-        string Category,
-        string Name,
-        string SettingKey,
-        bool Enabled);
-
-    private sealed record LibraryPathResult(
-        string Name,
-        string Type,
-        string Path,
-        bool Exists,
-        bool Writable,
-        string Details);
-
-    public override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings, CancellationToken cancellationToken)
     {
         var startedAt = Stopwatch.StartNew();
 
-        var checks = new List<CheckResult>();
-        var libraries = new List<LibraryPathResult>();
-        var configurableServices = new List<ConfigurableServiceResult>();
-
-        var configPathInfo = GetConfigurationPathInfo();
-
-        IConfigurationRoot config;
-        CheckResult configCheck;
-        try
-        {
-            config = Configuration();
-
-            var sw = Stopwatch.StartNew();
-            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-            var details = $"Environment={env}; {configPathInfo}";
-
-            var missing = new List<string>();
-            if (string.IsNullOrWhiteSpace(config.GetConnectionString("DefaultConnection")))
-            {
-                missing.Add("ConnectionStrings:DefaultConnection");
-            }
-            if (string.IsNullOrWhiteSpace(config.GetConnectionString("MusicBrainzConnection")))
-            {
-                missing.Add("ConnectionStrings:MusicBrainzConnection");
-            }
-            if (string.IsNullOrWhiteSpace(config.GetConnectionString("ArtistSearchEngineConnection")))
-            {
-                missing.Add("ConnectionStrings:ArtistSearchEngineConnection");
-            }
-
-            configCheck = missing.Count != 0
-                ? new CheckResult("Configuration", false, $"Missing: {string.Join(", ", missing)}; {details}", sw.Elapsed)
-                : new CheckResult("Configuration", true, details, sw.Elapsed);
-        }
-        catch (Exception ex)
-        {
-            configCheck = new CheckResult("Configuration", false, ex.Message, TimeSpan.Zero);
-            checks.Add(configCheck);
-
-            if (settings.ReturnRaw)
-            {
-                var obj = new
-                {
-                    success = false,
-                    durationSeconds = startedAt.Elapsed.TotalSeconds,
-                    configuration = configPathInfo,
-                    checks = checks.Select(c => new { name = c.Name, success = c.Success, details = c.Details, durationMs = (int)c.Duration.TotalMilliseconds }),
-                    libraries
-                };
-
-                Console.WriteLine(JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true }));
-                return 1;
-            }
-
-            RenderSummary(checks, libraries, configurableServices, startedAt.Elapsed, settings.WriteTest);
-            return 1;
-        }
-
-        if (!configCheck.Success)
-        {
-            checks.Add(configCheck);
-
-            if (settings.ReturnRaw)
-            {
-                var obj = new
-                {
-                    success = false,
-                    durationSeconds = startedAt.Elapsed.TotalSeconds,
-                    configuration = configPathInfo,
-                    checks = checks.Select(c => new { name = c.Name, success = c.Success, details = c.Details, durationMs = (int)c.Duration.TotalMilliseconds }),
-                    libraries
-                };
-
-                Console.WriteLine(JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true }));
-                return 1;
-            }
-
-            RenderSummary(checks, libraries, configurableServices, startedAt.Elapsed, settings.WriteTest);
-            return 1;
-        }
-
-        ServiceProvider provider;
-        try
-        {
-            provider = CreateServiceProvider();
-        }
-        catch (Exception ex)
-        {
-            checks.Add(configCheck);
-            checks.Add(new CheckResult("Service Provider", false, ex.Message, TimeSpan.Zero));
-
-            if (settings.ReturnRaw)
-            {
-                var obj = new
-                {
-                    success = false,
-                    durationSeconds = startedAt.Elapsed.TotalSeconds,
-                    configuration = configPathInfo,
-                    checks = checks.Select(c => new { name = c.Name, success = c.Success, details = c.Details, durationMs = (int)c.Duration.TotalMilliseconds }),
-                    libraries
-                };
-
-                Console.WriteLine(JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true }));
-                return 1;
-            }
-
-            RenderSummary(checks, libraries, configurableServices, startedAt.Elapsed, settings.WriteTest);
-            return 1;
-        }
-
+        var provider = CreateServiceProvider();
         using var scope = provider.CreateScope();
+        var logger = scope.ServiceProvider.GetRequiredService<Serilog.ILogger>();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();
         var mbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>();
         var aseFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ArtistSearchEngineServiceDbContext>>();
         var libraryService = scope.ServiceProvider.GetRequiredService<LibraryService>();
+        var configurationFactory = scope.ServiceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
+        var cacheManager = scope.ServiceProvider.GetRequiredService<ICacheManager>();
 
-        await AnsiConsole.Progress()
-            .AutoClear(false)
-            .Columns(
-            [
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new ElapsedTimeColumn()
-            ])
-            .StartAsync(async progress =>
-            {
-                await RunCheckAsync(progress, checks, "Configuration", () => Task.FromResult(configCheck));
+        var cliDoctorService = new CliDoctorService(
+            logger,
+            dbFactory,
+            mbFactory,
+            aseFactory,
+            libraryService,
+            configurationFactory,
+            cacheManager,
+            Configuration());
 
-                await RunCheckAsync(progress, checks, "Database: Postgres", async () =>
-                {
-                    var sw = Stopwatch.StartNew();
-                    await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-
-                    var ok = await db.Database.CanConnectAsync(cancellationToken);
-                    var details = ok
-                        ? $"OK ({db.Database.ProviderName})"
-                        : "Unable to connect";
-
-                    return new CheckResult("Database: Postgres", ok, details, sw.Elapsed);
-                });
-
-                await RunCheckAsync(progress, checks, "Database: MusicBrainz (SQLite)", async () =>
-                {
-                    var sw = Stopwatch.StartNew();
-
-                    var cs = config.GetConnectionString("MusicBrainzConnection") ?? string.Empty;
-                    var fileInfo = DescribeSqlitePath(cs);
-
-                    await using var db = await mbFactory.CreateDbContextAsync(cancellationToken);
-                    var ok = await db.Database.CanConnectAsync(cancellationToken);
-
-                    return new CheckResult(
-                        "Database: MusicBrainz (SQLite)",
-                        ok,
-                        ok ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}",
-                        sw.Elapsed);
-                });
-
-                await RunCheckAsync(progress, checks, "Database: ArtistSearchEngine (SQLite)", async () =>
-                {
-                    var sw = Stopwatch.StartNew();
-
-                    var cs = config.GetConnectionString("ArtistSearchEngineConnection") ?? string.Empty;
-                    var fileInfo = DescribeSqlitePath(cs);
-
-                    await using var db = await aseFactory.CreateDbContextAsync(cancellationToken);
-                    var ok = await db.Database.CanConnectAsync(cancellationToken);
-
-                    return new CheckResult(
-                        "Database: ArtistSearchEngine (SQLite)",
-                        ok,
-                        ok ? $"OK; {fileInfo}" : $"Unable to connect; {fileInfo}",
-                        sw.Elapsed);
-                });
-
-                await RunCheckAsync(progress, checks, "Libraries", async () =>
-                {
-                    var sw = Stopwatch.StartNew();
-
-                    var libs = await libraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, cancellationToken);
-                    if (!libs.IsSuccess)
-                    {
-                        return new CheckResult("Libraries", false, libs.Messages?.FirstOrDefault() ?? "Failed to list libraries", sw.Elapsed);
-                    }
-
-                    foreach (var lib in libs.Data)
-                    {
-                        var exists = Directory.Exists(lib.Path);
-                        var writable = false;
-                        var details = exists ? "Path exists" : "Path missing";
-
-                        if (exists && settings.WriteTest)
-                        {
-                            try
-                            {
-                                var testFile = Path.Combine(lib.Path, $".mcli-doctor-{Guid.NewGuid():N}.tmp");
-                                await File.WriteAllTextAsync(testFile, string.Empty, cancellationToken);
-                                File.Delete(testFile);
-                                writable = true;
-                                details = "Path exists; write OK";
-                            }
-                            catch (Exception ex)
-                            {
-                                writable = false;
-                                details = $"Path exists; write failed: {ex.GetType().Name}";
-                            }
-                        }
-
-                        libraries.Add(new LibraryPathResult(
-                            lib.Name,
-                            lib.TypeValue.ToString(),
-                            lib.Path,
-                            exists,
-                            settings.WriteTest ? writable : false,
-                            details));
-                    }
-
-                    var anyMissing = libraries.Any(l => !l.Exists);
-                    return new CheckResult(
-                        "Libraries",
-                        !anyMissing,
-                        anyMissing
-                            ? "One or more library paths are missing"
-                            : (settings.WriteTest ? "All library paths exist (write test enabled)" : "All library paths exist"),
-                        sw.Elapsed);
-                });
-
-                await RunCheckAsync(progress, checks, "Configurable Services", async () =>
-                {
-                    var sw = Stopwatch.StartNew();
-
-                    await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-                    var settingsDict = await db.Settings
-                        .Where(s => s.Key.Contains(".enabled"))
-                        .ToDictionaryAsync(s => s.Key, s => s.Value, cancellationToken);
-
-                    var serviceDefinitions = new (string Category, string Name, string SettingKey)[]
-                    {
-                        ("Search Engine", "Brave", SettingRegistry.SearchEngineBraveEnabled),
-                        ("Search Engine", "Deezer", SettingRegistry.SearchEngineDeezerEnabled),
-                        ("Search Engine", "iTunes", SettingRegistry.SearchEngineITunesEnabled),
-                        ("Search Engine", "Last.fm", SettingRegistry.SearchEngineLastFmEnabled),
-                        ("Search Engine", "MusicBrainz", SettingRegistry.SearchEngineMusicBrainzEnabled),
-                        ("Search Engine", "Spotify", SettingRegistry.SearchEngineSpotifyEnabled),
-                        ("Search Engine", "Metal API", SettingRegistry.SearchEngineMetalApiEnabled),
-                        ("Scrobbling", "Scrobbling", SettingRegistry.ScrobblingEnabled),
-                        ("Scrobbling", "Last.fm", SettingRegistry.ScrobblingLastFmEnabled),
-                        ("Processing", "Conversion", SettingRegistry.ConversionEnabled),
-                        ("Processing", "Magic", SettingRegistry.MagicEnabled),
-                        ("Processing", "Scripting", SettingRegistry.ScriptingEnabled),
-                        ("Plugins", "CueSheet", SettingRegistry.PluginEnabledCueSheet),
-                        ("Plugins", "M3U", SettingRegistry.PluginEnabledM3u),
-                        ("Plugins", "NFO", SettingRegistry.PluginEnabledNfo),
-                        ("Plugins", "Simple File Verification", SettingRegistry.PluginEnabledSimpleFileVerification),
-                        ("System", "Email", SettingRegistry.EmailEnabled),
-                    };
-
-                    foreach (var (category, name, settingKey) in serviceDefinitions)
-                    {
-                        var enabled = settingsDict.TryGetValue(settingKey, out var value)
-                            && bool.TryParse(value, out var b) && b;
-                        configurableServices.Add(new ConfigurableServiceResult(category, name, settingKey, enabled));
-                    }
-
-                    var enabledCount = configurableServices.Count(s => s.Enabled);
-                    return new CheckResult(
-                        "Configurable Services",
-                        true,
-                        $"{enabledCount}/{configurableServices.Count} services enabled",
-                        sw.Elapsed);
-                });
-            });
+        var results = await cliDoctorService.RunAllChecksAsync(settings.WriteTest, cancellationToken);
 
         if (settings.ReturnRaw)
         {
             var obj = new
             {
-                success = checks.All(c => c.Success),
+                success = results.IssuesCount == 0,
                 durationSeconds = startedAt.Elapsed.TotalSeconds,
-                configuration = configPathInfo,
-                checks = checks.Select(c => new { name = c.Name, success = c.Success, details = c.Details, durationMs = (int)c.Duration.TotalMilliseconds }),
-                libraries,
-                configurableServices = configurableServices.Select(s => new { category = s.Category, name = s.Name, settingKey = s.SettingKey, enabled = s.Enabled })
+                checks = results.Checks.Select(c => new
+                {
+                    name = c.Name,
+                    success = c.Success,
+                    details = c.Details,
+                    durationMs = (int)c.Duration.TotalMilliseconds
+                }),
+                libraryPaths = results.LibraryPaths.Select(p => new
+                {
+                    name = p.Name,
+                    type = p.Type,
+                    path = p.Path,
+                    exists = p.Exists,
+                    writable = p.Writable,
+                    details = p.Details
+                }),
+                configurableServices = results.ConfigurableServices.Select(s => new
+                {
+                    category = s.Category,
+                    name = s.Name,
+                    settingKey = s.SettingKey,
+                    enabled = s.Enabled
+                }),
+                overlaps = results.Overlaps
             };
 
             Console.WriteLine(JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true }));
-            return checks.All(c => c.Success) ? 0 : 1;
+            return results.IssuesCount == 0 ? 0 : 1;
         }
 
-        RenderSummary(checks, libraries, configurableServices, startedAt.Elapsed, settings.WriteTest);
+        RenderSummary(results, startedAt.Elapsed, settings.WriteTest);
 
-        return checks.All(c => c.Success) ? 0 : 1;
+        return results.IssuesCount == 0 ? 0 : 1;
     }
 
-    private static async Task RunCheckAsync(ProgressContext progress, List<CheckResult> results, string name, Func<Task<CheckResult>> action)
-    {
-        var task = progress.AddTask($"{name}...", maxValue: 1);
-        var result = await action();
-        task.Increment(1);
-
-        var icon = result.Success ? "[green]✓[/]" : "[red]✗[/]";
-        task.Description = $"{icon} {name}";
-
-        results.Add(result);
-    }
-
-    private static void RenderSummary(IReadOnlyCollection<CheckResult> checks, IReadOnlyCollection<LibraryPathResult> libraries, IReadOnlyCollection<ConfigurableServiceResult> configurableServices, TimeSpan elapsed, bool writeTest)
+    private static void RenderSummary(CliDoctorCheckResults results, TimeSpan elapsed, bool writeTest)
     {
         var header = new Panel(new Markup($"[bold cyan]mcli doctor[/] completed in [grey]{elapsed:c}[/]"))
         {
@@ -361,7 +102,7 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
         table.AddColumn("Details");
         table.AddColumn(new TableColumn("Duration").RightAligned());
 
-        foreach (var c in checks)
+        foreach (var c in results.Checks)
         {
             table.AddRow(
                 c.Name.EscapeMarkup(),
@@ -373,7 +114,7 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
 
-        if (libraries.Count != 0)
+        if (results.LibraryPaths.Count != 0)
         {
             var libTable = new Table().RoundedBorder();
             libTable.AddColumn("Library");
@@ -386,7 +127,7 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
             libTable.AddColumn("Path");
             libTable.AddColumn("Details");
 
-            foreach (var l in libraries.OrderBy(l => l.Type).ThenBy(l => l.Name))
+            foreach (var l in results.LibraryPaths.OrderBy(l => l.Type).ThenBy(l => l.Name))
             {
                 var existsText = l.Exists ? "[green]✓[/]" : "[red]✗[/]";
                 var writableText = l.Writable ? "[green]✓[/]" : "[red]✗[/]";
@@ -419,9 +160,21 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
                 BorderStyle = new Style(foreground: Color.Grey)
             });
             AnsiConsole.WriteLine();
+
+            if (results.Overlaps.Count > 0)
+            {
+                var overlapText = string.Join("\n", results.Overlaps.Select(o => $"[red]![/] {o}"));
+                AnsiConsole.Write(new Panel(new Markup(overlapText))
+                {
+                    Header = new PanelHeader("[bold]Path Overlaps[/]", Justify.Left),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(foreground: Color.Yellow)
+                });
+                AnsiConsole.WriteLine();
+            }
         }
 
-        if (configurableServices.Count != 0)
+        if (results.ConfigurableServices.Count != 0)
         {
             var serviceTable = new Table().RoundedBorder();
             serviceTable.AddColumn("Category");
@@ -429,7 +182,7 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
             serviceTable.AddColumn("Status");
             serviceTable.AddColumn(new TableColumn("Setting Key").Centered());
 
-            foreach (var s in configurableServices.OrderBy(s => s.Category).ThenBy(s => s.Name))
+            foreach (var s in results.ConfigurableServices.OrderBy(s => s.Category).ThenBy(s => s.Name))
             {
                 var statusText = s.Enabled ? "[green]Enabled[/]" : "[dim]Disabled[/]";
                 serviceTable.AddRow(
@@ -448,9 +201,9 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
             AnsiConsole.WriteLine();
         }
 
-        var failed = checks.Where(c => !c.Success).Select(c => c.Name).ToList();
-        if (failed.Count != 0)
+        if (results.IssuesCount > 0)
         {
+            var failed = results.Checks.Where(c => !c.Success).Select(c => c.Name).ToList();
             AnsiConsole.MarkupLine($"[red]Doctor found issues:[/] {string.Join(", ", failed.Select(x => x.EscapeMarkup()))}");
             AnsiConsole.MarkupLine("[grey]Tip:[/] verify MELODEE_APPSETTINGS_PATH, connection strings, and library path mounts/permissions.");
         }
@@ -459,25 +212,150 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
             AnsiConsole.MarkupLine("[green]All checks passed.[/]");
         }
     }
+}
 
-    private static string DescribeSqlitePath(string connectionString)
+public sealed class CliDoctorService : DoctorServiceBase
+{
+    private readonly Serilog.ILogger _logger;
+    private readonly IDbContextFactory<MelodeeDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<MusicBrainzDbContext> _musicBrainzDbContextFactory;
+    private readonly IDbContextFactory<ArtistSearchEngineServiceDbContext> _artistSearchEngineDbContextFactory;
+    private readonly IConfigurationRoot _configuration;
+
+    public CliDoctorService(
+        Serilog.ILogger logger,
+        IDbContextFactory<MelodeeDbContext> dbContextFactory,
+        IDbContextFactory<MusicBrainzDbContext> musicBrainzDbContextFactory,
+        IDbContextFactory<ArtistSearchEngineServiceDbContext> artistSearchEngineDbContextFactory,
+        LibraryService libraryService,
+        IMelodeeConfigurationFactory configurationFactory,
+        ICacheManager cacheManager,
+        IConfigurationRoot configuration) : base(dbContextFactory, libraryService, configurationFactory)
     {
-        try
-        {
-            var builder = new SqliteConnectionStringBuilder(connectionString);
-            if (string.IsNullOrWhiteSpace(builder.DataSource))
-            {
-                return "DataSource=(empty)";
-            }
+        _logger = logger;
+        _dbContextFactory = dbContextFactory;
+        _musicBrainzDbContextFactory = musicBrainzDbContextFactory;
+        _artistSearchEngineDbContextFactory = artistSearchEngineDbContextFactory;
+        _configuration = configuration;
+    }
 
-            var fullPath = builder.DataSource;
-            var exists = File.Exists(fullPath);
-            return $"DataSource={fullPath}; Exists={exists}";
-        }
-        catch
+    public async Task<CliDoctorCheckResults> RunAllChecksAsync(bool writeTest = false, CancellationToken cancellationToken = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var checks = new List<DoctorCheckResult>();
+        var libraryPaths = new List<LibraryPathResult>();
+        var configurableServices = new List<ConfigurableServiceResult>();
+        var overlaps = new List<string>();
+
+        await AnsiConsole.Progress()
+            .AutoClear(false)
+            .Columns([
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new ElapsedTimeColumn()
+            ])
+            .StartAsync(async progress =>
+            {
+                await RunCheckAsync(progress, checks, "Configuration", async () =>
+                {
+                    var result = await RunConfigurationCheckAsync(cancellationToken);
+                    var configPathInfo = GetConfigurationPathInfo();
+                    return new DoctorCheckResult(
+                        result.Name,
+                        result.Success,
+                        result.Success ? $"{result.Details}; {configPathInfo}" : $"{result.Details}; {configPathInfo}",
+                        result.Duration);
+                });
+
+                await RunCheckAsync(progress, checks, "Database: PostgreSQL", async () => await RunDatabaseCheckAsync(cancellationToken));
+
+                await RunCheckAsync(progress, checks, "Database: MusicBrainz (DecentDB)", async () =>
+                {
+                    var checkSw = Stopwatch.StartNew();
+                    var (canQuery, _, error) = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
+                    var cs = GetConnectionString("MusicBrainzConnection");
+                    var fileInfo = DescribeFileDatabasePath(cs);
+                    var details = canQuery
+                        ? $"OK; {fileInfo}"
+                        : string.IsNullOrWhiteSpace(error)
+                            ? $"Unable to query; {fileInfo}"
+                            : $"{error}; {fileInfo}";
+                    return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", canQuery, details, checkSw.Elapsed);
+                });
+
+                await RunCheckAsync(progress, checks, "Database: ArtistSearchEngine (DecentDB)", async () =>
+                {
+                    var checkSw = Stopwatch.StartNew();
+                    var cs = GetConnectionString("ArtistSearchEngineConnection");
+                    var fileInfo = DescribeFileDatabasePath(cs);
+                    var dataSource = GetDataSourceFromConnectionString(cs);
+                    if (!HasNonEmptyFileBackedDatabase(cs) &&
+                        !string.IsNullOrWhiteSpace(dataSource) &&
+                        Directory.Exists(Path.GetDirectoryName(dataSource)))
+                    {
+                        _logger.Information("[{JobName}] Creating new empty artist search engine database at [{Path}]", nameof(DoctorCommand), dataSource);
+                        await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+                        await db.Database.EnsureCreatedAsync(cancellationToken);
+                        fileInfo = DescribeFileDatabasePath(cs);
+                    }
+
+                    if (!HasNonEmptyFileBackedDatabase(cs))
+                    {
+                        return new DoctorCheckResult(
+                            "Database: ArtistSearchEngine (DecentDB)",
+                            false,
+                            $"Artist search engine database is empty or not initialized; {fileInfo}",
+                            checkSw.Elapsed);
+                    }
+
+                    var (canQuery, error) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
+                    var details = canQuery
+                        ? $"OK; {fileInfo}"
+                        : string.IsNullOrWhiteSpace(error)
+                            ? $"Unable to query; {fileInfo}"
+                            : $"{error}; {fileInfo}";
+                    return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", canQuery, details, checkSw.Elapsed);
+                });
+
+                await RunCheckAsync(progress, checks, "Library Paths", async () =>
+                {
+                    var (check, paths, pathOverlaps) = await RunLibraryPathCheckAsync(writeTest, cancellationToken);
+                    libraryPaths.AddRange(paths);
+                    overlaps.AddRange(pathOverlaps);
+                    return check;
+                });
+
+                await RunCheckAsync(progress, checks, "Configurable Services", async () =>
+                {
+                    var (check, services) = await RunConfigurableServicesCheckAsync(cancellationToken);
+                    configurableServices.AddRange(services);
+                    return check;
+                });
+            });
+
+        sw.Stop();
+
+        return new CliDoctorCheckResults
         {
-            return "DataSource=(unparseable)";
-        }
+            Checks = checks,
+            LibraryPaths = libraryPaths,
+            ConfigurableServices = configurableServices,
+            Overlaps = overlaps,
+            Duration = sw.Elapsed
+        };
+    }
+
+    private static async Task RunCheckAsync(ProgressContext progress, List<DoctorCheckResult> results, string name, Func<Task<DoctorCheckResult>> action)
+    {
+        var task = progress.AddTask($"{name}...", maxValue: 1);
+        var result = await action();
+        task.Increment(1);
+
+        var icon = result.Success ? "[green]✓[/]" : "[red]✗[/]";
+        task.Description = $"{icon} {name}";
+
+        results.Add(result);
     }
 
     private static string GetConfigurationPathInfo()
@@ -500,4 +378,122 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
 
         return $"appsettings.json={defaultExists}; appsettings.{env}.json={envExists}; cwd={basePath}";
     }
+
+    private string GetConnectionString(string name)
+    {
+        return _configuration.GetConnectionString(name) ?? string.Empty;
+    }
+
+    private static string DescribeFileDatabasePath(string connectionString)
+    {
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var dataSource = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+            if (string.IsNullOrWhiteSpace(dataSource))
+            {
+                return "DataSource=(empty)";
+            }
+
+            var exists = File.Exists(dataSource);
+            return $"DataSource={dataSource}; Exists={exists}";
+        }
+        catch
+        {
+            return "DataSource=(unparseable)";
+        }
+    }
+
+    private static bool HasNonEmptyFileBackedDatabase(string connectionString)
+    {
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            var dataSource = builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+            return !string.IsNullOrWhiteSpace(dataSource)
+                   && File.Exists(dataSource)
+                   && new FileInfo(dataSource).Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? GetDataSourceFromConnectionString(string connectionString)
+    {
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            return builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<(bool CanQuery, string? Error)> ProbeArtistSearchDatabaseAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+            await db.Database.EnsureCreatedAsync(cancellationToken);
+            if (db.Database.IsRelational())
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
+                    ON "Artists" ("IsLocked", "LastRefreshed")
+                    """,
+                    cancellationToken);
+            }
+
+            _ = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            _ = await db.Albums
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private async Task<(bool CanQuery, bool HasArtistData, string? Error)> ProbeMusicBrainzDatabaseAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var firstArtistId = await db.Artists
+                .AsNoTracking()
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (true, firstArtistId != 0, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, false, ex.Message);
+        }
+    }
+}
+
+public sealed class CliDoctorCheckResults
+{
+    public List<DoctorCheckResult> Checks { get; init; } = new();
+    public List<LibraryPathResult> LibraryPaths { get; init; } = new();
+    public List<ConfigurableServiceResult> ConfigurableServices { get; init; } = new();
+    public List<string> Overlaps { get; init; } = new();
+    public TimeSpan Duration { get; init; }
+
+    public int IssuesCount => Checks.Count(c => !c.Success);
 }

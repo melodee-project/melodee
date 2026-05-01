@@ -9,58 +9,52 @@ namespace Melodee.Common.Utility;
 // Consider validating that script paths are within expected directories and using allowlists for acceptable scripts.
 public static class ShellHelper
 {
-    public static Task<int> Bash(this string cmd)
+    public static async Task<int> Bash(this string cmd)
     {
-        var source = new TaskCompletionSource<int>();
-        // WARNING: This escape only handles double quotes. Not comprehensive protection against shell injection.
-        // This should only be used with trusted input from configuration files.
-        var escapedArgs = cmd.Replace("\"", "\\\"");
         var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
                 FileName = "bash",
-                Arguments = $"-c \"{escapedArgs}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
-            },
-            EnableRaisingEvents = true
+            }
         };
+        process.StartInfo.ArgumentList.Add("-c");
+        process.StartInfo.ArgumentList.Add(cmd);
 
         try
         {
-            process.Start();
-
-            process.Exited += (sender, args) =>
+            if (!process.Start())
             {
-                try
-                {
-                    Trace.WriteLine(process.StandardError.ReadToEnd(), "Warning");
-                    Trace.WriteLine(process.StandardOutput.ReadToEnd(), "Information");
-                    if (process.ExitCode == 0)
-                    {
-                        source.TrySetResult(0);
-                    }
-                    else
-                    {
-                        source.TrySetException(new Exception($"Command `{cmd}` failed with exit code `{process.ExitCode}`"));
-                    }
-                }
-                finally
-                {
-                    process.Dispose();
-                }
-            };
+                throw new InvalidOperationException($"Command `{cmd}` failed to start");
+            }
+
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            var stderr = await stderrTask.ConfigureAwait(false);
+            var stdout = await stdoutTask.ConfigureAwait(false);
+
+            Trace.WriteLine(stderr, "Warning");
+            Trace.WriteLine(stdout, "Information");
+            if (process.ExitCode == 0)
+            {
+                return 0;
+            }
+
+            throw new Exception($"Command `{cmd}` failed with exit code `{process.ExitCode}`");
         }
         catch (Exception e)
         {
             Trace.WriteLine($"Command Line [{cmd}] Failed Error [{e}", "Error");
-            source.TrySetException(e);
+            throw;
+        }
+        finally
+        {
             process.Dispose();
         }
-
-        return source.Task;
     }
 }

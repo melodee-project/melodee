@@ -1,0 +1,98 @@
+@page "/onboarding/blocking"
+@using Melodee.Common.Services.Setup
+@using Melodee.Blazor.Services
+@inherits MelodeeComponentBase
+
+<PageTitle>@L("Onboarding.BlockingPageTitle")</PageTitle>
+
+<RadzenStack Gap="2rem" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="min-height: 60vh; padding: 2rem;">
+    <RadzenIcon Icon="error_outline" Size="IconSize.Large" IconColor="Radzen.Colors.Danger" Style="font-size: 4rem;"/>
+
+    <RadzenHeading Level="2" Size="H1" Text="@L("Onboarding.CannotDetermineStatus")" Style="text-align: center;"/>
+
+    <RadzenCard Style="max-width: 600px; width: 100%;">
+        <RadzenStack Gap="1rem">
+            <RadzenText Text="@L("Onboarding.BlockingDescription")" TextAlign="TextAlign.Center"/>
+
+            @if (!string.IsNullOrWhiteSpace(_blockingErrorMessage))
+            {
+                <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                    <RadzenText Text="@_blockingErrorMessage"/>
+                </RadzenAlert>
+            }
+
+            <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem">
+                @foreach (var item in _blockingItems)
+                {
+                    <RadzenAlert Variant="Variant.Filled" AlertStyle="AlertStyle.Danger" Shade="Shade.Darker" Icon="warning">
+                        <RadzenText Text="@item.Name" TextStyle="TextStyle.Subtitle2" Style="font-weight: bold;"/>
+                        <RadzenText Text="@item.Details" TextStyle="TextStyle.Body2"/>
+                        @if (!string.IsNullOrEmpty(item.Remediation))
+                        {
+                            <RadzenText Text="@($"Suggestion: {item.Remediation}")" TextStyle="TextStyle.Caption"/>
+                        }
+                    </RadzenAlert>
+                }
+            </RadzenStack>
+
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="1rem">
+                <RadzenButton Click="@RetryCheckAsync"
+                              Text="@L("Onboarding.RetryButton")"
+                              Icon="refresh"
+                              IsBusy="@_isRetrying"
+                              ButtonStyle="ButtonStyle.Primary"/>
+                <RadzenLink Path="https://melodee.org/docs"
+                            Text="@L("Onboarding.SupportLink")"
+                            Target="_blank"
+                            Style="margin-top: 0.35rem;"/>
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private IReadOnlyList<SetupItem> _blockingItems = Array.Empty<SetupItem>();
+    private bool _isRetrying;
+    private string? _blockingErrorMessage;
+
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBlockingItemsAsync();
+    }
+
+    private async Task LoadBlockingItemsAsync()
+    {
+        try
+        {
+            _blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
+            _blockingErrorMessage = OnboardingStateService.LastSetupErrorMessage;
+        }
+        catch (Exception ex)
+        {
+            _blockingItems = Array.Empty<SetupItem>();
+            _blockingErrorMessage = OnboardingStateService.LastSetupErrorMessage ?? ex.Message;
+        }
+    }
+
+    private async Task RetryCheckAsync()
+    {
+        _isRetrying = true;
+        try
+        {
+            await OnboardingStateService.RefreshSetupStatusAsync();
+            await LoadBlockingItemsAsync();
+
+            if (_blockingItems.Count == 0)
+            {
+                NavigationManager.NavigateTo("/onboarding");
+            }
+        }
+        finally
+        {
+            _isRetrying = false;
+        }
+    }
+}

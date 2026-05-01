@@ -24,11 +24,12 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class GenresController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    UserProfileService userProfileService,
     AlbumService albumService,
     SongService songService,
     IConfiguration configuration,
-    IMelodeeConfigurationFactory configurationFactory) : ControllerBase(
+    IMelodeeConfigurationFactory configurationFactory,
+    UserPreferenceService userPreferenceService) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -66,7 +67,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -151,7 +152,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -220,7 +221,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -247,7 +248,7 @@ public sealed class GenresController(
             return ApiBadRequest("Invalid genre ID");
         }
 
-        var result = await userService.ToggleGenreStarAsync(user.Id, genreName, isStarred, cancellationToken).ConfigureAwait(false);
+        var result = await userPreferenceService.ToggleGenreStarAsync(user.Id, genreName, isStarred, cancellationToken).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             return Ok();
@@ -271,7 +272,7 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -298,7 +299,7 @@ public sealed class GenresController(
             return ApiBadRequest("Invalid genre ID");
         }
 
-        var result = await userService.ToggleGenreHatedAsync(user.Id, genreName, isHated, cancellationToken).ConfigureAwait(false);
+        var result = await userPreferenceService.ToggleGenreHatedAsync(user.Id, genreName, isHated, cancellationToken).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             return Ok();
@@ -321,13 +322,13 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
         }
 
-        var result = await userService.GetStarredGenresAsync(user.Id, cancellationToken).ConfigureAwait(false);
+        var result = await userPreferenceService.GetStarredGenresAsync(user.Id, cancellationToken).ConfigureAwait(false);
 
         // Convert genre names to Genre objects with base64 IDs
         var genres = result.Data.Select(g => new Genre(g.ToBase64(), g, 0, 0)).ToArray();
@@ -349,13 +350,13 @@ public sealed class GenresController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
         }
 
-        var result = await userService.GetHatedGenresAsync(user.Id, cancellationToken).ConfigureAwait(false);
+        var result = await userPreferenceService.GetHatedGenresAsync(user.Id, cancellationToken).ConfigureAwait(false);
 
         // Convert genre names to Genre objects with base64 IDs
         var genres = result.Data.Select(g => new Genre(g.ToBase64(), g, 0, 0)).ToArray();

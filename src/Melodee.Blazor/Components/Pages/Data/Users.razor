@@ -10,7 +10,7 @@
 
 @inject MainLayoutProxyService MainLayoutProxyService
 @inject ILogger Logger
-@inject UserService UserService
+@inject UserProfileService UserProfileService
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 @inject TooltipService TooltipService
@@ -82,7 +82,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedUsers.Any() != true ? false : !_users.All(i => _selectedUsers.Contains(i)) ? null : _users.Any(i => _selectedUsers.Contains(i)))"
                             Change="@(args => _selectedUsers = args == true ? _users.ToList() : [])"/>
                     </HeaderTemplate>
@@ -93,7 +93,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedUsers.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>
@@ -188,7 +188,7 @@
                 filters = args.Filters.Select(x => x.ToFilterOperatorInfo()).ToArray();
             }
 
-            var result = await UserService.ListAsync(new PagedRequest
+            var result = await UserProfileService.ListAsync(new PagedRequest
             {
                 FilterBy = filters,
                 Page = _currentPage,
@@ -225,7 +225,7 @@
             try
             {
                 var userIds = _selectedUsers.Select(x => x.Id).ToArray();
-                var deleteResult = await UserService.DeleteAsync(userIds);
+                var deleteResult = await UserProfileService.DeleteAsync(userIds);
                 if (deleteResult.IsSuccess)
                 {
                     NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Success", Detail = "Users deleted successfully" });

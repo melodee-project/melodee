@@ -1,8 +1,9 @@
+using System.Security.Claims;
 using Asp.Versioning;
+using Melodee.Blazor.Controllers.Melodee.Extensions;
 using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
-using Melodee.Common.Data;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Playback;
@@ -29,14 +30,13 @@ public sealed class PlaybackBackendController(
     IPlaybackBackendService playbackBackendService,
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
-    IDbContextFactory<MelodeeDbContext> contextFactory,
     ILogger<PlaybackBackendController> logger) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
     configurationFactory)
 {
-    private IDbContextFactory<MelodeeDbContext> ContextFactory { get; } = contextFactory;
+
     private ILogger<PlaybackBackendController> Logger { get; } = logger;
 
     /// <summary>
@@ -108,6 +108,7 @@ public sealed class PlaybackBackendController(
     [HttpPost]
     [Route("shutdown")]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ShutdownBackend(CancellationToken cancellationToken = default)
     {
         var result = await playbackBackendService.ShutdownBackendAsync(cancellationToken).ConfigureAwait(false);
@@ -125,7 +126,7 @@ public sealed class PlaybackBackendController(
     /// </summary>
     [HttpPost]
     [Route("register-endpoint")]
-    [ProducesResponseType(typeof(Common.Data.Models.PartySessionEndpoint), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(EndpointDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RegisterEndpoint(CancellationToken cancellationToken = default)
     {
@@ -138,7 +139,18 @@ public sealed class PlaybackBackendController(
                 : ApiBadRequest(result.Errors?.FirstOrDefault()?.Message ?? "Failed to register endpoint");
         }
 
-        return Ok(result.Data);
+        var user = HttpContext.User;
+        var userIdStr = user.FindFirstValue(ClaimTypes.Sid);
+        var userId = string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var parsedUserId)
+            ? (int?)null
+            : parsedUserId;
+
+        if (result.Data != null && userId.HasValue)
+        {
+            return Ok(result.Data.ToEndpointDto(userId.Value));
+        }
+
+        return Ok(result.Data!.ToEndpointDto(userId));
     }
 
     /// <summary>

@@ -1,0 +1,89 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
+@using Melodee.Common.Services.Setup
+@inject OnboardingStateService OnboardingStateService
+@inject NavigationManager NavigationManager
+@inject Serilog.ILogger Logger
+
+@implements IDisposable
+
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            @if (_isOnboardingRequired)
+            {
+                var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+
+                @if (IsAllowedRoute(currentPath))
+                {
+                    @ChildContent
+                }
+                else if (_hasBlockingError)
+                {
+                    <OnboardingRedirect ForceBlocking="true" />
+                }
+                else
+                {
+                    // Redirect to onboarding wizard
+                    <OnboardingRedirect />
+                }
+            }
+            else
+            {
+                @ChildContent
+            }
+        </Authorized>
+        <NotAuthorized>
+            @ChildContent
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
+
+@code {
+    private bool _isOnboardingRequired;
+    private bool _hasBlockingError;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private static readonly string[] AllowedRoutes =
+    {
+        "/onboarding",
+        "/onboarding/",
+        "/onboarding/blocking",
+        "/account/login",
+        "/account/logout",
+        "/login",
+        "/logout"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _isOnboardingRequired = await OnboardingStateService.IsOnboardingRequiredAsync();
+            _hasBlockingError = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "[OnboardingGuard] Exception while checking onboarding status");
+            _isOnboardingRequired = true;
+            _hasBlockingError = true;
+        }
+    }
+
+    private static bool IsAllowedRoute(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        return AllowedRoutes.Any(allowed =>
+            path.Equals(allowed.TrimStart('/'), StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(allowed.TrimEnd('/').TrimStart('/'), StringComparison.OrdinalIgnoreCase));
+    }
+
+    public void Dispose()
+    {
+    }
+}

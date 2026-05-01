@@ -49,6 +49,15 @@ public class User : DataModelBase
     [DataType(DataType.Password)]
     public required string PasswordEncrypted { get; set; }
 
+    [MaxLength(255)]
+    public string? PasswordHash { get; set; }
+
+    [MaxLength(32)]
+    public string? PasswordHashAlgorithm { get; set; }
+
+    [MaxLength(2048)]
+    public string? OpenSubsonicSecretProtected { get; set; }
+
     public Instant? LastLoginAt { get; set; }
 
     public Instant? LastActivityAt { get; set; }
@@ -147,6 +156,8 @@ public class User : DataModelBase
     public ICollection<UserSocialLogin> SocialLogins { get; set; } = new List<UserSocialLogin>();
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    public ICollection<UserGroupMember> GroupMemberships { get; set; } = new List<UserGroupMember>();
 
     public static User BlankUser => new()
     {

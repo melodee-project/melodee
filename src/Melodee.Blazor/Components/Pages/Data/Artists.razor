@@ -130,7 +130,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedArtists.Any() != true ? false : !_artists.All(i => _selectedArtists.Contains(i)) ? null : _artists.Any(i => _selectedArtists.Contains(i)))"
                             Change="@(args => _selectedArtists = args == true ? _artists.ToList() : [])"/>
                     </HeaderTemplate>
@@ -141,7 +141,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedArtists.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>
@@ -252,6 +252,16 @@
         _statistics = statResult?.Data ?? [];
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            _grid.OrderByDescending(nameof(ArtistDataInfo.CreatedAt));
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     async Task LoadData(LoadDataArgs args)
     {
         _isLoading = true;
@@ -262,6 +272,10 @@
             if (args.Sorts?.Any() == true)
             {
                 sorting = args.Sorts.ToDictionary(x => x.Property ?? string.Empty, x => x.SortOrder == SortOrder.Ascending ? PagedRequest.OrderAscDirection : PagedRequest.OrderDescDirection);
+            }
+            else
+            {
+                sorting = new Dictionary<string, string> { { nameof(ArtistDataInfo.CreatedAt), PagedRequest.OrderDescDirection } };
             }
 
             FilterOperatorInfo[]? filters = null;

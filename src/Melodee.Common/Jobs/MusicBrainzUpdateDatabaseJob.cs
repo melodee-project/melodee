@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using ICSharpCode.SharpZipLib.BZip2;
 using ICSharpCode.SharpZipLib.Tar;
 using Melodee.Common.Configuration;
@@ -9,6 +11,7 @@ using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Services;
+using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Serilog;
 using Stopwatch = System.Diagnostics.Stopwatch;
@@ -21,7 +24,7 @@ namespace Melodee.Common.Jobs;
 /// <remarks>
 ///     <para>
 ///         MusicBrainz is an open music encyclopedia that provides metadata for millions of albums and artists.
-///         This job downloads the full database export and imports it into a local SQLite database for fast,
+///         This job downloads the full database export and imports it into a local DecentDB database for fast,
 ///         offline lookups during media processing.
 ///     </para>
 ///     <para>
@@ -35,7 +38,7 @@ namespace Melodee.Common.Jobs;
 ///             <item>Downloads mbdump.tar.bz2 (~6GB compressed) containing core data (skips if already exists)</item>
 ///             <item>Downloads mbdump-derived.tar.bz2 (~450MB) containing calculated/derived data (skips if already exists)</item>
 ///             <item>Extracts both archives sequentially to staging directory (skips if already extracted)</item>
-///             <item>Imports the extracted data into local SQLite database</item>
+///             <item>Imports the extracted data into local DecentDB database</item>
 ///             <item>On success, deletes the old database; on failure, restores it</item>
 ///             <item>Re-enables the MusicBrainz search engine</item>
 ///         </list>
@@ -75,6 +78,7 @@ public class MusicBrainzUpdateDatabaseJob(
     IMelodeeConfigurationFactory configurationFactory,
     SettingService settingService,
     IHttpClientFactory httpClientFactory,
+    IDbContextFactory<MusicBrainzDbContext> dbContextFactory,
     IMusicBrainzRepository repository) : JobBase(logger, configurationFactory)
 {
     private const string StageInitialize = "Initialize";
@@ -83,6 +87,53 @@ public class MusicBrainzUpdateDatabaseJob(
     private const string StageExtract = "Extract Archives";
     private const string StageImport = "Import to Database";
     private const string StageCleanup = "Cleanup";
+    private const int ImportStageScale = 1000;
+    private const string ImportingDatabaseSuffix = ".importing";
+    private const string BackupDatabaseSuffix = ".backup";
+    private const string DecentDbCliPathEnvironmentVariable = "DECENTDB_CLI_PATH";
+
+    private static readonly string[] RequiredArchiveEntries =
+    [
+        "mbdump/artist",
+        "mbdump/artist_alias",
+        "mbdump/link",
+        "mbdump/l_artist_artist",
+        "mbdump/artist_credit",
+        "mbdump/artist_credit_name",
+        "mbdump/release_country",
+        "mbdump/release_group",
+        "mbdump/release_group_meta",
+        "mbdump/release"
+    ];
+
+    private static readonly string[] BaseArchiveEntries =
+    [
+        "mbdump/artist",
+        "mbdump/artist_alias",
+        "mbdump/link",
+        "mbdump/l_artist_artist",
+        "mbdump/artist_credit",
+        "mbdump/artist_credit_name",
+        "mbdump/release_country",
+        "mbdump/release_group",
+        "mbdump/release"
+    ];
+
+    private static readonly string[] DerivedArchiveEntries =
+    [
+        "mbdump/release_group_meta"
+    ];
+
+    private static readonly string[] ImportPhaseSequence =
+    [
+        "Loading Artists",
+        "Materializing Artists",
+        "Materializing Relations",
+        "Cleanup",
+        "Loading Albums",
+        "Materializing Albums",
+        "Cleanup"
+    ];
 
     public override async Task Execute(IJobExecutionContext context)
     {
@@ -115,7 +166,10 @@ public class MusicBrainzUpdateDatabaseJob(
 
         string? storagePath = null;
         string? tempDbName = null;
+        string? importDbName = null;
         var lockfile = string.Empty;
+        var dbName = string.Empty;
+        var searchEngineDisabled = false;
         try
         {
             storagePath = configuration.GetValue<string>(SettingRegistry.SearchEngineMusicBrainzStoragePath);
@@ -129,6 +183,8 @@ public class MusicBrainzUpdateDatabaseJob(
                 return;
             }
 
+            dbName = GetDatabaseFilePath();
+            importDbName = GetImportDatabaseFilePath(dbName);
             progress?.UpdateProgress("Creating storage directory...");
             storagePath.ToFileSystemDirectoryInfo().EnsureExists();
             Logger.Debug("[{JobName}] Storage directory exists or was created.", nameof(MusicBrainzUpdateDatabaseJob));
@@ -138,37 +194,32 @@ public class MusicBrainzUpdateDatabaseJob(
 
             if (File.Exists(lockfile))
             {
-                var lockContent = await File.ReadAllTextAsync(lockfile, context.CancellationToken);
-                var msg = $"Job lock file exists at [{lockfile}] (created: {lockContent}). Another instance may be running, or a previous run crashed. Delete the lock file to proceed.";
-                Logger.Warning("[{JobName}] {Message}", nameof(MusicBrainzUpdateDatabaseJob), msg);
-                SetJobResult(context, JobResultStatus.Skipped, msg);
-                return;
+                var lockState = await ReadLockStateAsync(lockfile, context.CancellationToken).ConfigureAwait(false);
+                if (lockState?.ProcessId is int processId && IsProcessRunning(processId))
+                {
+                    var msg = $"Job lock file exists at [{lockfile}] for active process [{processId}] (created: {lockState.CreatedAtUtc}).";
+                    Logger.Warning("[{JobName}] {Message}", nameof(MusicBrainzUpdateDatabaseJob), msg);
+                    SetJobResult(context, JobResultStatus.Skipped, msg);
+                    return;
+                }
+
+                progress?.UpdateProgress("Recovering stale import state...");
+                await RecoverInterruptedImportAsync(
+                        storagePath,
+                        dbName,
+                        lockfile,
+                        lockState,
+                        context.CancellationToken)
+                    .ConfigureAwait(false);
             }
 
             progress?.UpdateProgress("Creating lock file...");
             Logger.Debug("[{JobName}] Creating lock file...", nameof(MusicBrainzUpdateDatabaseJob));
-            await File.WriteAllTextAsync(lockfile, DateTimeOffset.UtcNow.ToString("O")).ConfigureAwait(false);
+            await WriteLockStateAsync(lockfile, null, importDbName, context.CancellationToken).ConfigureAwait(false);
 
-            progress?.UpdateProgress("Disabling search engine during import...");
-            Logger.Debug("[{JobName}] Temporarily disabling MusicBrainz search engine during import...", nameof(MusicBrainzUpdateDatabaseJob));
-            await settingService
-                .SetAsync(SettingRegistry.SearchEngineMusicBrainzEnabled, "false", context.CancellationToken)
-                .ConfigureAwait(false);
-
-            var dbName = Path.Combine(storagePath, "musicbrainz.db");
             var doesDbExist = File.Exists(dbName);
             Logger.Debug("[{JobName}] Existing database check: exists={Exists}, path={DbPath}",
                 nameof(MusicBrainzUpdateDatabaseJob), doesDbExist, dbName);
-
-            if (doesDbExist)
-            {
-                progress?.UpdateProgress("Backing up existing database...");
-                tempDbName = Path.Combine(storagePath, $"{Guid.NewGuid()}.db");
-                Logger.Debug("[{JobName}] Backing up existing database to: [{TempDbName}]", nameof(MusicBrainzUpdateDatabaseJob), tempDbName);
-                File.Move(dbName, tempDbName);
-            }
-
-            progress?.CompleteStage(); // Complete Initialize stage
 
             using (var client = httpClientFactory.CreateClient())
             {
@@ -232,6 +283,8 @@ public class MusicBrainzUpdateDatabaseJob(
                         return;
                     }
                 }
+
+                progress?.CompleteStage(); // Complete Initialize stage
 
                 var mbDumpFileName = Path.Combine(storageStagingDirectory.FullName(), "mbdump.tar.bz2");
                 var mbDumpDerivedFileName = Path.Combine(storageStagingDirectory.FullName(), "mbdump-derived.tar.bz2");
@@ -350,27 +403,37 @@ public class MusicBrainzUpdateDatabaseJob(
                 Logger.Information("[{JobName}] Downloads complete. Starting extraction...",
                     nameof(MusicBrainzUpdateDatabaseJob));
 
-                // Check if extraction has already been completed
-                // We look for the 'mbdump' directory with 'artist' file as indicator of successful extraction
+                // Check if extraction has already been completed for every file the importer actually needs.
                 var mbDumpDir = Path.Combine(storageStagingDirectory.FullName(), "mbdump");
-                var artistFile = Path.Combine(mbDumpDir, "artist");
-                var extractionComplete = Directory.Exists(mbDumpDir) && File.Exists(artistFile);
+                var extractionComplete = HasAllRequiredExtractedFiles(mbDumpDir);
 
                 if (!extractionComplete)
                 {
-                    // Extract archives SEQUENTIALLY to avoid file conflicts
-                    // Both archives contain some common files like TIMESTAMP
+                    DeleteExtractedMusicBrainzFiles(mbDumpDir);
+
                     progress?.StartStage(StageExtract, 2);
 
                     var extractionStartTicks = Stopwatch.GetTimestamp();
 
                     progress?.UpdateProgress(0, "Extracting mbdump.tar.bz2...");
                     Logger.Information("[{JobName}] Extracting mbdump.tar.bz2...", nameof(MusicBrainzUpdateDatabaseJob));
-                    ExtractTarBz2(mbDumpFileName, storageStagingDirectory.FullName());
+                    await ExtractRequiredArchiveEntriesAsync(
+                            mbDumpFileName,
+                            storageStagingDirectory.FullName(),
+                            BaseArchiveEntries,
+                            context.CancellationToken)
+                        .ConfigureAwait(false);
 
                     progress?.UpdateProgress(1, "Extracting mbdump-derived.tar.bz2...");
                     Logger.Information("[{JobName}] Extracting mbdump-derived.tar.bz2...", nameof(MusicBrainzUpdateDatabaseJob));
-                    ExtractTarBz2(mbDumpDerivedFileName, storageStagingDirectory.FullName());
+                    await ExtractRequiredArchiveEntriesAsync(
+                            mbDumpDerivedFileName,
+                            storageStagingDirectory.FullName(),
+                            DerivedArchiveEntries,
+                            context.CancellationToken)
+                        .ConfigureAwait(false);
+
+                    EnsureRequiredExtractedFilesExist(mbDumpDir);
 
                     progress?.UpdateProgress(2, "Extraction complete");
 
@@ -381,34 +444,54 @@ public class MusicBrainzUpdateDatabaseJob(
                 }
                 else
                 {
-                    Logger.Information("[{JobName}] Archives already extracted (found {ArtistFile}), skipping extraction",
-                        nameof(MusicBrainzUpdateDatabaseJob), artistFile);
-                    progress?.StartStage(StageExtract, "Already extracted");
+                    Logger.Information("[{JobName}] Required MusicBrainz dump files already extracted, skipping extraction",
+                        nameof(MusicBrainzUpdateDatabaseJob));
+                    progress?.StartStage(StageExtract, "Required files already extracted");
                     progress?.CompleteStage();
                 }
             }
 
-            // Import data to SQLite with progress callback
-            progress?.StartStage(StageImport, "Loading and importing data...");
+            // Import data to DecentDB with progress callback
+            progress?.StartStage(StageImport, ImportStageScale);
+            progress?.UpdateProgress(0, "Loading and importing data...");
             var importStartTicks = Stopwatch.GetTimestamp();
-            Logger.Information("[{JobName}] Starting data import to SQLite...", nameof(MusicBrainzUpdateDatabaseJob));
+            Logger.Information("[{JobName}] Starting data import to DecentDB...", nameof(MusicBrainzUpdateDatabaseJob));
+            var importPhaseIndex = -1;
+            var lastLoggedPhase = string.Empty;
+            var lastLoggedCurrent = -1;
+            var lastImportLogTicks = Stopwatch.GetTimestamp();
 
             // Create progress callback that updates the job progress
             void ImportProgressCallback(string phase, int current, int total, string? message)
             {
                 var percentComplete = total > 0 ? (double)current / total * 100 : 0;
                 var progressMessage = message ?? $"{phase}: {current:N0} / {total:N0} ({percentComplete:F1}%)";
-                progress?.UpdateProgress(progressMessage);
+                importPhaseIndex = AdvanceImportPhase(importPhaseIndex, phase);
+                var scaledProgress = CalculateImportStageProgress(importPhaseIndex, current, total);
+                progress?.UpdateProgress(scaledProgress, progressMessage);
 
-                // Log at info level periodically to be visible in production logs
-                if (current % 50000 == 0 || current == total)
+                var elapsedSinceLastLog = Stopwatch.GetElapsedTime(lastImportLogTicks);
+                var shouldLog = phase != lastLoggedPhase
+                                || current == 0
+                                || current == total
+                                || total <= 25
+                                || current != lastLoggedCurrent && elapsedSinceLastLog >= TimeSpan.FromSeconds(10);
+                if (shouldLog)
                 {
                     Logger.Information("[{JobName}] Import progress - {Phase}: {Current:N0}/{Total:N0} ({Percent:F1}%)",
                         nameof(MusicBrainzUpdateDatabaseJob), phase, current, total, percentComplete);
+                    lastImportLogTicks = Stopwatch.GetTimestamp();
+                    lastLoggedPhase = phase;
+                    lastLoggedCurrent = current;
                 }
             }
 
-            var importResult = await repository.ImportData(ImportProgressCallback, context.CancellationToken).ConfigureAwait(false);
+            DeleteDatabaseArtifacts(importDbName);
+            var importResult = await repository.ImportData(
+                    new MusicBrainzImportRequest(storagePath, importDbName),
+                    ImportProgressCallback,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
             var importTime = Stopwatch.GetElapsedTime(importStartTicks);
             progress?.CompleteStage();
 
@@ -421,11 +504,35 @@ public class MusicBrainzUpdateDatabaseJob(
 
             if (importResult.IsSuccess)
             {
+                progress?.UpdateProgress("Flushing imported DecentDB WAL...");
+                await CheckpointImportedDatabaseAsync(importDbName, context.CancellationToken).ConfigureAwait(false);
+
+                progress?.UpdateProgress("Switching imported database into place...");
+                Logger.Debug("[{JobName}] Temporarily disabling MusicBrainz search engine for database swap...", nameof(MusicBrainzUpdateDatabaseJob));
+                await settingService
+                    .SetAsync(SettingRegistry.SearchEngineMusicBrainzEnabled, "false", context.CancellationToken)
+                    .ConfigureAwait(false);
+                searchEngineDisabled = true;
+
+                if (doesDbExist)
+                {
+                    tempDbName = GetBackupDatabaseFilePath(dbName);
+                    progress?.UpdateProgress("Backing up existing database...");
+                    Logger.Debug("[{JobName}] Backing up existing database to: [{TempDbName}]", nameof(MusicBrainzUpdateDatabaseJob), tempDbName);
+                    DeleteDatabaseArtifacts(tempDbName);
+                    MoveDatabaseArtifacts(dbName, tempDbName, overwrite: true);
+                    await WriteLockStateAsync(lockfile, tempDbName, importDbName, context.CancellationToken).ConfigureAwait(false);
+                }
+
+                progress?.UpdateProgress("Promoting imported database...");
+                DeleteDatabaseArtifacts(dbName);
+                MoveDatabaseArtifacts(importDbName, dbName, overwrite: true);
+
                 if (tempDbName != null)
                 {
                     progress?.UpdateProgress("Deleting backup database...");
                     Logger.Debug("[{JobName}] Deleting backup database: [{TempDbName}]", nameof(MusicBrainzUpdateDatabaseJob), tempDbName);
-                    File.Delete(tempDbName);
+                    DeleteDatabaseArtifacts(tempDbName);
                 }
 
                 await settingService.SetAsync(SettingRegistry.SearchEngineMusicBrainzImportLastImportTimestamp,
@@ -440,7 +547,7 @@ public class MusicBrainzUpdateDatabaseJob(
             }
             else
             {
-                var msg = $"Import failed: {string.Join(", ", importResult.Errors ?? [])}";
+                var msg = $"Import failed: {FormatOperationErrors(importResult.Errors)}";
                 Logger.Error("[{JobName}] {Message}", nameof(MusicBrainzUpdateDatabaseJob), msg);
                 SetJobResult(context, JobResultStatus.Failed, msg);
             }
@@ -463,23 +570,50 @@ public class MusicBrainzUpdateDatabaseJob(
             // Restore backup database if import didn't complete successfully
             var jobResult = (context as MelodeeJobExecutionContext)?.JobResult;
             var importSucceeded = jobResult?.Status == JobResultStatus.Success;
+            if (!importSucceeded)
+            {
+                progress?.StartStage(StageCleanup, "Recovering interrupted import state...");
+            }
 
             if (!importSucceeded && tempDbName != null && storagePath != null && File.Exists(tempDbName))
             {
                 try
                 {
+                    progress?.UpdateProgress("Restoring backup database...");
                     Logger.Information("[{JobName}] Restoring backup database from: [{TempDbName}]", nameof(MusicBrainzUpdateDatabaseJob), tempDbName);
-                    var dbName = Path.Combine(storagePath, "musicbrainz.db");
-                    if (File.Exists(dbName))
-                    {
-                        File.Delete(dbName);
-                    }
-                    File.Move(tempDbName, dbName);
+                    DeleteDatabaseArtifacts(dbName);
+                    MoveDatabaseArtifacts(tempDbName, dbName, overwrite: true);
                     Logger.Information("[{JobName}] Backup database restored successfully.", nameof(MusicBrainzUpdateDatabaseJob));
                 }
                 catch (Exception restoreEx)
                 {
                     Logger.Error(restoreEx, "[{JobName}] Failed to restore backup database from [{TempDbName}]", nameof(MusicBrainzUpdateDatabaseJob), tempDbName);
+                }
+            }
+            else if (!importSucceeded && searchEngineDisabled && !string.IsNullOrWhiteSpace(dbName))
+            {
+                try
+                {
+                    progress?.UpdateProgress("Deleting partial promoted database artifacts...");
+                    DeleteDatabaseArtifacts(dbName);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Logger.Warning(cleanupEx, "[{JobName}] Failed to delete partial database artifacts for [{DbPath}]",
+                        nameof(MusicBrainzUpdateDatabaseJob), dbName);
+                }
+            }
+
+            if (importDbName != null)
+            {
+                try
+                {
+                    DeleteDatabaseArtifacts(importDbName);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Logger.Warning(cleanupEx, "[{JobName}] Failed to delete imported scratch database artifacts for [{DbPath}]",
+                        nameof(MusicBrainzUpdateDatabaseJob), importDbName);
                 }
             }
 
@@ -496,23 +630,62 @@ public class MusicBrainzUpdateDatabaseJob(
                 }
             }
 
-            // Always re-enable MusicBrainz search engine - use CancellationToken.None since we're in finally and need this to succeed
-            try
+            // Re-enable MusicBrainz search engine only if this run disabled it.
+            if (searchEngineDisabled)
             {
-                await settingService
-                    .SetAsync(SettingRegistry.SearchEngineMusicBrainzEnabled, "true", CancellationToken.None)
-                    .ConfigureAwait(false);
-                Logger.Information("[{JobName}] MusicBrainz search engine re-enabled.", nameof(MusicBrainzUpdateDatabaseJob));
+                try
+                {
+                    await settingService
+                        .SetAsync(SettingRegistry.SearchEngineMusicBrainzEnabled, "true", CancellationToken.None)
+                        .ConfigureAwait(false);
+                    Logger.Information("[{JobName}] MusicBrainz search engine re-enabled.", nameof(MusicBrainzUpdateDatabaseJob));
+                }
+                catch (Exception enableEx)
+                {
+                    Logger.Error(enableEx, "[{JobName}] CRITICAL: Failed to re-enable MusicBrainz search engine! Manual intervention required.", nameof(MusicBrainzUpdateDatabaseJob));
+                }
             }
-            catch (Exception enableEx)
+
+            if (!importSucceeded)
             {
-                Logger.Error(enableEx, "[{JobName}] CRITICAL: Failed to re-enable MusicBrainz search engine! Manual intervention required.", nameof(MusicBrainzUpdateDatabaseJob));
+                progress?.CompleteStage();
             }
 
             var totalJobTime = Stopwatch.GetElapsedTime(jobStartTicks);
             Logger.Debug("[{JobName}] Job cleanup complete. Total execution time: {Elapsed:F1} minutes.",
                 nameof(MusicBrainzUpdateDatabaseJob), totalJobTime.TotalMinutes);
         }
+    }
+
+    private string GetDatabaseFilePath()
+    {
+        using var context = dbContextFactory.CreateDbContext();
+        var connectionString = context.Database.GetConnectionString()
+                               ?? throw new InvalidOperationException("MusicBrainzDbContext has no connection string configured.");
+        var builder = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString };
+        var dataSource = builder.ContainsKey("Data Source")
+            ? builder["Data Source"]?.ToString()
+            : null;
+        return dataSource ?? throw new InvalidOperationException(
+            $"Cannot extract 'Data Source' from MusicBrainz connection string: {connectionString}");
+    }
+
+    private static string GetImportDatabaseFilePath(string liveDatabasePath)
+    {
+        return AddPathSuffixBeforeExtension(liveDatabasePath, ImportingDatabaseSuffix);
+    }
+
+    private static string GetBackupDatabaseFilePath(string liveDatabasePath)
+    {
+        return AddPathSuffixBeforeExtension(liveDatabasePath, BackupDatabaseSuffix);
+    }
+
+    private static string AddPathSuffixBeforeExtension(string path, string suffix)
+    {
+        var directoryPath = Path.GetDirectoryName(path) ?? string.Empty;
+        var fileName = Path.GetFileNameWithoutExtension(path);
+        var extension = Path.GetExtension(path);
+        return Path.Combine(directoryPath, $"{fileName}{suffix}{extension}");
     }
 
     private static JobProgress? GetProgress(IJobExecutionContext context)
@@ -528,13 +701,21 @@ public class MusicBrainzUpdateDatabaseJob(
         }
     }
 
-    private void ExtractTarBz2(string archivePath, string destinationPath)
+    private async Task ExtractRequiredArchiveEntriesAsync(
+        string archivePath,
+        string destinationPath,
+        IReadOnlyCollection<string> requiredEntries,
+        CancellationToken cancellationToken)
     {
         Logger.Debug("[{JobName}] Extracting [{FileName}]...", nameof(MusicBrainzUpdateDatabaseJob), archivePath);
         var sw = Stopwatch.GetTimestamp();
 
-        // Try native extraction first (much faster with lbzip2/pbzip2)
-        if (TryNativeExtraction(archivePath, destinationPath))
+        if (requiredEntries.Count == 0)
+        {
+            return;
+        }
+
+        if (await TryNativeExtractionAsync(archivePath, destinationPath, requiredEntries, cancellationToken).ConfigureAwait(false))
         {
             Logger.Information("[{JobName}] Extracted [{FileName}] using native tools in {Elapsed:F1} seconds.",
                 nameof(MusicBrainzUpdateDatabaseJob),
@@ -543,13 +724,8 @@ public class MusicBrainzUpdateDatabaseJob(
             return;
         }
 
-        // Fallback to managed extraction
-        Logger.Debug("[{JobName}] Native extraction not available, using managed extraction", nameof(MusicBrainzUpdateDatabaseJob));
-        using var fileStream = File.OpenRead(archivePath);
-        using var bzipStream = new BZip2InputStream(fileStream);
-        var tarArchive = TarArchive.CreateInputTarArchive(bzipStream, Encoding.UTF8);
-        tarArchive.ExtractContents(destinationPath);
-        tarArchive.Close();
+        Logger.Debug("[{JobName}] Native extraction not available, using managed selective extraction", nameof(MusicBrainzUpdateDatabaseJob));
+        ExtractRequiredArchiveEntriesManaged(archivePath, destinationPath, requiredEntries, cancellationToken);
 
         Logger.Information("[{JobName}] Extracted [{FileName}] in {Elapsed:F1} seconds.",
             nameof(MusicBrainzUpdateDatabaseJob),
@@ -557,43 +733,18 @@ public class MusicBrainzUpdateDatabaseJob(
             Stopwatch.GetElapsedTime(sw).TotalSeconds);
     }
 
-    private bool TryNativeExtraction(string archivePath, string destinationPath)
+    private async Task<bool> TryNativeExtractionAsync(
+        string archivePath,
+        string destinationPath,
+        IReadOnlyCollection<string> requiredEntries,
+        CancellationToken cancellationToken)
     {
-        // Only attempt native extraction on Unix-like systems (Linux, macOS)
-        // Windows doesn't have these tools natively and the shell syntax differs
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
         {
             return false;
         }
 
-        // Check for parallel bzip2 decompressors (much faster than single-threaded)
-        string? decompressor = null;
-        foreach (var tool in new[] { "lbzip2", "pbzip2", "bzip2" })
-        {
-            try
-            {
-                var whichProcess = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "which",
-                    Arguments = tool,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-                whichProcess?.WaitForExit(1000);
-                if (whichProcess?.ExitCode == 0)
-                {
-                    decompressor = tool;
-                    break;
-                }
-            }
-            catch
-            {
-                // Tool not found, continue to next
-            }
-        }
-
+        var decompressor = FindNativeDecompressor();
         if (decompressor == null)
         {
             return false;
@@ -601,12 +752,14 @@ public class MusicBrainzUpdateDatabaseJob(
 
         try
         {
-            // Use pipe: decompressor | tar
-            // lbzip2/pbzip2 use multiple cores for decompression
-            var processInfo = new System.Diagnostics.ProcessStartInfo
+            var entryArguments = string.Join(" ", requiredEntries.Select(QuoteShellArgument));
+            var shellCommand =
+                $"{decompressor} -dc {QuoteShellArgument(archivePath)} | tar -xf - -C {QuoteShellArgument(destinationPath)} {entryArguments}";
+
+            var processInfo = new ProcessStartInfo
             {
                 FileName = "/bin/sh",
-                Arguments = $"-c \"{decompressor} -dc '{archivePath}' | tar -xf - -C '{destinationPath}'\"",
+                Arguments = $"-c {QuoteShellArgument(shellCommand)}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -615,18 +768,25 @@ public class MusicBrainzUpdateDatabaseJob(
 
             Logger.Debug("[{JobName}] Running native extraction: {Command}", nameof(MusicBrainzUpdateDatabaseJob), processInfo.Arguments);
 
-            using var process = System.Diagnostics.Process.Start(processInfo);
+            using var process = Process.Start(processInfo);
             if (process == null)
             {
                 return false;
             }
 
-            // Wait for completion (these files are large, give it plenty of time)
-            process.WaitForExit();
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                TryTerminateProcess(process);
+                throw;
+            }
 
             if (process.ExitCode != 0)
             {
-                var error = process.StandardError.ReadToEnd();
+                var error = await process.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
                 Logger.Warning("[{JobName}] Native extraction failed with exit code {ExitCode}: {Error}",
                     nameof(MusicBrainzUpdateDatabaseJob), process.ExitCode, error);
                 return false;
@@ -642,6 +802,51 @@ public class MusicBrainzUpdateDatabaseJob(
         }
     }
 
+    private void ExtractRequiredArchiveEntriesManaged(
+        string archivePath,
+        string destinationPath,
+        IReadOnlyCollection<string> requiredEntries,
+        CancellationToken cancellationToken)
+    {
+        var requiredEntrySet = requiredEntries
+            .Select(NormalizeArchiveEntryName)
+            .ToHashSet(StringComparer.Ordinal);
+        var buffer = new byte[81920];
+
+        using var fileStream = File.OpenRead(archivePath);
+        using var bzipStream = new BZip2InputStream(fileStream);
+        using var tarStream = new TarInputStream(bzipStream, Encoding.UTF8);
+
+        TarEntry? entry;
+        while ((entry = tarStream.GetNextEntry()) != null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var normalizedEntryName = NormalizeArchiveEntryName(entry.Name);
+            if (entry.IsDirectory || !requiredEntrySet.Contains(normalizedEntryName))
+            {
+                continue;
+            }
+
+            var destinationFilePath = Path.Combine(
+                destinationPath,
+                normalizedEntryName.Replace('/', Path.DirectorySeparatorChar));
+            var destinationDirectory = Path.GetDirectoryName(destinationFilePath);
+            if (!string.IsNullOrWhiteSpace(destinationDirectory))
+            {
+                Directory.CreateDirectory(destinationDirectory);
+            }
+
+            using var outputStream = File.Create(destinationFilePath);
+            int bytesRead;
+            while ((bytesRead = tarStream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                outputStream.Write(buffer, 0, bytesRead);
+            }
+        }
+    }
+
     private static string FormatBytes(long bytes)
     {
         string[] suffixes = ["B", "KB", "MB", "GB", "TB"];
@@ -654,4 +859,361 @@ public class MusicBrainzUpdateDatabaseJob(
         }
         return $"{size:F1} {suffixes[i]}";
     }
+
+    private static string FormatOperationErrors(IEnumerable<Exception>? errors)
+    {
+        var errorMessages = errors?
+            .Select(error => error.Message)
+            .Where(message => !string.IsNullOrWhiteSpace(message))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return errorMessages is { Length: > 0 }
+            ? string.Join(" | ", errorMessages)
+            : "The importer did not return a specific error message. Check the logs for details.";
+    }
+
+    private static int AdvanceImportPhase(int currentPhaseIndex, string phase)
+    {
+        if (currentPhaseIndex >= 0 && ImportPhaseSequence[currentPhaseIndex] == phase)
+        {
+            return currentPhaseIndex;
+        }
+
+        for (var i = currentPhaseIndex + 1; i < ImportPhaseSequence.Length; i++)
+        {
+            if (ImportPhaseSequence[i] == phase)
+            {
+                return i;
+            }
+        }
+
+        return Math.Max(currentPhaseIndex, 0);
+    }
+
+    private static int CalculateImportStageProgress(int phaseIndex, int current, int total)
+    {
+        var safePhaseIndex = Math.Clamp(phaseIndex, 0, ImportPhaseSequence.Length - 1);
+        var phaseStart = safePhaseIndex * ImportStageScale / ImportPhaseSequence.Length;
+        var phaseEnd = (safePhaseIndex + 1) * ImportStageScale / ImportPhaseSequence.Length;
+        var phasePercent = total > 0 ? Math.Clamp((double)current / total, 0, 1) : 0;
+        return phaseStart + (int)Math.Round((phaseEnd - phaseStart) * phasePercent);
+    }
+
+    private static bool IsProcessRunning(int processId)
+    {
+        try
+        {
+            var process = System.Diagnostics.Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void DeleteDatabaseArtifacts(string dbPath)
+    {
+        foreach (var path in new[] { dbPath, $"{dbPath}.wal", $"{dbPath}.shm" })
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private static void MoveDatabaseArtifacts(string sourceDbPath, string destinationDbPath, bool overwrite)
+    {
+        foreach (var suffix in new[] { string.Empty, ".wal", ".shm" })
+        {
+            var sourcePath = $"{sourceDbPath}{suffix}";
+            if (!File.Exists(sourcePath))
+            {
+                continue;
+            }
+
+            var destinationPath = $"{destinationDbPath}{suffix}";
+            if (overwrite && File.Exists(destinationPath))
+            {
+                File.Delete(destinationPath);
+            }
+
+            File.Move(sourcePath, destinationPath, overwrite);
+        }
+    }
+
+    private async Task CheckpointImportedDatabaseAsync(string databasePath, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(databasePath))
+        {
+            throw new FileNotFoundException("Cannot checkpoint imported DecentDB database because the database file does not exist.", databasePath);
+        }
+
+        var walPath = $"{databasePath}.wal";
+        var walBytesBefore = File.Exists(walPath) ? new FileInfo(walPath).Length : 0;
+        var executablePath = ResolveDecentDbExecutablePath();
+
+        if (!File.Exists(executablePath))
+        {
+            Logger.Warning("[{JobName}] DecentDB CLI tool not found at '{ExecutablePath}'. Skipping WAL checkpoint. The import will still function correctly, but the WAL file may remain until the database is next opened by a process that supports checkpointing.", nameof(MusicBrainzUpdateDatabaseJob), executablePath);
+            return;
+        }
+
+        var processInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        processInfo.ArgumentList.Add("checkpoint");
+        processInfo.ArgumentList.Add("--db");
+        processInfo.ArgumentList.Add(databasePath);
+
+        Logger.Information("[{JobName}] Running DecentDB checkpoint for imported database. WAL before checkpoint: {WalSize}",
+            nameof(MusicBrainzUpdateDatabaseJob),
+            FormatBytes(walBytesBefore));
+
+        var checkpointStartTicks = Stopwatch.GetTimestamp();
+        using var process = Process.Start(processInfo)
+                            ?? throw new InvalidOperationException($"Failed to start DecentDB checkpoint executable [{executablePath}].");
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            TryTerminateProcess(process);
+            throw;
+        }
+
+        var stdout = await stdoutTask.ConfigureAwait(false);
+        var stderr = await stderrTask.ConfigureAwait(false);
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"DecentDB checkpoint failed with exit code {process.ExitCode}. " +
+                $"stdout=[{TruncateProcessOutput(stdout)}] stderr=[{TruncateProcessOutput(stderr)}]");
+        }
+
+        var walBytesAfter = File.Exists(walPath) ? new FileInfo(walPath).Length : 0;
+        Logger.Information(
+            "[{JobName}] DecentDB checkpoint complete in {Elapsed:F1}s. WAL after checkpoint: {WalSize}",
+            nameof(MusicBrainzUpdateDatabaseJob),
+            Stopwatch.GetElapsedTime(checkpointStartTicks).TotalSeconds,
+            FormatBytes(walBytesAfter));
+    }
+
+    private static string ResolveDecentDbExecutablePath()
+    {
+        var configuredPath = Environment.GetEnvironmentVariable(DecentDbCliPathEnvironmentVariable);
+        return string.IsNullOrWhiteSpace(configuredPath)
+            ? "decentdb"
+            : configuredPath;
+    }
+
+    private static string TruncateProcessOutput(string output)
+    {
+        output = output.Trim();
+        return output.Length <= 1000 ? output : string.Concat(output.AsSpan(0, 1000), "...");
+    }
+
+    private static bool HasAllRequiredExtractedFiles(string mbDumpDirectory)
+    {
+        return RequiredArchiveEntries.All(entry =>
+            File.Exists(Path.Combine(mbDumpDirectory, Path.GetFileName(entry))));
+    }
+
+    private static void EnsureRequiredExtractedFilesExist(string mbDumpDirectory)
+    {
+        var missingFiles = RequiredArchiveEntries
+            .Select(Path.GetFileName)
+            .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
+            .Where(fileName => !File.Exists(Path.Combine(mbDumpDirectory, fileName!)))
+            .ToArray();
+        if (missingFiles.Length > 0)
+        {
+            throw new FileNotFoundException(
+                $"Required MusicBrainz dump files were not extracted: {string.Join(", ", missingFiles)}");
+        }
+    }
+
+    private static void DeleteExtractedMusicBrainzFiles(string mbDumpDirectory)
+    {
+        Directory.CreateDirectory(mbDumpDirectory);
+        foreach (var fileName in RequiredArchiveEntries.Select(Path.GetFileName).Where(name => !string.IsNullOrWhiteSpace(name)))
+        {
+            var path = Path.Combine(mbDumpDirectory, fileName!);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private static string NormalizeArchiveEntryName(string entryName)
+    {
+        return entryName.Replace('\\', '/').TrimStart('.', '/');
+    }
+
+    private static string QuoteShellArgument(string value)
+    {
+        return $"'{value.Replace("'", "'\"'\"'")}'";
+    }
+
+    private static void TryTerminateProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(true);
+            }
+        }
+        catch
+        {
+            // Best-effort cancellation cleanup for extraction processes.
+        }
+    }
+
+    private static string? FindNativeDecompressor()
+    {
+        foreach (var tool in new[] { "lbzip2", "pbzip2", "bzip2" })
+        {
+            try
+            {
+                using var whichProcess = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "which",
+                    Arguments = tool,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                whichProcess?.WaitForExit(1000);
+                if (whichProcess?.ExitCode == 0)
+                {
+                    return tool;
+                }
+            }
+            catch
+            {
+                // Tool not found, continue to next candidate.
+            }
+        }
+
+        return null;
+    }
+
+    private async Task RecoverInterruptedImportAsync(
+        string storagePath,
+        string dbPath,
+        string lockFilePath,
+        ImportLockState? lockState,
+        CancellationToken cancellationToken)
+    {
+        Logger.Warning("[{JobName}] Recovering stale MusicBrainz import state from lock file [{LockFile}]",
+            nameof(MusicBrainzUpdateDatabaseJob),
+            lockFilePath);
+
+        var importDatabasePath = GetImportDatabasePath(dbPath, lockState);
+        if (importDatabasePath != null)
+        {
+            DeleteDatabaseArtifacts(importDatabasePath);
+        }
+
+        var backupPath = GetBackupDatabasePath(storagePath, dbPath, lockState);
+        if (backupPath != null)
+        {
+            Logger.Information("[{JobName}] Restoring backup database from stale import file [{BackupPath}]",
+                nameof(MusicBrainzUpdateDatabaseJob),
+                backupPath);
+            DeleteDatabaseArtifacts(dbPath);
+            MoveDatabaseArtifacts(backupPath, dbPath, overwrite: true);
+        }
+
+        File.Delete(lockFilePath);
+        await settingService
+            .SetAsync(SettingRegistry.SearchEngineMusicBrainzEnabled, "true", cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static string? GetBackupDatabasePath(string storagePath, string dbPath, ImportLockState? lockState)
+    {
+        if (!string.IsNullOrWhiteSpace(lockState?.BackupDatabasePath) && File.Exists(lockState.BackupDatabasePath))
+        {
+            return lockState.BackupDatabasePath;
+        }
+
+        var expectedBackupPath = GetBackupDatabaseFilePath(dbPath);
+        if (File.Exists(expectedBackupPath))
+        {
+            return expectedBackupPath;
+        }
+
+        var dbPathFull = Path.GetFullPath(dbPath);
+        var candidates = Directory
+            .EnumerateFiles(storagePath, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => !string.Equals(Path.GetFullPath(path), dbPathFull, StringComparison.OrdinalIgnoreCase))
+            .Where(path => Path.GetFileNameWithoutExtension(path).Contains(BackupDatabaseSuffix, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ToArray();
+
+        return candidates.FirstOrDefault();
+    }
+
+    private static string? GetImportDatabasePath(string dbPath, ImportLockState? lockState)
+    {
+        if (!string.IsNullOrWhiteSpace(lockState?.ImportDatabasePath))
+        {
+            return lockState.ImportDatabasePath;
+        }
+
+        var expectedImportPath = GetImportDatabaseFilePath(dbPath);
+        return File.Exists(expectedImportPath) || File.Exists($"{expectedImportPath}.wal") || File.Exists($"{expectedImportPath}.shm")
+            ? expectedImportPath
+            : null;
+    }
+
+    private async Task<ImportLockState?> ReadLockStateAsync(string lockFilePath, CancellationToken cancellationToken)
+    {
+        var lockContent = await File.ReadAllTextAsync(lockFilePath, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            return JsonSerializer.Deserialize<ImportLockState>(lockContent);
+        }
+        catch (JsonException)
+        {
+            return new ImportLockState(lockContent, null, null, null);
+        }
+    }
+
+    private async Task WriteLockStateAsync(
+        string lockFilePath,
+        string? backupDatabasePath,
+        string? importDatabasePath,
+        CancellationToken cancellationToken)
+    {
+        var lockState = new ImportLockState(
+            DateTimeOffset.UtcNow.ToString("O"),
+            Environment.ProcessId,
+            backupDatabasePath,
+            importDatabasePath);
+        var json = JsonSerializer.Serialize(lockState);
+        await File.WriteAllTextAsync(lockFilePath, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed record ImportLockState(
+        string CreatedAtUtc,
+        int? ProcessId,
+        string? BackupDatabasePath,
+        string? ImportDatabasePath);
 }

@@ -18,7 +18,7 @@ public sealed class PartyQueueService(
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IPartyNotificationService notificationService)
-    : ServiceBase(logger, cacheManager, contextFactory), IPartyQueueService
+    : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string QueueCacheKeyTemplate = "urn:party:queue:{0}";
     private readonly IPartyNotificationService _notificationService = notificationService;

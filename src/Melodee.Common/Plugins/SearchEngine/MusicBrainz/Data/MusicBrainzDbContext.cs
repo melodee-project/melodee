@@ -15,6 +15,7 @@ public class MusicBrainzDbContext : DbContext
 
     // Final materialized data tables
     public DbSet<Artist> Artists { get; set; } = null!;
+    public DbSet<ArtistAliasLookup> ArtistAliases { get; set; } = null!;
     public DbSet<Album> Albums { get; set; } = null!;
     public DbSet<ArtistRelation> ArtistRelations { get; set; } = null!;
 
@@ -60,6 +61,21 @@ public class MusicBrainzDbContext : DbContext
                 .HasMaxLength(MusicBrainzRepositoryBase.MaxIndexSize)
                 .IsRequired();
             entity.Property(e => e.MusicBrainzIdRaw)
+                .HasMaxLength(MusicBrainzRepositoryBase.MaxIndexSize)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity<ArtistAliasLookup>(entity =>
+        {
+            entity.ToTable("ArtistAlias");
+            entity.HasKey(e => new { e.MusicBrainzArtistId, e.NameNormalized });
+
+            entity.HasIndex(e => e.NameNormalized)
+                .HasDatabaseName("IX_ArtistAlias_NameNormalized");
+            entity.HasIndex(e => e.MusicBrainzArtistId)
+                .HasDatabaseName("IX_ArtistAlias_MusicBrainzArtistId");
+
+            entity.Property(e => e.NameNormalized)
                 .HasMaxLength(MusicBrainzRepositoryBase.MaxIndexSize)
                 .IsRequired();
         });
@@ -241,10 +257,6 @@ public class MusicBrainzDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        if (!optionsBuilder.IsConfigured)
-        {
-            // This will be overridden by the dependency injection configuration
-            optionsBuilder.UseSqlite("Data Source=:memory:");
-        }
+        // Configuration is provided by DI registration; no fallback needed
     }
 }

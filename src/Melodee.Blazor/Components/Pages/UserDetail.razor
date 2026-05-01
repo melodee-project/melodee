@@ -3,15 +3,18 @@
 @using NodaTime
 @using Melodee.Common.Data
 @using Melodee.Common.Data.Models
+@using Melodee.Common.Services
 @using Melodee.Common.Data.Models.Extensions
 @using Microsoft.EntityFrameworkCore
 @inherits MelodeeComponentBase
 
+@inject UserProfileService UserProfileService
 @inject UserService UserService
 @inject NavigationManager NavigationManager
 @inject ILogger Logger
 @inject NotificationService NotificationService
 @inject IDbContextFactory<MelodeeDbContext> DbContextFactory
+@inject UserGroupService UserGroupService
 
 <PageTitle>@L("UserDetail.PageTitle", _userName)</PageTitle>
 
@@ -156,6 +159,21 @@
             </RadzenCard>
         }
 
+        @if (_userGroups.Any())
+        {
+            <RadzenCard>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.H6" Text="@L("Navigation.UserGroups")"/>
+                    <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="5px">
+                        @foreach (var group in _userGroups)
+                        {
+                            <RadzenBadge IsPill="true" BadgeStyle="BadgeStyle.Success" Text="@group.Name" @onclick="@(() => NavigationManager.NavigateTo($"/usergroup/{group.ApiKey}"))" Style="cursor:pointer;"/>
+                        }
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenCard>
+        }
+
         @if (_user?.Pins?.Any() ?? false)
         {
             <RadzenCard>
@@ -198,6 +216,7 @@
     bool _isLoading = true;
     readonly List<KeyValue> _userInfo = [];
     readonly List<string> _userRoles = [];
+    readonly List<UserGroup> _userGroups = [];
     UserStats _stats = new();
 
     protected override async Task OnInitializedAsync()
@@ -214,7 +233,7 @@
                 return;
             }
 
-            var userResult = await UserService.GetByApiKeyAsync(apiKey.Value);
+            var userResult = await UserProfileService.GetByApiKeyAsync(apiKey.Value);
             if (!userResult.IsSuccess || userResult.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.UserNotFound") });
@@ -300,6 +319,12 @@
             if (_user.HasShareRole)
             {
                 _userRoles.Add(L("UserRole.Share"));
+            }
+
+            var groupsResult = await UserGroupService.GetGroupsForUserAsync(_user.Id);
+            if (groupsResult.IsSuccess && groupsResult.Data != null)
+            {
+                _userGroups.AddRange(groupsResult.Data);
             }
 
             await LoadUserStatsAsync();

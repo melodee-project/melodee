@@ -20,7 +20,7 @@ public class LibraryRebuildCommand : CommandBase<LibraryRebuildSettings>
         return number.ToString("N0");
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryRebuildSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryRebuildSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

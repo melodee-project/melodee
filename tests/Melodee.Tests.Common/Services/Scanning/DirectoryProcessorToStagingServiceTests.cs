@@ -26,7 +26,29 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             GetArtistSearchEngineService(),
             GetAlbumImageSearchEngineService(),
             MockHttpClientFactory(),
-            MockFileSystemService());
+            MockFileSystemService(),
+            MockScriptOrchestrationService(),
+            MockDirectoryContextProvider(),
+            MockDenyActionHandlerFactory());
+    }
+
+    private DirectoryProcessorToStagingService GetDirectoryProcessorService(IFileSystemService fileSystemService)
+    {
+        return new DirectoryProcessorToStagingService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            GetLibraryService(),
+            Serializer,
+            GetMediaEditService(),
+            GetArtistSearchEngineService(),
+            GetAlbumImageSearchEngineService(),
+            MockHttpClientFactory(),
+            fileSystemService,
+            MockScriptOrchestrationService(),
+            MockDirectoryContextProvider(),
+            MockDenyActionHandlerFactory());
     }
 
     private async Task CreateStagingLibraryInDb()
@@ -172,19 +194,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();
@@ -208,19 +218,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();
@@ -247,19 +245,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();
@@ -283,19 +269,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();
@@ -356,19 +330,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();
@@ -393,19 +355,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();
@@ -434,19 +384,7 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     {
         // Arrange
         var mockFileSystem = CreateMockFileSystem();
-
-        var service = new DirectoryProcessorToStagingService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory(),
-            GetLibraryService(),
-            Serializer,
-            GetMediaEditService(),
-            GetArtistSearchEngineService(),
-            GetAlbumImageSearchEngineService(),
-            MockHttpClientFactory(),
-            mockFileSystem.Object);
+        var service = GetDirectoryProcessorService(mockFileSystem.Object);
 
         await CreateStagingLibraryInDb();
         await service.InitializeAsync();

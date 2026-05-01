@@ -15,7 +15,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class JobListCommand : CommandBase<JobListSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, JobListSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, JobListSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();

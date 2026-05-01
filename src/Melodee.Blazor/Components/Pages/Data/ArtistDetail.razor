@@ -7,11 +7,13 @@
 @using Melodee.Common.Models.Collection
 @using Melodee.Common.Models.Extensions
 @using Melodee.Common.Serialization
+@using Melodee.Common.Utility
 @using Artist = Melodee.Common.Data.Models.Artist
 @using FilterOperator = Melodee.Common.Filtering.FilterOperator
 
 @inject ArtistService ArtistService
 @inject AlbumService AlbumService
+@inject UserProfileService UserProfileService
 @inject UserService UserService
 @inject SettingService SettingService
 @inject NotificationService NotificationService
@@ -21,6 +23,7 @@
 @inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject IJSRuntime JsRuntime
 @inject ISerializer Serializer
+@inject ILogger Logger
 
 <PageTitle>@_artist.Name</PageTitle>
 
@@ -646,7 +649,7 @@
             {
                 _artist = artistResult.Data;
 
-                _userArtist = await UserService.UserArtistAsync(CurrentUsersId, _artist.ApiKey) ?? new UserArtist
+                _userArtist = await UserProfileService.UserArtistAsync(CurrentUsersId, _artist.ApiKey) ?? new UserArtist
                 {
                     UserId = 0,
                     ArtistId = 0,
@@ -724,20 +727,27 @@
 
     private async void OnShowItemChange(TreeEventArgs arg)
     {
-        switch (arg.Text)
+        try
         {
-            default:
-                _showItem = ShowItem.Overview;
-                break;
-            case var text when text == L("Nav.Images"):
-                _showItem = ShowItem.Images;
-                _imageCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                await RefreshArtistImages();
-                break;
-            case var text when text == L("Nav.Relationships"):
-                _showItem = ShowItem.Relationships;
-                await RefreshRelationshipsAsync();
-                break;
+            switch (arg.Text)
+            {
+                default:
+                    _showItem = ShowItem.Overview;
+                    break;
+                case var text when text == L("Nav.Images"):
+                    _showItem = ShowItem.Images;
+                    _imageCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    await RefreshArtistImages();
+                    break;
+                case var text when text == L("Nav.Relationships"):
+                    _showItem = ShowItem.Relationships;
+                    await RefreshRelationshipsAsync();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error handling tree item change in ArtistDetail");
         }
     }
 
@@ -747,7 +757,21 @@
         {
             await using var ms = new MemoryStream();
             await file.OpenReadStream(_maxUploadSize).CopyToAsync(ms);
-            var save = await ArtistService.SaveImageAsArtistImageAsync(_artist.Id, _replaceAllImages, ms.ToArray());
+            var imageBytes = ms.ToArray();
+
+            await using var validationStream = new MemoryStream(imageBytes);
+            if (!FileTypeValidator.IsValidImage(validationStream))
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = L("ArtistDetail.UploadArtistImage"),
+                    Detail = $"Invalid image file: {file.Name}. File content does not match a supported image type."
+                });
+                continue;
+            }
+
+            var save = await ArtistService.SaveImageAsArtistImageAsync(_artist.Id, _replaceAllImages, imageBytes);
             if (!save.IsSuccess)
             {
                 NotificationService.Notify(NotificationMessageForResult(save, L("ArtistDetail.UploadArtistImage"), ToastTime));
@@ -1069,7 +1093,7 @@
 
         await DialogService.OpenAsync<ArtistValidationDialog>(
             L("ArtistDetail.ValidateAlbumsTitle", _artist.Name),
-            new Dictionary<string, object>
+            new Dictionary<string, object?>
             {
                 { nameof(ArtistValidationDialog.ValidationResult), validationResult.Data! },
                 { nameof(ArtistValidationDialog.IsLoading), false }

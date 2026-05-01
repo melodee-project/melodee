@@ -1,10 +1,9 @@
-using System.Security.Cryptography;
-using System.Text;
 using Melodee.Blazor.Controllers.Jellyfin.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Serialization;
+using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -115,8 +114,8 @@ public class MusicGenresController(
         // NOTE: MD5 is used here for deterministic GUID generation from genre names for Jellyfin API compatibility.
         // This is NOT a cryptographic use - it's purely for generating stable genre identifiers.
         // lgtm[cs/weak-crypto] MD5 used for non-cryptographic GUID generation, not for security
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes($"genre:{genre.ToUpperInvariant()}"));
-        return new Guid(hash);
+        var hashHex = HashHelper.CreateMd5($"genre:{genre.ToUpperInvariant()}");
+        return Guid.TryParse(hashHex, out var result) ? result : Guid.Empty;
     }
 
     private static string ComputeCollectionEtag(int totalCount, int skip, int take, Instant latestUpdate)
@@ -125,7 +124,6 @@ public class MusicGenresController(
         // NOTE: MD5 is used here for generating ETag values for HTTP caching in Jellyfin API compatibility.
         // This is NOT a cryptographic use - ETags are public cache identifiers, not security tokens.
         // lgtm[cs/weak-crypto] MD5 used for non-cryptographic ETag generation, not for security
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        return HashHelper.CreateMd5(input) ?? string.Empty;
     }
 }

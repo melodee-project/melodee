@@ -16,6 +16,7 @@ public class AsyncSyncUsageTests
             Path.Combine(srcDir, "Melodee.Blazor/Services/BaseUrlService.cs"),
             Path.Combine(srcDir, "Melodee.Common/Migrations"),
             Path.Combine(srcDir, "Melodee.Mql/MqlExpressionCache.cs"), // Synchronous cleanup is intentional
+            Path.Combine(srcDir, "Melodee.Common/Services/Security/SecretProtector.cs"), // Singleton needs sync config at startup
         };
 
         var patterns = new[]

@@ -15,7 +15,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class LibraryPurgeCommand : CommandBase<LibrarySettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, LibrarySettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibrarySettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

@@ -65,6 +65,12 @@ public static class Program
                 add.AddCommand<ArtistStatsCommand>("stats")
                     .WithDescription("Show artist statistics including missing images and potential duplicates.");
             });
+            config.AddBranch<BackupExportSettings>("backup", add =>
+            {
+                add.SetDescription("Backup and restore system configuration");
+                add.AddCommand<BackupExportCommand>("export")
+                    .WithDescription("Export system configuration to JSON. This includes all settings and libraries. Use --redact-secrets to mask sensitive values.");
+            });
             config.AddBranch<ConfigurationSettings>("configuration", add =>
             {
                 add.SetDescription("Manage Melodee configuration settings");
@@ -78,6 +84,10 @@ public static class Program
 
             config.AddCommand<DoctorCommand>("doctor")
                 .WithDescription("Run environment and configuration diagnostics to validate Melodee is ready to run.");
+
+            config.AddCommand<SearchCommand>("search")
+                .WithAlias("s")
+                .WithDescription("Search for artists, albums, songs, and playlists. Works in both local and remote mode.");
 
             config.AddBranch<ShowMpegInfoSettings>("file", add =>
             {
@@ -151,6 +161,12 @@ public static class Program
                 add.AddCommand<ShowTagsCommand>("show")
                     .WithDescription("Load given media file and show all known ID3 tags.");
             });
+            config.AddBranch<SystemSettings>("system", add =>
+            {
+                add.SetDescription("System information and diagnostics");
+                add.AddCommand<SystemInfoCommand>("info")
+                    .WithDescription("Get system information (version, name, description). Works in both local and remote mode.");
+            });
             config.AddBranch<UserSettings>("user", add =>
             {
                 add.SetDescription("User account management");
@@ -161,7 +177,9 @@ public static class Program
                     .WithDescription("Delete a user account.");
                 add.AddCommand<UserListCommand>("list")
                     .WithAlias("ls")
-                    .WithDescription("List all users.");
+                    .WithDescription("List all users. Works in both local and remote mode.");
+                add.AddCommand<UserMeCommand>("me")
+                    .WithDescription("Get information about the current authenticated user. Works in both local and remote mode.");
             });
             config.AddBranch<ValidateSettings>("validate", add =>
             {

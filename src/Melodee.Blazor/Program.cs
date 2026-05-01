@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Blazored.SessionStorage;
+using DecentDB.EntityFrameworkCore;
 using Melodee.Blazor.Components;
 using Melodee.Blazor.Constants;
 using Melodee.Blazor.Filters;
@@ -33,12 +34,12 @@ using Melodee.Common.Services.PartyMode;
 using Melodee.Common.Services.Playback;
 using Melodee.Common.Services.Playback.Factory;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -89,7 +90,25 @@ builder.Services.Configure<Microsoft.AspNetCore.Components.Server.CircuitOptions
 
 builder.Services.AddScoped<CircuitHandler, MelodeeCircuitHandler>();
 
-builder.Services.AddControllers(options => { options.Filters.Add<ETagFilter>(); });
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ETagFilter>();
+    options.Filters.Add<GlobalExceptionFilter>();
+})
+.AddJsonOptions(options =>
+{
+    // Handle circular references in API responses
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.MaxDepth = 128;
+});
+
+// Configure JSON options for minimal APIs and OpenAPI generation
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    // Handle circular references in API responses
+    options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.SerializerOptions.MaxDepth = 128;
+});
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -128,16 +147,25 @@ if (int.TryParse(envMaxPool, out var maxPool) && maxPool > 0)
 }
 var effectiveConnString = npgsqlBuilder.ToString();
 
-builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
-    opt.UseNpgsql(effectiveConnString, o
-        => o.UseNodaTime()
-            .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
+// Skip database registration if running in integration test mode (tests provide their own)
+var skipDbRegistration = Environment.GetEnvironmentVariable("MELODEE_SKIP_DB_REGISTRATION") == "true";
+if (!skipDbRegistration)
+{
+    builder.Services.AddDbContextFactory<MelodeeDbContext>(opt =>
+        opt.UseNpgsql(effectiveConnString, o
+            => o.UseNodaTime()
+                .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
-builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
-    => opt.UseSqlite(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection")));
+    builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+    {
+        options.UseDecentDB(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+    });
 
-builder.Services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
-    opt.UseSqlite(builder.Configuration.GetConnectionString("MusicBrainzConnection")));
+    builder.Services.AddDbContextFactory<MusicBrainzDbContext>(options =>
+    {
+        options.UseDecentDB(builder.Configuration.GetConnectionString("MusicBrainzConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+    });
+}
 
 builder.Services.AddApiVersioning(options =>
     {
@@ -160,7 +188,6 @@ builder.Services.AddApiVersioning(options =>
 var useForwardedHeaders = SafeParser.ToBoolean(builder.Configuration["UseForwardedHeaders"]);
 if (useForwardedHeaders)
 {
-    Trace.WriteLine("Using forwarded headers");
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -186,6 +213,11 @@ builder.Services.AddHttpClient("LastFm", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
     client.BaseAddress = new Uri("https://ws.audioscrobbler.com");
+});
+builder.Services.AddHttpClient("ImageFetch", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("Accept", "image/*");
 });
 
 builder.Services.AddAntiforgery(opt =>
@@ -250,6 +282,8 @@ builder.Services.AddAuthentication(options =>
     {
         x.Cookie.SameSite = SameSiteMode.Strict;
         x.Cookie.Name = "melodee_auth";
+        x.Cookie.HttpOnly = true;
+        x.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     })
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
@@ -275,12 +309,36 @@ builder.Services.AddAuthentication(options =>
             ClockSkew = TimeSpan.Zero
         };
     });
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<IThemeClientService, ThemeClientService>();
+
+// Configure CORS with strict allowlist policies
+var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MelodeeCors", policy =>
+    {
+        if (corsAllowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(corsAllowedOrigins);
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            policy.WithOrigins("http://localhost:*", "https://localhost:*");
+        }
+        else
+        {
+            Serilog.Log.Warning("CORS is not configured for production. Set Cors:AllowedOrigins in configuration. Using empty allowlist which will block all cross-origin requests.");
+        }
+
+        policy.WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+        policy.WithHeaders("Authorization", "Content-Type", "If-None-Match", "If-Match");
+        policy.WithExposedHeaders("Accept-Ranges", "Content-Range", "Content-Length", "Content-Type", "ETag");
+        policy.AllowCredentials();
+    });
+});
 
 // Email services
 builder.Services.AddScoped<Melodee.Blazor.Services.Email.IEmailSender, Melodee.Blazor.Services.Email.SmtpEmailSender>();
@@ -311,27 +369,50 @@ builder.Services.AddSingleton<Melodee.Blazor.Services.CustomBlocks.IHtmlSanitize
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        var correlationId = context.HttpContext.TraceIdentifier;
+        var error = new Melodee.Blazor.Controllers.Melodee.Models.ApiError(
+            Melodee.Blazor.Controllers.Melodee.Models.ApiError.Codes.TooManyRequests,
+            "Rate limit exceeded. Please try again later.",
+            correlationId);
+        await context.HttpContext.Response.WriteAsJsonAsync(error, token);
+    };
+
+    var apiTokenLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:TokenLimit", 30);
+    var apiQueueLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:QueueLimit", 10);
+    var apiReplenishmentPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:ReplenishmentPeriodSeconds", 30);
+    var apiTokensPerPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeApi:TokensPerPeriod", 30);
+    var apiAutoReplenishment = builder.Configuration.GetValue<bool>("RateLimiting:MelodeeApi:AutoReplenishment", true);
+
+    var authTokenLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:TokenLimit", 10);
+    var authQueueLimit = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:QueueLimit", 5);
+    var authReplenishmentPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:ReplenishmentPeriodSeconds", 60);
+    var authTokensPerPeriod = builder.Configuration.GetValue<int>("RateLimiting:MelodeeAuth:TokensPerPeriod", 10);
+    var authAutoReplenishment = builder.Configuration.GetValue<bool>("RateLimiting:MelodeeAuth:AutoReplenishment", true);
+
     options.AddPolicy("melodee-api", context =>
         RateLimitPartition.GetTokenBucketLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new TokenBucketRateLimiterOptions
             {
-                TokenLimit = 30,
+                TokenLimit = apiTokenLimit,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 10,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(30),
-                TokensPerPeriod = 30,
-                AutoReplenishment = true
+                QueueLimit = apiQueueLimit,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(apiReplenishmentPeriod),
+                TokensPerPeriod = apiTokensPerPeriod,
+                AutoReplenishment = apiAutoReplenishment
             }));
     options.AddPolicy("melodee-auth", context =>
         RateLimitPartition.GetTokenBucketLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new TokenBucketRateLimiterOptions
             {
-                TokenLimit = 10,
+                TokenLimit = authTokenLimit,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 5,
-                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
-                TokensPerPeriod = 10,
-                AutoReplenishment = true
+                QueueLimit = authQueueLimit,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(authReplenishmentPeriod),
+                TokensPerPeriod = authTokensPerPeriod,
+                AutoReplenishment = authAutoReplenishment
             }));
     options.AddPolicy("jellyfin-api", context =>
     {
@@ -452,7 +533,7 @@ builder.Services
     .AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>()
     .AddSingleton<StreamingLimiter>()
     .AddSingleton<EtagRepository>()
-    .AddScoped<IMusicBrainzRepository, SQLiteMusicBrainzRepository>()
+    .AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>()
     .AddScoped<SettingService>()
     .AddScoped<ArtistService>()
     .AddScoped<IBaseUrlService, BaseUrlService>()
@@ -460,10 +541,38 @@ builder.Services
     .AddScoped<SongService>()
     .AddScoped<ScrobbleService>()
     .AddScoped<LibraryService>()
+    .AddScoped<LibraryAuthorizationService>()
     .AddScoped<UserService>()
+    .AddScoped<UserGroupService>()
+    .AddScoped<UserRatingService>()
+    .AddScoped<UserBookmarkService>()
+    .AddScoped<UserShareService>()
+    .AddScoped<UserPinService>()
+    .AddScoped<UserPreferenceService>()
+    .AddScoped<UserPasswordResetService>()
+    .AddScoped<UserSocialLoginService>()
+    .AddScoped<UserStarService>()
+    .AddScoped<UserFavoriteService>()
+    .AddScoped<UserAuthenticationService>()
+    .AddScoped<UserProfileService>()
+    .AddScoped<UserDeviceProfileService>()
+    .AddScoped<DeviceIdentificationService>()
+    .AddSingleton<IPasswordHashService, PasswordHashService>()
+    .AddSingleton<ISecretProtector, SecretProtector>()
     .AddScoped<AlbumDiscoveryService>()
     .AddScoped<MediaEditService>()
     .AddScoped<DirectoryProcessorToStagingService>()
+    .AddScoped<IScriptAdminService, ScriptAdminService>()
+    .AddScoped<IScriptConfigurationService, ScriptConfigurationService>()
+    .AddScoped<IScriptCacheService, ScriptCacheService>()
+    .AddScoped<IScriptEvaluationService, ScriptEvaluationService>()
+    .AddScoped<IScriptOrchestrationService, ScriptOrchestrationService>()
+    .AddScoped<IScriptValidationService, ScriptValidationService>()
+    .AddScoped<IBlazorEventScriptService, BlazorEventScriptService>()
+    .AddScoped<IDirectoryContextProvider, DirectoryContextProvider>()
+    .AddScoped<ISafeDeleteService, SafeDeleteService>()
+    .AddScoped<DenyActionHandlerFactory>()
+    .AddScoped<IScriptedDirectoryProcessor, ScriptedDirectoryProcessor>()
     .AddScoped<ImageConversionService>()
     .AddScoped<OpenSubsonicApiService>()
     .AddScoped<AlbumImageSearchEngineService>()
@@ -479,6 +588,7 @@ builder.Services
     .AddScoped<RequestAutoCompletionService>()
     .AddScoped<RadioStationService>()
     .AddScoped<PlaylistService>()
+    .AddScoped<PlaylistImportService>()
     .AddScoped<Melodee.Common.Services.IThemeService, Melodee.Common.Services.ThemeService>()
     .AddScoped<ChartService>()
     .AddScoped<MelodeeMetadataMaker>()
@@ -494,11 +604,14 @@ builder.Services
     .AddScoped<PodcastPlaybackService>()
     .AddScoped<PodcastOpmlService>()
     .AddScoped<PodcastDiscoveryService>()
-    .AddScoped<IPartySessionService, PartySessionService>()
-    .AddScoped<IPartyQueueService, PartyQueueService>()
-    .AddScoped<IPartyPlaybackService, PartyPlaybackService>()
+    .AddScoped<PartySessionService>()
+    .AddScoped<PartyQueueService>()
+    .AddScoped<PartyPlaybackService>()
     .AddScoped<IPartyNotificationService, PartyNotificationService>()
-    .AddScoped<IPartySessionEndpointRegistryService, PartySessionEndpointRegistryService>();
+    .AddScoped<PartySessionEndpointRegistryService>()
+    .AddScoped<Melodee.Common.Services.Setup.ISetupCheckService, Melodee.Common.Services.Setup.SetupCheckService>()
+    .AddScoped<OnboardingStateService>()
+    .AddScoped<ChecklistService>();
 
 // Configure HttpClient for podcast discovery
 builder.Services.AddHttpClient("PodcastDiscovery", client =>
@@ -605,22 +718,6 @@ app.UseStaticFiles(new StaticFileOptions
 
         // Add ETag for better cache validation
         ctx.Context.Response.Headers.ETag = $"\"{ctx.File.LastModified:yyyyMMddHHmmss}\"";
-
-        // Add security headers
-        ctx.Context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-        ctx.Context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
-
-        // Add Content Security Policy (addresses Lighthouse: CSP XSS protection)
-        ctx.Context.Response.Headers["Content-Security-Policy"] =
-            "default-src 'self'; " +
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline'; " +
-            "style-src 'self' 'unsafe-inline'; " +
-            "img-src 'self' data: blob:; " +
-            "font-src 'self'; " +
-            "connect-src 'self' wss: ws:; " +
-            "media-src 'self'; " +
-            "object-src 'none'; " +
-            "frame-ancestors 'self';";
     }
 });
 
@@ -629,6 +726,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", true);
     app.UseHsts(); // HSTS configured via services above
 }
+
+app.UseCorrelationIdLogging();
 
 app.UseStatusCodePages(context =>
 {
@@ -869,7 +968,25 @@ if (!isQuartzDisabled)
 app.UseCookiePolicy(new CookiePolicyOptions
 {
     Secure = CookieSecurePolicy.Always,
-    MinimumSameSitePolicy = SameSiteMode.Strict
+    MinimumSameSitePolicy = SameSiteMode.Strict,
+    OnAppendCookie = cookieContext =>
+    {
+        var path = cookieContext.Context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/scalar", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase))
+        {
+            cookieContext.CookieOptions.SameSite = SameSiteMode.Lax;
+        }
+    },
+    OnDeleteCookie = cookieContext =>
+    {
+        var path = cookieContext.Context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/scalar", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase))
+        {
+            cookieContext.CookieOptions.SameSite = SameSiteMode.Lax;
+        }
+    }
 });
 
 app.UseSerilogRequestLogging(options =>
@@ -881,11 +998,7 @@ app.UseSerilogRequestLogging(options =>
     };
 });
 
-app.UseCors(bb => bb
-    .AllowAnyOrigin()
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .WithExposedHeaders("Accept-Ranges", "Content-Range", "Content-Length", "Content-Type"));
+app.UseCors("MelodeeCors");
 
 // Configure request localization with supported cultures
 var supportedCultures = new[] { "en-US", "de-DE", "es-ES", "fr-FR", "it-IT", "ja-JP", "pt-BR", "ru-RU", "zh-CN", "ar-SA" };
@@ -905,14 +1018,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-// Add security headers to all responses
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    await next();
-});
+app.UseMelodeeSecurityHeaders();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
@@ -934,3 +1040,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+public partial class Program { }

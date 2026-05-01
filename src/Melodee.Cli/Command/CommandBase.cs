@@ -1,3 +1,6 @@
+using DecentDB.EntityFrameworkCore;
+using Melodee.Cli.Client;
+using Melodee.Cli.Configuration;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Metadata;
@@ -9,7 +12,9 @@ using Melodee.Common.Serialization;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Melodee.Common.Services.SearchEngines;
+using Melodee.Common.Services.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,10 +48,12 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
                 .Build();
         }
 
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? Environment.GetEnvironmentVariable("MELODEE_ENVIRONMENT") ?? "Production";
+
         return new ConfigurationBuilder()
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.json")
-            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", true)
+            .AddJsonFile($"appsettings.{environment}.json", true)
             .AddEnvironmentVariables()
             .Build();
     }
@@ -64,14 +71,34 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddHttpContextAccessor();
         services.AddSingleton<ISerializer, Serializer>();
         services.AddHttpClient();
+        services.AddHttpClient("ImageFetch", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.Add("Accept", "image/*");
+        });
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            Console.WriteLine("Error: Database connection string is not configured.");
+            Console.WriteLine("Please set the MELODEE_ENVIRONMENT or ASPNETCORE_ENVIRONMENT environment variable to 'Development' or ensure 'DefaultConnection' is set in your configuration.");
+            Environment.Exit(1);
+        }
+
         services.AddDbContextFactory<MelodeeDbContext>(opt =>
-            opt.UseNpgsql(configuration.GetConnectionString("DefaultConnection"),
+            opt.UseNpgsql(connectionString,
                 o => o.UseNodaTime().UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
-        services.AddDbContextFactory<MusicBrainzDbContext>(opt =>
-            opt.UseSqlite(configuration.GetConnectionString("MusicBrainzConnection")));
-        services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(opt
-            => opt.UseSqlite(configuration.GetConnectionString("ArtistSearchEngineConnection")));
-        services.AddScoped<IMusicBrainzRepository, SQLiteMusicBrainzRepository>();
+        services.AddDbContextFactory<MusicBrainzDbContext>(options =>
+        {
+            options.UseDecentDB(configuration.GetConnectionString("MusicBrainzConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+        });
+
+        services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
+        {
+            options.UseDecentDB(configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+            options.EnableSensitiveDataLogging(true);
+        });
+
+        services.AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>();
         services.AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>();
         services.AddSingleton<ICacheManager>(opt
             => new MemoryCacheManager(opt.GetRequiredService<ILogger>(),
@@ -98,6 +125,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<ChartService>();
         services.AddScoped<DirectoryProcessorToStagingService>();
         services.AddScoped<LibraryService>();
+        services.AddScoped<LibraryAuthorizationService>();
         services.AddScoped<MediaEditService>();
         services.AddScoped<MelodeeMetadataMaker>();
         services.AddScoped<NowPlayingDatabaseRepository>();
@@ -106,11 +134,80 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddScoped<AlbumService>();
         services.AddScoped<SongService>();
         services.AddScoped<PlaylistService>();
+        services.AddScoped<PlaylistImportService>();
+        services.AddScoped<PodcastService>();
         services.AddScoped<UserService>();
+        services.AddScoped<UserGroupService>();
+        services.AddScoped<UserRatingService>();
+        services.AddScoped<UserBookmarkService>();
+        services.AddScoped<UserShareService>();
+        services.AddScoped<UserPinService>();
+        services.AddScoped<UserPreferenceService>();
+        services.AddScoped<UserPasswordResetService>();
+        services.AddScoped<UserSocialLoginService>();
+        services.AddScoped<UserStarService>();
+        services.AddScoped<UserFavoriteService>();
+        services.AddScoped<UserAuthenticationService>();
+        services.AddScoped<UserProfileService>();
+        services.AddScoped<UserDeviceProfileService>();
+        services.AddScoped<DeviceIdentificationService>();
+        services.AddSingleton<IPasswordHashService, PasswordHashService>();
+        services.AddSingleton<ISecretProtector, SecretProtector>();
         services.AddScoped<UserQueueService>();
-        services.AddScoped<IArtistDuplicateFinder, ArtistDuplicateFinder>();
+        services.AddScoped<ArtistDuplicateFinder>();
+        services.AddSingleton<ISsrfValidator, SsrfValidator>();
+        services.AddSingleton<PodcastHttpClient>();
         services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
 
+        // Script evaluation services
+        services.AddScoped<IScriptAdminService, ScriptAdminService>();
+        services.AddScoped<IScriptConfigurationService, ScriptConfigurationService>();
+        services.AddScoped<IScriptCacheService, ScriptCacheService>();
+        services.AddScoped<IScriptEvaluationService, ScriptEvaluationService>();
+        services.AddScoped<IScriptOrchestrationService, ScriptOrchestrationService>();
+        services.AddScoped<IScriptValidationService, ScriptValidationService>();
+        services.AddScoped<IDirectoryContextProvider, DirectoryContextProvider>();
+        services.AddScoped<ISafeDeleteService, SafeDeleteService>();
+        services.AddScoped<DenyActionHandlerFactory>();
+        services.AddScoped<IScriptedDirectoryProcessor, ScriptedDirectoryProcessor>();
+
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Create a Melodee client based on the provided settings.
+    /// If server is specified, returns RemoteMelodeeClient, otherwise LocalMelodeeClient.
+    /// </summary>
+    protected IMelodeeClient CreateMelodeeClient(CommandSettings.GlobalSettings settings)
+    {
+        using var _ = Serilog.Context.LogContext.PushProperty("Method", nameof(CreateMelodeeClient));
+
+        var options = RemoteModeOptions.Resolve(settings.Server, settings.Token, settings.Profile);
+
+        if (options.IsRemoteMode)
+        {
+            if (string.IsNullOrWhiteSpace(options.Token))
+            {
+                Console.Error.WriteLine("ERROR: Missing API token. Provide --token, MELODEE_TOKEN, or a config profile token.");
+                Environment.Exit(2);
+            }
+
+            // Warn if token was passed on command line
+            if (!string.IsNullOrWhiteSpace(settings.Token))
+            {
+                Console.Error.WriteLine("WARNING: Passing tokens on the command line can leak secrets via shell history. Prefer MELODEE_TOKEN or config profiles.");
+            }
+
+            return new Client.RemoteMelodeeClient(options.GetApiBaseUrl(), options.Token);
+        }
+        else
+        {
+            // Local mode - use existing service provider
+            var serviceProvider = CreateServiceProvider();
+            var configFactory = serviceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
+            var userProfileService = serviceProvider.GetRequiredService<UserProfileService>();
+
+            return new Client.LocalMelodeeClient(configFactory, userProfileService);
+        }
     }
 }

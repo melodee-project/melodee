@@ -11,6 +11,7 @@
 @inject UserService UserService
 @inject NotificationService NotificationService
 @inject DialogService DialogService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>@_playlist.Name</PageTitle>
 
@@ -64,6 +65,8 @@
         <RadzenMenuItem Text="@L("PlaylistDetail.SetCoverImage")" Visible="CurrentUser?.IsEditor() ?? false" Disabled="_playlist.IsLocked"
                         Click="SetPlaylistImageButtonClick" title="@L("PlaylistDetail.SetPlaylistImage")"
                         Icon="image"></RadzenMenuItem>
+        <RadzenMenuItem Text="@L("Actions.Download")" Click="DownloadPlaylistButtonClick"
+                        title="@L("Actions.Download")" Icon="download"></RadzenMenuItem>
     </RadzenMenu>
     <RadzenText Text="@($" {_playlist.Name}")" TextStyle="TextStyle.DisplayH6"
                 TagName="TagName.H1" style="margin: 0"/>
@@ -285,6 +288,52 @@
             Detail = L("PlaylistDetail.LockFeatureNotImplemented") 
         });
         await Task.CompletedTask;
+    }
+
+    private async Task DownloadPlaylistButtonClick()
+    {
+        var userInfo = UserInfo.FromClaimsPrincipal(CurrentUser!);
+        var exportResult = await PlaylistService.ExportPlaylistAsM3UAsync(_playlist.ApiKey, userInfo);
+
+        if (!exportResult.IsSuccess || string.IsNullOrWhiteSpace(exportResult.Data))
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = L("Actions.Download"),
+                Detail = exportResult.Messages?.FirstOrDefault() ?? L("Message.Error"),
+                Duration = 5000
+            });
+            return;
+        }
+
+        // Convert to base64 for JS download
+        var content = System.Text.Encoding.UTF8.GetBytes(exportResult.Data);
+        var base64Content = Convert.ToBase64String(content);
+
+        // Sanitize the playlist name for filename use
+        var sanitizedName = _playlist.Name
+            .Replace("/", "_")
+            .Replace("\\", "_")
+            .Replace(":", "_")
+            .Replace("\"", "_")
+            .Replace("?", "_")
+            .Replace("*", "_")
+            .Replace("<", "_")
+            .Replace(">", "_")
+            .Replace("|", "_");
+
+        var fileName = $"{sanitizedName}.m3u8";
+
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, base64Content, "audio/x-mpegurl; charset=utf-8");
+
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Success,
+            Summary = L("Actions.Download"),
+            Detail = fileName,
+            Duration = 3000
+        });
     }
 
 }

@@ -1,10 +1,9 @@
-using System.Security.Cryptography;
-using System.Text;
 using Melodee.Blazor.Controllers.Jellyfin.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Serialization;
+using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -296,20 +295,12 @@ public class ArtistsController(
     private static string ComputeEtag(Guid apiKey, Instant lastUpdated)
     {
         var input = $"{apiKey:N}-{lastUpdated.ToUnixTimeTicks()}";
-        // NOTE: MD5 is used here for generating ETag values for HTTP caching in Jellyfin API compatibility.
-        // This is NOT a cryptographic use - ETags are public cache identifiers, not security tokens.
-        // lgtm[cs/weak-crypto] MD5 used for non-cryptographic ETag generation, not for security
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        return HashHelper.CreateMd5(input) ?? string.Empty;
     }
 
     private static string ComputeCollectionEtag(int totalCount, int skip, int take, Instant latestUpdate)
     {
         var input = $"collection-{totalCount}-{skip}-{take}-{latestUpdate.ToUnixTimeTicks()}";
-        // NOTE: MD5 is used here for generating ETag values for HTTP caching in Jellyfin API compatibility.
-        // This is NOT a cryptographic use - ETags are public cache identifiers, not security tokens.
-        // lgtm[cs/weak-crypto] MD5 used for non-cryptographic ETag generation, not for security
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        return HashHelper.CreateMd5(input) ?? string.Empty;
     }
 }

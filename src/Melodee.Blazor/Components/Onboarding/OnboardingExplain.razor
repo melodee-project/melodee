@@ -1,0 +1,75 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Services.Setup
+@using Melodee.Blazor.Services
+@using Melodee.Blazor.Components
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.ExplainHeading")"/>
+
+    <RadzenText Text="@L("Onboarding.ExplainDescription")"/>
+
+    <RadzenCard>
+        <RadzenStack Gap="1rem">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="1rem">
+                <RadzenIcon Icon="input" Size="IconSize.Large" IconColor="Radzen.Colors.Primary" Style="margin-top: 0.5rem;"/>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText Text="@L("Onboarding.InboundLibraryTitle")" TextStyle="TextStyle.Subtitle1"/>
+                    <RadzenText Text="@L("Onboarding.InboundLibraryDescription")" TextStyle="TextStyle.Body2"/>
+                </RadzenStack>
+            </RadzenStack>
+
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="1rem">
+                <RadzenIcon Icon="swap_horiz" Size="IconSize.Large" IconColor="Radzen.Colors.Secondary" Style="margin-top: 0.5rem;"/>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText Text="@L("Onboarding.StagingLibraryTitle")" TextStyle="TextStyle.Subtitle1"/>
+                    <RadzenText Text="@L("Onboarding.StagingLibraryDescription")" TextStyle="TextStyle.Body2"/>
+                </RadzenStack>
+            </RadzenStack>
+
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="1rem">
+                <RadzenIcon Icon="storage" Size="IconSize.Large" IconColor="Radzen.Colors.Success" Style="margin-top: 0.5rem;"/>
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText Text="@L("Onboarding.StorageLibraryTitle")" TextStyle="TextStyle.Subtitle1"/>
+                    <RadzenText Text="@L("Onboarding.StorageLibraryDescription")" TextStyle="TextStyle.Body2"/>
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenCard>
+        <RadzenStack Gap="0.5rem">
+            <RadzenText Text="@L("Onboarding.SetupProgress")" TextStyle="TextStyle.Subtitle2"/>
+            <RadzenProgressBar Value="@_readyCount" Max="@_totalCount" ShowValue="true" Style="width: 100%;"/>
+            <RadzenText Text="@_progressText" TextStyle="TextStyle.Caption"/>
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private int _readyCount;
+    private int _totalCount;
+    private string _progressText = string.Empty;
+
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var status = await OnboardingStateService.GetSetupStatusAsync();
+        _readyCount = status.Items.Count(i => i.Success);
+        _totalCount = status.Items.Count;
+        _progressText = L("Onboarding.ItemsCompleted", _readyCount, _totalCount);
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next() => await OnNext.InvokeAsync();
+}

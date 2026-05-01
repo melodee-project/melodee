@@ -22,7 +22,7 @@ public static class BookmarkExtensions
             bookmark.Comment,
             bookmark.CreatedAt.ToString(),
             bookmark.LastUpdatedAt?.ToString() ?? bookmark.CreatedAt.ToString(),
-            bookmark.Song.ToApiChild(bookmark.Song.Album, bookmark.Song.UserSongs.FirstOrDefault())
+            [bookmark.Song.ToApiChild(bookmark.Song.Album, bookmark.Song.UserSongs.FirstOrDefault())]
         );
     }
 }

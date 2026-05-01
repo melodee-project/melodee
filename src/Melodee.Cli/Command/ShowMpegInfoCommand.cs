@@ -14,7 +14,7 @@ namespace Melodee.Cli.Command;
 
 public class ShowMpegInfoCommand : CommandBase<ShowMpegInfoSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ShowMpegInfoSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ShowMpegInfoSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {
