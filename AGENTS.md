@@ -101,6 +101,7 @@ See: [`.github/workflows/`](./.github/workflows/)
 - [`dotnet.yml`](./.github/workflows/dotnet.yml): Main .NET build and test pipeline.
 - [`codeql.yml`](./.github/workflows/codeql.yml): Security scanning.
 - [`localization.yml`](./.github/workflows/localization.yml): Localization checks.
+- [`docker-publish.yml`](./.github/workflows/docker-publish.yml): Builds and publishes multi-arch container images to GHCR on every published release.
 
 ### Usage Guidelines for Agents
 1. **Context awareness**: Before generating code, always check [`.github/instructions/`](./.github/instructions/) for relevant guidelines. For example, if editing a Blazor component, consult [`blazor.instructions.md`](./.github/instructions/blazor.instructions.md).
