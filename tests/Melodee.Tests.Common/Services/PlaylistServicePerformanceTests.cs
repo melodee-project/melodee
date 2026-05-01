@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using Melodee.Common.Data.Models;
+using Melodee.Tests.Common.Performance;
 using NodaTime;
 
 namespace Melodee.Tests.Common.Services;
 
 public class PlaylistServicePerformanceTests : ServiceTestBase
 {
-    [Fact]
+    [PerformanceFact]
     public async Task GetPlaylistWithComplexIncludes_WithLargeDataset_CompletesWithinTimeLimit()
     {
         // Arrange: create one user with 1,200 playlists

@@ -1,5 +1,6 @@
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
+using Melodee.Common.Enums.PartyMode;
 using Melodee.Common.Models;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.PartyMode;
@@ -17,7 +18,7 @@ public sealed class PartyPlaybackService(
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IPartyNotificationService notificationService)
-    : ServiceBase(logger, cacheManager, contextFactory), IPartyPlaybackService
+    : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string PlaybackStateCacheKeyTemplate = "urn:party:playback:{0}";
     private const string SkipCooldownCacheKeyTemplate = "urn:party:cooldown:skip:{0}";

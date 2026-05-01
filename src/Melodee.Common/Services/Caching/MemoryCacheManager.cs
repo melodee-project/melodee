@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
@@ -406,13 +404,11 @@ public sealed class MemoryCacheManager(ILogger logger, TimeSpan defaultTimeSpan,
 
         try
         {
-            // For strings, calculate UTF-8 byte length
             if (obj is string str)
             {
                 return Encoding.UTF8.GetByteCount(str);
             }
 
-            // For primitive types, return their size
             if (obj.GetType().IsPrimitive)
             {
                 return obj switch
@@ -430,30 +426,37 @@ public sealed class MemoryCacheManager(ILogger logger, TimeSpan defaultTimeSpan,
                     float => sizeof(float),
                     double => sizeof(double),
                     decimal => sizeof(decimal),
-                    _ => 8 // Default fallback
+                    _ => 8
                 };
             }
 
-            // For complex objects, try JSON serialization
-            var options = new JsonSerializerOptions
+            if (obj is System.Collections.ICollection collection)
             {
-                ReferenceHandler = ReferenceHandler.IgnoreCycles,
-                MaxDepth = 16, // Reduced depth for performance
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
+                return collection.Count * 32L;
+            }
 
-            var serialized = JsonSerializer.Serialize(obj, options);
-            return Encoding.UTF8.GetByteCount(serialized);
+            var type = obj.GetType();
+            if (type.IsClass && !type.IsPrimitive && type != typeof(string))
+            {
+                if (type.Namespace?.StartsWith("Melodee.Common.Models") == true)
+                {
+                    return 256L;
+                }
+
+                if (type.IsArray)
+                {
+                    var array = (Array)obj;
+                    return array.Length * 64L;
+                }
+
+                return 128L;
+            }
+
+            return 64L;
         }
         catch
         {
-            // If serialization fails, use a simple estimate
-            return obj switch
-            {
-                string s => Encoding.UTF8.GetByteCount(s),
-                System.Collections.ICollection collection => collection.Count * 16L, // Rough estimate
-                _ => 64L // Default estimate for complex objects
-            };
+            return 64L;
         }
     }
 }

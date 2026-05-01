@@ -158,6 +158,7 @@ public static class SettingRegistry
     public const string SystemSiteName = "system.siteName";
     public const string SystemIsDownloadingEnabled = "system.isDownloadingEnabled";
     public const string SystemMaxUploadSize = "system.maxUploadSize";
+    public const string SystemOnboardingCompletedAt = "system.onboardingCompletedAt";
     // Streaming settings
     public const string StreamingUseBufferedResponses = "streaming.useBufferedResponses"; // bool: fallback to buffered responses
     public const string StreamingMaxConcurrentStreamsGlobal = "streaming.maxConcurrentStreams.global"; // int: 0 or less = unlimited
@@ -166,6 +167,10 @@ public static class SettingRegistry
     public const string TranscodingCommandMp3 = "transcoding.command.mp3";
     public const string TranscodingCommandOpus = "transcoding.command.opus";
     public const string TranscodingDefault = "transcoding.default";
+
+    // User Device Profile settings
+    public const string UserDeviceProfileEnabled = "userDeviceProfile.enabled";
+
     public const string UserInterfaceToastAutoCloseTime = "userinterface.toastAutoCloseTime";
     public const string ValidationMaximumAlbumYear = "validation.maximumAlbumYear";
     public const string ValidationMaximumSongNumber = "validation.maximumSongNumber";
@@ -188,6 +193,7 @@ public static class SettingRegistry
     public const string EmailResetPasswordHtmlBodyTemplate = "email.resetPassword.htmlBodyTemplate";
 
     // Security settings
+    public const string SecuritySecretKey = "security.secretKey";
     public const string SecurityPasswordResetTokenExpiryMinutes = "security.passwordResetTokenExpiryMinutes";
 
     // Jellyfin API settings

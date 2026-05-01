@@ -1,0 +1,262 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Models
+@using Melodee.Common.Services
+@using Melodee.Blazor.Components
+@using Melodee.Blazor.Components.Dialogs
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenTemplateForm TItem="UserDeviceProfileModel" Data="@FormData" Submit="@OnSubmit">
+        <RadzenStack Gap="1rem">
+            <RadzenFieldset>
+                <HeaderTemplate>
+                    <span class="d-inline-flex align-items-center align-middle">
+                        <RadzenIcon Icon="devices" class="me-2"/>
+                        <b>@L("Profile.DeviceProfileDetails")</b>
+                    </span>
+                </HeaderTemplate>
+                <ChildContent>
+                    <RadzenStack Gap="1rem">
+                        <RadzenFormField Text="@L("Profile.ProfileName")" Variant="Variant.Outlined" LabelledBy="profileNameInput">
+                            <RadzenTextBox id="profileNameInput" @bind-Value="@FormData.Name"
+                                           Name="ProfileName"
+                                           Style="width: 100%"
+                                           placeholder="@L("Profile.EnterProfileNamePlaceholder")" />
+                            <RadzenRequiredValidator Component="ProfileName" Text="@L("Profile.ProfileNameRequired")" />
+                        </RadzenFormField>
+
+                        <RadzenFormField Text="@L("Profile.DirectPlay")" Variant="Variant.Outlined" LabelledBy="directPlayToggle">
+                            <RadzenCheckBox id="directPlayToggle" @bind-Value="@FormData.DirectPlay"
+                                            Name="DirectPlay"
+                                            Text="@L("Profile.EnableDirectPlay")" />
+                        </RadzenFormField>
+
+                        @if (!FormData.DirectPlay)
+                        {
+                            <RadzenStack Gap="1rem" class="rz-ml-4 rz-p-3 rz-border rz-border-color-light">
+                                <RadzenText TextStyle="TextStyle.Overline" Class="rz-text-secondary">
+                                    @L("Profile.TranscodingOptions")
+                                </RadzenText>
+
+                                <RadzenFormField Text="@L("Profile.TargetCodec")" Variant="Variant.Outlined" LabelledBy="targetCodecSelect">
+                                    <RadzenDropDown id="targetCodecSelect" @bind-Value="@FormData.TargetCodec"
+                                                    Name="TargetCodec"
+                                                    Data="@_supportedCodecs"
+                                                    TextProperty="Name"
+                                                    ValueProperty="Value"
+                                                    Style="width: 100%"
+                                                    Placeholder="@L("Profile.SelectCodecPlaceholder")" />
+                                </RadzenFormField>
+
+                                <RadzenFormField Text="@L("Profile.MaxBitrate")" Variant="Variant.Outlined" LabelledBy="maxBitrateInput">
+                                    <RadzenNumeric id="maxBitrateInput" @bind-Value="@FormData.MaxBitrate"
+                                                  Name="MaxBitrate"
+                                                  Min="1" Max="9999"
+                                                  Step="1"
+                                                  Style="width: 100%"
+                                                  Placeholder="@L("Profile.EnterBitratePlaceholder")"
+                                                  Suffix="kbps" />
+                                    <RadzenText TextStyle="TextStyle.Caption" Class="rz-text-secondary">@L("Profile.BitrateHelpText")</RadzenText>
+                                </RadzenFormField>
+
+                                <RadzenFormField Text="@L("Profile.ResampleRate")" Variant="Variant.Outlined" LabelledBy="resampleRateInput">
+                                    <RadzenNumeric id="resampleRateInput" @bind-Value="@FormData.ResampleRate"
+                                                  Name="ResampleRate"
+                                                  Min="1000" Max="192000"
+                                                  Step="1000"
+                                                  Style="width: 100%"
+                                                  Placeholder="@L("Profile.EnterResampleRatePlaceholder")"
+                                                  Suffix="Hz" />
+                                    <RadzenText TextStyle="TextStyle.Caption" Class="rz-text-secondary">@L("Profile.ResampleRateHelpText")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenStack>
+                        }
+
+                        <RadzenFormField Text="@L("Profile.Priority")" Variant="Variant.Outlined" LabelledBy="priorityInput">
+                            <RadzenNumeric id="priorityInput" @bind-Value="@FormData.Priority"
+                                          Name="Priority"
+                                          Min="0" Max="100"
+                                          Step="1"
+                                          Style="width: 100%"
+                                          Placeholder="@L("Profile.EnterPriorityPlaceholder")" />
+                            <RadzenText TextStyle="TextStyle.Caption" Class="rz-text-secondary">@L("Profile.PriorityHelpText")</RadzenText>
+                        </RadzenFormField>
+
+                        <RadzenFormField Text="@L("Profile.IsDefaultProfile")" Variant="Variant.Outlined" LabelledBy="isDefaultCheckbox">
+                            <RadzenCheckBox id="isDefaultCheckbox" @bind-Value="@FormData.IsDefaultProfile"
+                                            Name="IsDefaultProfile"
+                                            Text="@L("Profile.MakeDefaultProfile")" />
+                        </RadzenFormField>
+                    </RadzenStack>
+                </ChildContent>
+            </RadzenFieldset>
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                <RadzenButton ButtonStyle="ButtonStyle.Light"
+                              Text="@L("Actions.Cancel")"
+                              Click="() => DialogService.Close(false)" />
+                <RadzenButton ButtonStyle="ButtonStyle.Primary"
+                              ButtonType="ButtonType.Submit"
+                              Text="@L("Actions.Save")"
+                              Icon="save"
+                              IsBusy="@_isSubmitting"
+                              BusyText="@L("Profile.Saving")" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public int UserId { get; set; }
+    [Parameter] public UserDeviceProfile? DeviceProfile { get; set; }
+    [Parameter] public UserProfileService UserProfileService { get; set; } = default!;
+    [Parameter] public UserDeviceProfileService UserDeviceProfileService { get; set; } = default!;
+
+    [Inject] public DialogService DialogService { get; set; } = default!;
+    [Inject] public NotificationService NotificationService { get; set; } = default!;
+    [Inject] public ILocalizationService LocalizationService { get; set; } = default!;
+
+    private UserDeviceProfileModel FormData { get; set; } = new();
+    private bool _isSubmitting;
+    private readonly List<CodecOption> _supportedCodecs = new()
+    {
+        new CodecOption { Name = "MP3", Value = "mp3" },
+        new CodecOption { Name = "Opus", Value = "opus" },
+        new CodecOption { Name = "AAC", Value = "aac" },
+        new CodecOption { Name = "FLAC", Value = "flac" },
+        new CodecOption { Name = "WAV", Value = "wav" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (DeviceProfile != null)
+        {
+            FormData = new UserDeviceProfileModel
+            {
+                Id = DeviceProfile.Id,
+                UserId = DeviceProfile.UserId,
+                Name = DeviceProfile.Name,
+                DirectPlay = DeviceProfile.DirectPlay,
+                TargetCodec = DeviceProfile.TargetCodec,
+                MaxBitrate = DeviceProfile.MaxBitrate,
+                ResampleRate = DeviceProfile.ResampleRate,
+                Priority = DeviceProfile.Priority,
+                IsDefaultProfile = DeviceProfile.IsDefaultProfile
+            };
+        }
+        else
+        {
+            FormData = new UserDeviceProfileModel
+            {
+                UserId = UserId,
+                DirectPlay = false,
+                Priority = 0,
+                IsDefaultProfile = false
+            };
+        }
+    }
+
+    private async Task OnSubmit(UserDeviceProfileModel model)
+    {
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            OperationResult<UserDeviceProfile> result;
+
+            if (DeviceProfile != null)
+            {
+                var profileToUpdate = DeviceProfile;
+                profileToUpdate.Name = model.Name;
+                profileToUpdate.DirectPlay = model.DirectPlay;
+                profileToUpdate.TargetCodec = model.TargetCodec;
+                profileToUpdate.MaxBitrate = model.MaxBitrate;
+                profileToUpdate.ResampleRate = model.ResampleRate;
+                profileToUpdate.Priority = model.Priority;
+                profileToUpdate.IsDefaultProfile = model.IsDefaultProfile;
+
+                result = await UserDeviceProfileService.UpdateAsync(profileToUpdate, CancellationToken.None);
+            }
+            else
+            {
+                var newProfile = new UserDeviceProfile
+                {
+                    UserId = UserId,
+                    Name = model.Name,
+                    DirectPlay = model.DirectPlay,
+                    TargetCodec = model.TargetCodec,
+                    MaxBitrate = model.MaxBitrate,
+                    ResampleRate = model.ResampleRate,
+                    Priority = model.Priority,
+                    IsDefaultProfile = model.IsDefaultProfile,
+                    CreatedAt = NodaTime.SystemClock.Instance.GetCurrentInstant()
+                };
+
+                result = await UserDeviceProfileService.CreateAsync(newProfile, CancellationToken.None);
+            }
+
+            if (result.IsSuccess)
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = DeviceProfile != null ? L("Profile.DeviceProfileUpdated") : L("Profile.DeviceProfileCreated"),
+                    Detail = DeviceProfile != null ? 
+                        L("Profile.DeviceProfileUpdatedDetail", model.Name) : 
+                        L("Profile.DeviceProfileCreatedDetail", model.Name),
+                    Duration = 3000
+                });
+
+                DialogService.Close(true);
+            }
+            else
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = DeviceProfile != null ? L("Profile.DeviceProfileUpdateFailed") : L("Profile.DeviceProfileCreationFailed"),
+                    Detail = string.Join("; ", result.Messages ?? []),
+                    Duration = 5000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = L("Profile.DeviceProfileOperationFailed"),
+                Detail = ex.Message,
+                Duration = 5000
+            });
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private class CodecOption
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    public class UserDeviceProfileModel
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public bool DirectPlay { get; set; }
+        public string? TargetCodec { get; set; }
+        public int? MaxBitrate { get; set; }
+        public int? ResampleRate { get; set; }
+        public int Priority { get; set; }
+        public bool IsDefaultProfile { get; set; }
+    }
+}

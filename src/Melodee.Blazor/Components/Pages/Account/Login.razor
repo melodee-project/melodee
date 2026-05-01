@@ -1,24 +1,28 @@
 @page "/account/login"
+@page "/login"
 @using System.Diagnostics
 @using System.Net.Http.Json
-@using System.Text.Json
 @using Melodee.Blazor.Components
-@using Melodee.Common.Data.Models.Extensions
-@using Melodee.Common.Services.Security
+@using Melodee.Blazor.Services
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Options
 
 @inject UserService UserService
+@inject UserProfileService UserProfileService
 @inject NotificationService NotificationService
 @inject NavigationManager NavigationManager
-@inject IAuthService AuthService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IMelodeeConfigurationFactory ConfigurationFactory
-@inject LibraryService LibraryService
 @inject IJSRuntime JsRuntime
 @inject IOptions<GoogleAuthOptions> GoogleAuthOptions
 @inject IHttpClientFactory HttpClientFactory
 @inject ILocalizationService LocalizationService
 @inject IThemeService ThemeService
+@inject IBlazorEventScriptService BlazorEventScriptService
+@inject IHttpContextAccessor HttpContextAccessor
 
 @implements IAsyncDisposable
 
@@ -186,12 +190,23 @@ else
             <div class="login-body">
                 <CustomBlock Key="login.top" />
                 
+                @if (_isLoginDisabled)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" 
+                                 Shade="Shade.Lighter" 
+                                 AllowClose="false"
+                                 class="rz-mb-4">
+                        @(_loginDisabledMessage ?? L("Auth.LoginDisabledByAdmin"))
+                    </RadzenAlert>
+                }
+                
                 <RadzenTemplateForm TItem="LoginModel" Data="@_loginModel" Submit="@OnSubmit">
                     <div class="login-form-field">
                         <label for="username">@L("Auth.Username")</label>
                         <RadzenTextBox @bind-Value="@_loginModel.Username" 
                                        Name="Username" 
                                        Placeholder="@L("Auth.EnterUsername")"
+                                       Disabled="@_isLoginDisabled"
                                        Style="width: 100%"/>
                         <RadzenRequiredValidator Component="Username" Text="@L("Auth.UsernameRequired")" Popup="false"/>
                     </div>
@@ -201,6 +216,7 @@ else
                         <RadzenPassword @bind-Value="@_loginModel.Password" 
                                         Name="Password"
                                         Placeholder="@L("Auth.EnterPassword")"
+                                        Disabled="@_isLoginDisabled"
                                         Style="width: 100%"/>
                         <RadzenRequiredValidator Component="Password" Text="@L("Auth.PasswordRequired")" Popup="false"/>
                     </div>
@@ -216,6 +232,7 @@ else
                                   Text="@L("Auth.Login")" 
                                   ButtonStyle="ButtonStyle.Primary"
                                   class="login-btn-primary"
+                                  Disabled="@_isLoginDisabled"
                                   IsBusy="@_isSubmitting"
                                   BusyText="@L("Auth.SigningIn")"/>
                 </RadzenTemplateForm>
@@ -230,7 +247,7 @@ else
                                   ButtonStyle="ButtonStyle.Light" 
                                   Variant="Variant.Outlined"
                                   class="login-google-btn"
-                                  Disabled="@_isGoogleSigningIn">
+                                  Disabled="@(_isGoogleSigningIn || _isLoginDisabled)">
                         @if (_isGoogleSigningIn)
                         {
                             <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" 
@@ -291,6 +308,8 @@ else
     private DotNetObjectReference<Login>? _dotNetRef;
     private bool _googleInitialized;
     private bool _isEmailEnabled;
+    private bool _isLoginDisabled;
+    private string? _loginDisabledMessage;
 
     [SupplyParameterFromQuery] [Parameter] public string? ReturnUrl { get; set; }
 
@@ -338,6 +357,9 @@ else
         {
             var config = await ConfigurationFactory.GetConfigurationAsync();
             _isEmailEnabled = config.GetValue<bool>(SettingRegistry.EmailEnabled);
+            
+            // Evaluate UserLoginStart script
+            await EvaluateLoginScriptAsync();
         }
         
         if (string.IsNullOrEmpty(ReturnUrl))
@@ -349,10 +371,14 @@ else
             }
         }
 
-        if (firstRender && await AuthService.EnsureAuthenticatedAsync())
+        if (firstRender)
         {
-            NavigationManager.NavigateTo(ReturnUrl ?? "/");
-            return;
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                NavigationManager.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+                return;
+            }
         }
 
         _isLoading = false;
@@ -363,6 +389,37 @@ else
         }
         
         StateHasChanged();
+    }
+    
+    private async Task EvaluateLoginScriptAsync()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+            var clientIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = httpContext?.Request.Headers.UserAgent.ToString() ?? "unknown";
+            
+            var context = new UserLoginContext
+            {
+                UserId = null,
+                Roles = [],
+                ClientIp = clientIp,
+                UserAgent = userAgent,
+                Now = DateTime.UtcNow.ToString("O")
+            };
+            
+            var result = await BlazorEventScriptService.EvaluateUserLoginAsync(context);
+            
+            if (!result.Result && !result.IsDefault)
+            {
+                _isLoginDisabled = true;
+                _loginDisabledMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Error evaluating login script: {ex.Message}");
+        }
     }
 
     private async Task InitializeGoogleSignInAsync()
@@ -417,41 +474,22 @@ else
                 var authResponse = await response.Content.ReadFromJsonAsync<GoogleAuthResponse>();
                 if (authResponse?.User != null)
                 {
-                    var userImageLibrary = await LibraryService.GetUserImagesLibraryAsync();
-                    var config = await ConfigurationFactory.GetConfigurationAsync();
-                    
-                    var user = await UserService.GetByApiKeyAsync(Guid.Parse(authResponse.User.ApiKey!));
+                    var user = await UserProfileService.GetByApiKeyAsync(Guid.Parse(authResponse.User.ApiKey!));
                     if (user.IsSuccess && user.Data != null)
                     {
-                        // Apply user's preferred theme by setting cookie directly, fallback to system default
-                        var systemDefaultTheme = config.GetValue<string>(Melodee.Common.Constants.SettingRegistry.SystemDefaultTheme) ?? "dark";
-                        var theme = systemDefaultTheme;
-                        
-                        // Check if user's preferred theme exists, if not reset it to null
-                        if (!string.IsNullOrEmpty(user.Data.PreferredTheme))
-                        {
-                            var availableThemes = await ThemeService.DiscoverThemePacksAsync();
-                            var themeExists = availableThemes.Any(t => t.Id.Equals(user.Data.PreferredTheme, StringComparison.OrdinalIgnoreCase));
-                            if (themeExists)
-                            {
-                                theme = user.Data.PreferredTheme;
-                            }
-                            else
-                            {
-                                // Theme no longer exists, clear the user's preference
-                                user.Data.PreferredTheme = null;
-                                await UserService.UpdateAsync(user.Data, user.Data);
-                            }
-                        }
-                        
-                        await JsRuntime.InvokeVoidAsync("eval", 
-                            $"document.cookie = 'melodee_ui_theme={theme}; path=/; max-age=31536000; samesite=lax'");
+                        await ApplyUserThemeAsync(user.Data);
+                    }
 
-                        await AuthService.Login(user.Data.ToUserInfo().ToClaimsPrincipal(config, userImageLibrary.Data?.Path ?? string.Empty));
+                    var cookieResult = await JsRuntime.InvokeAsync<AuthResult>("melodeeAuth.signInGoogle", idToken);
+                    if (cookieResult.Ok)
+                    {
                         ShowSuccessNotification(L("Auth.Welcome"), L("Auth.SignedInAs", authResponse.User.UserName ?? string.Empty));
                         NavigationManager.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
                         return;
                     }
+
+                    _googleAuthError = MapGoogleAuthError(cookieResult.Code, cookieResult.Message);
+                    return;
                 }
                 
                 _googleAuthError = L("Auth.FailedToCompleteSignIn");
@@ -511,40 +549,25 @@ else
 
         try
         {
-            var user = await UserService.LoginUserByUsernameAsync(model.Username, model.Password);
-            if (user.Data == null || !user.IsSuccess)
+            var authResult = await JsRuntime.InvokeAsync<AuthResult>("melodeeAuth.signIn", model.Username, model.Password);
+            if (!authResult.Ok)
             {
-                ShowNotification(L("Auth.InvalidEmailOrPassword"), L("Auth.UnableToLogin"));
+                var errorMessage = authResult.Message ?? L("Auth.UnableToLogin");
+                ShowNotification(L("Auth.InvalidEmailOrPassword"), errorMessage);
                 return;
             }
 
-            // Apply user's preferred theme by setting cookie directly, fallback to system default
-            var config = await ConfigurationFactory.GetConfigurationAsync();
-            var systemDefaultTheme = config.GetValue<string>(Melodee.Common.Constants.SettingRegistry.SystemDefaultTheme) ?? "dark";
-            var theme = systemDefaultTheme;
-            
-            // Check if user's preferred theme exists, if not reset it to null
-            if (!string.IsNullOrEmpty(user.Data.PreferredTheme))
+            var user = await UserProfileService.GetByUsernameAsync(model.Username);
+            if (user.IsSuccess && user.Data != null)
             {
-                var availableThemes = await ThemeService.DiscoverThemePacksAsync();
-                var themeExists = availableThemes.Any(t => t.Id.Equals(user.Data.PreferredTheme, StringComparison.OrdinalIgnoreCase));
-                if (themeExists)
+                // If admin logs in, invalidate onboarding cache to check for config changes
+                if (user.Data.IsAdmin)
                 {
-                    theme = user.Data.PreferredTheme;
+                    OnboardingStateService.InvalidateCacheOnAdminLogin();
                 }
-                else
-                {
-                    // Theme no longer exists, clear the user's preference
-                    user.Data.PreferredTheme = null;
-                    await UserService.UpdateAsync(user.Data, user.Data);
-                }
+                await ApplyUserThemeAsync(user.Data);
             }
-            
-            await JsRuntime.InvokeVoidAsync("eval", 
-                $"document.cookie = 'melodee_ui_theme={theme}; path=/; max-age=31536000; samesite=lax'");
 
-            var userImageLibrary = await LibraryService.GetUserImagesLibraryAsync();
-            await AuthService.Login(user.Data.ToUserInfo().ToClaimsPrincipal(await ConfigurationFactory.GetConfigurationAsync(), userImageLibrary.Data.Path));
             NavigationManager.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
         }
         catch (Exception e)
@@ -555,6 +578,34 @@ else
         {
             _isSubmitting = false;
         }
+    }
+
+    /// <summary>
+    /// Resolves and persists the user's preferred theme cookie for the UI.
+    /// </summary>
+    private async Task ApplyUserThemeAsync(Melodee.Common.Data.Models.User user)
+    {
+        var config = await ConfigurationFactory.GetConfigurationAsync();
+        var systemDefaultTheme = config.GetValue<string>(Melodee.Common.Constants.SettingRegistry.SystemDefaultTheme) ?? "dark";
+        var theme = systemDefaultTheme;
+
+        if (!string.IsNullOrEmpty(user.PreferredTheme))
+        {
+            var availableThemes = await ThemeService.DiscoverThemePacksAsync();
+            var themeExists = availableThemes.Any(t => t.Id.Equals(user.PreferredTheme, StringComparison.OrdinalIgnoreCase));
+            if (themeExists)
+            {
+                theme = user.PreferredTheme;
+            }
+            else
+            {
+                user.PreferredTheme = null;
+                await UserProfileService.UpdateAsync(user, user);
+            }
+        }
+
+        await JsRuntime.InvokeVoidAsync("eval",
+            $"document.cookie = 'melodee_ui_theme={theme}; path=/; max-age=31536000; samesite=lax'");
     }
     
     public async ValueTask DisposeAsync()
@@ -592,5 +643,12 @@ else
         public string? Code { get; init; }
         public string? Message { get; init; }
     }
-}
 
+    private class AuthResult
+    {
+        public bool Ok { get; init; }
+        public int Status { get; init; }
+        public string? Message { get; init; }
+        public string? Code { get; init; }
+    }
+}

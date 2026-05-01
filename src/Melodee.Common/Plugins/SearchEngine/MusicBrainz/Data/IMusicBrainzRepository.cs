@@ -13,6 +13,8 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 /// <param name="message">Optional message with additional details</param>
 public delegate void ImportProgressCallback(string phase, int currentItem, int totalItems, string? message = null);
 
+public sealed record MusicBrainzImportRequest(string? StoragePath = null, string? TargetDatabasePath = null);
+
 public interface IMusicBrainzRepository
 {
     Task<Album?> GetAlbumByMusicBrainzId(Guid musicBrainzId, CancellationToken cancellationToken = default);
@@ -21,6 +23,11 @@ public interface IMusicBrainzRepository
         CancellationToken cancellationToken = default);
 
     Task<OperationResult<bool>> ImportData(
+        ImportProgressCallback? progressCallback = null,
+        CancellationToken cancellationToken = default);
+
+    Task<OperationResult<bool>> ImportData(
+        MusicBrainzImportRequest request,
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default);
 }

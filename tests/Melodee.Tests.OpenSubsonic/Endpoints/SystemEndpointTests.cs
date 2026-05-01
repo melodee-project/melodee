@@ -70,8 +70,10 @@ public class SystemEndpointTests : OpenSubsonicTestBase
         var root = json.RootElement.GetProperty("subsonic-response");
         var license = root.GetProperty("license");
 
-        license.GetProperty("serverVersion").GetString().Should().NotBeNullOrEmpty();
-        license.GetProperty("type").GetString().Should().Be("Melodee");
+        // serverVersion and type are on the root response, not on license
+        root.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
+        root.GetProperty("type").GetString().Should().Be("Melodee");
+        license.GetProperty("valid").GetBoolean().Should().BeTrue();
     }
 
     [Fact]

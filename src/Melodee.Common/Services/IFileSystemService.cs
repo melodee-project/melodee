@@ -9,6 +9,7 @@ public interface IFileSystemService
     IEnumerable<DirectoryInfo> EnumerateDirectories(string path, string searchPattern, SearchOption searchOption);
     DateTime GetFileCreationTimeUtc(string filePath);
     void DeleteDirectory(string path, bool recursive);
+    void DeleteDirectory(string root, string path, bool recursive);
     Task<Album?> DeserializeAlbumAsync(string filePath, CancellationToken cancellationToken);
     string GetDirectoryName(string path);
     string GetFileName(string path);
@@ -20,7 +21,10 @@ public interface IFileSystemService
     void CreateDirectory(string path);
     bool FileExists(string path);
     void DeleteFile(string path);
+    void DeleteFile(string root, string path);
     void MoveDirectory(string sourcePath, string destinationPath);
+    void MoveDirectory(string root, string sourcePath, string destinationPath);
     string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly);
     void DeleteAllFilesForExtension(FileSystemDirectoryInfo directoryInfo, string jpg);
+    void DeleteAllFilesForExtension(string root, FileSystemDirectoryInfo directoryInfo, string jpg);
 }

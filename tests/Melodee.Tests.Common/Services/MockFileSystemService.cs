@@ -46,6 +46,11 @@ public class MockFileSystemService : IFileSystemService
         }
     }
 
+    public void DeleteDirectory(string root, string path, bool recursive)
+    {
+        DeleteDirectory(path, recursive);
+    }
+
     public Task<Album?> DeserializeAlbumAsync(string filePath, CancellationToken cancellationToken)
     {
         _albumsByFile.TryGetValue(filePath, out var album);
@@ -84,6 +89,8 @@ public class MockFileSystemService : IFileSystemService
 
     public void DeleteFile(string path) => _files.Remove(path);
 
+    public void DeleteFile(string root, string path) => _files.Remove(path);
+
     public void MoveDirectory(string sourcePath, string destinationPath)
     {
         if (_directories.Contains(sourcePath))
@@ -91,6 +98,11 @@ public class MockFileSystemService : IFileSystemService
             _directories.Remove(sourcePath);
             _directories.Add(destinationPath);
         }
+    }
+
+    public void MoveDirectory(string root, string sourcePath, string destinationPath)
+    {
+        MoveDirectory(sourcePath, destinationPath);
     }
 
     public string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly)
@@ -158,7 +170,11 @@ public class MockFileSystemService : IFileSystemService
 
     public void DeleteAllFilesForExtension(FileSystemDirectoryInfo directoryInfo, string searchPattern)
     {
-        // Remove all files in the directory that match the search pattern (e.g., "*.jpg")
+        DeleteAllFilesForExtension(directoryInfo.Path, directoryInfo, searchPattern);
+    }
+
+    public void DeleteAllFilesForExtension(string root, FileSystemDirectoryInfo directoryInfo, string searchPattern)
+    {
         var directoryPath = directoryInfo.Path;
         var extension = searchPattern.StartsWith("*.") ? searchPattern[1..] : searchPattern;
         var filesToRemove = _files.Keys

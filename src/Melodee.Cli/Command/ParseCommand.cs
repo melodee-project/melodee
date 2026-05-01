@@ -19,7 +19,7 @@ namespace Melodee.Cli.Command;
 
 public class ParseCommand : CommandBase<ParseSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ParseSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ParseSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

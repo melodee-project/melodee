@@ -12,7 +12,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class ConfigurationSetCommand : CommandBase<ConfigurationSetSetting>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ConfigurationSetSetting settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ConfigurationSetSetting settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

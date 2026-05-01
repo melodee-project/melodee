@@ -70,11 +70,15 @@
                         title="Run process job on this library." Icon="memory"></RadzenMenuItem>
         <RadzenMenuItem Text="Find Missing Images" Disabled="@(_library.IsLocked || _count == 0)" Click="FindMissingImagesButtonClick"
                         title="Find missing images for albums with no images." Icon="image_search"></RadzenMenuItem>
+        <RadzenMenuItem Text="Manage Invalid Artists" Disabled="@HasInvalidArtistsSelected" Click="ManageInvalidArtistsButtonClick"
+                        title="Manage albums with invalid artists in bulk." Icon="manage_accounts"></RadzenMenuItem>
         <RadzenMenuItem Text="@($"Move Ok [{ _numberOfAlbumsWithStatusOk }]")" Disabled="@(_library.IsLocked || _numberOfAlbumsWithStatusOk == 0)" Click="MoveOkButtonClick"
                         title="Move Ok media albums to Library." Icon="move_group"></RadzenMenuItem>
         <RadzenMenuItem Text="@L("Actions.Upload")" Disabled="_library.IsLocked" Click="UploadButtonClick"
                         Visible="@(_library.TypeValue == LibraryType.Inbound)"
                         title="@L("UploadAlbum.MenuTooltip")" Icon="cloud_upload"></RadzenMenuItem>
+        <RadzenMenuItem Text="Diagnose Directory" Click="DiagnoseDirectoryButtonClick"
+                        title="Analyze directory structure and identify unprocessed albums." Icon="troubleshoot"></RadzenMenuItem>
     </RadzenMenu>
 
     <RadzenText
@@ -126,7 +130,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedAlbums.Any() != true ? false : !_albums.All(i => _selectedAlbums.Contains(i)) ? null : _albums.Any(i => _selectedAlbums.Contains(i)))"
                             Change="@(args => _selectedAlbums = args == true ? _albums.ToList() : [])"/>
                     </HeaderTemplate>
@@ -135,7 +139,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedAlbums.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid?.SelectRow(data); })"
                             TValue="bool"/>
                     </Template>
@@ -237,6 +241,8 @@
 
     string _debounceInputValue = "";
     private int _numberOfAlbumsWithStatusOk;
+
+    bool HasInvalidArtistsSelected => _library.IsLocked || _count == 0 || !_selectedAlbums.Any(a => a.NeedsAttentionReasonsValue.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists));
 
     [Parameter] public Guid ApiKey { get; set; }
 
@@ -729,11 +735,45 @@
             : null;
     }
 
+    private async Task ManageInvalidArtistsButtonClick()
+    {
+        var result = await DialogService.OpenAsync<BulkArtistManagementDialog>(
+            L("BulkArtistManagement.Title"),
+            new Dictionary<string, object?>
+            {
+                { "LibraryApiKey", _library.ApiKey },
+                { "SelectedAlbums", _selectedAlbums }
+            },
+            new DialogOptions
+            {
+                Width = "900px",
+                Height = "80vh",
+                ShowClose = true,
+                CloseDialogOnOverlayClick = false
+            });
+
+        if (result is true)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = "Artist Management Complete",
+                Detail = "Invalid artists have been updated.",
+                Duration = ToastTime
+            });
+
+            if (_grid != null)
+            {
+                await _grid.RefreshDataAsync();
+            }
+        }
+    }
+
     private async Task UploadButtonClick()
     {
         var result = await DialogService.OpenAsync<UploadAlbumDialog>(
             L("UploadAlbum.Title"),
-            new Dictionary<string, object> { { "LibraryApiKey", _library.ApiKey } },
+            new Dictionary<string, object?> { { "LibraryApiKey", _library.ApiKey } },
             new DialogOptions
             {
                 Width = "600px",
@@ -756,6 +796,104 @@
             {
                 await _grid.RefreshDataAsync();
             }
+        }
+    }
+
+    private async Task DiagnoseDirectoryButtonClick()
+    {
+        MainLayoutProxyService.ToggleSpinnerVisible();
+        try
+        {
+            var result = await AlbumDiscoveryService.DiagnoseDirectoryAsync(
+                _library.ToFileSystemDirectoryInfo(),
+                CancellationToken.None);
+
+            await DialogService.OpenAsync("Directory Diagnostic Results", ds =>
+                @<div style="max-height: 70vh; overflow-y: auto;">
+                    <RadzenCard class="rz-mb-3">
+                        <RadzenText TextStyle="TextStyle.H6">Summary</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body2">
+                            <pre style="white-space: pre-wrap; font-family: inherit;">@result.Summary</pre>
+                        </RadzenText>
+                    </RadzenCard>
+
+                    @if (result.DirectoriesWithMediaButNoMelodeeJson > 0)
+                    {
+                        <RadzenCard class="rz-mb-3">
+                            <RadzenText TextStyle="TextStyle.H6" class="rz-color-warning">
+                                Unprocessed Directories (@result.DirectoriesWithMediaButNoMelodeeJson.ToString("N0") total)
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">
+                                These directories contain media files but have not been processed (no melodee.json):
+                            </RadzenText>
+                            @if (result.SampleUnprocessedDirectories.Count > 0)
+                            {
+                                <ul style="max-height: 200px; overflow-y: auto; font-size: 0.85rem;">
+                                    @foreach (var dir in result.SampleUnprocessedDirectories)
+                                    {
+                                        <li>@dir</li>
+                                    }
+                                </ul>
+                                @if (result.DirectoriesWithMediaButNoMelodeeJson > 20)
+                                {
+                                    <RadzenText TextStyle="TextStyle.Caption">
+                                        ...and @((result.DirectoriesWithMediaButNoMelodeeJson - 20).ToString("N0")) more
+                                    </RadzenText>
+                                }
+                            }
+                        </RadzenCard>
+                    }
+
+                    @if (result.JsonDeserializationErrors.Count > 0)
+                    {
+                        <RadzenCard class="rz-mb-3">
+                            <RadzenText TextStyle="TextStyle.H6" class="rz-color-danger">JSON Errors</RadzenText>
+                            <ul style="max-height: 150px; overflow-y: auto; font-size: 0.85rem;">
+                                @foreach (var error in result.JsonDeserializationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </RadzenCard>
+                    }
+
+                    @if (result.Errors.Count > 0)
+                    {
+                        <RadzenCard class="rz-mb-3">
+                            <RadzenText TextStyle="TextStyle.H6" class="rz-color-danger">Analysis Errors</RadzenText>
+                            <ul style="font-size: 0.85rem;">
+                                @foreach (var error in result.Errors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </RadzenCard>
+                    }
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                        <RadzenButton Text="Close" Click="@(() => ds.Close())" ButtonStyle="ButtonStyle.Secondary"/>
+                    </RadzenStack>
+                </div>,
+                new DialogOptions 
+                { 
+                    Width = "700px", 
+                    Height = "auto",
+                    ShowClose = true 
+                });
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Diagnostic Error",
+                Detail = ex.Message,
+                Duration = ToastTime
+            });
+        }
+        finally
+        {
+            MainLayoutProxyService.ToggleSpinnerVisible();
         }
     }
 

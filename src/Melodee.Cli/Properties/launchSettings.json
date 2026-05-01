@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Melodee.Cli": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "MELODEE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
 using Melodee.Common.Models.SearchEngines;
+using Melodee.Common.Services.Caching;
 
 namespace Melodee.Common.Services.SearchEngines;
 
 /// <summary>
 ///     Cache for artist search results to avoid redundant API calls
 /// </summary>
-public sealed class ArtistSearchCache
+public sealed class ArtistSearchCache : ICacheInvalidatable
 {
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
     private readonly TimeSpan _negativeResultTtl = TimeSpan.FromHours(2);
@@ -133,5 +134,16 @@ public sealed class ArtistSearchCache
                 _cache.TryRemove(key, out _);
             }
         }
+    }
+
+    /// <inheritdoc />
+    public void InvalidateByEntityType(string entityTypeName)
+    {
+    }
+
+    /// <inheritdoc />
+    public void InvalidateAll()
+    {
+        Clear();
     }
 }

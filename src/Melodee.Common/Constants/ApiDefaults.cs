@@ -8,7 +8,7 @@ public static class ApiDefaults
     /// <summary>
     /// Maximum allowed page size for paginated API requests.
     /// </summary>
-    public const int MaxPageSize = 1000;
+    public const int MaxPageSize = 200;
 
     /// <summary>
     /// Default page size when not specified.

@@ -236,8 +236,8 @@ public class StagingAlbumRevalidationJob(
 
             var elapsed = Stopwatch.GetElapsedTime(startTicks);
 
-            dataMap.Put(JobMapNameRegistry.AlbumsRevalidated, albumsRevalidated);
-            dataMap.Put(JobMapNameRegistry.AlbumsNowValid, albumsNowValid);
+            dataMap[JobMapNameRegistry.AlbumsRevalidated] = albumsRevalidated;
+            dataMap[JobMapNameRegistry.AlbumsNowValid] = albumsNowValid;
 
             context.Result = new ScanStepResult(
                 AlbumsRevalidated: albumsRevalidated,

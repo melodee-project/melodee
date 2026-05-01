@@ -11,7 +11,7 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class ConfigurationGetCommand : CommandBase<ConfigurationGetSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ConfigurationGetSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ConfigurationGetSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var settingService = scope.ServiceProvider.GetRequiredService<SettingService>();

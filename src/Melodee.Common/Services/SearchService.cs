@@ -24,7 +24,7 @@ public sealed class SearchService(
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     IMelodeeConfigurationFactory configurationFactory,
-    UserService userService,
+    UserProfileService userProfileService,
     ArtistService artistService,
     AlbumService albumService,
     SongService songService,
@@ -68,7 +68,7 @@ public sealed class SearchService(
             };
         }
 
-        var user = await userService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
+        var user = await userProfileService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
 
         var startTicks = Stopwatch.GetTimestamp();
 
@@ -271,7 +271,7 @@ public sealed class SearchService(
         int songCount = 20,
         CancellationToken cancellationToken = default)
     {
-        var user = await userService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
+        var user = await userProfileService.GetByApiKeyAsync(userApiKey, cancellationToken).ConfigureAwait(false);
         if (!user.IsSuccess || user.Data == null)
         {
             return new OperationResult<OpenSubsonicSearchResult>("User not found")

@@ -15,6 +15,7 @@ namespace Melodee.Mql.Api;
 /// </summary>
 [ApiController]
 [Route("api/v1/query")]
+[ApiExplorerSettings(IgnoreApi = true)]
 public class MqlController : ControllerBase
 {
     private readonly IMqlTokenizer _tokenizer;
@@ -26,7 +27,7 @@ public class MqlController : ControllerBase
     private readonly ILogger<MqlController> _logger;
 
     private const int MaxQueryLength = 500;
-    private const int ParseTimeoutMs = 200;
+    private const int ParseTimeoutMs = 5000;
     private const int RateLimitRequests = 10;
     private static readonly TimeSpan RateLimitWindow = TimeSpan.FromMinutes(1);
 

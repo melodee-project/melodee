@@ -8,7 +8,7 @@ namespace Melodee.Cli.Command;
 
 public class ImportUserFavoriteCommand : CommandBase<ImportUserFavorite>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, ImportUserFavorite settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, ImportUserFavorite settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

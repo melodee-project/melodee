@@ -21,7 +21,7 @@ public class AlbumImageIssuesCommand : CommandBase<AlbumImageIssuesSettings>
 {
     private static readonly Regex ImageNameRegex = new(@"^i-(\d+)-(\w+)\.jpg$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public override async Task<int> ExecuteAsync(CommandContext context, AlbumImageIssuesSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, AlbumImageIssuesSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();

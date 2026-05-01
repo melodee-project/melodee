@@ -1,11 +1,11 @@
 using System.Net;
+using DecentDB.EntityFrameworkCore;
 using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Moq.Protected;
@@ -15,7 +15,7 @@ namespace Melodee.Tests.Common.Services;
 
 public class PodcastDiscoveryServiceTests : IAsyncDisposable
 {
-    private readonly System.Data.Common.DbConnection _connection;
+    private readonly string _tempDbDir;
     private readonly DbContextOptions<MelodeeDbContext> _dbOptions;
     private readonly ILogger _logger;
     private readonly ICacheManager _cacheManager;
@@ -25,11 +25,12 @@ public class PodcastDiscoveryServiceTests : IAsyncDisposable
 
     public PodcastDiscoveryServiceTests()
     {
-        _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
+        _tempDbDir = Path.Combine(Path.GetTempPath(), $"melodee-podcast-disc-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDbDir);
+        var dbFile = Path.Combine(_tempDbDir, "melodee.ddb");
 
         _dbOptions = new DbContextOptionsBuilder<MelodeeDbContext>()
-            .UseSqlite(_connection, x => x.UseNodaTime())
+            .UseDecentDB($"Data Source={dbFile}", x => x.UseNodaTime())
             .Options;
 
         using (var context = new MelodeeDbContext(_dbOptions))
@@ -59,9 +60,21 @@ public class PodcastDiscoveryServiceTests : IAsyncDisposable
         return factoryMock.Object;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await _connection.DisposeAsync();
+        try
+        {
+            if (Directory.Exists(_tempDbDir))
+            {
+                Directory.Delete(_tempDbDir, true);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     private PodcastDiscoveryService CreateService(HttpClient? httpClient = null)

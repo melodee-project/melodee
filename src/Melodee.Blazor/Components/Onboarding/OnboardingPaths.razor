@@ -1,0 +1,363 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Enums
+@using Melodee.Common.Services
+@using Melodee.Blazor.Services
+@using Melodee.Common.Utility
+@using NodaTime
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.PathsHeading")"/>
+
+    <RadzenText Text="@L("Onboarding.PathsDescription")"/>
+
+    @foreach (var lib in _libraries)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="0.5rem">
+                <RadzenText Text="@lib.Name" TextStyle="TextStyle.Subtitle2"/>
+                <RadzenFormField Text="@L("Onboarding.PathLabel")">
+                    <RadzenTextBox @bind-Value="lib.Path" Style="width: 100%;" Change="@(() => ValidatePath(lib))"/>
+                </RadzenFormField>
+                @if (!string.IsNullOrEmpty(_pathErrors.GetValueOrDefault(lib.Id)))
+                {
+                    <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                        <RadzenText Text="@_pathErrors.GetValueOrDefault(lib.Id)"/>
+                    </RadzenAlert>
+                }
+                @if (!string.IsNullOrEmpty(_pathWarnings.GetValueOrDefault(lib.Id)))
+                {
+                    <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Warning" Icon="warning">
+                        <RadzenText Text="@_pathWarnings.GetValueOrDefault(lib.Id)"/>
+                    </RadzenAlert>
+                }
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenButton Click="@(() => TestPath(lib))"
+                                  Text="@L("Onboarding.TestPath")"
+                                  Icon="folder"
+                                  ButtonStyle="ButtonStyle.Secondary"
+                                  Disabled="@string.IsNullOrEmpty(lib.Path)"/>
+                    <RadzenButton Click="@(() => CreateDirectory(lib))"
+                                  Text="@L("Onboarding.CreateDirectory")"
+                                  Icon="create_new_folder"
+                                  ButtonStyle="ButtonStyle.Secondary"/>
+                </RadzenStack>
+                @if (_pathTestResults.TryGetValue(lib.Id, out var testResult))
+                {
+                    <RadzenAlert Variant="@(testResult.Exists && testResult.Writable ? Variant.Outlined : Variant.Filled)"
+                                 AlertStyle="@(testResult.Exists && testResult.Writable ? AlertStyle.Success : AlertStyle.Warning)"
+                                 Icon="@(testResult.Exists && testResult.Writable ? "check_circle" : "warning")">
+                        <RadzenText Text="@(testResult.Exists && testResult.Writable
+                            ? L("Onboarding.PathTestWritable")
+                            : (testResult.Exists ? L("Onboarding.PathTestNotWritable") : L("Onboarding.PathTestMissing")))"/>
+                    </RadzenAlert>
+                }
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving" Disabled="@_hasErrors"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private List<Library> _libraries = new();
+    private bool _isSaving;
+    private bool _hasErrors;
+    private Dictionary<int, string> _pathErrors = new();
+    private Dictionary<int, string> _pathWarnings = new();
+    private Dictionary<int, (bool Exists, bool Writable)> _pathTestResults = new();
+    private readonly LibraryType[] _requiredTypes = { LibraryType.Inbound, LibraryType.Staging, LibraryType.Storage };
+
+    [Inject] private LibraryService LibraryService { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var importData = OnboardingStateService.GetImportData();
+        var result = await LibraryService.ListAsync(new PagedRequest { PageSize = short.MaxValue });
+        if (result.IsSuccess)
+        {
+            _libraries = result.Data.Where(l => l.TypeValue is LibraryType.Inbound or LibraryType.Staging or LibraryType.Storage).ToList();
+        }
+
+        foreach (var requiredType in _requiredTypes)
+        {
+            if (!_libraries.Any(l => l.TypeValue == requiredType))
+            {
+                var defaultPath = GetDefaultPath(requiredType);
+                var libName = requiredType.ToString();
+                var newLib = new Library
+                {
+                    Name = libName,
+                    Path = defaultPath,
+                    Type = (int)requiredType,
+                    SortOrder = (int)requiredType,
+                    ApiKey = Guid.NewGuid(),
+                    CreatedAt = NodaTime.Instant.FromDateTimeUtc(DateTime.UtcNow)
+                };
+                _libraries.Add(newLib);
+            }
+        }
+
+        if (importData != null)
+        {
+            foreach (var lib in _libraries)
+            {
+                var importedLib = importData.Libraries.FirstOrDefault(l =>
+                    l.Name.Equals(lib.Name, StringComparison.OrdinalIgnoreCase) ||
+                    l.Type.Equals(lib.TypeValue.ToString(), StringComparison.OrdinalIgnoreCase));
+                if (importedLib != null && !string.IsNullOrEmpty(importedLib.Path))
+                {
+                    lib.Path = importedLib.Path;
+                    ValidatePath(lib);
+                }
+            }
+        }
+    }
+
+    private static string GetDefaultPath(LibraryType libraryType)
+    {
+        if (IsRunningInContainer())
+        {
+            return libraryType switch
+            {
+                LibraryType.Inbound => "/app/inbound",
+                LibraryType.Staging => "/app/staging",
+                LibraryType.Storage => "/app/storage",
+                _ => "/app/unknown"
+            };
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return libraryType switch
+            {
+                LibraryType.Inbound => @"C:\Melodee\Inbound",
+                LibraryType.Staging => @"C:\Melodee\Staging",
+                LibraryType.Storage => @"C:\Melodee\Storage",
+                _ => @"C:\Melodee\Unknown"
+            };
+        }
+
+        return libraryType switch
+        {
+            LibraryType.Inbound => "/var/lib/melodee/inbound",
+            LibraryType.Staging => "/var/lib/melodee/staging",
+            LibraryType.Storage => "/var/lib/melodee/storage",
+            _ => "/var/lib/melodee/unknown"
+        };
+    }
+
+    private static bool IsRunningInContainer()
+    {
+        var value = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER");
+        return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) || value == "1";
+    }
+
+    private void ValidatePath(Library lib)
+    {
+        var path = lib.Path;
+        _pathErrors.Remove(lib.Id);
+        _pathWarnings.Remove(lib.Id);
+        _pathTestResults.Remove(lib.Id);
+        var hasErrors = false;
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathRequired");
+            hasErrors = true;
+        }
+        else if (!LibraryPathValidation.IsAbsolutePath(path))
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathAbsoluteRequired");
+            hasErrors = true;
+        }
+        else if (LibraryPathValidation.ContainsTraversal(path))
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathTraversalInvalid");
+            hasErrors = true;
+        }
+        else if (!LibraryPathValidation.TryNormalizePath(path, out var normalizedPath))
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathInvalid");
+            hasErrors = true;
+        }
+        else
+        {
+            if (!LibraryPathValidation.IsPathLengthRecommended(normalizedPath))
+            {
+                _pathWarnings[lib.Id] = L("Onboarding.PathTooLong", LibraryPathValidation.RecommendedMaxPathLength);
+            }
+
+            foreach (var otherLib in _libraries.Where(l => l.Id != lib.Id))
+            {
+                if (string.IsNullOrWhiteSpace(otherLib.Path))
+                {
+                    continue;
+                }
+
+                if (!LibraryPathValidation.TryNormalizePath(otherLib.Path, out var otherNormalizedPath))
+                {
+                    continue;
+                }
+
+                if (LibraryPathValidation.PathsOverlap(normalizedPath, otherNormalizedPath, LibraryPathValidation.GetPathComparison()))
+                {
+                    _pathErrors[lib.Id] = L("Onboarding.PathOverlap", otherLib.Name);
+                    hasErrors = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasErrors)
+        {
+            _hasErrors = true;
+        }
+
+        UpdateHasErrors();
+    }
+
+    private void TestPath(Library lib)
+    {
+        var path = lib.Path;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var resolvedPath = LibraryPathValidation.GetCanonicalPath(path);
+            var exists = Directory.Exists(resolvedPath);
+            var writable = false;
+
+            if (exists)
+            {
+                try
+                {
+                    var testFile = Path.Combine(resolvedPath, $".melodee-write-test-{Guid.NewGuid():N}");
+                    File.WriteAllText(testFile, "test");
+                    File.Delete(testFile);
+                    writable = true;
+                }
+                catch
+                {
+                    writable = false;
+                }
+            }
+
+            _pathTestResults[lib.Id] = (exists, writable);
+        }
+        catch
+        {
+            _pathTestResults[lib.Id] = (false, false);
+        }
+    }
+
+    private void CreateDirectory(Library lib)
+    {
+        var path = lib.Path;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var resolvedPath = LibraryPathValidation.GetCanonicalPath(path);
+            if (!Directory.Exists(resolvedPath))
+            {
+                Directory.CreateDirectory(resolvedPath);
+            }
+            _pathTestResults[lib.Id] = (true, true);
+            _pathErrors.Remove(lib.Id);
+        }
+        catch (Exception ex)
+        {
+            _pathErrors[lib.Id] = L("Onboarding.PathCreateError", ex.Message);
+            _hasErrors = true;
+        }
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next()
+    {
+        _hasErrors = false;
+        _pathErrors.Clear();
+        _pathWarnings.Clear();
+
+        foreach (var lib in _libraries)
+        {
+            ValidatePath(lib);
+        }
+
+        var paths = _libraries
+            .Where(l => !string.IsNullOrWhiteSpace(l.Path))
+            .Select(l => LibraryPathValidation.NormalizeForComparison(l.Path))
+            .ToList();
+        for (var i = 0; i < paths.Count; i++)
+        {
+            for (var j = i + 1; j < paths.Count; j++)
+            {
+                if (LibraryPathValidation.PathsOverlap(paths[i], paths[j], LibraryPathValidation.GetPathComparison()))
+                {
+                    var lib1 = _libraries.First(l => !string.IsNullOrWhiteSpace(l.Path) && LibraryPathValidation.NormalizeForComparison(l.Path) == paths[i]);
+                    var lib2 = _libraries.First(l => !string.IsNullOrWhiteSpace(l.Path) && LibraryPathValidation.NormalizeForComparison(l.Path) == paths[j]);
+                    _pathErrors[lib1.Id] = L("Onboarding.PathOverlap", lib2.Name);
+                    _pathErrors[lib2.Id] = L("Onboarding.PathOverlap", lib1.Name);
+                    _hasErrors = true;
+                }
+            }
+        }
+
+        if (_hasErrors)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            foreach (var lib in _libraries)
+            {
+                if (lib.Id == 0)
+                {
+                    var createResult = await LibraryService.CreateAsync(lib, CancellationToken.None);
+                    if (!createResult.IsSuccess)
+                    {
+                        _hasErrors = true;
+                        return;
+                    }
+                }
+                else
+                {
+                    var result = await LibraryService.UpdateAsync(lib, CancellationToken.None);
+                    if (!result.IsSuccess)
+                    {
+                        _hasErrors = true;
+                        return;
+                    }
+                }
+            }
+            await OnNext.InvokeAsync();
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void UpdateHasErrors()
+    {
+        _hasErrors = _pathErrors.Values.Any(error => !string.IsNullOrWhiteSpace(error));
+    }
+}

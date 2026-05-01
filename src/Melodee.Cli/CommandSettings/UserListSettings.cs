@@ -3,7 +3,7 @@ using Spectre.Console.Cli;
 
 namespace Melodee.Cli.CommandSettings;
 
-public class UserListSettings : UserSettings
+public class UserListSettings : GlobalSettings
 {
     [Description("Maximum number of users to return. (default: 50)")]
     [CommandOption("-n|--limit")]

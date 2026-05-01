@@ -11,12 +11,12 @@ namespace Melodee.Cli.Command;
 /// </summary>
 public class UserCreateCommand : CommandBase<UserCreateSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, UserCreateSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserCreateSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
-        var userService = scope.ServiceProvider.GetRequiredService<UserService>();
+        var userProfileService = scope.ServiceProvider.GetRequiredService<UserProfileService>();
 
-        var existingUser = await userService.GetByUsernameAsync(settings.Username, cancellationToken);
+        var existingUser = await userProfileService.GetByUsernameAsync(settings.Username, cancellationToken);
         if (existingUser.IsSuccess && existingUser.Data != null)
         {
             if (!settings.Force)
@@ -26,7 +26,7 @@ public class UserCreateCommand : CommandBase<UserCreateSettings>
                 return 1;
             }
 
-            var deleteResult = await userService.DeleteAsync([existingUser.Data.Id], cancellationToken);
+            var deleteResult = await userProfileService.DeleteAsync([existingUser.Data.Id], cancellationToken);
             if (!deleteResult.IsSuccess)
             {
                 AnsiConsole.MarkupLine($"[red]Failed to delete existing user:[/] {string.Join(", ", deleteResult.Messages ?? [])}");
@@ -36,7 +36,7 @@ public class UserCreateCommand : CommandBase<UserCreateSettings>
             AnsiConsole.MarkupLine($"[yellow]Deleted existing user:[/] {settings.Username.EscapeMarkup()}");
         }
 
-        var existingEmail = await userService.GetByEmailAddressAsync(settings.Email, cancellationToken);
+        var existingEmail = await userProfileService.GetByEmailAddressAsync(settings.Email, cancellationToken);
         if (existingEmail.IsSuccess && existingEmail.Data != null)
         {
             if (!settings.Force)
@@ -46,7 +46,7 @@ public class UserCreateCommand : CommandBase<UserCreateSettings>
                 return 1;
             }
 
-            var deleteResult = await userService.DeleteAsync([existingEmail.Data.Id], cancellationToken);
+            var deleteResult = await userProfileService.DeleteAsync([existingEmail.Data.Id], cancellationToken);
             if (!deleteResult.IsSuccess)
             {
                 AnsiConsole.MarkupLine($"[red]Failed to delete existing user:[/] {string.Join(", ", deleteResult.Messages ?? [])}");
@@ -56,7 +56,7 @@ public class UserCreateCommand : CommandBase<UserCreateSettings>
             AnsiConsole.MarkupLine($"[yellow]Deleted existing user with email:[/] {settings.Email.EscapeMarkup()}");
         }
 
-        var result = await userService.RegisterAsync(
+        var result = await userProfileService.RegisterAsync(
             settings.Username,
             settings.Email,
             settings.Password,

@@ -18,6 +18,9 @@ public class SearchingEndpointTests : OpenSubsonicTestBase
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
         content.Should().Contain("\"searchResult2\"");
+
+        Directory.CreateDirectory("/tmp");
+        System.IO.File.WriteAllText("/tmp/search2_response.json", content);
     }
 
     [Fact]

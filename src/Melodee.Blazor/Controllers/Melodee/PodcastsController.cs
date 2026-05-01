@@ -1,8 +1,9 @@
 using Asp.Versioning;
+using Melodee.Blazor.Controllers.Melodee.Extensions;
 using Melodee.Blazor.Controllers.Melodee.Models;
 using Melodee.Blazor.Filters;
 using Melodee.Common.Configuration;
-using Melodee.Common.Data.Models;
+using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
@@ -12,10 +13,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Blazor.Controllers.Melodee;
 
+[ApiExplorerSettings(IgnoreApi = true)]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 [ServiceFilter(typeof(MelodeeApiAuthFilter))]
@@ -25,7 +26,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class PodcastsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    UserProfileService userProfileService,
     PodcastService podcastService,
     PodcastPlaybackService? podcastPlaybackService,
     PodcastOpmlService? podcastOpmlService,
@@ -55,7 +56,7 @@ public sealed class PodcastsController(
         string? search = null,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
         if (user.IsLocked) return ApiUserLocked();
 
@@ -87,7 +88,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateChannelAsync([FromBody] CreateChannelRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (string.IsNullOrWhiteSpace(request?.Url))
@@ -97,7 +98,8 @@ public sealed class PodcastsController(
         if (!result.IsSuccess)
             return ApiBadRequest(result.Messages?.FirstOrDefault() ?? "Failed to create channel");
 
-        return Ok(result.Data);
+        var baseUrl = await GetBaseUrlAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(result.Data.ToPodcastChannelDto());
     }
 
     /// <summary>
@@ -109,7 +111,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RefreshChannelAsync(int id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         var channel = await podcastService.GetChannelAsync(id, user.Id, cancellationToken);
@@ -129,7 +131,7 @@ public sealed class PodcastsController(
     [Route("channels/{id:int}")]
     public async Task<IActionResult> DeleteChannelAsync(int id, bool softDelete = true, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         var result = await podcastService.DeleteChannelAsync(id, user.Id, softDelete, cancellationToken);
@@ -148,7 +150,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateChannelAsync(int id, [FromBody] UpdateChannelRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         var result = await podcastService.UpdateChannelAsync(
@@ -167,7 +169,7 @@ public sealed class PodcastsController(
             return ApiBadRequest(result.Messages?.FirstOrDefault() ?? "Error updating channel");
         }
 
-        return Ok(result.Data);
+        return Ok(result.Data.ToPodcastChannelDto());
     }
 
     /// <summary>
@@ -181,7 +183,7 @@ public sealed class PodcastsController(
         short pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         var channel = await podcastService.GetChannelAsync(id, user.Id, cancellationToken);
@@ -199,18 +201,34 @@ public sealed class PodcastsController(
 
         return Ok(new
         {
-            Data = result.Data!.Select(x => new
-            {
+            Data = result.Data!.Select(x => new PodcastEpisode(
                 x.Id,
+                x.ApiKey,
                 x.Title,
-                x.PublishDate,
-                x.DownloadStatus,
-                x.Duration,
-                x.EnclosureLength,
-                x.Guid
-            }),
+                x.Description ?? string.Empty,
+                x.PublishDate?.ToIso8601String() ?? null,
+                x.Duration?.TotalMilliseconds,
+                x.Duration != null ? NodaTime.Duration.FromTimeSpan(x.Duration.Value).ToDurationString() : string.Empty,
+                x.PodcastChannel?.Title ?? string.Empty,
+                x.PodcastChannel?.ApiKey ?? Guid.Empty,
+                x.LocalPath != null,
+                x.CreatedAt.ToIso8601String(),
+                string.Empty,
+                false,
+                0,
+                x.DownloadStatus.ToString(),
+                x.DownloadError,
+                x.EnclosureUrl,
+                null,
+                0
+            )),
             TotalCount = result.AdditionalData!.TryGetValue("TotalCount", out var count) && count is int intCount ? intCount : 0
         });
+    }
+
+    private static string FormatDuration(NodaTime.Duration? duration)
+    {
+        return duration != null ? duration.Value.ToDurationString() : string.Empty;
     }
 
     /// <summary>
@@ -220,7 +238,7 @@ public sealed class PodcastsController(
     [Route("episodes/{id:int}/download")]
     public async Task<IActionResult> DownloadEpisodeAsync(int id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         var result = await podcastService.QueueDownloadAsync(id, user.Id, cancellationToken);
@@ -236,7 +254,7 @@ public sealed class PodcastsController(
     [Route("episodes/{id:int}")]
     public async Task<IActionResult> DeleteEpisodeAsync(int id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         var result = await podcastService.DeleteEpisodeAsync(id, user.Id, cancellationToken);
@@ -257,7 +275,7 @@ public sealed class PodcastsController(
         [FromQuery] int? secondsPlayed = null,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastPlaybackService == null)
@@ -286,7 +304,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetBookmarkAsync(int id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastPlaybackService == null)
@@ -299,7 +317,17 @@ public sealed class PodcastsController(
         if (!result.IsSuccess)
             return ApiBadRequest(result.Messages?.FirstOrDefault() ?? "Error retrieving bookmark");
 
-        return Ok(result.Data);
+        var bookmarkEntity = result.Data;
+        if (bookmarkEntity == null) return ApiNotFound("Bookmark");
+
+        return Ok(new PodcastEpisodeBookmark(
+            bookmarkEntity.Id,
+            bookmarkEntity.PodcastEpisodeId,
+            bookmarkEntity.PositionSeconds,
+            bookmarkEntity.Comment,
+            bookmarkEntity.CreatedAt.ToIso8601String(),
+            bookmarkEntity.UpdatedAt.ToIso8601String()
+        ));
     }
 
     /// <summary>
@@ -314,7 +342,7 @@ public sealed class PodcastsController(
         [FromBody] SaveBookmarkRequest request,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastPlaybackService == null)
@@ -344,7 +372,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteBookmarkAsync(int id, CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastPlaybackService == null)
@@ -365,7 +393,7 @@ public sealed class PodcastsController(
     /// </summary>
     [HttpGet]
     [Route("episodes/{id:int}/history")]
-    [ProducesResponseType(typeof(IEnumerable<UserPodcastEpisodePlayHistory>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserPodcastEpisodePlayHistory[]), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetPlayHistoryAsync(
         int id,
@@ -373,7 +401,7 @@ public sealed class PodcastsController(
         [FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastPlaybackService == null)
@@ -386,7 +414,19 @@ public sealed class PodcastsController(
         if (!result.IsSuccess)
             return ApiBadRequest(result.Messages?.FirstOrDefault() ?? "Error retrieving play history");
 
-        return Ok(result.Data);
+        var historyEntities = result.Data ?? [];
+        return Ok(historyEntities.Select(h => new UserPodcastEpisodePlayHistory(
+            h.Id,
+            h.PodcastEpisodeId,
+            h.PlayedAt.ToIso8601String(),
+            h.Client,
+            h.ByUserAgent,
+            h.IpAddress,
+            h.SecondsPlayed,
+            h.Source,
+            h.IsNowPlaying,
+            h.LastHeartbeatAt?.ToIso8601String() ?? null
+        )).ToArray());
     }
 
     /// <summary>
@@ -402,7 +442,7 @@ public sealed class PodcastsController(
         [FromQuery] short pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
         if (user.IsLocked) return ApiUserLocked();
 
@@ -432,7 +472,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ExportOpmlAsync(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastOpmlService == null)
@@ -458,7 +498,7 @@ public sealed class PodcastsController(
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ImportOpmlAsync(CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastOpmlService == null)
@@ -494,7 +534,7 @@ public sealed class PodcastsController(
         [FromQuery] string? country = "US",
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastDiscoveryService == null)
@@ -526,7 +566,7 @@ public sealed class PodcastsController(
         [FromQuery] string? country = "US",
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastDiscoveryService == null)
@@ -554,7 +594,7 @@ public sealed class PodcastsController(
         string itunesId,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null) return ApiUnauthorized();
 
         if (podcastDiscoveryService == null)

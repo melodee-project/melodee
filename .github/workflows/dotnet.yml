@@ -22,7 +22,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 10.0.x
+        dotnet-version: 10.0.104
     - name: Restore dependencies
       run: dotnet restore
     - name: Validate localization resources
@@ -51,7 +51,29 @@ jobs:
         echo "README.md link validated successfully"
     - name: Build
       run: dotnet build --no-restore
+
+    - name: Check Code Formatting
+      run: |
+        echo "Checking code formatting with dotnet format..."
+        dotnet format --verify-no-changes --no-restore --verbosity quiet
+      continue-on-error: false
+
+    - name: Check Code Analyzers (Non-destructive)
+      run: |
+        echo "Running code analyzer checks..."
+        dotnet build --no-restore -c Release /p:EnforceCodeStyleInBuild=true /p:TreatWarningsAsErrors=false
+      continue-on-error: false
+
     - name: Test with coverage
+      env:
+        ConnectionStrings__DefaultConnection: "Host=localhost;Database=melodee_test;Username=test;Password=test"
+        ConnectionStrings__ArtistSearchEngineConnection: "Data Source=:memory:"
+        ConnectionStrings__MusicBrainzConnection: "Data Source=:memory:"
+        Jwt__Key: "testkeytestkeytestkeytestkeytestkeytestkeytestkeytestkey"
+        Jwt__Issuer: "test"
+        Jwt__Audience: "test"
+        security__secretKey: "testsecretkeytestsecretkeytestsecretkey"
+        QuartzDisabled: "true"
       run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory coverage/results
     - name: Generate coverage report
       run: |

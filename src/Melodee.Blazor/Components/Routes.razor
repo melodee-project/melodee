@@ -1,12 +1,15 @@
-﻿@using Melodee.Blazor.Components.Layout
+@using Melodee.Blazor.Components.Layout
+@using Melodee.Blazor.Components.Onboarding
 @using Microsoft.AspNetCore.Components.Authorization
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
-            <NotAuthorized>
-                <CheckAuthorization/>
-            </NotAuthorized>
-        </AuthorizeRouteView>
+        <OnboardingGuard>
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+                <NotAuthorized>
+                    <CheckAuthorization/>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </OnboardingGuard>
         <FocusOnNavigate RouteData="routeData" Selector="h1"/>
     </Found>
 </Router>

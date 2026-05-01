@@ -9,7 +9,7 @@
     <NoWarn>$(NoWarn);NU1507</NoWarn>
 
     <!-- Auto-incrementing version -->
-    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionPrefix>2.0.0</VersionPrefix>
     <VersionSuffix>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionSuffix>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
     <FileVersion>$(VersionPrefix).0</FileVersion>
@@ -22,6 +22,8 @@
     <PackageReference Include="Crc32.NET" />
     <PackageReference Include="CsvHelper" />
     <PackageReference Include="Dapper" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore" />
+    <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
     <PackageReference Include="Fastenshtein" />
     <PackageReference Include="FFMpegCore" />
     <PackageReference Include="FluentValidation" />
@@ -32,10 +34,9 @@
     <PackageReference Include="IdSharp.Common" />
     <PackageReference Include="IdSharp.Tagging" />
     <PackageReference Include="JetBrains.Annotations" />
+    <PackageReference Include="Jint" />
     <PackageReference Include="K4os.Hash.xxHash" />
     <PackageReference Include="LiteDB" />
-    <PackageReference Include="Lucene.Net" />
-    <PackageReference Include="Lucene.Net.Analysis.Common" />
     <PackageReference Include="Mapster" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.AspNetCore.Http" />
@@ -47,7 +48,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
     <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" />
@@ -85,6 +85,8 @@
     <Folder Include="MessageBus\" />
     <Folder Include="Migrations\" />
     <Folder Include="Security\" />
+    <Folder Include="Models\Scripting\" />
+    <Folder Include="Services\ScriptEvaluation\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,7 +16,7 @@
 
     <!-- Auto-incrementing version -->
 
-    <VersionPrefix>1.8.0</VersionPrefix>
+    <VersionPrefix>2.0.0</VersionPrefix>
 
     <VersionSuffix>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionSuffix>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
@@ -68,7 +68,10 @@
     <PackageReference Include="Asp.Versioning.Http" />
     <PackageReference Include="Blazored.SessionStorage" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
     <PackageReference Include="Quartz.AspNetCore" />
     <PackageReference Include="Quartz.Jobs" />

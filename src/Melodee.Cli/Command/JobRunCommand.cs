@@ -33,7 +33,7 @@ public class JobRunCommand : CommandBase<JobRunSettings>
         ["NowPlayingCleanupJob"] = typeof(NowPlayingCleanupJob)
     };
 
-    public override async Task<int> ExecuteAsync(CommandContext context, JobRunSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, JobRunSettings settings, CancellationToken cancellationToken)
     {
         var jobName = settings.JobName.Trim();
 
@@ -50,6 +50,9 @@ public class JobRunCommand : CommandBase<JobRunSettings>
         }
 
         using var scope = CreateServiceProvider().CreateScope();
+        using var jobCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        ConsoleCancelEventHandler? cancelHandler = null;
+        var cancellationNoticePrinted = 0;
 
         JobBase job;
         try
@@ -62,7 +65,19 @@ public class JobRunCommand : CommandBase<JobRunSettings>
             return 1;
         }
 
-        var jc = new MelodeeJobExecutionContext(cancellationToken);
+        cancelHandler = (_, args) =>
+        {
+            args.Cancel = true;
+            jobCancellationSource.Cancel();
+
+            if (Interlocked.Exchange(ref cancellationNoticePrinted, 1) == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]Cancellation requested. Waiting for job cleanup...[/]");
+            }
+        };
+        Console.CancelKeyPress += cancelHandler;
+
+        var jc = new MelodeeJobExecutionContext(jobCancellationSource.Token);
         if (settings.BatchSize != null)
         {
             jc.Put(JobMapNameRegistry.BatchSize, settings.BatchSize);
@@ -189,6 +204,11 @@ public class JobRunCommand : CommandBase<JobRunSettings>
                 AnsiConsole.MarkupLine($"[green]✓ Job completed:[/] {jobName}");
             }
         }
+        catch (OperationCanceledException) when (jobCancellationSource.IsCancellationRequested)
+        {
+            errorMessage = "Job was cancelled.";
+            AnsiConsole.MarkupLine($"[yellow]⚠ Job cancelled:[/] {jobName}");
+        }
         catch (Exception ex)
         {
             errorMessage = ex.Message;
@@ -200,11 +220,12 @@ public class JobRunCommand : CommandBase<JobRunSettings>
         }
         finally
         {
+            Console.CancelKeyPress -= cancelHandler;
             stopwatch.Stop();
 
             if (job.DoCreateJobHistory)
             {
-                await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                await using var dbContext = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
                 var jobHistory = new JobHistory
                 {
                     JobName = jobName,
@@ -216,7 +237,7 @@ public class JobRunCommand : CommandBase<JobRunSettings>
                     WasManualTrigger = true
                 };
                 dbContext.JobHistories.Add(jobHistory);
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await dbContext.SaveChangesAsync(CancellationToken.None);
             }
 
             AnsiConsole.MarkupLine($"[grey]Elapsed time: {stopwatch.Elapsed.TotalSeconds:F1}s[/]");
@@ -265,6 +286,7 @@ public class JobRunCommand : CommandBase<JobRunSettings>
                 configFactory,
                 sp.GetRequiredService<SettingService>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>(),
                 sp.GetRequiredService<IMusicBrainzRepository>());
         }
 

@@ -11,7 +11,6 @@
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 @inject NavigationManager NavigationManager
-@inject IAuthService AuthService
 @inject DefaultImages DefaultImages
 
 <PageTitle>@(_chart?.Title ?? L("ChartDetail.PageTitle"))</PageTitle>
@@ -59,7 +58,7 @@ else
                     {
                         <RadzenButton Text="@L("Charts.MissingReport")" Icon="report" ButtonStyle="ButtonStyle.Info" Click="@(() => NavigationManager.NavigateTo($"/charts/missing-report/{ApiKey}"))"/>
                     }
-                    @if (AuthService.IsAdmin)
+                    @if (CurrentUser?.IsAdmin() == true)
                     {
                         <RadzenButton Text="@L("Actions.Edit")" Icon="edit" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo($"/charts/edit/{ApiKey}"))"/>
                     }

@@ -28,7 +28,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public class RecommendationsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    UserProfileService userProfileService,
     SongService songService,
     AlbumService albumService,
     ArtistService artistService,
@@ -61,7 +61,7 @@ public class RecommendationsController(
         string? category = null,
         CancellationToken cancellationToken = default)
     {
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();

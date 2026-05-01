@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Melodee.Tests.Cli;
 
 public class MinimalTests

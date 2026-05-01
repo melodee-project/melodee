@@ -8,4 +8,14 @@ public static class InstantExtensions
     {
         return instant.ToUnixTimeTicks().ToString();
     }
+
+    public static string ToIso8601String(this Instant instant)
+    {
+        return instant.ToString("yyyy-MM-ddTHH:mm:ss.fffffff'Z'", null);
+    }
+
+    public static string? ToIso8601String(this Instant? instant)
+    {
+        return instant?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff'Z'", null);
+    }
 }

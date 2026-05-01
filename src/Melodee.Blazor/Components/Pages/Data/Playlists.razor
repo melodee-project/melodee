@@ -2,6 +2,9 @@
 
 @inherits MelodeeComponentBase
 @using Melodee.Common.Filtering
+@using Melodee.Common.Models.Scripting
+@using Melodee.Common.Services.ScriptEvaluation
+@using NodaTime
 @using FilterOperator = Melodee.Common.Filtering.FilterOperator
 @using Playlist = Melodee.Common.Data.Models.Playlist
 
@@ -14,6 +17,7 @@
 @inject TooltipService TooltipService
 @inject NavigationManager NavigationManager
 @inject DefaultImages DefaultImages
+@inject IBlazorEventScriptService BlazorEventScriptService
 
 <PageTitle>@L("Navigation.Playlists")</PageTitle>
 
@@ -32,10 +36,18 @@
                 AlignItems="AlignItems.Center"
                 JustifyContent="JustifyContent.End"
                 Gap="0.5rem">
+                <RadzenButton Icon="upload_file" Text="@L("Actions.ImportPlaylist")"
+                              Click="@ImportPlaylistButtonClick"
+                              Size="ButtonSize.Small"
+                              Disabled="@_isPlaylistCreateDisabled"
+                              MouseEnter="@(args => { if (_isPlaylistCreateDisabled) ShowTooltip(args, _playlistCreateDisabledMessage ?? L("Actions.Disabled")); })"
+                              ButtonStyle="ButtonStyle.Primary"/>
                 <RadzenButton Icon="upload" Text="@L("Actions.ImportDynamicPlaylist")"
                               Click="@ImportDynamicPlaylistButtonClick"
                               Size="ButtonSize.Small"
-                              ButtonStyle="ButtonStyle.Primary"/>
+                              Disabled="@_isPlaylistCreateDisabled"
+                              MouseEnter="@(args => { if (_isPlaylistCreateDisabled) ShowTooltip(args, _playlistCreateDisabledMessage ?? L("Actions.Disabled")); })"
+                              ButtonStyle="ButtonStyle.Secondary"/>
                 <RadzenButton Icon="delete" Disabled="!_selectedPlaylists.Any()" Text="@L("Actions.Delete")"
                               Click="@DeleteSelectedButtonClick"
                               Size="ButtonSize.Small"
@@ -82,7 +94,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedPlaylists.Any() != true ? false : !_playlists.All(i => _selectedPlaylists.Contains(i)) ? null : _playlists.Any(i => _selectedPlaylists.Contains(i)))"
                             Change="@(args => _selectedPlaylists = args == true ? _playlists.ToList() : [])"/>
                     </HeaderTemplate>
@@ -93,7 +105,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedPlaylists.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>
@@ -139,8 +151,43 @@
     int _currentPage = 1;
     IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
     IList<Playlist> _selectedPlaylists = [];
+    
+    bool _isPlaylistCreateDisabled;
+    string? _playlistCreateDisabledMessage;
 
     string _debounceInputValue = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await EvaluatePlaylistCreateScriptAsync();
+    }
+
+    private async Task EvaluatePlaylistCreateScriptAsync()
+    {
+        try
+        {
+            var context = new PlaylistCreateContext
+            {
+                UserId = CurrentUser?.UserId() ?? 0,
+                NameLength = 0,
+                InitialSongCount = 0,
+                Now = SystemClock.Instance.GetCurrentInstant().ToString()
+            };
+
+            var result = await BlazorEventScriptService.EvaluatePlaylistCreateAsync(context);
+            
+            if (!result.Result)
+            {
+                _isPlaylistCreateDisabled = true;
+                _playlistCreateDisabledMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning(ex, "Error evaluating playlist create script, continuing as normal");
+        }
+    }
 
     void OnPage(PagerEventArgs args)
     {
@@ -199,6 +246,18 @@
         NavigationManager.NavigateTo($"/data/playlistedit/{Guid.Empty}");
     }
 
+    private async Task ImportPlaylistButtonClick()
+    {
+        var result = await DialogService.OpenAsync<PlaylistImportDialog>(
+            L("Actions.ImportPlaylist"),
+            null,
+            new DialogOptions { Width = "600px", Height = "auto", Resizable = true, Draggable = true });
+
+        if (result is true)
+        {
+            await _grid.RefreshDataAsync();
+        }
+    }
 
     private async Task ImportDynamicPlaylistButtonClick()
     {

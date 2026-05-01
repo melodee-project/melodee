@@ -19,7 +19,7 @@ namespace Melodee.Cli.Command;
 
 public class ProcessInboundCommand : CommandBase<LibraryProcessSettings>
 {
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryProcessSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryProcessSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

@@ -1,0 +1,153 @@
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Blazor.Services
+@using Melodee.Common.Data.Models
+@using Melodee.Common.Models
+@using Melodee.Common.Services.Security
+@inherits MelodeeComponentBase
+
+<RadzenStack Gap="1.5rem">
+    <RadzenHeading Level="3" Size="H3" Text="@L("Onboarding.AdminHeading")"/>
+
+    <RadzenText Text="@L("Onboarding.AdminDescription")"/>
+
+    @if (_adminExists)
+    {
+        <RadzenAlert Variant="Variant.Filled" AlertStyle="AlertStyle.Success" Icon="check_circle">
+            <RadzenText Text="@L("Onboarding.AdminExists")"/>
+        </RadzenAlert>
+    }
+    else
+    {
+        <RadzenFormField Text="@L("Onboarding.UsernameLabel")">
+            <RadzenTextBox @bind-Value="_username" Style="width: 100%;" Change="@ValidateForm"/>
+        </RadzenFormField>
+
+        <RadzenFormField Text="@L("Onboarding.PasswordLabel")">
+            <RadzenPassword @bind-Value="_password" Style="width: 100%;" Change="@ValidateForm"/>
+        </RadzenFormField>
+
+        <RadzenFormField Text="@L("Onboarding.ConfirmPasswordLabel")">
+            <RadzenPassword @bind-Value="_confirmPassword" Style="width: 100%;" Change="@ValidateForm"/>
+        </RadzenFormField>
+
+        @if (!string.IsNullOrEmpty(_validationError))
+        {
+            <RadzenAlert Variant="Variant.Outlined" AlertStyle="AlertStyle.Danger" Icon="error">
+                <RadzenText Text="@_validationError"/>
+            </RadzenAlert>
+        }
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Click="@Back" Text="@L("Common.Back")" Icon="arrow_back"/>
+        @if (!_adminExists)
+        {
+            <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward" IsBusy="@_isSaving" Disabled="@_hasErrors"/>
+        }
+        else
+        {
+            <RadzenButton Click="@Next" Text="@L("Common.Next")" Icon="arrow_forward"/>
+        }
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private string _username = "admin";
+    private string _password = "";
+    private string _confirmPassword = "";
+    private bool _adminExists;
+    private bool _isSaving;
+    private bool _hasErrors;
+    private string? _validationError;
+
+    private const int MinimumPasswordLength = 8;
+
+    [Inject] private UserProfileService UserService { get; set; } = null!;
+    [Inject] private IPasswordHashService PasswordHashService { get; set; } = null!;
+    [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
+
+    [Parameter] public EventCallback OnBack { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var importData = OnboardingStateService.GetImportData();
+        if (importData != null)
+        {
+            var adminUser = importData.Settings.FirstOrDefault(s => s.Key == "System.Admin.Username");
+            if (adminUser != null)
+            {
+                _username = adminUser.Value;
+            }
+        }
+
+        // Check if any admin account exists
+        var result = await UserService.ListAsync(new PagedRequest { PageSize = short.MaxValue }, CancellationToken.None);
+        _adminExists = result.IsSuccess && result.Data.Any(u => u.IsAdmin);
+    }
+
+    private void ValidateForm(string value)
+    {
+        _validationError = null;
+        _hasErrors = false;
+
+        if (string.IsNullOrWhiteSpace(_username))
+        {
+            _validationError = L("Onboarding.UsernameRequired");
+            _hasErrors = true;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_password))
+        {
+            _hasErrors = true;
+            return;
+        }
+
+        if (_password.Length < MinimumPasswordLength)
+        {
+            _validationError = L("Onboarding.PasswordTooShort", MinimumPasswordLength);
+            _hasErrors = true;
+            return;
+        }
+
+        if (_password != _confirmPassword)
+        {
+            _validationError = L("Onboarding.PasswordNoMatch");
+            _hasErrors = true;
+        }
+    }
+
+    private async Task Back() => await OnBack.InvokeAsync();
+
+    private async Task Next()
+    {
+        if (!_adminExists)
+        {
+            ValidateForm(string.Empty);
+            if (_hasErrors)
+            {
+                return;
+            }
+
+            _isSaving = true;
+            try
+            {
+                var passwordHash = PasswordHashService.Hash(_password);
+                await UserService.RegisterAsync(
+                    _username,
+                    $"{_username}@localhost",
+                    _password,
+                    null,
+                    CancellationToken.None);
+                _adminExists = true;
+            }
+            finally
+            {
+                _isSaving = false;
+            }
+        }
+
+        await OnNext.InvokeAsync();
+    }
+}

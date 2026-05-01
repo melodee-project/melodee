@@ -34,7 +34,7 @@ namespace Melodee.Blazor.Controllers.Melodee;
 public sealed class ArtistsController(
     ISerializer serializer,
     EtagRepository etagRepository,
-    UserService userService,
+    UserProfileService userProfileService,
     ArtistService artistService,
     AlbumService albumService,
     SongService songService,
@@ -42,7 +42,9 @@ public sealed class ArtistsController(
     IConfiguration configuration,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    ILogger<ArtistsController> logger) : ControllerBase(
+    ILogger<ArtistsController> logger,
+    UserRatingService userRatingService,
+    UserStarService userStarService) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -97,7 +99,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -141,7 +143,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -363,7 +365,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -417,7 +419,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -485,7 +487,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -553,7 +555,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -570,7 +572,7 @@ public sealed class ArtistsController(
             return ApiBlacklisted();
         }
 
-        var toggleStarredResult = await userService.ToggleArtistStarAsync(user.Id, apiKey, isStarred, cancellationToken).ConfigureAwait(false);
+        var toggleStarredResult = await userStarService.ToggleArtistStarAsync(user.Id, apiKey, isStarred, cancellationToken).ConfigureAwait(false);
         if (toggleStarredResult.IsSuccess)
         {
             return Ok();
@@ -594,7 +596,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -611,7 +613,7 @@ public sealed class ArtistsController(
             return ApiBlacklisted();
         }
 
-        var setRatingResult = await userService.SetArtistRatingAsync(user.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
+        var setRatingResult = await userRatingService.SetArtistRatingAsync(user.Id, apiKey, rating, cancellationToken).ConfigureAwait(false);
         if (setRatingResult.IsSuccess)
         {
             return Ok();
@@ -635,7 +637,7 @@ public sealed class ArtistsController(
             return ApiUnauthorized();
         }
 
-        var user = await ResolveUserAsync(userService, cancellationToken).ConfigureAwait(false);
+        var user = await ResolveUserAsync(userProfileService, cancellationToken).ConfigureAwait(false);
         if (user == null)
         {
             return ApiUnauthorized();
@@ -652,7 +654,7 @@ public sealed class ArtistsController(
             return ApiBlacklisted();
         }
 
-        var toggleHatedResult = await userService.ToggleArtistHatedAsync(user.Id, apiKey, isHated, cancellationToken).ConfigureAwait(false);
+        var toggleHatedResult = await userStarService.ToggleArtistHatedAsync(user.Id, apiKey, isHated, cancellationToken).ConfigureAwait(false);
         if (toggleHatedResult.IsSuccess)
         {
             return Ok();

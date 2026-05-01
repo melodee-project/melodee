@@ -33,6 +33,10 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
 
     public DbSet<PlaylistSong> PlaylistSong { get; set; }
 
+    public DbSet<PlaylistUploadedFile> PlaylistUploadedFiles { get; set; }
+
+    public DbSet<PlaylistUploadedFileItem> PlaylistUploadedFileItems { get; set; }
+
     public DbSet<PlayQueue> PlayQues { get; set; }
 
     public DbSet<RadioStation> RadioStations { get; set; }
@@ -60,6 +64,8 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
     public DbSet<UserSongPlayHistory> UserSongPlayHistories { get; set; }
 
     public DbSet<UserPlaybackSettings> UserPlaybackSettings { get; set; }
+
+    public DbSet<UserDeviceProfile> UserDeviceProfiles { get; set; }
 
     public DbSet<UserEqualizerPreset> UserEqualizerPresets { get; set; }
 
@@ -104,6 +110,18 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
     public DbSet<PartySessionEndpoint> PartySessionEndpoints { get; set; }
 
     public DbSet<PartyAuditEvent> PartyAuditEvents { get; set; }
+
+    public DbSet<UserGroup> UserGroups { get; set; }
+
+    public DbSet<UserGroupMember> UserGroupMembers { get; set; }
+
+    public DbSet<LibraryAccessControl> LibraryAccessControls { get; set; }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // DecentDB requires DECIMAL/NUMERIC to have explicit precision and scale
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 6);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -783,7 +801,7 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     ApiKey = SeedGuid("Setting", 905),
                     Category = (int)SettingCategory.SearchEngine,
                     Key = SettingRegistry.SearchEngineMusicBrainzStoragePath,
-                    Comment = "Storage path to hold MusicBrainz downloaded files and SQLite db.",
+                    Comment = "Storage path to hold MusicBrainz downloaded files and database.",
                     Value = "/melodee_test/search-engine-storage/musicbrainz/",
                     CreatedAt = seedDataTimestamp
                 },
@@ -805,7 +823,7 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     Category = (int)SettingCategory.SearchEngine,
                     Key = SettingRegistry.SearchEngineMusicBrainzImportBatchSize,
                     Comment =
-                        "Number of records to import from MusicBrainz downloaded db dump before commiting to local SQLite database.",
+                        "Number of records to import from MusicBrainz downloaded db dump before committing to local database.",
                     Value = "50000",
                     CreatedAt = seedDataTimestamp
                 },
@@ -1776,6 +1794,16 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                     Comment = "Enable debug logging for MPD commands.",
                     Value = "false",
                     CreatedAt = seedDataTimestamp
+                },
+                new Setting
+                {
+                    Id = 1927,
+                    ApiKey = SeedGuid("Setting", 1927),
+                    Category = (int)SettingCategory.System,
+                    Key = SettingRegistry.UserDeviceProfileEnabled,
+                    Comment = "Enable per-user and per-device transcoding profiles.",
+                    Value = "true",
+                    CreatedAt = seedDataTimestamp
                 }
             );
         });
@@ -1979,6 +2007,12 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
             ps.HasIndex(x => x.OwnerUserId);
             ps.HasIndex(x => x.Status);
             ps.HasIndex(x => x.ActiveEndpointId);
+
+            ps.HasOne(x => x.ActiveEndpoint)
+                .WithMany()
+                .HasForeignKey(x => x.ActiveEndpointId)
+                .HasPrincipalKey(x => x.ApiKey)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PartySessionParticipant>(psp =>
@@ -2059,11 +2093,92 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                 .HasForeignKey(x => x.OwnerUserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        modelBuilder.Entity<UserSongPlayHistory>(ush =>
+        {
+            ush.HasIndex(x => x.UserId);
+            ush.HasIndex(x => x.PlayedAt);
+            ush.HasIndex(x => new { x.UserId, x.PlayedAt });
+            ush.HasIndex(x => x.SongId);
+            ush.HasIndex(x => x.IsNowPlaying);
+        });
+
+        modelBuilder.Entity<PartyQueueItem>(pqi =>
+        {
+            pqi.HasIndex(x => x.PartySessionId);
+            pqi.HasIndex(x => x.SortOrder);
+            pqi.HasIndex(x => new { x.PartySessionId, x.SortOrder });
+            pqi.HasIndex(x => x.EnqueuedByUserId);
+            pqi.HasIndex(x => x.EnqueuedAt);
+        });
+
+        modelBuilder.Entity<LibraryScanHistory>(lsh =>
+        {
+            lsh.HasIndex(x => x.LibraryId);
+            lsh.HasIndex(x => x.CreatedAt);
+            lsh.HasIndex(x => new { x.LibraryId, x.CreatedAt });
+            lsh.HasIndex(x => x.ForArtistId);
+            lsh.HasIndex(x => x.ForAlbumId);
+        });
+
+        modelBuilder.Entity<UserGroup>(ug =>
+        {
+            ug.HasIndex(x => x.Name).IsUnique();
+
+            // NOTE: The "All Users" group is seeded as a convenience placeholder.
+            // Users are NOT automatically added to this group; membership must be managed
+            // explicitly by application logic if this group is to be used for library access control.
+            ug.HasData(new UserGroup
+            {
+                Id = 1,
+                ApiKey = SeedGuid("UserGroup", 1),
+                Name = "All Users",
+                Description = "Default group for all users",
+                CreatedAt = seedDataTimestamp
+            });
+        });
+
+        modelBuilder.Entity<UserGroupMember>(ugm =>
+        {
+            ugm.HasIndex(x => x.UserId);
+            ugm.HasIndex(x => x.UserGroupId);
+            ugm.HasIndex(x => new { x.UserId, x.UserGroupId }).IsUnique();
+
+            ugm.HasOne(x => x.User)
+                .WithMany(u => u.GroupMemberships)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            ugm.HasOne(x => x.UserGroup)
+                .WithMany(g => g.Members)
+                .HasForeignKey(x => x.UserGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LibraryAccessControl>(lac =>
+        {
+            lac.HasIndex(x => x.LibraryId);
+            lac.HasIndex(x => x.UserGroupId);
+            lac.HasIndex(x => new { x.LibraryId, x.UserGroupId }).IsUnique();
+
+            lac.HasOne(x => x.Library)
+                .WithMany(l => l.AccessControls)
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            lac.HasOne(x => x.UserGroup)
+                .WithMany(g => g.LibraryAccessControls)
+                .HasForeignKey(x => x.UserGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
-        optionsBuilder.EnableSensitiveDataLogging();
+        optionsBuilder.ConfigureWarnings(w =>
+        {
+            w.Ignore(RelationalEventId.PendingModelChangesWarning);
+            w.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning);
+        });
     }
 }

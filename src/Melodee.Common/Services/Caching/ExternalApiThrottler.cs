@@ -126,13 +126,23 @@ public sealed class ProviderThrottle : IDisposable
             {
                 delay = TimeSpan.Zero;
             }
-            _lastRequestTime = DateTime.UtcNow + delay;
         }
 
         if (delay > TimeSpan.Zero)
         {
             Log.Debug("[{Provider}] Rate limited, waiting {DelayMs}ms", _providerName, delay.TotalMilliseconds);
             await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Update the last request time to the current time after any delay has completed
+        lock (_rateLock)
+        {
+            var currentTime = DateTime.UtcNow;
+            // Ensure we don't go backwards in time in case another thread updated it
+            if (currentTime > _lastRequestTime)
+            {
+                _lastRequestTime = currentTime;
+            }
         }
     }
 

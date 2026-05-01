@@ -514,7 +514,6 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        _userAgent = await JsRuntime.InvokeAsync<string>("getUserAgent", []);
 
         var configuration = await ConfigurationFactory.GetConfigurationAsync();
         var podcastEnabled = configuration.GetValue<bool>(SettingRegistry.PodcastEnabled);
@@ -535,6 +534,14 @@
         _defaultMaxResults = configuration.GetValue<short?>(SettingRegistry.SearchResultsDefaultPageSize) ??
                              configuration.GetValue<short?>(SettingRegistry.DefaultsPageSize) ??
                              50;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _userAgent = await JsRuntime.InvokeAsync<string>("getUserAgent", []);
+        }
     }
 
     private async Task PlaySong(SongDataInfo song)

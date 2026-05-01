@@ -1,6 +1,7 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Melodee.Blazor.Services.Email;
 
@@ -31,15 +32,23 @@ public interface IEmailTemplateService
 /// </summary>
 public sealed class EmailTemplateService : IEmailTemplateService
 {
+    private static readonly HashSet<string> AllowedCultureCodes =
+    [
+        "en-US", "de-DE", "es-ES", "fr-FR", "it-IT", "ja-JP", "pt-BR", "ru-RU", "zh-CN", "ar-SA"
+    ];
+
     private readonly IMelodeeConfigurationFactory _configurationFactory;
     private readonly LibraryService _libraryService;
+    private readonly ILogger<EmailTemplateService> _logger;
 
     public EmailTemplateService(
         IMelodeeConfigurationFactory configurationFactory,
-        LibraryService libraryService)
+        LibraryService libraryService,
+        ILogger<EmailTemplateService>? logger = null)
     {
         _configurationFactory = configurationFactory;
         _libraryService = libraryService;
+        _logger = logger ?? NullLogger<EmailTemplateService>.Instance;
     }
 
     public async Task<(string subject, string textBody, string htmlBody)> RenderPasswordResetEmailAsync(
@@ -93,37 +102,57 @@ public sealed class EmailTemplateService : IEmailTemplateService
     {
         try
         {
-            // Get Templates library
             var libraryResult = await _libraryService.GetTemplatesLibraryAsync(cancellationToken);
             if (!libraryResult.IsSuccess || libraryResult.Data == null)
             {
-                return null; // Library not configured, use defaults
+                return null;
             }
 
-            var templatePath = Path.Combine(libraryResult.Data.Path, relativeTemplatePath);
-            if (!File.Exists(templatePath))
+            var root = Path.GetFullPath(libraryResult.Data.Path);
+            var candidate = Path.GetFullPath(Path.Combine(root, relativeTemplatePath));
+
+            if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
-                return null; // Template file doesn't exist, use default
+                _logger.LogWarning("Template path attempted to escape root directory: {RelativePath}", relativeTemplatePath);
+                return null;
             }
 
-            return await File.ReadAllTextAsync(templatePath, cancellationToken);
+            if (!File.Exists(candidate))
+            {
+                return null;
+            }
+
+            return await File.ReadAllTextAsync(candidate, cancellationToken);
         }
-        catch
+        catch (Exception ex)
         {
-            // If any error reading template, fall back to defaults
+            _logger.LogWarning(ex, "Error loading template: {RelativePath}", relativeTemplatePath);
             return null;
         }
     }
 
-    private static string NormalizeLanguageCode(string? languageCode)
+    private string NormalizeLanguageCode(string? languageCode)
     {
         if (string.IsNullOrWhiteSpace(languageCode))
         {
-            return "en-US";
+            return "en-us";
         }
 
-        // Convert to lowercase for directory names (en-us, fr-fr, etc.)
-        return languageCode.ToLowerInvariant();
+        var normalized = languageCode.ToLowerInvariant();
+
+        if (!AllowedCultureCodes.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            return "en-us";
+        }
+
+        if (normalized.Contains('/') ||
+            normalized.Contains('\\') ||
+            normalized.Contains(".."))
+        {
+            return "en-us";
+        }
+
+        return normalized;
     }
 
     private static string ReplaceVariables(string template, string resetUrl, int expiryMinutes, string siteName, string baseUrl)

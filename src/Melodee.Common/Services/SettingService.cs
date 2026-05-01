@@ -199,6 +199,17 @@ public class SettingService : ServiceBase
     /// </summary>
     private static IQueryable<Setting> ApplySingleFilter(IQueryable<Setting> query, FilterOperatorInfo filter)
     {
+        var propertyType = typeof(Setting).GetProperty(filter.PropertyName)?.PropertyType;
+        if (propertyType == typeof(int))
+        {
+            return ApplyIntegerFilter(query, filter);
+        }
+
+        return ApplyStringFilter(query, filter);
+    }
+
+    private static IQueryable<Setting> ApplyStringFilter(IQueryable<Setting> query, FilterOperatorInfo filter)
+    {
         return filter.Operator switch
         {
             FilterOperator.Equals => query.Where(s => EF.Property<string>(s, filter.PropertyName) == filter.Value.ToString()),
@@ -211,14 +222,27 @@ public class SettingService : ServiceBase
             FilterOperator.IsNotNull => query.Where(s => EF.Property<string>(s, filter.PropertyName) != null),
             FilterOperator.IsEmpty => query.Where(s => EF.Property<string>(s, filter.PropertyName) == string.Empty),
             FilterOperator.IsNotEmpty => query.Where(s => EF.Property<string>(s, filter.PropertyName) != string.Empty),
-            FilterOperator.GreaterThan when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) > Convert.ToInt32(filter.Value)),
-            FilterOperator.GreaterThanOrEquals when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) >= Convert.ToInt32(filter.Value)),
-            FilterOperator.LessThan when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) < Convert.ToInt32(filter.Value)),
-            FilterOperator.LessThanOrEquals when filter.Value.IsNumericType() =>
-                query.Where(s => EF.Property<int>(s, filter.PropertyName) <= Convert.ToInt32(filter.Value)),
+            _ => query
+        };
+    }
+
+    private static IQueryable<Setting> ApplyIntegerFilter(IQueryable<Setting> query, FilterOperatorInfo filter)
+    {
+        if (!filter.Value.IsNumericType())
+        {
+            return query;
+        }
+
+        var value = Convert.ToInt32(filter.Value);
+
+        return filter.Operator switch
+        {
+            FilterOperator.Equals => query.Where(s => EF.Property<int>(s, filter.PropertyName) == value),
+            FilterOperator.NotEquals => query.Where(s => EF.Property<int>(s, filter.PropertyName) != value),
+            FilterOperator.GreaterThan => query.Where(s => EF.Property<int>(s, filter.PropertyName) > value),
+            FilterOperator.GreaterThanOrEquals => query.Where(s => EF.Property<int>(s, filter.PropertyName) >= value),
+            FilterOperator.LessThan => query.Where(s => EF.Property<int>(s, filter.PropertyName) < value),
+            FilterOperator.LessThanOrEquals => query.Where(s => EF.Property<int>(s, filter.PropertyName) <= value),
             _ => query
         };
     }
@@ -311,9 +335,19 @@ public class SettingService : ServiceBase
             return await UpdateAsync(setting.Data, cancellationToken).ConfigureAwait(false);
         }
 
-        return new MelodeeModels.OperationResult<bool>
+        // Setting doesn't exist, create it
+        var newSetting = new Setting
         {
-            Data = false
+            Key = key,
+            Value = value,
+            Comment = $"Auto-created setting for {key}",
+            CreatedAt = SystemClock.Instance.GetCurrentInstant()
+        };
+        var addResult = await AddAsync(newSetting, cancellationToken).ConfigureAwait(false);
+        return new MelodeeModels.OperationResult<bool>(addResult.Messages?.ToArray() ?? [])
+        {
+            Data = addResult.IsSuccess,
+            Type = addResult.Type
         };
     }
 
@@ -467,5 +501,34 @@ public class SettingService : ServiceBase
             .Select(s => s.Key)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<MelodeeModels.OperationResult<bool>> DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.NullOrWhiteSpace(key, nameof(key));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var deletedRows = await scopedContext.Settings
+            .Where(x => x.Key == key)
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (deletedRows <= 0)
+        {
+            return new MelodeeModels.OperationResult<bool>
+            {
+                Data = false,
+                Type = MelodeeModels.OperationResponseType.NotFound
+            };
+        }
+
+        CacheManager.Clear();
+        _melodeeConfigurationFactory.Reset();
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = true
+        };
     }
 }

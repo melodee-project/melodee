@@ -12,7 +12,7 @@ namespace Melodee.Tests.Common.Performance;
 
 public class LargeDatasetMemoryTests : ServiceTestBase
 {
-    [Fact]
+    [PerformanceFact]
     public async Task LoadPlaylistWithThousandsOfSongs_DoesNotExceedMemoryThreshold()
     {
         // Arrange: create one playlist with many songs

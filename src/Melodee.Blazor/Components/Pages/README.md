@@ -60,13 +60,13 @@ Pages/
 
 ## Critical Distinction
 
-| Aspect | /Data | /Media |
-|--------|-------|--------|
-| **Data Source** | SQLite/PostgreSQL database | File system (`melodee.json` files) |
-| **Namespace** | `Melodee.Common.Data.Models` | `Melodee.Common.Models` |
-| **Purpose** | Browse & play music library | Stage & prepare inbound music |
-| **User Action** | Listen, rate, create playlists | Edit tags, validate, import |
-| **Persistence** | Database records | JSON files on disk |
+| Aspect | /Data                              | /Media |
+|--------|------------------------------------|--------|
+| **Data Source** | DecentDB/PostgreSQL database | File system (`melodee.json` files) |
+| **Namespace** | `Melodee.Common.Data.Models`       | `Melodee.Common.Models` |
+| **Purpose** | Browse & play music library        | Stage & prepare inbound music |
+| **User Action** | Listen, rate, create playlists     | Edit tags, validate, import |
+| **Persistence** | Database records                   | JSON files on disk |
 
 ## Common Mistakes to Avoid
 

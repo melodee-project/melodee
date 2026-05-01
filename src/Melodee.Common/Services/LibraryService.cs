@@ -1606,8 +1606,15 @@ public class LibraryService : ServiceBase
 
         foreach (var album in melodeeFilesForLibrary.Where(x => x.Status != AlbumStatus.Ok))
         {
-            result.Add(new MelodeeModels.Statistic(StatisticType.Warning, album.Directory.Name,
-                album.StatusReasons.ToString(), StatisticColorRegistry.Warning));
+            var artistName = album.Artist?.Name ?? string.Empty;
+            var albumTitle = album.AlbumTitle() ?? string.Empty;
+            var albumYear = album.AlbumYear()?.ToString() ?? string.Empty;
+
+            var summary = $"{album.Directory.Name}";
+            var message = $"\u251C [{artistName}]\n\u251C [{albumTitle}]\n\u2514 [{albumYear}]";
+
+            result.Add(new MelodeeModels.Statistic(StatisticType.Warning, summary,
+                album.StatusReasons.ToString(), StatisticColorRegistry.Warning, message));
         }
 
         return new MelodeeModels.OperationResult<MelodeeModels.Statistic[]?>
@@ -2423,5 +2430,79 @@ public class LibraryService : ServiceBase
         }
 
         return orderedQuery ?? query.OrderBy(l => l.SortOrder).ThenBy(l => l.Name);
+    }
+
+    /// <summary>
+    /// Gets the access control list for a library.
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<int[]>> GetLibraryAccessControlGroupIdsAsync(int libraryId, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, libraryId, nameof(libraryId));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        var groupIds = await scopedContext.LibraryAccessControls
+            .AsNoTracking()
+            .Where(lac => lac.LibraryId == libraryId)
+            .Select(lac => lac.UserGroupId)
+            .OrderBy(id => id)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new MelodeeModels.OperationResult<int[]>
+        {
+            Data = groupIds
+        };
+    }
+
+    /// <summary>
+    /// Sets the access control list for a library.
+    /// Passing an empty array means no restrictions (accessible to all authenticated users).
+    /// Passing group IDs means only members of those groups can access the library.
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<bool>> SetLibraryAccessControlsAsync(int libraryId, int[] userGroupIds, CancellationToken cancellationToken = default)
+    {
+        Guard.Against.Expression(x => x < 1, libraryId, nameof(libraryId));
+        Guard.Against.Null(userGroupIds, nameof(userGroupIds));
+
+        await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        // Remove all existing access controls for this library
+        var existing = await scopedContext.LibraryAccessControls
+            .Where(lac => lac.LibraryId == libraryId)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (existing.Length > 0)
+        {
+            scopedContext.LibraryAccessControls.RemoveRange(existing);
+        }
+
+        // Add new access controls
+        if (userGroupIds.Length > 0)
+        {
+            var now = SystemClock.Instance.GetCurrentInstant();
+
+            var accessControls = userGroupIds.Distinct().Select(groupId => new LibraryAccessControl
+            {
+                LibraryId = libraryId,
+                UserGroupId = groupId,
+                ApiKey = Guid.NewGuid(),
+                CreatedAt = now
+            }).ToList();
+
+            scopedContext.LibraryAccessControls.AddRange(accessControls);
+        }
+
+        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Clear relevant caches
+        CacheManager.ClearRegion(LibraryAuthorizationService.CacheRegion);
+        CacheManager.Remove(CacheKeyDetailTemplate.FormatSmart(libraryId));
+
+        return new MelodeeModels.OperationResult<bool>
+        {
+            Data = true
+        };
     }
 }

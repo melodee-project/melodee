@@ -141,7 +141,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedAlbums.Any() != true ? false : !_albums.All(i => _selectedAlbums.Contains(i)) ? null : _albums.Any(i => _selectedAlbums.Contains(i)))"
                             Change="@(args => _selectedAlbums = args == true ? _albums.ToList() : [])"/>
                     </HeaderTemplate>
@@ -152,7 +152,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedAlbums.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>
@@ -244,6 +244,16 @@
         _statistics = statResult?.Data ?? [];
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            _grid.OrderByDescending(nameof(AlbumDataInfo.CreatedAt));
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     void OnPage(PagerEventArgs args)
     {
         _currentPage = args.PageIndex + 1;
@@ -259,6 +269,10 @@
             if (args.Sorts?.Any() == true)
             {
                 sorting = args.Sorts.ToDictionary(x => x.Property ?? string.Empty, x => x.SortOrder == SortOrder.Ascending ? PagedRequest.OrderAscDirection : PagedRequest.OrderDescDirection);
+            }
+            else
+            {
+                sorting = new Dictionary<string, string> { { nameof(AlbumDataInfo.CreatedAt), PagedRequest.OrderDescDirection } };
             }
 
             FilterOperatorInfo[]? filters = null;
@@ -343,12 +357,19 @@
 
     private async void MergeSelectedButtonClick()
     {
-        await DialogService.OpenAsync("Merge Albums", ds =>
-            @<div>
-                <RadzenText>Album merging allows combining multiple album entries into a single album. This feature requires careful selection of albums to merge.</RadzenText>
-                <RadzenButton Text="OK" Click="@(() => ds.Close())" class="rz-mt-3"/>
-            </div>,
-            new DialogOptions { Width = "500px" });
+        try
+        {
+            await DialogService.OpenAsync("Merge Albums", ds =>
+                @<div>
+                    <RadzenText>Album merging allows combining multiple album entries into a single album. This feature requires careful selection of albums to merge.</RadzenText>
+                    <RadzenButton Text="OK" Click="@(() => ds.Close())" class="rz-mt-3"/>
+                </div>,
+                new DialogOptions { Width = "500px" });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Error in MergeSelectedButtonClick for Albums");
+        }
     }
 
     private async Task ClearFilterToArtist()

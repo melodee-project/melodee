@@ -66,7 +66,7 @@
             AllowRowSelectOnRowClick="false"
             AllowPaging="true"
             Page="OnPage"
-            PageSize="DefaultPageSize"
+             PageSize="@DefaultPageSize"
             PagerHorizontalAlign="HorizontalAlign.Center"
             ShowPagingSummary="true"
             PageSizeOptions="@PageSizeOptions"
@@ -83,7 +83,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedArtists.Any() != true ? false : !_artists.All(i => _selectedArtists.Contains(i)) ? null : _artists.Any(i => _selectedArtists.Contains(i)))"
                             Change="@(args => _selectedArtists = args == true ? _artists.ToList() : [])"/>
                     </HeaderTemplate>
@@ -92,7 +92,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedArtists.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             TValue="bool"/>
                     </Template>
@@ -157,6 +157,15 @@
         await ArtistSearchEngineService.InitializeAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (firstRender)
+        {
+            await _grid.RefreshDataAsync();
+        }
+    }
+
     void OnPage(PagerEventArgs args)
     {
         _currentPage = args.PageIndex + 1;
@@ -172,6 +181,10 @@
             if (args.Sorts?.Any() == true)
             {
                 sorting = args.Sorts.ToDictionary(x => x.Property ?? string.Empty, x => x.SortOrder == SortOrder.Ascending ? PagedRequest.OrderAscDirection : PagedRequest.OrderDescDirection);
+            }
+            else
+            {
+                sorting = new Dictionary<string, string> { { nameof(Artist.Id), PagedRequest.OrderAscDirection } };
             }
 
             FilterOperatorInfo[]? filters = null;
@@ -191,19 +204,32 @@
                     .ToArray();
             }
 
+            var pageSize = SafeParser.ToNumber<short>(args.Top);
+            if (pageSize <= 0)
+            {
+                pageSize = DefaultPageSize;
+            }
+
             var result = await ArtistSearchEngineService.ListAsync(new PagedRequest
             {
                 FilterBy = filters,
                 Page = _currentPage,
-                PageSize = SafeParser.ToNumber<short>(args.Top),
+                PageSize = pageSize,
                 OrderBy = sorting
             });
-            _artists = result.Data;
+            _artists = result.Data ?? [];
             _count = SafeParser.ToNumber<int>(result.TotalCount);
         }
         catch (Exception e)
         {
             Logger.Error(e, "Loading Artists");
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Duration = ToastTime,
+                Summary = "Error loading artists",
+                Detail = e.Message
+            });
         }
         finally
         {
@@ -211,6 +237,7 @@
         }
 
         _isLoading = false;
+        StateHasChanged();
     }
 
     private void AddButtonClick()

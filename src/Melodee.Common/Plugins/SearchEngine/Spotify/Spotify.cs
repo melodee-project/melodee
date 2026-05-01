@@ -514,13 +514,17 @@ public class Spotify(
                 }
 
                 var spotify = new SpotifyClient(config.WithToken(apiAccessToken));
-                ArtistsTopTracksResponse? searchResult = null;
+                SearchResponse? searchResult = null;
+                var searchQuery = $"artist:{artist.Name}";
+                var searchRequest = new SearchRequest(SearchRequest.Types.Track, searchQuery)
+                {
+                    Limit = Math.Min(maxResults, 50)
+                };
                 try
                 {
                     searchResult = await ExecuteSpotifyAsync(
-                        token => spotify.Artists.GetTopTracks(artist.SpotifyId!,
-                            new ArtistsTopTracksRequest("US"), token),
-                        "artist-top-tracks",
+                        token => spotify.Search.Item(searchRequest, token),
+                        "artist-top-tracks-search",
                         cancellationToken);
                 }
                 catch (APIUnauthorizedException)
@@ -532,17 +536,17 @@ public class Spotify(
                         cancellationToken);
                     spotify = new SpotifyClient(config.WithToken(apiAccessToken));
                     searchResult = await ExecuteSpotifyAsync(
-                        token => spotify.Artists.GetTopTracks(artist.SpotifyId!,
-                            new ArtistsTopTracksRequest("US"), token),
-                        "artist-top-tracks",
+                        token => spotify.Search.Item(searchRequest, token),
+                        "artist-top-tracks-search",
                         cancellationToken);
                 }
 
                 var results = new List<SongSearchResult>();
-                if (searchResult?.Tracks?.Any() ?? false)
+                if (searchResult?.Tracks?.Items?.Any() ?? false)
                 {
-                    var ordered = searchResult.Tracks
-                        .OrderByDescending(x => x.Popularity)
+                    var ordered = searchResult.Tracks.Items
+                        .Where(t => t.Artists?.Any(a =>
+                            string.Equals(a.Name, artist.Name, StringComparison.OrdinalIgnoreCase)) ?? false)
                         .Take(maxResults)
                         .Select((track, index) => new SongSearchResult
                         {
@@ -550,7 +554,6 @@ public class Spotify(
                             Name = track.Name,
                             SortName = track.Name.ToNormalizedString() ?? track.Name,
                             SortOrder = index + 1,
-                            PlayCount = track.Popularity,
                             InfoUrl = track.ExternalUrls?.FirstOrDefault().Value,
                             ImageUrl = track.Album?.Images?.FirstOrDefault()?.Url,
                             ThumbnailUrl = track.Album?.Images?.LastOrDefault()?.Url

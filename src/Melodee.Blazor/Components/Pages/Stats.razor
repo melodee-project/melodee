@@ -43,27 +43,36 @@
     <RadzenCard>
         <RadzenStack Gap="0.5rem">
             <RadzenText TextStyle="TextStyle.H6" Text="@L("Stats.Summary")"/>
-            <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="8px" class="rz-p-2">
-                @foreach (var statistic in _statistics)
-                {
-                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Shade="Shade.Dark" Style="min-width: 200px;">
-                        <RadzenIcon Icon="@statistic.Icon"/>
-                        <div style="width:120px;display:inline-block;text-transform:none;text-align:left;">
-                            @LocalizeStatisticTitle(statistic.Title)
-                        </div>
-                        <div style="width:100px;display:inline-block;text-align:right;" title="@statistic.Message">
-                            @if (statistic.Type == StatisticType.Count)
-                            {
-                                @($"{((int)statistic.Data).ToStringPadLeft(ViewConstants.StatisticNumberPadLength)}")
-                            }
-                            else
-                            {
-                                @statistic.Data
-                            }
-                        </div>
-                    </RadzenBadge>
-                }
-            </RadzenStack>
+            @if (!_summaryLoaded)
+            {
+                <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Style="min-height: 80px;">
+                    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium"/>
+                </RadzenStack>
+            }
+            else
+            {
+                <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="8px" class="rz-p-2">
+                    @foreach (var statistic in _statistics ?? [])
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Shade="Shade.Dark" Style="min-width: 200px;">
+                            <RadzenIcon Icon="@statistic.Icon"/>
+                            <div style="width:120px;display:inline-block;text-transform:none;text-align:left;">
+                                @LocalizeStatisticTitle(statistic.Title)
+                            </div>
+                            <div style="width:100px;display:inline-block;text-align:right;" title="@statistic.Message">
+                                @if (statistic.Type == StatisticType.Count)
+                                {
+                                    @($"{((int)statistic.Data).ToStringPadLeft(ViewConstants.StatisticNumberPadLength)}")
+                                }
+                                else
+                                {
+                                    @statistic.Data
+                                }
+                            </div>
+                        </RadzenBadge>
+                    }
+                </RadzenStack>
+            }
         </RadzenStack>
     </RadzenCard>
 
@@ -240,7 +249,7 @@
 </RadzenStack>
 
 @code {
-    Statistic[] _statistics = [];
+    Statistic[]? _statistics;
     Statistic[] _userKpis = [];
     TimeSeriesPoint[] _playsPerDay = [];
     TimeSeriesPoint[] _songsAddedPerDay = [];
@@ -254,6 +263,7 @@
     TopItemStat[] _topArtistsByAlbumCount = [];
     TopItemStat[] _topArtistsByPlays = [];
     bool _hasNoData;
+    bool _summaryLoaded;
 
     private LocalDate _rangeStart;
     private LocalDate _rangeEnd;
@@ -321,6 +331,7 @@
 
         _userKpis = kpiTask.Result.Data ?? [];
         _statistics = summaryTask.Result.Data ?? [];
+        _summaryLoaded = true;
         _playsPerDay = playsTask.Result.Data ?? [];
         _songsAddedPerDay = addedTask.Result.Data ?? [];
         _topSongs = topSongsTask.Result.Data ?? [];

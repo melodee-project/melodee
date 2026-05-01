@@ -168,7 +168,7 @@ public class StagingAutoMoveJob(
                 if (context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.ChainOnComplete) &&
                     context.MergedJobDataMap.GetBoolean(MelodeeJobExecutionContext.ChainOnComplete))
                 {
-                    jobDataMap.Put(MelodeeJobExecutionContext.ChainOnComplete, true);
+                    jobDataMap[MelodeeJobExecutionContext.ChainOnComplete] = true;
                 }
 
                 await scheduler.TriggerJob(nextJobKey, jobDataMap, context.CancellationToken).ConfigureAwait(false);

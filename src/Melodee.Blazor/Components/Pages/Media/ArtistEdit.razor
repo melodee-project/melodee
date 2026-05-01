@@ -292,7 +292,7 @@
         var initialArtistName = !string.IsNullOrEmpty(_artist.Name) ? _artist.Name : string.Empty;
         var result = await DialogService.OpenAsync<ArtistLookupDialog>(
             L("ArtistLookup.Title"),
-            new Dictionary<string, object> { { "InitialArtistName", initialArtistName } },
+            new Dictionary<string, object?> { { "InitialArtistName", initialArtistName } },
             new DialogOptions { Width = "600px", Height = "80vh" });
 
         if (result is ArtistLookupCandidate candidate)

@@ -19,7 +19,7 @@ public class LibraryMoveOkCommand : CommandBase<LibraryMoveOkSettings>
         return (bytes / (double)megabyte).ToString("F2");
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, LibraryMoveOkSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, LibraryMoveOkSettings settings, CancellationToken cancellationToken)
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {

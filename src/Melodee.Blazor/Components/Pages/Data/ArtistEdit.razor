@@ -92,7 +92,7 @@
                                     TextProperty="@nameof(Library.Name)"
                                     LoadData="@OnLoadLibraryData"
                                     class="rz-w-100"
-                                    InputAttributes="@(new Dictionary<string, object> { { "aria-label", L("Label.Library") } })"/>
+                                    InputAttributes="@(new Dictionary<string, object?> { { "aria-label", L("Label.Library") } })"/>
                             </RadzenColumn>
                         </RadzenRow>
                         <RadzenRow AlignItems="AlignItems.Center" RowGap="0.25rem">
@@ -118,7 +118,7 @@
                                     TextProperty="@nameof(KeyValue.Value)"
                                     LoadData="@OnLoadMusicBrainzArtistData"
                                     class="rz-w-100"
-                                    InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Artist Name" } })"/>
+                                    InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Artist Name" } })"/>
                             </RadzenColumn>
                         </RadzenRow>
                         @* Below is all optional *@
@@ -284,7 +284,7 @@
                             <RadzenColumn Size="12" SizeMD="10">
                                 <RadzenNumeric style="display: block" Name="SortOrder" @bind-Value="@_artist.SortOrder"
                                                class="rz-w-100"
-                                               InputAttributes="@(new Dictionary<string, object> { { "aria-label", "enter value" } })"/>
+                                               InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "enter value" } })"/>
                                 <RadzenDataAnnotationValidator Component="SortOrder" Popup="false"
                                                                Style="position: absolute"/>
                             </RadzenColumn>

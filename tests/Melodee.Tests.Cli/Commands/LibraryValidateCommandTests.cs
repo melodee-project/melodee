@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Melodee.Cli.CommandSettings;
 
 namespace Melodee.Tests.Cli.Commands;
 

@@ -905,7 +905,6 @@ public sealed class PodcastService(
                 .ConfigureAwait(false);
 
             // Get the episodes for those channels, then order in memory
-            // (SQLite doesn't support ORDER BY on DateTimeOffset)
             var episodes = await context.PodcastEpisodes
                 .Include(x => x.PodcastChannel)
                 .Where(e => channelIds.Contains(e.PodcastChannelId))
@@ -1102,7 +1101,7 @@ public sealed class PodcastService(
 
         var totalCount = await episodeQuery.CountAsync(cancellationToken).ConfigureAwait(false);
 
-        // SQLite-compatible ordering - load then order in memory
+        // Load then order in memory for compatibility
         var allMatchingEpisodes = await episodeQuery.ToListAsync(cancellationToken).ConfigureAwait(false);
 
         var episodes = allMatchingEpisodes

@@ -40,7 +40,7 @@ public sealed class MqlRegexGuard : IMqlRegexGuard
         @"((a+)?)+",
         @"((a*)?)+",
         @"((a{1,3}){1,3})+",
-        @"(a+|b+)*c",
+        @"(a+|b*)*c",
         @"(a+|b+)+c",
         @"(a|b)*c",
         @"(a|b)+c",
@@ -116,8 +116,9 @@ public sealed class MqlRegexGuard : IMqlRegexGuard
 
         try
         {
-            // Test compilation with timeout to prevent ReDoS during validation
-            var regex = new Regex(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+            var options = GetRegexOptions();
+            _ = new Regex(pattern, options, TimeSpan.FromMilliseconds(100));
+
             var safePattern = MqlTextSanitizer.SanitizeForRegex(pattern);
 
             return new RegexValidationResult
@@ -161,16 +162,9 @@ public sealed class MqlRegexGuard : IMqlRegexGuard
 
         try
         {
-            using var cts = new CancellationTokenSource(actualTimeout);
-
-            var task = Task.Run(() =>
-            {
-                var regex = new Regex(validationResult.SafePattern ?? pattern, RegexOptions.Compiled);
-                var match = regex.Match(testString);
-                return match.Success;
-            }, cts.Token);
-
-            var result = task.Result;
+            var options = GetRegexOptions();
+            var regex = new Regex(pattern, options, actualTimeout);
+            var match = regex.Match(testString);
 
             return new RegexValidationResult
             {
@@ -180,7 +174,7 @@ public sealed class MqlRegexGuard : IMqlRegexGuard
                 EvaluationTimeMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
             };
         }
-        catch (OperationCanceledException)
+        catch (RegexMatchTimeoutException)
         {
             return new RegexValidationResult
             {
@@ -188,6 +182,18 @@ public sealed class MqlRegexGuard : IMqlRegexGuard
                 IsBlocked = true,
                 ErrorCode = "MQL_REGEX_TIMEOUT",
                 ErrorMessage = $"Regex evaluation exceeded timeout of {actualTimeout.TotalMilliseconds}ms",
+                SafePattern = validationResult.SafePattern,
+                EvaluationTimeMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
+            };
+        }
+        catch (ArgumentException ex)
+        {
+            return new RegexValidationResult
+            {
+                IsValid = false,
+                IsBlocked = true,
+                ErrorCode = "MQL_REGEX_INVALID",
+                ErrorMessage = $"Invalid regex pattern: {ex.Message}",
                 SafePattern = validationResult.SafePattern,
                 EvaluationTimeMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
             };
@@ -204,6 +210,20 @@ public sealed class MqlRegexGuard : IMqlRegexGuard
                 EvaluationTimeMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
             };
         }
+    }
+
+    private static RegexOptions GetRegexOptions()
+    {
+        var options = RegexOptions.Compiled | RegexOptions.IgnoreCase;
+
+        if (RegexOptions.NonBacktracking.GetType()
+                .GetField("value__", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+                .GetValue(RegexOptions.NonBacktracking) != null)
+        {
+            options |= RegexOptions.NonBacktracking;
+        }
+
+        return options;
     }
 
     private static string EscapeForRegex(string pattern)

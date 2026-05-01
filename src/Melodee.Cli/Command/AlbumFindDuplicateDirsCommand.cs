@@ -31,7 +31,7 @@ public class AlbumFindDuplicateDirsCommand : CommandBase<AlbumFindDuplicateDirsS
     // Regex to strip database ID from artist directory names (e.g., "Artist Name [12345]" -> "Artist Name")
     private static readonly Regex ArtistIdRegex = new(@"\s*\[\d+\]\s*$", RegexOptions.Compiled);
 
-    public override async Task<int> ExecuteAsync(
+    protected override async Task<int> ExecuteAsync(
         CommandContext context,
         AlbumFindDuplicateDirsSettings settings,
         CancellationToken cancellationToken)

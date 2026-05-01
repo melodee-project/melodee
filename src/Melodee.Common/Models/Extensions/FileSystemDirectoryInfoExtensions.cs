@@ -321,9 +321,13 @@ public static class FileSystemDirectoryInfoExtensions
         // Use streaming enumeration to avoid loading all directories into memory at once
         foreach (var dir in dirInfo.EnumerateDirectories("*.*", searchOption))
         {
-            if (dir.LastWriteTimeUtc >= modifiedSinceValue &&
-                dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
-                    .Any(x => FileHelper.IsFileMediaType(x.Extension)))
+            // Include directories with any files (not just media files) so that 
+            // script-based deletion can evaluate and clean up non-media directories
+            var hasFiles = dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly).Any();
+            var hasMediaFiles = hasFiles && dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
+                .Any(x => FileHelper.IsFileMediaType(x.Extension));
+
+            if (dir.LastWriteTimeUtc >= modifiedSinceValue && (hasMediaFiles || hasFiles))
             {
                 var fsDir = dir.ToFileSystemDirectoryInfo();
                 if (fsDir != null)
@@ -333,9 +337,12 @@ public static class FileSystemDirectoryInfoExtensions
             }
         }
 
-        // Check if the root directory itself has media files
-        if (dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
-            .Any(x => x.LastWriteTimeUtc >= modifiedSinceValue && FileHelper.IsFileMediaType(x.Extension)))
+        // Check if the root directory itself has files (media or non-media)
+        var rootHasFiles = dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly).Any();
+        var rootHasMediaFiles = rootHasFiles && dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
+            .Any(x => x.LastWriteTimeUtc >= modifiedSinceValue && FileHelper.IsFileMediaType(x.Extension));
+
+        if (rootHasMediaFiles || (rootHasFiles && dirInfo.LastWriteTimeUtc >= modifiedSinceValue))
         {
             yield return fileSystemDirectoryInfo;
         }

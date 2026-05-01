@@ -78,7 +78,7 @@
                             TabIndex="-1"
                             TriState="false"
                             TValue="bool?"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select all items" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select all items" } })"
                             Value="@(_selectedShares.Any() != true ? false : !_shares.All(i => _selectedShares.Contains(i)) ? null : _shares.Any(i => _selectedShares.Contains(i)))"
                             Change="@(args => _selectedShares = args == true ? _shares.ToList() : [])"/>
                     </HeaderTemplate>
@@ -89,7 +89,7 @@
                             TabIndex="-1"
                             TriState="false"
                             Value="@(_selectedShares.Contains(data))"
-                            InputAttributes="@(new Dictionary<string, object> { { "aria-label", "Select item" } })"
+                            InputAttributes="@(new Dictionary<string, object?> { { "aria-label", "Select item" } })"
                             Change="@(_ => { _grid.SelectRow(data); })"
                             Visible="@(!data.IsLocked)"
                             TValue="bool"/>
