@@ -55,51 +55,9 @@ public class DoctorServiceTests
         var configuration = CreateConfiguration(new Dictionary<string, string?>());
         var service = CreateService(configuration);
 
-            var result = await service.NeedsAttentionAsync();
+        var result = await service.NeedsAttentionAsync();
 
-            Assert.False(result);
-            // Fast-path no longer probes DBs — only checks file existence
-        }
-        finally
-        {
-            DeleteDatabaseArtifacts(musicBrainzPath);
-            DeleteDatabaseArtifacts(artistSearchPath);
-        }
-    }
-
-    [Fact]
-    public async Task NeedsAttentionAsync_WhenArtistSearchFileMissing_ReturnsTrue()
-    {
-        ConfigurePrimaryDatabaseCanConnect();
-
-        var musicBrainzPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-openable-{Guid.NewGuid():N}.ddb");
-
-        try
-        {
-            var musicBrainzOptions = CreateMusicBrainzOptions(musicBrainzPath);
-            await using (var musicBrainzContext = new MusicBrainzDbContext(musicBrainzOptions))
-            {
-                await musicBrainzContext.Database.EnsureCreatedAsync();
-            }
-            ConfigureMusicBrainzDatabase(musicBrainzOptions);
-
-            // ArtistSearch connection string points to a non-existent file
-            var configuration = CreateConfiguration(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
-                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
-                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source=/tmp/does-not-exist-{Guid.NewGuid():N}.ddb"
-            });
-            var service = CreateService(configuration);
-
-            var result = await service.NeedsAttentionAsync();
-
-            Assert.True(result);
-        }
-        finally
-        {
-            DeleteDatabaseArtifacts(musicBrainzPath);
-        }
+        Assert.True(result);
     }
 
     [Fact]
@@ -137,7 +95,6 @@ public class DoctorServiceTests
             var result = await service.NeedsAttentionAsync();
 
             Assert.False(result);
-            // Fast-path no longer probes DBs — only checks file existence
         }
         finally
         {
@@ -162,7 +119,6 @@ public class DoctorServiceTests
             }
             ConfigureMusicBrainzDatabase(musicBrainzOptions);
 
-            // ArtistSearch connection string points to a non-existent file
             var configuration = CreateConfiguration(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
