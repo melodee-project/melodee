@@ -9,7 +9,43 @@ This guide covers getting Melodee running quickly using containers, plus optiona
 
 ## Option 1: Container Deployment (Recommended)
 
-### Prerequisites
+### Pre-built Images (Fastest — No Build Required)
+
+Melodee publishes **pre-built, multi-arch container images** (linux/amd64, linux/arm64) to GitHub Container Registry on every release. This is the fastest way to get started — no local build step needed.
+
+```bash
+# Clone the repository (for compose.yml and config)
+git clone https://github.com/melodee-project/melodee.git
+cd melodee
+
+# Copy and configure environment
+cp example.env .env
+# Edit .env — set DB_PASSWORD, MELODEE_AUTH_TOKEN, etc.
+
+# Use the pre-built image instead of building locally
+export MELODEE_IMAGE=ghcr.io/melodee-project/melodee:latest
+
+# Start with Docker
+docker compose up -d
+
+# Or with Podman
+podman compose up -d
+```
+
+**Available image tags:**
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release |
+| `2.0` | Latest 2.0.x patch release |
+| `2.0.1` | Specific pinned version |
+| `sha-{commit}` | Build from a specific commit (workflow_dispatch only) |
+
+Browse all available tags: [ghcr.io/melodee-project/melodee](https://github.com/melodee-project/melodee/pkgs/container/melodee)
+
+### Automated Setup Script
+
+#### Prerequisites
 
 - Docker or Podman (with podman‑compose if using Podman)
 - At least 2GB RAM (4GB recommended for large scans)

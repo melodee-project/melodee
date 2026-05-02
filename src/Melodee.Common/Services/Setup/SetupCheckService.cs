@@ -29,7 +29,8 @@ public sealed record SetupItem(
     bool Success,
     string Details,
     string? Remediation = null,
-    string? FixRoute = null);
+    string? FixRoute = null,
+    string? SettingKey = null);
 
 /// <summary>
 /// Overall setup check status containing all items and blocking items.
@@ -154,7 +155,8 @@ public sealed class SetupCheckService : ISetupCheckService
                         : $"Setting '{setting.Key}' is configured")
                     : $"Setting '{setting.Key}' is not configured",
                 Remediation: isConfigured ? null : $"Set a value for {setting.Key}",
-                FixRoute: fixRoute));
+                FixRoute: fixRoute,
+                SettingKey: isConfigured ? null : setting.Key));
         }
 
         // Check explicitly required keys
@@ -489,7 +491,8 @@ public sealed class SetupCheckService : ISetupCheckService
                 Success: isConfigured,
                 Details: isConfigured ? $"{name} is configured" : invalidDetails,
                 Remediation: isConfigured ? null : $"Set a value for {key}",
-                FixRoute: isConfigured ? null : fixRoute)
+                FixRoute: isConfigured ? null : fixRoute,
+                SettingKey: isConfigured ? null : key)
         ];
     }
 

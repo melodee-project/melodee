@@ -18,7 +18,7 @@ services:
       retries: 5
 
   melodee.blazor:
-    image: localhost/melodee:latest
+    image: ${MELODEE_IMAGE:-localhost/melodee:latest}
     build:
       context: .
       dockerfile: ${DOCKERFILE_PATH:-Dockerfile}

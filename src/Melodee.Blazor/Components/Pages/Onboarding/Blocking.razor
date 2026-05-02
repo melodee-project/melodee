@@ -1,4 +1,5 @@
 @page "/onboarding/blocking"
+@using Melodee.Common.Services
 @using Melodee.Common.Services.Setup
 @using Melodee.Blazor.Services
 @inherits MelodeeComponentBase
@@ -25,12 +26,35 @@
                 @foreach (var item in _blockingItems)
                 {
                     <RadzenAlert Variant="Variant.Filled" AlertStyle="AlertStyle.Danger" Shade="Shade.Darker" Icon="warning">
-                        <RadzenText Text="@item.Name" TextStyle="TextStyle.Subtitle2" Style="font-weight: bold;"/>
-                        <RadzenText Text="@item.Details" TextStyle="TextStyle.Body2"/>
-                        @if (!string.IsNullOrEmpty(item.Remediation))
-                        {
-                            <RadzenText Text="@($"Suggestion: {item.Remediation}")" TextStyle="TextStyle.Caption"/>
-                        }
+                        <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <RadzenText Text="@item.Name" TextStyle="TextStyle.Subtitle2" Style="font-weight: bold;"/>
+                            </RadzenStack>
+                            <RadzenText Text="@item.Details" TextStyle="TextStyle.Body2"/>
+                            @if (!item.Success && !string.IsNullOrEmpty(item.SettingKey))
+                            {
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-top: 0.5rem;">
+                                    <RadzenTextBox @bind-Value="@_settingValues[item.SettingKey]"
+                                                   Placeholder="@L("Onboarding.EnterValue")"
+                                                   Style="flex: 1;"/>
+                                    <RadzenButton Click="@(() => SaveSettingAsync(item.SettingKey!))"
+                                                  Text="@L("Onboarding.Save")"
+                                                  Icon="save"
+                                                  Size="ButtonSize.Small"
+                                                  ButtonStyle="ButtonStyle.Light"
+                                                  IsBusy="@_savingKeys.Contains(item.SettingKey)"/>
+                                    @if (_saveResults.TryGetValue(item.SettingKey, out var saveResult))
+                                    {
+                                        <RadzenIcon Icon="@(saveResult ? "check_circle" : "error")"
+                                                     IconColor="@(saveResult ? Radzen.Colors.Success : Radzen.Colors.Danger)"/>
+                                    }
+                                </RadzenStack>
+                            }
+                            else if (!string.IsNullOrEmpty(item.Remediation))
+                            {
+                                <RadzenText Text="@($"Suggestion: {item.Remediation}")" TextStyle="TextStyle.Caption"/>
+                            }
+                        </RadzenStack>
                     </RadzenAlert>
                 }
             </RadzenStack>
@@ -54,9 +78,13 @@
     private IReadOnlyList<SetupItem> _blockingItems = Array.Empty<SetupItem>();
     private bool _isRetrying;
     private string? _blockingErrorMessage;
+    private HashSet<string> _savingKeys = new();
+    private Dictionary<string, string> _settingValues = new();
+    private Dictionary<string, bool> _saveResults = new();
 
     [Inject] private OnboardingStateService OnboardingStateService { get; set; } = null!;
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+    [Inject] private SettingService SettingService { get; set; } = null!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -69,6 +97,14 @@
         {
             _blockingItems = await OnboardingStateService.GetBlockingItemsAsync();
             _blockingErrorMessage = OnboardingStateService.LastSetupErrorMessage;
+
+            foreach (var item in _blockingItems.Where(i => !string.IsNullOrEmpty(i.SettingKey)))
+            {
+                if (!_settingValues.ContainsKey(item.SettingKey!))
+                {
+                    _settingValues[item.SettingKey!] = string.Empty;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -77,9 +113,40 @@
         }
     }
 
+    private async Task SaveSettingAsync(string key)
+    {
+        if (!_settingValues.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            _saveResults[key] = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _savingKeys.Add(key);
+        try
+        {
+            var result = await SettingService.SetAsync(key, value.Trim());
+            _saveResults[key] = result.IsSuccess;
+
+            if (result.IsSuccess)
+            {
+                await RetryCheckAsync();
+            }
+        }
+        catch
+        {
+            _saveResults[key] = false;
+        }
+        finally
+        {
+            _savingKeys.Remove(key);
+        }
+    }
+
     private async Task RetryCheckAsync()
     {
         _isRetrying = true;
+        _saveResults.Clear();
         try
         {
             await OnboardingStateService.RefreshSetupStatusAsync();

@@ -95,12 +95,6 @@ public class DoctorServiceTests
             var result = await service.NeedsAttentionAsync();
 
             Assert.False(result);
-            _musicBrainzDbContextFactory.Verify(
-                x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()),
-                Times.Once);
-            _artistSearchEngineDbContextFactory.Verify(
-                x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()),
-                Times.Once);
         }
         finally
         {
@@ -110,12 +104,11 @@ public class DoctorServiceTests
     }
 
     [Fact]
-    public async Task NeedsAttentionAsync_WhenArtistSearchDatabaseCannotBeOpened_ReturnsTrue()
+    public async Task NeedsAttentionAsync_WhenArtistSearchFileMissing_ReturnsTrue()
     {
         ConfigurePrimaryDatabaseCanConnect();
 
         var musicBrainzPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-openable-{Guid.NewGuid():N}.ddb");
-        var artistSearchPath = CreateNonEmptyFile("artist-search-unsupported");
 
         try
         {
@@ -126,15 +119,11 @@ public class DoctorServiceTests
             }
             ConfigureMusicBrainzDatabase(musicBrainzOptions);
 
-            _artistSearchEngineDbContextFactory
-                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new InvalidOperationException("unsupported database format version: 3"));
-
             var configuration = CreateConfiguration(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
                 ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
-                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source=/tmp/does-not-exist-{Guid.NewGuid():N}.ddb"
             });
             var service = CreateService(configuration);
 
@@ -145,7 +134,6 @@ public class DoctorServiceTests
         finally
         {
             DeleteDatabaseArtifacts(musicBrainzPath);
-            DeleteDatabaseArtifacts(artistSearchPath);
         }
     }
 

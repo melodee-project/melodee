@@ -65,3 +65,6 @@
 
 - title: About
   url: "about"
+  links:
+    - title: "Changelog"
+      url: "changelog"

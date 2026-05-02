@@ -10,6 +10,8 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Doctor;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
+using Serilog.Events;
+using SerilogTimings;
 
 namespace Melodee.Blazor.Services;
 
@@ -61,29 +63,45 @@ public sealed class DoctorService(
     {
         // Dashboard uses this fast path on first render, so keep it limited to
         // cheap checks that still catch obviously unhealthy startup state.
-        if (HasMissingConnectionStrings())
+        using (Operation.At(LogEventLevel.Debug).Time("[{Service}] HasMissingConnectionStrings", nameof(DoctorService)))
         {
-            return true;
+            if (HasMissingConnectionStrings())
+            {
+                return true;
+            }
         }
 
-        if (await HasMusicBrainzConnectionIssuesAsync(cancellationToken))
+        // Fast-path: only verify the MusicBrainz file exists and is non-empty.
+        // Full probe (query) is deferred to RunAllChecksAsync.
+        using (Operation.At(LogEventLevel.Debug).Time("[{Service}] HasMusicBrainzFileIssues", nameof(DoctorService)))
         {
-            return true;
+            if (!HasConfiguredFileBackedDatabase("MusicBrainzConnection"))
+            {
+                return true;
+            }
         }
 
-        if (await HasArtistSearchConnectionIssuesAsync(cancellationToken))
+        // Fast-path: only verify the ArtistSearch file exists and is non-empty.
+        // Full probe (query) is deferred to RunAllChecksAsync.
+        using (Operation.At(LogEventLevel.Debug).Time("[{Service}] HasArtistSearchFileIssues", nameof(DoctorService)))
         {
-            return true;
+            if (!HasConfiguredFileBackedDatabase("ArtistSearchEngineConnection"))
+            {
+                return true;
+            }
         }
 
-        try
+        using (Operation.At(LogEventLevel.Debug).Time("[{Service}] DefaultConnectionCanConnect", nameof(DoctorService)))
         {
-            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return !await db.Database.CanConnectAsync(cancellationToken);
-        }
-        catch
-        {
-            return true;
+            try
+            {
+                await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return !await db.Database.CanConnectAsync(cancellationToken);
+            }
+            catch
+            {
+                return true;
+            }
         }
     }
 

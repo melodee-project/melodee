@@ -6,6 +6,8 @@ using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Serilog;
+using Serilog.Events;
+using SerilogTimings;
 
 namespace Melodee.Common.Services;
 
@@ -532,56 +534,59 @@ public sealed class StatisticsService(
         string? timeZoneId,
         CancellationToken cancellationToken = default)
     {
-        var zone = ResolveZone(timeZoneId);
-        var startInstant = startDay.AtStartOfDayInZone(zone).ToInstant();
-        var endExclusiveInstant = endDay.PlusDays(1).AtStartOfDayInZone(zone).ToInstant();
 
-        await using var context = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        var userId = await ResolveUserIdAsync(context, userApiKey, cancellationToken).ConfigureAwait(false);
-        if (userId == null)
+        using (Operation.At(LogEventLevel.Debug).Time("[{PluginName}] GetUserKpisAsync", nameof(StatisticsService)))
         {
-            return new OperationResult<Statistic[]> { Data = [] };
+            var zone = ResolveZone(timeZoneId);
+            var startInstant = startDay.AtStartOfDayInZone(zone).ToInstant();
+            var endExclusiveInstant = endDay.PlusDays(1).AtStartOfDayInZone(zone).ToInstant();
+
+            await using var context =
+                await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var userId = await ResolveUserIdAsync(context, userApiKey, cancellationToken).ConfigureAwait(false);
+            if (userId == null)
+            {
+                return new OperationResult<Statistic[]> { Data = [] };
+            }
+
+            var totalPlays = await context.UserSongPlayHistories
+                .AsNoTracking()
+                .CountAsync(
+                    x => x.UserId == userId.Value && x.PlayedAt >= startInstant && x.PlayedAt < endExclusiveInstant,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            var favoritesSongs = await context.UserSongs
+                .AsNoTracking()
+                .CountAsync(x => x.UserId == userId.Value && x.StarredAt != null, cancellationToken)
+                .ConfigureAwait(false);
+
+            var favoritesAlbums = await context.UserAlbums
+                .AsNoTracking()
+                .CountAsync(x => x.UserId == userId.Value && x.StarredAt != null, cancellationToken)
+                .ConfigureAwait(false);
+
+            var favoritesArtists = await context.UserArtists
+                .AsNoTracking()
+                .CountAsync(x => x.UserId == userId.Value && x.StarredAt != null, cancellationToken)
+                .ConfigureAwait(false);
+
+            var ratedSongs = await context.UserSongs
+                .AsNoTracking()
+                .CountAsync(x => x.UserId == userId.Value && x.Rating > 0, cancellationToken)
+                .ConfigureAwait(false);
+
+            var stats = new Statistic[]
+            {
+                new(StatisticType.Count, "Total plays", totalPlays, null, null, 1, "bar_chart"),
+                new(StatisticType.Count, "Favorites: Songs", favoritesSongs, null, null, 2, "favorite"),
+                new(StatisticType.Count, "Favorites: Albums", favoritesAlbums, null, null, 3, "album"),
+                new(StatisticType.Count, "Favorites: Artists", favoritesArtists, null, null, 4, "artist"),
+                new(StatisticType.Count, "Rated Songs", ratedSongs, null, null, 5, "star")
+            };
+
+            return new OperationResult<Statistic[]> { Data = stats };
         }
-
-        var totalPlays = await context.UserSongPlayHistories
-            .AsNoTracking()
-            .CountAsync(x => x.UserId == userId.Value && x.PlayedAt >= startInstant && x.PlayedAt < endExclusiveInstant,
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        var favoritesSongs = await context.UserSongs
-            .AsNoTracking()
-            .CountAsync(x => x.UserId == userId.Value && x.StarredAt != null, cancellationToken)
-            .ConfigureAwait(false);
-
-        var favoritesAlbums = await context.UserAlbums
-            .AsNoTracking()
-            .CountAsync(x => x.UserId == userId.Value && x.StarredAt != null, cancellationToken)
-            .ConfigureAwait(false);
-
-        var favoritesArtists = await context.UserArtists
-            .AsNoTracking()
-            .CountAsync(x => x.UserId == userId.Value && x.StarredAt != null, cancellationToken)
-            .ConfigureAwait(false);
-
-        var ratedSongs = await context.UserSongs
-            .AsNoTracking()
-            .CountAsync(x => x.UserId == userId.Value && x.Rating > 0, cancellationToken)
-            .ConfigureAwait(false);
-
-        var stats = new Statistic[]
-        {
-            new(StatisticType.Count, "Total plays", totalPlays, null, null, 1, "bar_chart"),
-            new(StatisticType.Count, "Favorites: Songs", favoritesSongs, null, null, 2, "favorite"),
-            new(StatisticType.Count, "Favorites: Albums", favoritesAlbums, null, null, 3, "album"),
-            new(StatisticType.Count, "Favorites: Artists", favoritesArtists, null, null, 4, "artist"),
-            new(StatisticType.Count, "Rated Songs", ratedSongs, null, null, 5, "star")
-        };
-
-        return new OperationResult<Statistic[]>
-        {
-            Data = stats
-        };
     }
 
     public async Task<OperationResult<Statistic[]>> GetMissingImagesAsync(CancellationToken cancellationToken = default)
