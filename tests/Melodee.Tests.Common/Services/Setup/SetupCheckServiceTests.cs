@@ -4,6 +4,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Setup;
@@ -150,6 +151,7 @@ public class SetupCheckServiceTests : IDisposable
             CreateContextFactory(),
             configurationFactory,
             null!,
+            new ImageProcessor(),
             null!);
     }
 

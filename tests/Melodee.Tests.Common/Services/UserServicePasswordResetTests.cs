@@ -2,6 +2,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Security;
@@ -39,7 +40,8 @@ public class UserServicePasswordResetTests : ServiceTestBase
             GetPodcastService(),
             actualBus,
             passwordHashService,
-            secretProtector);
+            secretProtector,
+            new ImageProcessor());
         var userAuthenticationService = new UserAuthenticationService(
             Logger,
             passwordHashService,

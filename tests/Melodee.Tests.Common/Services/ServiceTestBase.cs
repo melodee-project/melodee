@@ -4,6 +4,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Metadata;
 using Melodee.Common.Models;
 using Melodee.Common.Models.OpenSubsonic.Requests;
@@ -137,7 +138,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             MockConfigurationFactory(),
             GetAlbumDiscoveryService(),
             Serializer,
-            MockHttpClientFactory());
+            MockHttpClientFactory(),
+            new ImageProcessor());
     }
 
     protected IDbContextFactory<MelodeeDbContext> MockFactory()
@@ -218,12 +220,12 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 
     protected ImageConvertor GetImageConvertor()
     {
-        return new ImageConvertor(TestsBase.NewPluginsConfiguration());
+        return new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
     }
 
     protected IImageValidator GetImageValidator()
     {
-        return new ImageValidator(TestsBase.NewPluginsConfiguration());
+        return new ImageValidator(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
     }
 
     protected IAlbumValidator GetAlbumValidator()
@@ -280,7 +282,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetLyricPlugin(),
             GetPodcastPlaybackService(),
             GetUserRatingService(),
-            GetUserBookmarkService());
+            GetUserBookmarkService(),
+            new ImageProcessor());
     }
 
     protected ISchedulerFactory CreateMockSchedulerFactory()
@@ -304,6 +307,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             MockFactory(),
             Serializer,
             MockHttpClientFactory(),
+            new ImageProcessor(),
             GetAlbumService(),
             MockBus(),
             MockFileSystemService());
@@ -319,7 +323,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             Serializer,
             MockHttpClientFactory(),
             GetMediaEditService(),
-            MockFileSystemService());
+            MockFileSystemService(),
+            new ImageProcessor());
     }
 
     protected StatisticsService GetStatisticsService()
@@ -377,12 +382,12 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
 
     protected PlaylistService GetPlaylistService()
     {
-        return new PlaylistService(Logger, CacheManager, Serializer, MockConfigurationFactory(), MockFactory(), GetLibraryService());
+        return new PlaylistService(Logger, CacheManager, Serializer, MockConfigurationFactory(), MockFactory(), GetLibraryService(), new ImageProcessor());
     }
 
     protected ChartService GetChartService()
     {
-        return new ChartService(Logger, CacheManager, MockFactory(), GetLibraryService());
+        return new ChartService(Logger, CacheManager, MockFactory(), GetLibraryService(), new ImageProcessor());
     }
 
     protected INowPlayingRepository GetNowPlayingRepository()
@@ -399,6 +404,7 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             MockFactory(),
             MockConfigurationFactory(),
             Serializer,
+            new ImageProcessor(),
             GetMelodeeMetadataMaker()
         );
     }
@@ -413,7 +419,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetArtistSearchEngineService(),
             GetAlbumImageSearchEngineService(),
             MockHttpClientFactory(),
-            GetMediaEditService());
+            GetMediaEditService(),
+            new ImageProcessor());
     }
 
     protected ScrobbleService GetScrobbleService()
@@ -498,7 +505,8 @@ public abstract class ServiceTestBase : IDisposable, IAsyncDisposable
             GetPodcastService(),
             MockBus(),
             MockPasswordHashService(),
-            MockSecretProtector());
+            MockSecretProtector(),
+            new ImageProcessor());
     }
 
     protected UserAuthenticationService GetUserAuthenticationService()

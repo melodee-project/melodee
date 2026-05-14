@@ -1,3 +1,4 @@
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Plugins.MetaData.Song;
 using Melodee.Common.Plugins.Processor;
@@ -37,7 +38,7 @@ public class CUETests : TestsBase
             var cueSheet = new CueSheet(
                 Serializer,
                 [
-                    new AtlMetaTag(new MetaTagsProcessor(NewPluginsConfiguration(), Serializer), GetImageConvertor(), GetImageValidator(), NewPluginsConfiguration())
+                    new AtlMetaTag(new MetaTagsProcessor(NewPluginsConfiguration(), Serializer), new ImageProcessor(), GetImageConvertor(), GetImageValidator(), NewPluginsConfiguration())
                 ], GetAlbumValidator(), NewPluginsConfiguration());
 
             var sfvResult = await cueSheet.ProcessDirectoryAsync(new FileSystemDirectoryInfo

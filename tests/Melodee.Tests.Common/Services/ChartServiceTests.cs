@@ -1,5 +1,6 @@
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using NodaTime;
@@ -14,7 +15,7 @@ public class ChartServiceTests : ServiceTestBase
 {
     private new ChartService GetChartService()
     {
-        return new ChartService(Logger, CacheManager, MockFactory(), GetLibraryService());
+        return new ChartService(Logger, CacheManager, MockFactory(), GetLibraryService(), new ImageProcessor());
     }
 
     private async Task<Artist> CreateTestArtistAsync(string name)

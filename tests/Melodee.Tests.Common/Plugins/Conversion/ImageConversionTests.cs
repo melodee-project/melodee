@@ -1,4 +1,5 @@
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Conversion.Image;
@@ -14,7 +15,7 @@ public class ImageConversionTests
         var fileInfo = new FileInfo(testFile);
         if (fileInfo.Exists)
         {
-            var convertor = new ImageConvertor(TestsBase.NewPluginsConfiguration());
+            var convertor = new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
             var dirInfo = new FileSystemDirectoryInfo
             {
                 Path = @"/melodee_test/tests/",
@@ -37,7 +38,7 @@ public class ImageConversionTests
         var fileInfo = new FileInfo(testFile);
         if (fileInfo.Exists)
         {
-            var convertor = new ImageConvertor(TestsBase.NewPluginsConfiguration());
+            var convertor = new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
             var dirInfo = new FileSystemDirectoryInfo
             {
                 Path = @"/melodee_test/tests/",
@@ -60,7 +61,7 @@ public class ImageConversionTests
         var fileInfo = new FileInfo(testFile);
         if (fileInfo.Exists)
         {
-            var convertor = new ImageConvertor(TestsBase.NewPluginsConfiguration());
+            var convertor = new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
             var dirInfo = new FileSystemDirectoryInfo
             {
                 Path = @"/melodee_test/tests/",
@@ -83,7 +84,7 @@ public class ImageConversionTests
         var fileInfo = new FileInfo(testFile);
         if (fileInfo.Exists)
         {
-            var convertor = new ImageConvertor(TestsBase.NewPluginsConfiguration());
+            var convertor = new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
             var dirInfo = new FileSystemDirectoryInfo
             {
                 Path = @"/melodee_test/tests/",
@@ -106,7 +107,7 @@ public class ImageConversionTests
         var fileInfo = new FileInfo(testFile);
         if (fileInfo.Exists)
         {
-            var convertor = new ImageConvertor(TestsBase.NewPluginsConfiguration());
+            var convertor = new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
             var dirInfo = new FileSystemDirectoryInfo
             {
                 Path = @"/melodee_test/tests/",
@@ -129,7 +130,7 @@ public class ImageConversionTests
         var fileInfo = new FileInfo(testFile);
         if (fileInfo.Exists)
         {
-            var convertor = new ImageConvertor(TestsBase.NewPluginsConfiguration());
+            var convertor = new ImageConvertor(new ImageProcessor(), TestsBase.NewPluginsConfiguration());
             var convertorResult = await convertor.ProcessFileAsync(new FileSystemDirectoryInfo
             {
                 Path = @"/melodee_test/tests/",

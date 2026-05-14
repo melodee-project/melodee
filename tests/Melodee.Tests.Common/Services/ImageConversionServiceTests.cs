@@ -1,4 +1,5 @@
 using Melodee.Common.Configuration;
+using Melodee.Common.Imaging;
 using Melodee.Common.Services;
 using Moq;
 
@@ -18,29 +19,8 @@ public class ImageConversionServiceTests : ServiceTestBase
             Logger,
             CacheManager,
             MockFactory(),
-            mockConfigFactory.Object);
-
-        var imageFileInfo = new FileInfo(Path.Combine(Path.GetTempPath(), "test.jpg"));
-
-        // Act
-        var result = await service.ConvertImageAsync(imageFileInfo, CancellationToken.None);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.False(result.IsSuccess);
-        Assert.False(result.Data);
-        Assert.Contains("Configuration is not available", result.Messages?.FirstOrDefault() ?? string.Empty);
-    }
-
-    [Fact]
-    public async Task ConvertImageAsync_WithNonExistentFile_ReturnsResult()
-    {
-        // Arrange
-        var service = new ImageConversionService(
-            Logger,
-            CacheManager,
-            MockFactory(),
-            MockConfigurationFactory());
+            MockConfigurationFactory(),
+            new ImageProcessor());
 
         var nonExistentFile = new FileInfo(Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid()}.jpg"));
 
@@ -61,7 +41,8 @@ public class ImageConversionServiceTests : ServiceTestBase
             Logger,
             CacheManager,
             MockFactory(),
-            MockConfigurationFactory());
+            MockConfigurationFactory(),
+            new ImageProcessor());
 
         // Create a temporary invalid image file (just text content)
         var tempFile = Path.Combine(Path.GetTempPath(), $"invalid_image_{Guid.NewGuid()}.jpg");

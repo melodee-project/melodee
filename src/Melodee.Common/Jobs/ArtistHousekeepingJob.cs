@@ -5,6 +5,7 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Validation;
 using Melodee.Common.Services;
@@ -51,7 +52,8 @@ public class ArtistHousekeepingJob(
     ArtistService artistService,
     IDbContextFactory<MelodeeDbContext> contextFactory,
     ArtistImageSearchEngineService imageSearchEngine,
-    IHttpClientFactory httpClientFactory) : JobBase(logger, configurationFactory)
+    IHttpClientFactory httpClientFactory,
+    IImageProcessor imageProcessor) : JobBase(logger, configurationFactory)
 {
     public override async Task Execute(IJobExecutionContext context)
     {
@@ -60,7 +62,7 @@ public class ArtistHousekeepingJob(
         var batchSize = configuration.GetValue<int>(SettingRegistry.DefaultsBatchSize);
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);
         var httpClient = httpClientFactory.CreateClient();
-        var imageValidator = new ImageValidator(configuration);
+        var imageValidator = new ImageValidator(imageProcessor, configuration);
         await using (var scopedContext = await contextFactory.CreateDbContextAsync(context.CancellationToken))
         {
             var readyToProcessStatus = SafeParser.ToNumber<int>(MetaDataModelStatus.ReadyToProcess);

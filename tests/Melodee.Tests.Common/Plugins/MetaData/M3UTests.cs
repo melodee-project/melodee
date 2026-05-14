@@ -1,3 +1,4 @@
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Plugins.MetaData.Directory;
 using Melodee.Common.Plugins.MetaData.Directory.Models;
@@ -16,7 +17,7 @@ public class M3UTests : TestsBase
         if (fileInfo.Exists)
         {
             var m3U = new M3UPlaylist(Serializer, [
-                    new AtlMetaTag(new MetaTagsProcessor(NewPluginsConfiguration(), Serializer), GetImageConvertor(), GetImageValidator(), NewPluginsConfiguration())
+                    new AtlMetaTag(new MetaTagsProcessor(NewPluginsConfiguration(), Serializer), new ImageProcessor(), GetImageConvertor(), GetImageValidator(), NewPluginsConfiguration())
                 ],
                 GetAlbumValidator(),
                 NewPluginsConfiguration());

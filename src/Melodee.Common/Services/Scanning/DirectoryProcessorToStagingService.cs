@@ -5,6 +5,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Models.Scripting;
@@ -29,7 +30,6 @@ using NodaTime;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
-using SixLabors.ImageSharp;
 using SmartFormat;
 using ImageInfo = Melodee.Common.Models.ImageInfo;
 
@@ -52,7 +52,8 @@ public sealed class DirectoryProcessorToStagingService(
     IFileSystemService fileSystemService,
     IScriptOrchestrationService scriptOrchestrationService,
     IDirectoryContextProvider directoryContextProvider,
-    DenyActionHandlerFactory denyActionHandlerFactory)
+    DenyActionHandlerFactory denyActionHandlerFactory,
+    IImageProcessor imageProcessor)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
@@ -73,8 +74,8 @@ public sealed class DirectoryProcessorToStagingService(
 
     private string _directoryStaging = null!;
     private int _duplicateThreshold;
-    private ImageConvertor _imageConvertor = new(new MelodeeConfiguration([]));
-    private IImageValidator _imageValidator = new ImageValidator(new MelodeeConfiguration([]));
+    private ImageConvertor _imageConvertor = null!;
+    private IImageValidator _imageValidator = null!;
     private bool _initialized;
     private int _maxAlbumProcessingCount;
 
@@ -120,20 +121,20 @@ public sealed class DirectoryProcessorToStagingService(
         _directoryStaging = stagingPathOverride ?? (await libraryService.GetStagingLibraryAsync(token).ConfigureAwait(false)).Data.Path;
 
         _albumValidator = new AlbumValidator(_configuration);
-        _imageValidator = new ImageValidator(_configuration);
-        _imageConvertor = new ImageConvertor(_configuration);
+        _imageValidator = new ImageValidator(imageProcessor, _configuration);
+        _imageConvertor = new ImageConvertor(imageProcessor, _configuration);
         _songPlugins =
         [
-            new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer), _imageConvertor, _imageValidator,
+            new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer), imageProcessor, _imageConvertor, _imageValidator,
                 _configuration),
             new IdSharpMetaTag(new MetaTagsProcessor(_configuration, serializer), _configuration)
         ];
         _albumNamesInDirectoryPlugin = new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer),
-            _imageConvertor, _imageValidator, _configuration);
+            imageProcessor, _imageConvertor, _imageValidator, _configuration);
 
         _conversionPlugins =
         [
-            new ImageConvertor(_configuration),
+            new ImageConvertor(imageProcessor, _configuration),
             new MediaConvertor(_configuration)
         ];
 
@@ -766,7 +767,7 @@ public sealed class DirectoryProcessorToStagingService(
 
             try
             {
-                album.Images = (await album.FindImages(_albumNamesInDirectoryPlugin, _duplicateThreshold,
+                album.Images = (await album.FindImages(imageProcessor, _albumNamesInDirectoryPlugin, _duplicateThreshold,
                     _imageConvertor, _imageValidator,
                     _configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal),
                     cancellationToken).ConfigureAwait(false)).ToArray();
@@ -774,7 +775,7 @@ public sealed class DirectoryProcessorToStagingService(
                 album.Artist = new Artist(album.Artist.Name,
                     album.Artist.NameNormalized,
                     album.Artist.SortName,
-                    (await album.FindArtistImages(_imageConvertor,
+                    (await album.FindArtistImages(imageProcessor, _imageConvertor,
                             _imageValidator,
                             _configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal),
                             _configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal),
@@ -1063,24 +1064,27 @@ public sealed class DirectoryProcessorToStagingService(
                                     cancellationToken).ConfigureAwait(false))
                             {
                                 var newImageInfo = new FileInfo(albumImageFromSearchFileName);
-                                var imageInfo = await Image
+                                var imageInfo = await imageProcessor
                                     .IdentifyAsync(albumImageFromSearchFileName, cancellationToken)
                                     .ConfigureAwait(false);
-                                album.Images = new List<ImageInfo>
+                                if (imageInfo != null)
                                 {
-                                    new()
+                                    album.Images = new List<ImageInfo>
                                     {
-                                        FileInfo = newImageInfo.ToFileSystemInfo(),
-                                        PictureIdentifier = PictureIdentifier.Front,
-                                        CrcHash = Crc32.Calculate(newImageInfo),
-                                        Width = imageInfo.Width,
-                                        Height = imageInfo.Height,
-                                        SortOrder = 1,
-                                        WasEmbeddedInSong = false
-                                    }
-                                };
-                                LogAndRaiseEvent(LogEventLevel.Debug,
-                                    $"[{nameof(DirectoryProcessorToStagingService)}] Downloaded album image [{imageSearchResult.MediaUrl}]");
+                                        new()
+                                        {
+                                            FileInfo = newImageInfo.ToFileSystemInfo(),
+                                            PictureIdentifier = PictureIdentifier.Front,
+                                            CrcHash = Crc32.Calculate(newImageInfo),
+                                            Width = imageInfo.Width,
+                                            Height = imageInfo.Height,
+                                            SortOrder = 1,
+                                            WasEmbeddedInSong = false
+                                        }
+                                    };
+                                    LogAndRaiseEvent(LogEventLevel.Debug,
+                                        $"[{nameof(DirectoryProcessorToStagingService)}] Downloaded album image [{imageSearchResult.MediaUrl}]");
+                                }
                             }
                         }
                         else

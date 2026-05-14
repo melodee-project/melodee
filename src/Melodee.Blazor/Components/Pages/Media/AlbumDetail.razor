@@ -11,10 +11,10 @@
 @using Melodee.Common.Services.Scanning
 @using Melodee.Common.Services.SearchEngines
 @using Rebus.Bus
-@using SixLabors.ImageSharp
 @using FileInfo = System.IO.FileInfo
 @using ImageInfo = Melodee.Common.Models.ImageInfo
 @using ImageSearchResult = Melodee.Blazor.Components.Components.ImageSearchResult
+@using Melodee.Common.Imaging
 
 @inherits MelodeeComponentBase
 
@@ -33,6 +33,7 @@
 @inject IJSRuntime JsRuntime
 @inject IBus Bus
 @inject ISubsonicJukeboxService SubsonicJukeboxService
+@inject IImageProcessor ImageProcessor
 
 @attribute [Authorize(Roles = "Administrator,Editor")]
 
@@ -620,7 +621,7 @@
                     if (imageSearchResult != null)
                     {
                         var httpClient = HttpClientFactory.CreateClient();
-                        var imageValidator = new ImageValidator(await ConfigurationFactory.GetConfigurationAsync());
+                        var imageValidator = new ImageValidator(ImageProcessor, await ConfigurationFactory.GetConfigurationAsync());
                         var albumImageFromSearchFileName = Path.Combine(_album.Directory.FullName(), _album.Directory.GetNextFileNameForType(Common.Data.Models.Album.FrontImageType).Item1);
                         if (await httpClient.DownloadFileAsync(
                                 imageSearchResult.MediaUrl,
@@ -628,20 +629,23 @@
                                 async (_, newFileInfo, _) => (await imageValidator.ValidateImage(newFileInfo, PictureIdentifier.Front)).Data.IsValid).ConfigureAwait(false))
                         {
                             var newImageInfo = new FileInfo(albumImageFromSearchFileName);
-                            var imageInfo = await Image.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
-                            _album.Images = new List<ImageInfo>
+                            var imageInfo = await ImageProcessor.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
+                            if (imageInfo != null)
                             {
-                                new()
+                                _album.Images = new List<ImageInfo>
                                 {
-                                    FileInfo = newImageInfo.ToFileSystemInfo(),
-                                    PictureIdentifier = PictureIdentifier.Front,
-                                    CrcHash = Crc32.Calculate(newImageInfo),
-                                    Width = imageInfo.Width,
-                                    Height = imageInfo.Height,
-                                    SortOrder = 1,
-                                    WasEmbeddedInSong = false
-                                }
-                            };
+                                    new()
+                                    {
+                                        FileInfo = newImageInfo.ToFileSystemInfo(),
+                                        PictureIdentifier = PictureIdentifier.Front,
+                                        CrcHash = Crc32.Calculate(newImageInfo),
+                                        Width = imageInfo.Width,
+                                        Height = imageInfo.Height,
+                                        SortOrder = 1,
+                                        WasEmbeddedInSong = false
+                                    }
+                                };
+                            }
                         }
                     }
                 }
@@ -810,37 +814,16 @@
             if (selectedImageSearchResult != null)
             {
                 var httpClient = HttpClientFactory.CreateClient();
-                var imageValidator = new ImageValidator(await ConfigurationFactory.GetConfigurationAsync());
+                var imageValidator = new ImageValidator(ImageProcessor, await ConfigurationFactory.GetConfigurationAsync());
                 var albumImageFromSearchFileName = Path.Combine(_album.Directory.FullName(), _album.Directory.GetNextFileNameForType(Common.Data.Models.Album.FrontImageType).Item1);
 
                 if (selectedImageSearchResult.ImageBytes != null)
                 {
                     await File.WriteAllBytesAsync(albumImageFromSearchFileName, selectedImageSearchResult.ImageBytes);
                     var newImageInfo = new FileInfo(albumImageFromSearchFileName);
-                    var imageInfo = await Image.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
-                    _album.Images = new List<ImageInfo>
+                    var imageInfo = await ImageProcessor.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
+                    if (imageInfo != null)
                     {
-                        new()
-                        {
-                            FileInfo = newImageInfo.ToFileSystemInfo(),
-                            PictureIdentifier = PictureIdentifier.Front,
-                            CrcHash = Crc32.Calculate(newImageInfo),
-                            Width = imageInfo.Width,
-                            Height = imageInfo.Height,
-                            SortOrder = 1,
-                            WasEmbeddedInSong = false
-                        }
-                    };
-                }
-                else
-                {
-                    if (await httpClient.DownloadFileAsync(
-                            selectedImageSearchResult.Url,
-                            albumImageFromSearchFileName,
-                            async (_, newFileInfo, _) => (await imageValidator.ValidateImage(newFileInfo, PictureIdentifier.Front)).Data.IsValid).ConfigureAwait(false))
-                    {
-                        var newImageInfo = new FileInfo(albumImageFromSearchFileName);
-                        var imageInfo = await Image.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
                         _album.Images = new List<ImageInfo>
                         {
                             new()
@@ -854,6 +837,33 @@
                                 WasEmbeddedInSong = false
                             }
                         };
+                    }
+                }
+                else
+                {
+                    if (await httpClient.DownloadFileAsync(
+                            selectedImageSearchResult.Url,
+                            albumImageFromSearchFileName,
+                            async (_, newFileInfo, _) => (await imageValidator.ValidateImage(newFileInfo, PictureIdentifier.Front)).Data.IsValid).ConfigureAwait(false))
+                    {
+                        var newImageInfo = new FileInfo(albumImageFromSearchFileName);
+                        var imageInfo = await ImageProcessor.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
+                        if (imageInfo != null)
+                        {
+                            _album.Images = new List<ImageInfo>
+                            {
+                                new()
+                                {
+                                    FileInfo = newImageInfo.ToFileSystemInfo(),
+                                    PictureIdentifier = PictureIdentifier.Front,
+                                    CrcHash = Crc32.Calculate(newImageInfo),
+                                    Width = imageInfo.Width,
+                                    Height = imageInfo.Height,
+                                    SortOrder = 1,
+                                    WasEmbeddedInSong = false
+                                }
+                            };
+                        }
                     }
                 }
 
@@ -878,20 +888,23 @@
                     var newAlbumImageFromSearchFileName = Path.Combine(_album.Directory.FullName(), $"{ImageInfo.ImageFilePrefix}{1.ToStringPadLeft(MelodeeConfiguration.ImageNameNumberPadding)}-{Common.Data.Models.Album.FrontImageType}.jpg");
                     File.Move(albumImageFromSearchFileName, newAlbumImageFromSearchFileName);
                     var newImageInfo = new FileInfo(newAlbumImageFromSearchFileName);
-                    var imageInfo = await Image.IdentifyAsync(newAlbumImageFromSearchFileName).ConfigureAwait(false);
-                    _album.Images = new List<ImageInfo>
+                    var imageInfo = await ImageProcessor.IdentifyAsync(newAlbumImageFromSearchFileName).ConfigureAwait(false);
+                    if (imageInfo != null)
                     {
-                      new()
-                      {
-                        FileInfo = newImageInfo.ToFileSystemInfo(),
-                        PictureIdentifier = PictureIdentifier.Front,
-                        CrcHash = Crc32.Calculate(newImageInfo),
-                        Width = imageInfo.Width,
-                        Height = imageInfo.Height,
-                        SortOrder = 1,
-                        WasEmbeddedInSong = false
-                      }
-                    };
+                        _album.Images = new List<ImageInfo>
+                        {
+                          new()
+                          {
+                            FileInfo = newImageInfo.ToFileSystemInfo(),
+                            PictureIdentifier = PictureIdentifier.Front,
+                            CrcHash = Crc32.Calculate(newImageInfo),
+                            Width = imageInfo.Width,
+                            Height = imageInfo.Height,
+                            SortOrder = 1,
+                            WasEmbeddedInSong = false
+                          }
+                        };
+                    }
                 }
 
                 var result = await MediaEditService.SaveMelodeeAlbum(_album);

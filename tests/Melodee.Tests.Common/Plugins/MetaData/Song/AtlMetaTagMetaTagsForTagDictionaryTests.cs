@@ -1,4 +1,5 @@
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Plugins.MetaData.Song;
 using Melodee.Common.Plugins.Processor;
@@ -11,7 +12,7 @@ public class AtlMetaTagMetaTagsForTagDictionaryTests : TestsBase
 
     public AtlMetaTagMetaTagsForTagDictionaryTests()
     {
-        _plugin = new AtlMetaTag(new MetaTagsProcessor(NewPluginsConfiguration(), Serializer), GetImageConvertor(), GetImageValidator(), NewPluginsConfiguration());
+        _plugin = new AtlMetaTag(new MetaTagsProcessor(NewPluginsConfiguration(), Serializer), new ImageProcessor(), GetImageConvertor(), GetImageValidator(), NewPluginsConfiguration());
     }
 
     private IEnumerable<MetaTag<object?>> CallMetaTagsForTagDictionary(Dictionary<string, string> tagsDictionary)

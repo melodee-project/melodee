@@ -9,6 +9,7 @@ using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
+using Melodee.Common.Imaging;
 using Melodee.Common.MessageBus.Events;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
@@ -39,7 +40,8 @@ public class AlbumService(
     ISerializer serializer,
     IHttpClientFactory httpClientFactory,
     MediaEditService mediaEditService,
-    IFileSystemService fileSystemService)
+    IFileSystemService fileSystemService,
+    IImageProcessor imageProcessor)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:album:apikey:{0}";
@@ -930,7 +932,7 @@ public class AlbumService(
 
                 if (targetSize > 0)
                 {
-                    imageBytes = ImageConvertor.ResizeImageIfNeeded(imageBytes, targetSize, targetSize, false);
+                    imageBytes = imageProcessor.ResizeImageIfNeeded(imageBytes, targetSize, targetSize, false);
                     eTag = HashHelper.CreateSha256(eTag + targetSize);
                 }
                 resizeStopwatch.Stop();
@@ -997,7 +999,7 @@ public class AlbumService(
         CancellationToken cancellationToken = default)
     {
         var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-        var imageConvertor = new ImageConvertor(configuration);
+        var imageConvertor = new ImageConvertor(imageProcessor, configuration);
 
         var albumPath = album.ToFileSystemDirectoryInfo();
         var albumImages = albumPath.FileInfosForExtension("jpg", false).ToArray();

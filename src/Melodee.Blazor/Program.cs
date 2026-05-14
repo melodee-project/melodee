@@ -17,6 +17,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Jobs;
 using Melodee.Common.MessageBus.EventHandlers;
 using Melodee.Common.Metadata;
@@ -573,6 +574,7 @@ builder.Services
     .AddScoped<ISafeDeleteService, SafeDeleteService>()
     .AddScoped<DenyActionHandlerFactory>()
     .AddScoped<IScriptedDirectoryProcessor, ScriptedDirectoryProcessor>()
+    .AddSingleton<IImageProcessor, ImageProcessor>()
     .AddScoped<ImageConversionService>()
     .AddScoped<OpenSubsonicApiService>()
     .AddScoped<AlbumImageSearchEngineService>()

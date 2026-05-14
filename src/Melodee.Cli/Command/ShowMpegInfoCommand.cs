@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Melodee.Cli.CommandSettings;
 using Melodee.Common.Configuration;
+using Melodee.Common.Imaging;
 using Melodee.Common.Metadata.AudioTags;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.Validation;
@@ -18,12 +19,13 @@ public class ShowMpegInfoCommand : CommandBase<ShowMpegInfoSettings>
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {
+            var imageProcessor = scope.ServiceProvider.GetRequiredService<IImageProcessor>();
             var serializer = scope.ServiceProvider.GetRequiredService<ISerializer>();
             var configFactory = scope.ServiceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
             var config = await configFactory.GetConfigurationAsync(cancellationToken);
 
-            var imageValidator = new ImageValidator(config);
-            var imageConvertor = new ImageConvertor(config);
+            var imageValidator = new ImageValidator(imageProcessor, config);
+            var imageConvertor = new ImageConvertor(imageProcessor, config);
 
             var fileInfo = new FileInfo(settings.Filename);
             if (!fileInfo.Exists)

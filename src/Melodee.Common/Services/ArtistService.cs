@@ -9,6 +9,7 @@ using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
+using Melodee.Common.Imaging;
 using Melodee.Common.MessageBus.Events;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
@@ -33,6 +34,7 @@ public class ArtistService(
     IDbContextFactory<MelodeeDbContext> contextFactory,
     ISerializer serializer,
     IHttpClientFactory httpClientFactory,
+    IImageProcessor imageProcessor,
     AlbumService albumService,
     IBus bus,
     IFileSystemService fileSystemService)
@@ -755,7 +757,7 @@ public class ArtistService(
         CancellationToken cancellationToken = default)
     {
         var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-        var imageConvertor = new ImageConvertor(configuration);
+        var imageConvertor = new ImageConvertor(imageProcessor, configuration);
         var artistDirectory = artist.ToFileSystemDirectoryInfo();
         var artistImages = artistDirectory.FileInfosForExtension("jpg", false).ToArray();
         if (deleteAllImages && artistImages.Length != 0)
@@ -1055,7 +1057,7 @@ public class ArtistService(
                                             cancellationToken).ConfigureAwait(false);
                                         if (album != null)
                                         {
-                                            await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, album,
+                                            await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, imageProcessor, album,
                                                 existingAlbumDirectory, cancellationToken).ConfigureAwait(false);
                                         }
                                     }
@@ -1101,7 +1103,7 @@ public class ArtistService(
                                     cancellationToken).ConfigureAwait(false);
                                 if (album != null)
                                 {
-                                    await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, album,
+                                    await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, imageProcessor, album,
                                         albumToMergeDirectory2, cancellationToken).ConfigureAwait(false);
                                 }
                             }
@@ -2298,7 +2300,7 @@ public class ArtistService(
 
                 if (targetSize > 0)
                 {
-                    imageBytes = ImageConvertor.ResizeImageIfNeeded(imageBytes, targetSize, targetSize, false);
+                    imageBytes = imageProcessor.ResizeImageIfNeeded(imageBytes, targetSize, targetSize, false);
                     eTag = HashHelper.CreateSha256(eTag + targetSize);
                 }
                 resizeStopwatch.Stop();

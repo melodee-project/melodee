@@ -3,6 +3,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Caching;
@@ -56,6 +57,7 @@ public class PathValidationTests : IDisposable
             CreateContextFactory(),
             _configFactoryMock.Object,
             null!,
+            new ImageProcessor(),
             null!);
     }
 

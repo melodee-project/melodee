@@ -4,6 +4,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
+using Melodee.Common.Imaging;
 using Melodee.Common.Jobs;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.Scrobbling;
@@ -259,7 +260,8 @@ public class JobRunCommand : CommandBase<JobRunSettings>
                 sp.GetRequiredService<ArtistService>(),
                 sp.GetRequiredService<IDbContextFactory<MelodeeDbContext>>(),
                 sp.GetRequiredService<ArtistImageSearchEngineService>(),
-                sp.GetRequiredService<IHttpClientFactory>());
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<IImageProcessor>());
         }
 
         if (jobType == typeof(ArtistSearchEngineRepositoryHousekeepingJob))

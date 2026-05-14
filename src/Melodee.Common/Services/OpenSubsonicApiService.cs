@@ -7,6 +7,7 @@ using Melodee.Common.Data.Models.DTOs;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.MessageBus.Events;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
@@ -17,7 +18,6 @@ using Melodee.Common.Models.OpenSubsonic.Requests;
 using Melodee.Common.Models.OpenSubsonic.Responses;
 using Melodee.Common.Models.OpenSubsonic.Searching;
 using Melodee.Common.Models.Streaming;
-using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.MetaData.Song;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Extensions;
@@ -70,7 +70,8 @@ public class OpenSubsonicApiService(
     ILyricPlugin lyricPlugin,
     PodcastPlaybackService podcastPlaybackService,
     UserRatingService userRatingService,
-    UserBookmarkService userBookmarkService)
+    UserBookmarkService userBookmarkService,
+    IImageProcessor imageProcessor)
 
     : ServiceBase(logger, cacheManager, contextFactory)
 {
@@ -1499,7 +1500,7 @@ public class OpenSubsonicApiService(
                         var sizeParsedToInt = SafeParser.ToNumber<int>(size);
                         if (sizeParsedToInt > 0)
                         {
-                            result = ImageConvertor.ResizeImageIfNeeded(result,
+                            result = imageProcessor.ResizeImageIfNeeded(result,
                                 sizeParsedToInt,
                                 sizeParsedToInt, isUserImageRequest);
                             eTag = HashHelper.CreateSha256(eTag + sizeParsedToInt);
@@ -1510,7 +1511,7 @@ public class OpenSubsonicApiService(
                             {
                                 case ImageSize.Thumbnail:
                                     var thumbnailSize = (await Configuration.Value).GetValue<int?>(SettingRegistry.ImagingThumbnailSize) ?? SafeParser.ToNumber<int>(ImageSize.Thumbnail);
-                                    result = ImageConvertor.ResizeImageIfNeeded(result,
+                                    result = imageProcessor.ResizeImageIfNeeded(result,
                                         thumbnailSize,
                                         thumbnailSize,
                                         isUserImageRequest);
@@ -1520,7 +1521,7 @@ public class OpenSubsonicApiService(
                                 case ImageSize.Small:
                                     var smallSize = (await Configuration.Value).GetValue<int?>(SettingRegistry.ImagingSmallSize) ??
                                                     throw new Exception($"Invalid configuration [{SettingRegistry.ImagingSmallSize}] not found.");
-                                    result = ImageConvertor.ResizeImageIfNeeded(result,
+                                    result = imageProcessor.ResizeImageIfNeeded(result,
                                         smallSize,
                                         smallSize,
                                         isUserImageRequest);
@@ -1533,7 +1534,7 @@ public class OpenSubsonicApiService(
                                             SettingRegistry.ImagingMediumSize) ??
                                         throw new Exception(
                                             $"Invalid configuration [{SettingRegistry.ImagingMediumSize}] not found.");
-                                    result = ImageConvertor.ResizeImageIfNeeded(result,
+                                    result = imageProcessor.ResizeImageIfNeeded(result,
                                         mediumSize,
                                         mediumSize,
                                         isUserImageRequest);

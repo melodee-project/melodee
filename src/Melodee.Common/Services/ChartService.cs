@@ -4,8 +4,8 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
-using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Services.Caching;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -18,7 +18,8 @@ public sealed class ChartService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    LibraryService libraryService)
+    LibraryService libraryService,
+    IImageProcessor imageProcessor)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailBySlugTemplate = "urn:chart:slug:{0}";
@@ -1013,7 +1014,7 @@ public sealed class ChartService(
 
         var chartImageFilename = chart.ToImageFileName(chartLibrary.Data.Path);
 
-        var gifImageBytes = await ImageConvertor.ConvertToGifFormat(imageBytes, cancellationToken).ConfigureAwait(false);
+        var gifImageBytes = await imageProcessor.ConvertToGifAsync(imageBytes, cancellationToken).ConfigureAwait(false);
         await File.WriteAllBytesAsync(chartImageFilename, gifImageBytes, cancellationToken).ConfigureAwait(false);
 
         chart.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);

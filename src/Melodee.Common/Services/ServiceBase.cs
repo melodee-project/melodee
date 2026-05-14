@@ -5,6 +5,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models.DTOs;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Models.OpenSubsonic;
@@ -20,7 +21,6 @@ using NodaTime;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
-using SixLabors.ImageSharp;
 using Artist = Melodee.Common.Models.Artist;
 using Directory = System.IO.Directory;
 
@@ -56,6 +56,7 @@ public abstract class ServiceBase
     protected async Task ProcessExistingDirectoryMoveMergeAsync(
         IMelodeeConfiguration configuration,
         ISerializer serializer,
+        IImageProcessor imageProcessor,
         Album albumToMove,
         string existingAlbumPath,
         CancellationToken cancellationToken = default)
@@ -119,12 +120,12 @@ public abstract class ServiceBase
                         imagesToMoveCrc.Remove(imageToMove);
 
                         // If some exist, not duplicate CRC, same name, keep the higher resolution
-                        var existingInfoSizeInfo = await Image
+                        var existingInfoSizeInfo = await imageProcessor
                             .IdentifyAsync(existingWithSameFileName.ImageFileName, cancellationToken)
                             .ConfigureAwait(false);
-                        var toMoveInfoSizeInfo = await Image.IdentifyAsync(imageToMove.ImageFileName, cancellationToken)
+                        var toMoveInfoSizeInfo = await imageProcessor.IdentifyAsync(imageToMove.ImageFileName, cancellationToken)
                             .ConfigureAwait(false);
-                        if (existingInfoSizeInfo.Width > toMoveInfoSizeInfo.Width)
+                        if (existingInfoSizeInfo != null && toMoveInfoSizeInfo != null && existingInfoSizeInfo.Width > toMoveInfoSizeInfo.Width)
                         {
                             continue;
                         }
@@ -156,9 +157,9 @@ public abstract class ServiceBase
         var songsToMove = albumToMove.Songs?.ToList() ?? [];
         if (songsToMove.Any())
         {
-            var imageValidator = new ImageValidator(configuration);
-            var imageConvertor = new ImageConvertor(configuration);
-            var atlMetTag = new AtlMetaTag(new MetaTagsProcessor(configuration, serializer), imageConvertor,
+            var imageValidator = new ImageValidator(imageProcessor, configuration);
+            var imageConvertor = new ImageConvertor(imageProcessor, configuration);
+            var atlMetTag = new AtlMetaTag(new MetaTagsProcessor(configuration, serializer), imageProcessor, imageConvertor,
                 imageValidator, configuration);
             var existingSongsFileInfos = albumToMoveDir.AllMediaTypeFileInfos().ToArray();
             var existingSongs = new List<Song>();

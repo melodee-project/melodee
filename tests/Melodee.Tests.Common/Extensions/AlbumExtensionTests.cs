@@ -1,5 +1,6 @@
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.MetaData.Song;
@@ -212,7 +213,7 @@ public class AlbumExtensionTests : TestsBase
         {
             var config = await MockConfigurationFactory().GetConfigurationAsync();
             Assert.Equal(shouldBe, NewAlbum()
-                .IsFileForAlbum(new AtlMetaTag(new MetaTagsProcessor(config, Serializer), GetImageConvertor(), GetImageValidator(), config),
+                .IsFileForAlbum(new AtlMetaTag(new MetaTagsProcessor(config, Serializer), new ImageProcessor(), GetImageConvertor(), GetImageValidator(), config),
                     new FileInfo(fileName)));
         }
     }

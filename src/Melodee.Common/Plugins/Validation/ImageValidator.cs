@@ -3,14 +3,14 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Validation;
 using Melodee.Common.Plugins.Validation.Models;
-using SixLabors.ImageSharp;
 
 namespace Melodee.Common.Plugins.Validation;
 
-public sealed class ImageValidator(IMelodeeConfiguration configuration) : IImageValidator
+public sealed class ImageValidator(IImageProcessor imageProcessor, IMelodeeConfiguration configuration) : IImageValidator
 {
     private static readonly Regex ImageNameIsProofRegex = new(@"(proof|foto)+",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
@@ -50,31 +50,42 @@ public sealed class ImageValidator(IMelodeeConfiguration configuration) : IImage
 
         try
         {
-            var imageInfo = await Image.IdentifyAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
-            if (pictureIdentifier.ValidateIsSquare())
+            var imageInfo = await imageProcessor.IdentifyAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
+            if (imageInfo == null)
             {
-                if (imageInfo.Width != imageInfo.Height)
+                _validationMessages.Add(new ValidationResultMessage
                 {
-                    _validationMessages.Add(new ValidationResultMessage
-                    {
-                        Severity = ValidationResultMessageSeverity.Critical,
-                        Message = $"Image is not square [{imageInfo.Width}x{imageInfo.Height}]."
-                    });
-                }
+                    Severity = ValidationResultMessageSeverity.Critical,
+                    Message = "Unable to identify image format."
+                });
             }
-
-            var minSize = configuration.GetValue<int>(SettingRegistry.ImagingMinimumImageSize);
-            var smallImageSize = configuration.GetValue<int>(SettingRegistry.ImagingSmallSize);
-            if (minSize > 0 && minSize >= smallImageSize)
+            else
             {
-                if (imageInfo.Width < minSize)
+                if (pictureIdentifier.ValidateIsSquare())
                 {
-                    _validationMessages.Add(new ValidationResultMessage
+                    if (imageInfo.Width != imageInfo.Height)
                     {
-                        Severity = ValidationResultMessageSeverity.Critical,
-                        Message =
-                            $"Image size [{imageInfo.Width}] is less than configured minimum image size [{minSize}]."
-                    });
+                        _validationMessages.Add(new ValidationResultMessage
+                        {
+                            Severity = ValidationResultMessageSeverity.Critical,
+                            Message = $"Image is not square [{imageInfo.Width}x{imageInfo.Height}]."
+                        });
+                    }
+                }
+
+                var minSize = configuration.GetValue<int>(SettingRegistry.ImagingMinimumImageSize);
+                var smallImageSize = configuration.GetValue<int>(SettingRegistry.ImagingSmallSize);
+                if (minSize > 0 && minSize >= smallImageSize)
+                {
+                    if (imageInfo.Width < minSize)
+                    {
+                        _validationMessages.Add(new ValidationResultMessage
+                        {
+                            Severity = ValidationResultMessageSeverity.Critical,
+                            Message =
+                                $"Image size [{imageInfo.Width}] is less than configured minimum image size [{minSize}]."
+                        });
+                    }
                 }
             }
         }

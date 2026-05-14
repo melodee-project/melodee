@@ -12,6 +12,7 @@ using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
+using Melodee.Common.Imaging;
 using Melodee.Common.Metadata;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
@@ -41,6 +42,7 @@ public class LibraryService : ServiceBase
 
     private const int DisplayNumberPadLength = 8;
     private readonly IMelodeeConfigurationFactory _configurationFactory;
+    private readonly IImageProcessor _imageProcessor;
     private readonly MelodeeMetadataMaker _melodeeMetadataMaker;
     private readonly ISerializer _serializer;
 
@@ -56,9 +58,11 @@ public class LibraryService : ServiceBase
         IDbContextFactory<MelodeeDbContext> contextFactory,
         IMelodeeConfigurationFactory configurationFactory,
         ISerializer serializer,
+        IImageProcessor imageProcessor,
         MelodeeMetadataMaker melodeeMetadataMaker) : base(logger, cacheManager, contextFactory)
     {
         _configurationFactory = configurationFactory;
+        _imageProcessor = imageProcessor;
         _serializer = serializer;
         _melodeeMetadataMaker = melodeeMetadataMaker;
     }
@@ -523,6 +527,7 @@ public class LibraryService : ServiceBase
                 {
                     await ProcessExistingDirectoryMoveMergeAsync(configuration,
                             _serializer,
+                            _imageProcessor,
                             album,
                             libraryAlbumPath,
                             ct)
@@ -1449,6 +1454,7 @@ public class LibraryService : ServiceBase
                 {
                     await ProcessExistingDirectoryMoveMergeAsync(configuration,
                             _serializer,
+                            _imageProcessor,
                             album,
                             targetAlbumPath,
                             ct)

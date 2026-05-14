@@ -3,6 +3,7 @@ using Melodee.Cli.Client;
 using Melodee.Cli.Configuration;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
+using Melodee.Common.Imaging;
 using Melodee.Common.Metadata;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.Scrobbling;
@@ -116,6 +117,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton(SpotifyClientConfig.CreateDefault());
         services.AddSingleton<IFileSystemService, FileSystemService>();
         services.AddSingleton<INowPlayingRepository, NowPlayingInMemoryRepository>();
+        services.AddSingleton<IImageProcessor, ImageProcessor>();
         services.AddScoped<ISpotifyClientBuilder, SpotifyClientBuilder>();
         services.AddScoped<AlbumDiscoveryService>();
         services.AddScoped<AlbumImageSearchEngineService>();
