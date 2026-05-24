@@ -610,6 +610,7 @@ builder.Services
     .AddScoped<PartyPlaybackService>()
     .AddScoped<IPartyNotificationService, PartyNotificationService>()
     .AddScoped<PartySessionEndpointRegistryService>()
+    .AddScoped<PartyModeService>()
     .AddScoped<Melodee.Common.Services.Setup.ISetupCheckService, Melodee.Common.Services.Setup.SetupCheckService>()
     .AddScoped<OnboardingStateService>()
     .AddScoped<ChecklistService>();
