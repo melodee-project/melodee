@@ -365,10 +365,16 @@ public class AlbumService(
         await using (var scopedContext =
                      await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
+            var albums = await scopedContext
+                .Albums.Include(x => x.Artist).ThenInclude(x => x.Library)
+                .Where(x => albumIds.Contains(x.Id))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var foundIds = albums.Select(a => a.Id).ToHashSet();
             foreach (var albumId in albumIds)
             {
-                var artist = await GetAsync(albumId, cancellationToken).ConfigureAwait(false);
-                if (!artist.IsSuccess)
+                if (!foundIds.Contains(albumId))
                 {
                     return new MelodeeModels.OperationResult<bool>("Unknown album")
                     {
@@ -377,13 +383,8 @@ public class AlbumService(
                 }
             }
 
-            foreach (var albuMid in albumIds)
+            foreach (var album in albums)
             {
-                var album = await scopedContext
-                    .Albums.Include(x => x.Artist).ThenInclude(x => x.Library)
-                    .FirstAsync(x => x.Id == albuMid, cancellationToken)
-                    .ConfigureAwait(false);
-
                 if (deleteFiles)
                 {
                     var albumDirectory = Path.Combine(album.Artist.Library.Path, album.Artist.Directory, album.Directory);

@@ -47,7 +47,8 @@ public class AuthController(
     IOptions<TokenOptions> tokenOptions,
     IOptions<GoogleAuthOptions> googleAuthOptions,
     ILogger<AuthController> logger,
-    UserPasswordResetService userPasswordResetService) : ControllerBase(
+    UserPasswordResetService userPasswordResetService,
+    IWebHostEnvironment webHostEnvironment) : ControllerBase(
     etagRepository,
     serializer,
     configuration,
@@ -391,12 +392,17 @@ public class AuthController(
         var baseUrl = GetBaseUrl(melodeeConfig);
         var resetUrl = $"{baseUrl}/reset-password?token={result.Data}";
 
-        return Ok(new
+        if (webHostEnvironment.IsDevelopment())
         {
-            message = "If an account with that email exists, a password reset link has been sent.",
-            resetToken = result.Data,
-            resetUrl
-        });
+            return Ok(new
+            {
+                message = "Password reset link generated (development mode).",
+                resetToken = result.Data,
+                resetUrl
+            });
+        }
+
+        return Ok(new { message = "If an account with that email exists, a password reset link has been sent." });
     }
 
     /// <summary>

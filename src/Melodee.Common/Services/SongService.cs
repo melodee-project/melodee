@@ -377,21 +377,25 @@ public class SongService(
 
         await using (var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
+            var songs = await scopedContext.Songs
+                .Include(s => s.Album)
+                .ThenInclude(a => a.Artist)
+                .ThenInclude(ar => ar.Library)
+                .Where(s => songIds.Contains(s.Id))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var foundIds = songs.Select(s => s.Id).ToHashSet();
             foreach (var songId in songIds)
             {
-                var song = await scopedContext.Songs
-                    .Include(s => s.Album)
-                    .ThenInclude(a => a.Artist)
-                    .ThenInclude(ar => ar.Library)
-                    .FirstOrDefaultAsync(s => s.Id == songId, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (song == null)
+                if (!foundIds.Contains(songId))
                 {
                     Logger.Warning("Song with Id [{SongId}] not found for deletion", songId);
-                    continue;
                 }
+            }
 
+            foreach (var song in songs)
+            {
                 // Delete associated media file from disk if it exists
                 var songFilePath = Path.Combine(
                     song.Album.Artist.Library.Path,
