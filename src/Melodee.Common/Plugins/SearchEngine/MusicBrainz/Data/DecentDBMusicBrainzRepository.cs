@@ -96,8 +96,6 @@ public class DecentDBMusicBrainzRepository(
             {
                 await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-                await MusicBrainzSchemaInitializer.EnsureArtistAliasTableAsync(context, cancellationToken);
-
                 Artist[] foundArtists = [];
                 var mbIdRaw = query.MusicBrainzIdValue?.ToString();
 

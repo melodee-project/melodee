@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Replaced `SixLabors.ImageSharp` with `SkiaSharp`** for all image processing operations. A new `IImageProcessor` abstraction centralizes decode, encode, resize, format identification, and average-hash computation. `ImageHasher`, `ImageConvertor`, and `ImageValidator` now receive `IImageProcessor` via dependency injection rather than using static library calls. All services, Blazor components, CLI commands, and test constructors were updated consistently. SkiaSharp native assets are included conditionally (`SkiaSharp.NativeAssets.Linux` on Linux) so builds work across platforms without extra runtime dependencies.
-
+- Set min-width on album detail action column for layout stability
+- Remove unnecessary EnsureArtistAliasTableAsync call in MusicBrainz repository
 ---
 
 ## [2.0.1] - 2026-05-01
