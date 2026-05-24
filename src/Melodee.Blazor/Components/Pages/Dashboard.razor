@@ -403,6 +403,21 @@
 
         DashboardAuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         _isAdmin = CurrentUser?.IsAdmin() == true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (HttpContext != null)
+        {
+            return;
+        }
 
         var configuration = await ConfigurationFactory.GetConfigurationAsync();
         _latestPageSize = configuration.GetValue<short?>(SettingRegistry.DefaultsDashboardLatestPageSize) ?? configuration.GetValue<short?>(SettingRegistry.DefaultsPageSize) ?? 50;
