@@ -652,6 +652,15 @@ public class ArtistSearchEngineService(
     public async Task<PagedResult<ArtistSearchResult>> DoSearchAsync(ArtistQuery query, int? maxResults,
         CancellationToken cancellationToken = default)
     {
+        return await DoSearchAsync(query, maxResults, bypassNegativeCache: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<PagedResult<ArtistSearchResult>> DoSearchAsync(
+        ArtistQuery query,
+        int? maxResults,
+        bool bypassNegativeCache,
+        CancellationToken cancellationToken = default)
+    {
         CheckInitialized();
 
         // Normalize the artist name to handle special characters
@@ -665,14 +674,20 @@ public class ArtistSearchEngineService(
         {
             if (!wasFound)
             {
-                Logger.Debug("[{Name}] Artist [{Artist}] not found (cached negative result)",
-                    nameof(ArtistSearchEngineService), normalizedQuery.Name);
-                return new PagedResult<ArtistSearchResult>
+                if (!bypassNegativeCache)
                 {
-                    Data = [],
-                    TotalCount = 0,
-                    TotalPages = 0
-                };
+                    Logger.Debug("[{Name}] Artist [{Artist}] not found (cached negative result)",
+                        nameof(ArtistSearchEngineService), normalizedQuery.Name);
+                    return new PagedResult<ArtistSearchResult>
+                    {
+                        Data = [],
+                        TotalCount = 0,
+                        TotalPages = 0
+                    };
+                }
+
+                Logger.Debug("[{Name}] Artist [{Artist}] cached negative result ignored for forced revalidation",
+                    nameof(ArtistSearchEngineService), normalizedQuery.Name);
             }
 
             if (cachedArtistId.HasValue)

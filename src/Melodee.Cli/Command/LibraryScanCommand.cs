@@ -38,6 +38,51 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         return number.ToString("N0");
     }
 
+    private static ScanStepResult AddStepResult(ScanStepResult summary, ScanStepResult result)
+    {
+        return summary with
+        {
+            NewArtistsCount = summary.NewArtistsCount + result.NewArtistsCount,
+            NewAlbumsCount = summary.NewAlbumsCount + result.NewAlbumsCount,
+            NewSongsCount = summary.NewSongsCount + result.NewSongsCount,
+            AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
+            AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
+            AlbumsReadyToMove = summary.AlbumsReadyToMove + result.AlbumsReadyToMove,
+            AlbumsMoved = summary.AlbumsMoved + result.AlbumsMoved,
+            AlbumsMergedWithExisting = summary.AlbumsMergedWithExisting + result.AlbumsMergedWithExisting,
+            AlbumsSkippedByStatus = summary.AlbumsSkippedByStatus + result.AlbumsSkippedByStatus,
+            AlbumsSkippedAsDuplicateDirectory = summary.AlbumsSkippedAsDuplicateDirectory + result.AlbumsSkippedAsDuplicateDirectory,
+            AlbumsFailedToLoad = summary.AlbumsFailedToLoad + result.AlbumsFailedToLoad,
+            ArtistsInserted = summary.ArtistsInserted + result.ArtistsInserted,
+            AlbumsInserted = summary.AlbumsInserted + result.AlbumsInserted,
+            SongsInserted = summary.SongsInserted + result.SongsInserted,
+            AlbumsSkippedByReason = MergeSkippedReasonCounts(summary.AlbumsSkippedByReason, result.AlbumsSkippedByReason)
+        };
+    }
+
+    private static IReadOnlyDictionary<string, int>? MergeSkippedReasonCounts(
+        IReadOnlyDictionary<string, int>? existing,
+        IReadOnlyDictionary<string, int>? incoming)
+    {
+        if ((existing?.Count ?? 0) == 0 && (incoming?.Count ?? 0) == 0)
+        {
+            return null;
+        }
+
+        var merged = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in existing ?? Enumerable.Empty<KeyValuePair<string, int>>())
+        {
+            merged[item.Key] = item.Value;
+        }
+
+        foreach (var item in incoming ?? Enumerable.Empty<KeyValuePair<string, int>>())
+        {
+            merged[item.Key] = merged.GetValueOrDefault(item.Key) + item.Value;
+        }
+
+        return merged;
+    }
+
     protected override async Task<int> ExecuteAsync(CommandContext context, LibraryScanSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
@@ -129,18 +174,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     var result = await execute();
                     if (result is not null)
                     {
-                        summary = summary with
-                        {
-                            NewArtistsCount = summary.NewArtistsCount + result.NewArtistsCount,
-                            NewAlbumsCount = summary.NewAlbumsCount + result.NewAlbumsCount,
-                            NewSongsCount = summary.NewSongsCount + result.NewSongsCount,
-                            AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
-                            AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
-                            AlbumsMoved = summary.AlbumsMoved + result.AlbumsMoved,
-                            ArtistsInserted = summary.ArtistsInserted + result.ArtistsInserted,
-                            AlbumsInserted = summary.AlbumsInserted + result.AlbumsInserted,
-                            SongsInserted = summary.SongsInserted + result.SongsInserted
-                        };
+                        summary = AddStepResult(summary, result);
                     }
                     stepResults[name] = (true, Stopwatch.GetElapsedTime(stepStartTime));
                 }
@@ -183,18 +217,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                             var result = await execute();
                             if (result is not null)
                             {
-                                summary = summary with
-                                {
-                                    NewArtistsCount = summary.NewArtistsCount + result.NewArtistsCount,
-                                    NewAlbumsCount = summary.NewAlbumsCount + result.NewAlbumsCount,
-                                    NewSongsCount = summary.NewSongsCount + result.NewSongsCount,
-                                    AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
-                                    AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
-                                    AlbumsMoved = summary.AlbumsMoved + result.AlbumsMoved,
-                                    ArtistsInserted = summary.ArtistsInserted + result.ArtistsInserted,
-                                    AlbumsInserted = summary.AlbumsInserted + result.AlbumsInserted,
-                                    SongsInserted = summary.SongsInserted + result.SongsInserted
-                                };
+                                summary = AddStepResult(summary, result);
                             }
 
                             var elapsed = Stopwatch.GetElapsedTime(stepStartTime);
@@ -254,7 +277,14 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     },
                     storageTransfer = new
                     {
-                        albumsMoved = summary.AlbumsMoved
+                        albumsReadyToMove = summary.AlbumsReadyToMove,
+                        albumsMoved = summary.AlbumsMoved,
+                        albumsMergedWithExisting = summary.AlbumsMergedWithExisting,
+                        albumsHandled = summary.AlbumsHandledByStorageTransfer,
+                        albumsSkippedByStatus = summary.AlbumsSkippedByStatus,
+                        albumsSkippedAsDuplicateDirectory = summary.AlbumsSkippedAsDuplicateDirectory,
+                        albumsFailedToLoad = summary.AlbumsFailedToLoad,
+                        albumsSkippedByReason = summary.AlbumsSkippedByReason
                     },
                     databaseInsert = new
                     {
@@ -285,7 +315,9 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         AnsiConsole.WriteLine();
 
         var hasActivity = summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 || summary.NewSongsCount > 0 ||
-                          summary.AlbumsRevalidated > 0 || summary.AlbumsMoved > 0 ||
+                          summary.AlbumsRevalidated > 0 || summary.AlbumsReadyToMove > 0 ||
+                          summary.AlbumsHandledByStorageTransfer > 0 || summary.AlbumsSkippedByStatus > 0 ||
+                          summary.AlbumsSkippedAsDuplicateDirectory > 0 || summary.AlbumsFailedToLoad > 0 ||
                           summary.ArtistsInserted > 0 || summary.AlbumsInserted > 0 || summary.SongsInserted > 0;
 
         if (hasActivity)
@@ -318,10 +350,31 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     summaryTable.AddRow("  Albums now valid", $"[green]{FormatNumber(summary.AlbumsNowValid)}[/]");
             }
 
-            if (summary.AlbumsMoved > 0)
+            if (summary.AlbumsReadyToMove > 0 ||
+                summary.AlbumsHandledByStorageTransfer > 0 ||
+                summary.AlbumsSkippedByStatus > 0 ||
+                summary.AlbumsSkippedAsDuplicateDirectory > 0 ||
+                summary.AlbumsFailedToLoad > 0)
             {
                 summaryTable.AddRow("[bold]Storage Transfer[/]", "");
-                summaryTable.AddRow("  Albums moved to storage", FormatNumber(summary.AlbumsMoved));
+                if (summary.AlbumsReadyToMove > 0)
+                    summaryTable.AddRow("  Albums ready to move", FormatNumber(summary.AlbumsReadyToMove));
+                if (summary.AlbumsMoved > 0)
+                    summaryTable.AddRow("  New albums moved to storage", FormatNumber(summary.AlbumsMoved));
+                if (summary.AlbumsMergedWithExisting > 0)
+                    summaryTable.AddRow("  Albums merged with existing storage", FormatNumber(summary.AlbumsMergedWithExisting));
+                if (summary.AlbumsHandledByStorageTransfer > 0)
+                    summaryTable.AddRow("  Albums handled by storage transfer", FormatNumber(summary.AlbumsHandledByStorageTransfer));
+                if (summary.AlbumsSkippedByStatus > 0)
+                    summaryTable.AddRow("  Albums left in staging", $"[yellow]{FormatNumber(summary.AlbumsSkippedByStatus)}[/]");
+                if (summary.AlbumsSkippedAsDuplicateDirectory > 0)
+                    summaryTable.AddRow("  Duplicate-prefixed staging dirs skipped", FormatNumber(summary.AlbumsSkippedAsDuplicateDirectory));
+                if (summary.AlbumsFailedToLoad > 0)
+                    summaryTable.AddRow("  Albums failed to load", $"[red]{FormatNumber(summary.AlbumsFailedToLoad)}[/]");
+                foreach (var skippedReason in summary.AlbumsSkippedByReason?.OrderBy(x => x.Key) ?? Enumerable.Empty<KeyValuePair<string, int>>())
+                {
+                    summaryTable.AddRow($"    {Markup.Escape(skippedReason.Key)}", $"[yellow]{FormatNumber(skippedReason.Value)}[/]");
+                }
             }
 
             if (summary.ArtistsInserted > 0 || summary.AlbumsInserted > 0 || summary.SongsInserted > 0)

@@ -155,6 +155,7 @@ public class StagingAlbumRevalidationJob(
                     var artistSearchResult = await artistSearchEngineService.DoSearchAsync(
                         searchRequest,
                         1,
+                        bypassNegativeCache: true,
                         context.CancellationToken).ConfigureAwait(false);
 
                     if (artistSearchResult.IsSuccess && artistSearchResult.Data.Any())

@@ -655,6 +655,18 @@ public class LibraryService : ServiceBase
         };
     }
 
+    private static void TrackSkippedAlbumReason(
+        IDictionary<string, int> skippedByReason,
+        MelodeeModels.Album album)
+    {
+        var reason = album.StatusReasons == AlbumNeedsAttentionReasons.NotSet
+            ? album.Status.ToString()
+            : album.StatusReasons.ToString();
+
+        skippedByReason.TryGetValue(reason, out var count);
+        skippedByReason[reason] = count + 1;
+    }
+
 
     public async Task<MelodeeModels.OperationResult<LibraryScanHistory?>> CreateLibraryScanHistory(Library library,
         LibraryScanHistory libraryScanHistory, CancellationToken cancellationToken = default)
@@ -1078,6 +1090,7 @@ public class LibraryService : ServiceBase
             var deserializationFailures = 0;
             var mergedExistingCount = 0;
             var movedAlbumCount = 0;
+            var skippedByReason = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             for (var i = 0; i < albumsForFromLibrary.Length; i += batchSize)
             {
@@ -1145,6 +1158,7 @@ public class LibraryService : ServiceBase
                         else
                         {
                             skippedByStatus++;
+                            TrackSkippedAlbumReason(skippedByReason, rr.album);
                         }
                     }
                 }
@@ -1209,7 +1223,8 @@ public class LibraryService : ServiceBase
                         AlbumsMergedWithExisting: mergedExistingCount,
                         AlbumsSkippedByStatus: skippedByStatus,
                         AlbumsSkippedAsDuplicateDirectory: skippedByDuplicatePrefix,
-                        AlbumsFailedToLoad: deserializationFailures)
+                        AlbumsFailedToLoad: deserializationFailures,
+                        AlbumsSkippedByReason: skippedByReason)
                 ));
             return new MelodeeModels.OperationResult<bool>
             {
@@ -1271,6 +1286,7 @@ public class LibraryService : ServiceBase
             var deserializationFailures = 0;
             var mergedExistingCount = 0;
             var movedAlbumCount = 0;
+            var skippedByReason = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             for (var i = 0; i < albumsForFromPath.Length; i += batchSize)
             {
@@ -1336,6 +1352,7 @@ public class LibraryService : ServiceBase
                         else
                         {
                             skippedByStatus++;
+                            TrackSkippedAlbumReason(skippedByReason, rr.album);
                         }
                     }
                 }
@@ -1404,7 +1421,8 @@ public class LibraryService : ServiceBase
                         AlbumsMergedWithExisting: mergedExistingCount,
                         AlbumsSkippedByStatus: skippedByStatus,
                         AlbumsSkippedAsDuplicateDirectory: skippedByDuplicatePrefix,
-                        AlbumsFailedToLoad: deserializationFailures)
+                        AlbumsFailedToLoad: deserializationFailures,
+                        AlbumsSkippedByReason: skippedByReason)
                 ));
             return new MelodeeModels.OperationResult<bool>
             {

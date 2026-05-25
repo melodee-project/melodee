@@ -57,6 +57,37 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
         Assert.NotNull(result);
     }
 
+    [Fact]
+    public async Task DoSearchAsync_WithBypassNegativeCache_SearchesAfterCachedMiss()
+    {
+        var service = GetArtistSearchEngineService();
+        await service.InitializeAsync();
+
+        var artistName = $"Cache Bypass Artist {Guid.NewGuid():N}";
+        var query = new ArtistQuery { Name = artistName };
+
+        var cachedMiss = await service.DoSearchAsync(query, 10);
+        Assert.Empty(cachedMiss.Data ?? []);
+
+        await using (var context = await MockArtistSearchEngineFactory().CreateDbContextAsync())
+        {
+            context.Artists.Add(new Artist
+            {
+                Name = artistName,
+                NameNormalized = query.NameNormalized,
+                SortName = artistName
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var stillCachedMiss = await service.DoSearchAsync(query, 10);
+        Assert.Empty(stillCachedMiss.Data ?? []);
+
+        var bypassResult = await service.DoSearchAsync(query, 10, bypassNegativeCache: true);
+        var artist = Assert.Single(bypassResult.Data ?? []);
+        Assert.Equal(artistName, artist.Name);
+    }
+
     #endregion
 
     #region ListAsync Tests
