@@ -72,6 +72,7 @@ public static class SettingRegistry
 
     public const string PlaylistDynamicPlaylistsDisabled = "playlist.dynamicPlaylist.disabled";
     public const string PlaylistMaximumAllowedPageSize = "playlist.maximumAllowedPageSize";
+    public const string PluginEnabledBlackbeard = "plugin.blackbeard.enabled";
     public const string PluginEnabledCueSheet = "plugin.cueSheet.enabled";
     public const string PluginEnabledM3u = "plugin.m3u.enabled";
     public const string PluginEnabledNfo = "plugin.nfo.enabled";

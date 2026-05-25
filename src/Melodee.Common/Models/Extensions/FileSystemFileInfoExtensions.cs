@@ -1,3 +1,5 @@
+using Melodee.Common.Extensions;
+
 namespace Melodee.Common.Models.Extensions;
 
 /// <summary>
@@ -18,8 +20,15 @@ public static class FileSystemFileInfoExtensions
 
     public static bool Exists(this FileSystemFileInfo fileSystemFileInfo, FileSystemDirectoryInfo directoryInfo)
     {
-        return File.Exists(Path.Combine(directoryInfo.Path,
-            fileSystemFileInfo.OriginalName ?? fileSystemFileInfo.Name));
+        if (File.Exists(fileSystemFileInfo.FullName(directoryInfo)))
+        {
+            return true;
+        }
+
+        var originalName = fileSystemFileInfo.OriginalName.Nullify();
+        return originalName is not null &&
+               !string.Equals(originalName, fileSystemFileInfo.Name, StringComparison.OrdinalIgnoreCase) &&
+               File.Exists(Path.Combine(directoryInfo.FullName(), originalName));
     }
 
     public static string Extension(this FileSystemFileInfo fileSystemFileInfo, FileSystemDirectoryInfo directoryInfo)

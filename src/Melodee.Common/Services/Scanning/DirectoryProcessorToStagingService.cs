@@ -14,6 +14,7 @@ using Melodee.Common.Plugins.Conversion;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.Conversion.Media;
 using Melodee.Common.Plugins.MetaData.Directory;
+using Melodee.Common.Plugins.MetaData.Directory.Blackbeard;
 using Melodee.Common.Plugins.MetaData.Directory.Nfo;
 using Melodee.Common.Plugins.MetaData.Song;
 using Melodee.Common.Plugins.Processor;
@@ -143,6 +144,10 @@ public sealed class DirectoryProcessorToStagingService(
             new CueSheet(serializer, _songPlugins, _albumValidator, _configuration)
             {
                 IsEnabled = _configuration.GetValue<bool>(SettingRegistry.PluginEnabledCueSheet)
+            },
+            new Blackbeard(serializer, _albumValidator, _configuration)
+            {
+                IsEnabled = _configuration.GetValue<bool?>(SettingRegistry.PluginEnabledBlackbeard) ?? true
             },
             new SimpleFileVerification(serializer, _songPlugins, _albumValidator, _configuration)
             {
@@ -510,7 +515,8 @@ public sealed class DirectoryProcessorToStagingService(
         Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
         try
         {
-            // Script evaluation hooks - process delete event first, then start event
+            // Script evaluation hooks can skip a directory, but ingestion must not
+            // physically delete releases before they have a chance to reach staging.
             var scriptResult = await EvaluateDirectoryScriptsAsync(
                 directoryInfoToProcess,
                 cancellationToken);
@@ -1207,37 +1213,6 @@ public sealed class DirectoryProcessorToStagingService(
             Logger.Debug("Script context for [{Directory}]: TotalFilesCount={TotalFilesCount}, TotalDurationMinutes={TotalDurationMinutes}, HasTrackNumberGaps={HasTrackNumberGaps}, MediaFilesCount={MediaFilesCount}",
                 directory.Path, context.TotalFilesCount, context.TotalDurationMinutes, context.HasTrackNumberGaps, context.MediaFilesCount);
 
-            // Evaluate DirectoryProcessingDelete script first
-            var deleteResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
-                ScriptEventNames.DirectoryProcessingDelete,
-                context,
-                cancellationToken);
-
-            Logger.Debug("DirectoryProcessingDelete result: Result={Result}, IsDefault={IsDefault}, OnDeny={OnDeny}",
-                deleteResult.Result, deleteResult.IsDefault, deleteResult.OnDeny);
-
-            if (deleteResult.Result && !deleteResult.IsDefault)
-            {
-                var onDeny = deleteResult.OnDeny?.ToLowerInvariant() ?? "delete";
-                if (onDeny == "delete")
-                {
-                    var handler = denyActionHandlerFactory.CreateHandler("delete");
-                    var deleteSuccess = await handler.ExecuteAsync(directory.Path, cancellationToken);
-                    LogAndRaiseEvent(
-                        deleteSuccess ? LogEventLevel.Information : LogEventLevel.Warning,
-                        "DirectoryProcessingDelete script returned true; directory [{0}] {1}",
-                        null,
-                        directory.Path,
-                        deleteSuccess ? "deleted" : "delete failed, continuing processing");
-
-                    if (deleteSuccess)
-                    {
-                        return new DirectoryScriptEvaluationResult(false, "Directory deleted by script");
-                    }
-                }
-            }
-
-            // Evaluate DirectoryProcessingStart script
             var startResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
                 ScriptEventNames.DirectoryProcessingStart,
                 context,
@@ -1246,6 +1221,14 @@ public sealed class DirectoryProcessorToStagingService(
             if (!startResult.Result && !startResult.IsDefault)
             {
                 var onDeny = startResult.OnDeny?.ToLowerInvariant() ?? "skip";
+                if (onDeny == "delete")
+                {
+                    Logger.Warning(
+                        "DirectoryProcessingStart requested delete for [{Directory}], using skip instead.",
+                        directory.Path);
+                    onDeny = "skip";
+                }
+
                 var handler = denyActionHandlerFactory.CreateHandler(onDeny);
 
                 await handler.ExecuteAsync(directory.Path, cancellationToken);

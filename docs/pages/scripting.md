@@ -79,7 +79,7 @@ is displayed to the user explaining why the action was denied.
 | `settingKey` | string | The settings key, e.g. `script.userLoginStart` |
 | `timeoutMs` | number | The configured timeout in milliseconds |
 | `maxStatements` | number | The configured statement limit |
-| `onDeny` | string | Host action when result is `false` (`skip`, `delete`, `quarantine`) |
+| `onDeny` | string | Host action when result is `false` (`skip` or `quarantine` for ingestion events) |
 | `isOverride` | boolean | Whether an override (library/path) matched |
 | `libraryId` | number\|null | The matched override library ID (directory events only) |
 | `pathPrefix` | string\|null | The matched override path prefix (directory events only) |
@@ -109,7 +109,7 @@ Each `script.<eventName>` setting value is a JSON document. The conceptual schem
       "enabled": true,
       "libraryId": 1,
       "pathPrefix": "Incoming/",
-      "onDeny": "delete",
+      "onDeny": "skip",
       "body": "function check(ctx, scriptConfig) { return ctx.mediaFilesCount >= 3; }"
     }
   ]
@@ -144,11 +144,12 @@ Melodee treats scripts as untrusted code (defense in depth):
   - Statement limit (`maxStatements`)
 - Failures default to allow and are logged using the settings key and script hash (not the full script body).
 
-### Directory deletion and dry-run
+### Directory actions and dry-run
 
-Directory deletion is constrained to safe roots. You can also enable dry-run mode:
+Inbound ingestion does not physically delete release directories through event scripting. Directory scripts can skip a
+candidate directory, and quarantine handlers are still subject to dry-run mode:
 
-- `script.dryRun.enabled = true` prevents deletion/quarantine from actually modifying the filesystem.
+- `script.dryRun.enabled = true` prevents quarantine actions from modifying the filesystem.
 
 ## Event reference
 
@@ -156,8 +157,8 @@ This section lists the supported events and the `ctx` fields available to script
 
 ### `directoryProcessingStart`
 
-Runs before processing each candidate directory. If it returns `false`, Melodee applies `onDeny` (`skip`, `delete`, or
-`quarantine`).
+Runs before processing each candidate directory. If it returns `false`, Melodee applies `onDeny`. For ingestion safety,
+`delete` is treated as `skip`.
 
 Context: `DirectoryProcessingContext`
 
@@ -176,8 +177,8 @@ Context: `DirectoryProcessingContext`
 
 ### `directoryProcessingDelete`
 
-Runs when `directoryProcessingStart` returns `false` and `onDeny` is `delete`. If this script returns `true`, deletion
-proceeds; if `false`, deletion is skipped (directory is not processed but also not deleted).
+Legacy event name retained for existing settings compatibility. Inbound ingestion no longer evaluates this event and does
+not delete release directories through event scripting.
 
 Context: `DirectoryProcessingContext` (same as above).
 
@@ -303,20 +304,19 @@ Recommended override config example:
       "enabled": true,
       "libraryId": 1,
       "pathPrefix": "Incoming/",
-      "onDeny": "delete",
+      "onDeny": "skip",
       "body": "function check(ctx, scriptConfig) { return ctx.mediaFilesCount >= 3; }"
     }
   ]
 }
 ```
 
-### Example: add an extra safety check before deletion
+### Example: skip directories with track number gaps
 
-Event: `directoryProcessingDelete`
+Event: `directoryProcessingStart`
 
 ```javascript
 function check(ctx, scriptConfig) {
-  // Only allow deletion if there are no track number gaps.
   return ctx.hasTrackNumberGaps === false;
 }
 ```

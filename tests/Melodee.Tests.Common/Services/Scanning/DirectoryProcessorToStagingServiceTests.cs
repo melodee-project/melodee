@@ -2,8 +2,10 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Imaging;
 using Melodee.Common.Models;
+using Melodee.Common.Models.Scripting;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using NodaTime;
@@ -51,6 +53,29 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             MockScriptOrchestrationService(),
             MockDirectoryContextProvider(),
             MockDenyActionHandlerFactory(),
+            new ImageProcessor());
+    }
+
+    private DirectoryProcessorToStagingService GetDirectoryProcessorService(
+        IFileSystemService fileSystemService,
+        IScriptOrchestrationService scriptOrchestrationService,
+        DenyActionHandlerFactory denyActionHandlerFactory)
+    {
+        return new DirectoryProcessorToStagingService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            GetLibraryService(),
+            Serializer,
+            GetMediaEditService(),
+            GetArtistSearchEngineService(),
+            GetAlbumImageSearchEngineService(),
+            MockHttpClientFactory(),
+            fileSystemService,
+            scriptOrchestrationService,
+            MockDirectoryContextProvider(),
+            denyActionHandlerFactory,
             new ImageProcessor());
     }
 
@@ -291,6 +316,130 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
         // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Data);
+    }
+
+    #endregion
+
+    #region Script Safety Tests
+
+    [Fact]
+    public async Task ProcessDirectoryAsync_WhenDirectoryDeleteScriptWouldDelete_DoesNotEvaluateDeleteEvent()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-inbound-{Guid.NewGuid():N}");
+        var stagingPath = Path.Combine(Path.GetTempPath(), $"melodee-staging-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            Directory.CreateDirectory(stagingPath);
+            await File.WriteAllTextAsync(Path.Combine(releasePath, "01-track.mp3"), "not real audio");
+
+            var scriptOrchestrationService = new Mock<IScriptOrchestrationService>();
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = true });
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    ScriptEventNames.DirectoryProcessingDelete,
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = false, OnDeny = "delete" });
+
+            var safeDeleteService = new Mock<ISafeDeleteService>(MockBehavior.Strict);
+            var service = GetDirectoryProcessorService(
+                new FileSystemService(Serializer),
+                scriptOrchestrationService.Object,
+                new DenyActionHandlerFactory(safeDeleteService.Object, new SettingService(), Logger));
+
+            await service.InitializeAsync(TestsBase.NewPluginsConfiguration(), stagingPath, CancellationToken.None);
+
+            await service.ProcessDirectoryAsync(new FileSystemDirectoryInfo
+            {
+                Path = rootPath,
+                Name = "inbound"
+            }, null, null);
+
+            Assert.True(Directory.Exists(releasePath));
+            scriptOrchestrationService.Verify(x => x.EvaluateScriptForEventAsync(
+                ScriptEventNames.DirectoryProcessingDelete,
+                It.IsAny<object>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+            safeDeleteService.Verify(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+
+            if (Directory.Exists(stagingPath))
+            {
+                Directory.Delete(stagingPath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ProcessDirectoryAsync_WhenStartScriptRequestsDelete_SkipsWithoutDeletingDirectory()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-inbound-{Guid.NewGuid():N}");
+        var stagingPath = Path.Combine(Path.GetTempPath(), $"melodee-staging-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            Directory.CreateDirectory(stagingPath);
+            await File.WriteAllTextAsync(Path.Combine(releasePath, "01-track.mp3"), "not real audio");
+
+            var scriptOrchestrationService = new Mock<IScriptOrchestrationService>();
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = true });
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    ScriptEventNames.DirectoryProcessingStart,
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = false, IsDefault = false, OnDeny = "delete" });
+
+            var safeDeleteService = new Mock<ISafeDeleteService>(MockBehavior.Strict);
+            var service = GetDirectoryProcessorService(
+                new FileSystemService(Serializer),
+                scriptOrchestrationService.Object,
+                new DenyActionHandlerFactory(safeDeleteService.Object, new SettingService(), Logger));
+
+            await service.InitializeAsync(TestsBase.NewPluginsConfiguration(), stagingPath, CancellationToken.None);
+
+            await service.ProcessDirectoryAsync(new FileSystemDirectoryInfo
+            {
+                Path = rootPath,
+                Name = "inbound"
+            }, null, null);
+
+            Assert.True(Directory.Exists(releasePath));
+            safeDeleteService.Verify(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+
+            if (Directory.Exists(stagingPath))
+            {
+                Directory.Delete(stagingPath, true);
+            }
+        }
     }
 
     #endregion

@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.1] - 2026-05-25
+
+### Changed
+
+- Updated the docs release dropdown so the latest documentation track points to `2.1.0`, while patch releases continue to use the `2.1.x` application version line.
+- Replaced the top-navbar `Documentation` link with `News` so release posts are easier to find from the docs site.
+
+### Fixed
+
+- Prevent inbound processing from deleting release directories through directory event scripts; releases now remain available for conversion, normalization, validation, and staging according to the documented ingestion pipeline.
+- Preserve copied cover images in staged album metadata after inbound processing renames images to Melodee's normalized `i-##-Type.jpg` filenames.
+
 ## [2.1.0] - 2026-05-24
 
 ### Changed
