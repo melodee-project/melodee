@@ -64,6 +64,59 @@ public class NfoTests : TestsBase
     }
 
     [Fact]
+    public async Task AlbumForNfoFileAsync_WithMalformedTrackLines_DoesNotThrow()
+    {
+        var testDirectory = Directory.CreateTempSubdirectory("melodee-nfo-malformed-");
+        try
+        {
+            var nfoPath = Path.Combine(testDirectory.FullName, "malformed.nfo");
+            await File.WriteAllLinesAsync(nfoPath,
+            [
+                "Artist: Test Artist",
+                "Title: Malformed NFO",
+                "01 00:01",
+                "02.    00:02"
+            ]);
+            var nfo = new Nfo(Serializer, GetAlbumValidator(), NewPluginsConfiguration());
+
+            var exception = await Record.ExceptionAsync(() =>
+                nfo.AlbumForNfoFileAsync(new FileInfo(nfoPath), testDirectory.ToDirectorySystemInfo()));
+
+            Assert.Null(exception);
+        }
+        finally
+        {
+            testDirectory.Delete(true);
+        }
+    }
+
+    [Fact]
+    public async Task AlbumForNfoFileAsync_WithMissingArtist_ReturnsNull()
+    {
+        var testDirectory = Directory.CreateTempSubdirectory("melodee-nfo-missing-artist-");
+        try
+        {
+            var mediaPath = Path.Combine(testDirectory.FullName, "01 Test Song.mp3");
+            await File.WriteAllBytesAsync(mediaPath, [1, 2, 3]);
+            var nfoPath = Path.Combine(testDirectory.FullName, "missing-artist.nfo");
+            await File.WriteAllLinesAsync(nfoPath,
+            [
+                "Title: Missing Artist NFO",
+                "01 Test Song 00:01"
+            ]);
+            var nfo = new Nfo(Serializer, GetAlbumValidator(), NewPluginsConfiguration());
+
+            var result = await nfo.AlbumForNfoFileAsync(new FileInfo(nfoPath), testDirectory.ToDirectorySystemInfo());
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            testDirectory.Delete(true);
+        }
+    }
+
+    [Fact]
     public async Task ParseJellyfinNfoFile()
     {
         var testFile = @"/melodee_test/tests/jellyfin_album.nfo";

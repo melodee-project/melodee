@@ -217,6 +217,66 @@ public class DecentDBMusicBrainzRepositoryTests : IDisposable, IAsyncDisposable
     }
 
     [Fact]
+    public async Task SearchArtist_WithSingleResultAndAlbumKeyValues_LoadsMatchingReleaseOnly()
+    {
+        var artistId = Guid.NewGuid();
+        var matchingAlbumId = Guid.NewGuid();
+        var otherAlbumId = Guid.NewGuid();
+        using var context = new MusicBrainzDbContext(_dbContextOptions);
+        context.ArtistAliases.RemoveRange(context.ArtistAliases);
+        context.Artists.RemoveRange(context.Artists);
+        context.Albums.RemoveRange(context.Albums);
+        await context.SaveChangesAsync();
+
+        context.Artists.Add(new Artist
+        {
+            Id = 1,
+            MusicBrainzArtistId = 1,
+            MusicBrainzIdRaw = artistId.ToString(),
+            Name = "Compact Artist",
+            NameNormalized = "Compact Artist".ToNormalizedString() ?? string.Empty,
+            SortName = "Compact Artist",
+            AlternateNames = ""
+        });
+        context.Albums.AddRange(
+            new Album
+            {
+                Id = 1,
+                MusicBrainzIdRaw = matchingAlbumId.ToString(),
+                Name = "Target Album",
+                NameNormalized = "Target Album".ToNormalizedString() ?? string.Empty,
+                SortName = "Target Album",
+                ReleaseDate = new DateTime(2024, 1, 1),
+                ReleaseType = 1,
+                MusicBrainzArtistId = 1,
+                ReleaseGroupMusicBrainzIdRaw = Guid.NewGuid().ToString()
+            },
+            new Album
+            {
+                Id = 2,
+                MusicBrainzIdRaw = otherAlbumId.ToString(),
+                Name = "Other Album",
+                NameNormalized = "Other Album".ToNormalizedString() ?? string.Empty,
+                SortName = "Other Album",
+                ReleaseDate = new DateTime(2025, 1, 1),
+                ReleaseType = 1,
+                MusicBrainzArtistId = 1,
+                ReleaseGroupMusicBrainzIdRaw = Guid.NewGuid().ToString()
+            });
+        await context.SaveChangesAsync();
+
+        var result = await _repository.SearchArtist(new ArtistQuery
+        {
+            Name = "Compact Artist",
+            AlbumKeyValues = [new KeyValue("2024", "Target Album")]
+        }, 1);
+
+        var artist = Assert.Single(result.Data);
+        var release = Assert.Single(artist.Releases ?? []);
+        Assert.Equal("Target Album", release.Name);
+    }
+
+    [Fact]
     public async Task SearchArtist_WithSpecialCharacters_HandlesCorrectly()
     {
         var artistId = Guid.NewGuid();

@@ -1027,11 +1027,31 @@ public sealed class DirectoryProcessorToStagingService(
                         album.Songs!.Any(x => (x.Tags ?? []).Any(y => y.WasModified)))
                     {
                         Trace.WriteLine("Running plugins on songs with modified tags...");
+                        var songsWithModifiedTags = album.Songs
+                            .Where(x => x.Tags?.Any(t => t.WasModified) ?? false)
+                            .ToArray();
+                        var songsWithExistingFiles = songsWithModifiedTags
+                            .Where(x => File.Exists(x.File.FullName(albumDirectorySystemInfo)))
+                            .ToArray();
+                        var missingSongFiles = songsWithModifiedTags
+                            .Except(songsWithExistingFiles)
+                            .Select(x => x.File.Name)
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray();
+
+                        if (missingSongFiles.Length > 0)
+                        {
+                            Logger.Warning(
+                                "[{Name}] Skipping tag updates for [{Count}] missing staged files in album [{Album}] (examples: {Samples})",
+                                nameof(DirectoryProcessorToStagingService),
+                                missingSongFiles.Length,
+                                album.AlbumTitle(),
+                                string.Join(", ", missingSongFiles.Take(3)));
+                        }
 
                         foreach (var songPlugin in _songPlugins)
                         {
-                            foreach (var song in album.Songs.Where(x =>
-                                         x.Tags?.Any(t => t.WasModified) ?? false))
+                            foreach (var song in songsWithExistingFiles)
                             {
                                 if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
                                 {

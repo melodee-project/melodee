@@ -350,16 +350,20 @@ public sealed partial class Nfo(
 
                 if (IsLineForSong(line))
                 {
-                    var l = line.OnlyAlphaNumeric();
-                    var songNumber = SafeParser.ToNumber<int>(l?.Substring(0, 2) ?? string.Empty);
-                    var songDuration = l?.Substring(l.Length - 7).Trim() ?? string.Empty;
-                    var songTitle = ReplaceMultiplePeriodsRegex()
-                        .Replace(l?.Substring(3, l.Length - songDuration.Length - 4) ?? string.Empty, string.Empty)
-                        .Trim();
+                    if (!TryParseSongLine(line, out var songNumber, out var songTitle, out var songDuration))
+                    {
+                        continue;
+                    }
+
+                    var songTitleNormalized = songTitle.ToNormalizedString().Nullify();
+                    if (songTitleNormalized is null)
+                    {
+                        missingSongFiles.Add(songTitle);
+                        continue;
+                    }
 
                     var fileForSong = mediaFilesForDirectory?.FirstOrDefault(x =>
-                        x.Name.ToNormalizedString()!.Contains(songTitle.ToNormalizedString()!,
-                            StringComparison.OrdinalIgnoreCase));
+                        (x.Name.ToNormalizedString()?.Contains(songTitleNormalized, StringComparison.OrdinalIgnoreCase) ?? false));
                     if (fileForSong == null)
                     {
                         missingSongFiles.Add(songTitle);
@@ -443,6 +447,13 @@ public sealed partial class Nfo(
                 ?.ToString();
             var albumName = albumTags.FirstOrDefault(x => x.Identifier is MetaTagIdentifier.Album)?.Value?.ToString();
 
+            var artistNameValue = artistName.Nullify();
+            if (artistNameValue is null)
+            {
+                Log.Warning("[{Plugin}] NFO parse missing required artist in [{FileName}]", DisplayName, fileInfo.FullName);
+                return null;
+            }
+
             if (missingSongFiles.Count > 0)
             {
                 Log.Warning("[{Plugin}] NFO parse missing [{MissingCount}] tracks in [{Dir}] (examples: {Samples})",
@@ -456,8 +467,8 @@ public sealed partial class Nfo(
             {
                 AlbumType = albumName.TryToDetectAlbumType(),
                 Artist = new Artist(
-                    artistName ?? throw new Exception($"Invalid artist on {nameof(Nfo)}"),
-                    artistName.ToNormalizedString() ?? artistName,
+                    artistNameValue,
+                    artistNameValue.ToNormalizedString() ?? artistNameValue,
                     null),
                 Directory = parentDirectoryInfo ?? fileInfo.Directory?.ToDirectorySystemInfo() ??
                     new FileSystemDirectoryInfo
@@ -501,8 +512,39 @@ public sealed partial class Nfo(
         return null;
     }
 
+    private static bool TryParseSongLine(
+        string line,
+        out int songNumber,
+        out string songTitle,
+        out string songDuration)
+    {
+        songNumber = 0;
+        songTitle = string.Empty;
+        songDuration = string.Empty;
+
+        var match = TrackLineRegex().Match(line);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        songNumber = SafeParser.ToNumber<int>(match.Groups["track"].Value);
+        songDuration = match.Groups["duration"].Value.Trim();
+        songTitle = ReplaceMultiplePeriodsRegex()
+            .Replace(match.Groups["title"].Value.OnlyAlphaNumeric() ?? string.Empty, string.Empty)
+            .Trim();
+
+        if (songNumber < 1 || songTitle.Nullify() is null || songDuration.Nullify() is null)
+        {
+            Log.Warning("[{Plugin}] NFO parse ignored malformed track line [{Line}]", nameof(Nfo), line);
+            return false;
+        }
+
+        return true;
+    }
+
     //[GeneratedRegex(@"[0-9]+[a-z]+[0-9]{3,4}")]
-    [GeneratedRegex(@"\d{1,3}\s*[>\.\-)]?\s*[^\r\n]*\d{1,2}:\d{2}", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<track>\d{1,3})\s*[>\.\-)]?\s*(?<title>[^\r\n]*?)\s*(?<duration>\d{1,2}:\d{2})", RegexOptions.IgnoreCase)]
     private static partial Regex TrackLineRegex();
 
     [GeneratedRegex(@"\.{2,}")]
