@@ -27,11 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated the docs release dropdown so the latest documentation track points to `2.1.0`, while patch releases continue to use the `2.1.x` application version line.
 - Replaced the top-navbar `Documentation` link with `News` so release posts are easier to find from the docs site.
+- Expanded `mcli library scan` storage-transfer reporting to separate ready albums, newly moved albums, albums merged with existing storage, duplicate-prefixed staging directories, failed metadata loads, and albums left in staging with their validation reason counts.
 
 ### Fixed
 
 - Prevent inbound processing from deleting release directories through directory event scripts; releases now remain available for conversion, normalization, validation, and staging according to the documented ingestion pipeline.
 - Preserve copied cover images in staged album metadata after inbound processing renames images to Melodee's normalized `i-##-Type.jpg` filenames.
+- Revalidation during the full scan workflow now bypasses same-run negative artist lookup cache entries, allowing albums to become valid when artist metadata is discovered later in the ingestion pass.
+- Storage-transfer chaining now treats albums merged into existing storage directories as handled work, so the next ingestion step can continue after merge-only batches.
 
 ## [2.1.0] - 2026-05-24
 
