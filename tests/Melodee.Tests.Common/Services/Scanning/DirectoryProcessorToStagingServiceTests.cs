@@ -421,6 +421,102 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 
     #endregion
 
+    #region Converted Source Resolution Tests
+
+    [Fact]
+    public void TryResolveSourceFileForStaging_WithOriginalFile_ReturnsOriginalFile()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-converted-{Guid.NewGuid():N}");
+        var sourceFilePath = Path.Combine(releasePath, "01-track.flac");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(sourceFilePath, "source");
+
+            var result = DirectoryProcessorToStagingService.TryResolveSourceFileForStaging(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                new FileSystemFileInfo
+                {
+                    Name = "01-track.flac",
+                    OriginalName = "01-track.flac",
+                    Size = 6
+                },
+                new Dictionary<string, FileSystemFileInfo>(StringComparer.OrdinalIgnoreCase),
+                new FileSystemService(Serializer),
+                out var sourceFile,
+                out var sourcePath);
+
+            Assert.True(result);
+            Assert.Equal("01-track.flac", sourceFile.Name);
+            Assert.Equal(sourceFilePath, sourcePath);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void TryResolveSourceFileForStaging_WithConvertedFile_ReturnsConvertedFile()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-converted-{Guid.NewGuid():N}");
+        var convertedFilePath = Path.Combine(releasePath, "01-track.mp3");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "01-track.flac"), "source");
+            File.WriteAllText(convertedFilePath, "converted");
+
+            var convertedFile = new FileSystemFileInfo
+            {
+                Name = "01-track.mp3",
+                OriginalName = "01-track.mp3",
+                Size = 9
+            };
+            var result = DirectoryProcessorToStagingService.TryResolveSourceFileForStaging(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                new FileSystemFileInfo
+                {
+                    Name = "01-track.flac",
+                    OriginalName = "01-track.flac",
+                    Size = 6
+                },
+                new Dictionary<string, FileSystemFileInfo>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["01-track.flac"] = convertedFile
+                },
+                new FileSystemService(Serializer),
+                out var sourceFile,
+                out var sourcePath);
+
+            Assert.True(result);
+            Assert.Equal("01-track.mp3", sourceFile.Name);
+            Assert.Equal(convertedFilePath, sourcePath);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    #endregion
+
     #region Script Safety Tests
 
     [Fact]

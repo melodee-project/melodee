@@ -622,7 +622,7 @@ public sealed class DirectoryProcessorToStagingService(
                 }
             }
 
-            var convertedSongFiles = false;
+            var convertedSourceFilesByOriginalName = new Dictionary<string, FileSystemFileInfo>(StringComparer.OrdinalIgnoreCase);
 
             // Run Enabled Conversion scripts on each file in directory
             // e.g. Convert FLAC to MP3, Convert non JPEG files into JPEGs, etc.
@@ -668,7 +668,12 @@ public sealed class DirectoryProcessorToStagingService(
                         }
                         else
                         {
-                            convertedSongFiles = pluginResult.Data.Extension(directoryInfoToProcess) != originalFileExtension;
+                            if (!string.Equals(pluginResult.Data.Extension(directoryInfoToProcess), originalFileExtension,
+                                    StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(pluginResult.Data.Name, fsi.Name, StringComparison.OrdinalIgnoreCase))
+                            {
+                                convertedSourceFilesByOriginalName[fsi.Name] = pluginResult.Data;
+                            }
                         }
                     }
 
@@ -679,16 +684,10 @@ public sealed class DirectoryProcessorToStagingService(
                 }
             }
 
-            if (convertedSongFiles)
+            if (convertedSourceFilesByOriginalName.Count > 0)
             {
-                // Delete any melodee json files and let them get recreated as part of the conversion process
-                var melodeeFiles = directoryInfoToProcess.MelodeeJsonFiles().Select(f => f.FullName).ToList();
-                if (melodeeFiles.Count > 0)
-                {
-                    var deletedCount = await OptimizedFileOperations.DeleteFilesAsync(melodeeFiles, cancellationToken)
-                        .ConfigureAwait(false);
-                    LogAndRaiseEvent(LogEventLevel.Debug, "Deleted [{0}] existing Melodee files", null, deletedCount);
-                }
+                LogAndRaiseEvent(LogEventLevel.Debug, "Mapped [{0}] converted source files for staging", null,
+                    convertedSourceFilesByOriginalName.Count);
             }
 
             // If no albums were created by previous plugins, create from media files
@@ -750,6 +749,7 @@ public sealed class DirectoryProcessorToStagingService(
                 albumsIdsSeen,
                 songsIdsSeen,
                 runContext,
+                convertedSourceFilesByOriginalName,
                 cancellationToken);
             numberOfAlbumsProcessed += processingResult.Item1;
             numberOfValidAlbumsProcessed += processingResult.Item2;
@@ -771,6 +771,7 @@ public sealed class DirectoryProcessorToStagingService(
         ConcurrentBag<long?> albumsIdsSeen,
         ConcurrentBag<Guid> songsIdsSeen,
         DirectoryRunContext runContext,
+        IReadOnlyDictionary<string, FileSystemFileInfo> convertedSourceFilesByOriginalName,
         CancellationToken cancellationToken)
     {
         var httpClient = httpClientFactory.CreateClient();
@@ -868,32 +869,52 @@ public sealed class DirectoryProcessorToStagingService(
                 // Prepare song file operations
                 if (album.Songs != null)
                 {
-                    foreach (var song in album.Songs.Where(x => x.File.OriginalName != null))
+                    var songs = album.Songs.ToArray();
+                    for (var i = 0; i < songs.Length; i++)
                     {
                         if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
                         {
                             break;
                         }
 
-                        if (song.File.OriginalName != null)
+                        var song = songs[i];
+                        if (!TryResolveSourceFileForStaging(
+                                album.OriginalDirectory,
+                                song.File,
+                                convertedSourceFilesByOriginalName,
+                                fileSystemService,
+                                out var sourceSongFile,
+                                out var oldSongFilename))
                         {
-                            var oldSongFilename = fileSystemService.CombinePath(album.OriginalDirectory.FullName(),
-                                song.File.OriginalName!);
-                            if (!fileSystemService.FileExists(oldSongFilename))
-                            {
-                                continue;
-                            }
+                            continue;
+                        }
 
-                            var newSongFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(),
-                                song.ToSongFileName(albumDirectorySystemInfo));
-                            if (!string.Equals(oldSongFilename, newSongFileName,
-                                    StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(song.File.Name, sourceSongFile.Name, StringComparison.OrdinalIgnoreCase) ||
+                            song.File.Size != sourceSongFile.Size)
+                        {
+                            song = song with
                             {
-                                filesToCopy.Add((oldSongFilename, newSongFileName));
-                                song.File.Name = fileSystemService.GetFileName(newSongFileName);
-                            }
+                                File = new FileSystemFileInfo
+                                {
+                                    Name = sourceSongFile.Name,
+                                    Size = sourceSongFile.Size,
+                                    OriginalName = sourceSongFile.Name
+                                }
+                            };
+                            songs[i] = song;
+                        }
+
+                        var newSongFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(),
+                            song.ToSongFileName(albumDirectorySystemInfo));
+                        if (!string.Equals(oldSongFilename, newSongFileName,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            filesToCopy.Add((oldSongFilename, newSongFileName));
+                            song.File.Name = fileSystemService.GetFileName(newSongFileName);
                         }
                     }
+
+                    album.Songs = songs;
                 }
 
                 // Perform batch file operations with streaming and timing
@@ -1236,6 +1257,55 @@ public sealed class DirectoryProcessorToStagingService(
 
         var extension = fileInfo.Extension.TrimStart('.');
         return SourceSidecarMetadataExtensions.Contains(extension);
+    }
+
+    public static bool TryResolveSourceFileForStaging(
+        FileSystemDirectoryInfo sourceDirectory,
+        FileSystemFileInfo file,
+        IReadOnlyDictionary<string, FileSystemFileInfo> convertedSourceFilesByOriginalName,
+        IFileSystemService fileSystemService,
+        out FileSystemFileInfo sourceFile,
+        out string sourcePath)
+    {
+        sourceFile = file;
+        sourcePath = string.Empty;
+
+        var sourceName = file.OriginalName.Nullify() ?? file.Name;
+        if (convertedSourceFilesByOriginalName.TryGetValue(sourceName, out var convertedSourceFile) &&
+            TryResolveSourceFile(sourceDirectory, convertedSourceFile.Name, convertedSourceFile, fileSystemService,
+                out sourceFile, out sourcePath))
+        {
+            return true;
+        }
+
+        if (!string.Equals(sourceName, file.Name, StringComparison.OrdinalIgnoreCase) &&
+            convertedSourceFilesByOriginalName.TryGetValue(file.Name, out convertedSourceFile) &&
+            TryResolveSourceFile(sourceDirectory, convertedSourceFile.Name, convertedSourceFile, fileSystemService,
+                out sourceFile, out sourcePath))
+        {
+            return true;
+        }
+
+        if (TryResolveSourceFile(sourceDirectory, sourceName, file, fileSystemService, out sourceFile, out sourcePath))
+        {
+            return true;
+        }
+
+        return !string.Equals(sourceName, file.Name, StringComparison.OrdinalIgnoreCase) &&
+               TryResolveSourceFile(sourceDirectory, file.Name, file, fileSystemService, out sourceFile, out sourcePath);
+    }
+
+    private static bool TryResolveSourceFile(
+        FileSystemDirectoryInfo sourceDirectory,
+        string sourceName,
+        FileSystemFileInfo file,
+        IFileSystemService fileSystemService,
+        out FileSystemFileInfo sourceFile,
+        out string sourcePath)
+    {
+        sourceFile = file;
+        sourcePath = fileSystemService.CombinePath(sourceDirectory.FullName(), sourceName);
+        return fileSystemService.FileExists(sourcePath);
     }
 
     public static bool IsSourceMetadataOnlyDirectory(FileSystemDirectoryInfo directoryInfo)
