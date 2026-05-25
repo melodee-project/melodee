@@ -208,7 +208,7 @@ public sealed class DirectoryRunContext : IDisposable
     }
 
     /// <summary>
-    ///     Records that DecentDB reported corruption during artist search persistence.
+    ///     Records that DecentDB reported a non-retryable error during artist search persistence.
     /// </summary>
     public void RecordArtistSearchPersistenceCorruption()
     {
@@ -224,7 +224,7 @@ public sealed class DirectoryRunContext : IDisposable
     }
 
     /// <summary>
-    ///     Records an artist search database read corruption error.
+    ///     Records an artist search database open/read failure that should not be retried.
     /// </summary>
     public void RecordArtistSearchReadCorruption()
     {
@@ -327,8 +327,8 @@ public sealed class DirectoryRunContext : IDisposable
             summary.AlbumsDeferredRevalidation > 0)
         {
             Log.Information(
-                "[DirectoryRunContext] Artist search: {ReadErrors} read errors, {ReadCorruptions} read corruptions | " +
-                "Artist persistence: {Conflicts} conflicts, {Retries} retries, {Corruptions} corruptions | " +
+                "[DirectoryRunContext] Artist search: {ReadErrors} read errors, {ReadFailures} open/read failures | " +
+                "Artist persistence: {Conflicts} conflicts, {Retries} retries, {NonRetryableErrors} non-retryable errors | " +
                 "Revalidation skipped: {Skipped}, deferred: {Deferred}",
                 summary.ArtistSearchReadErrors,
                 summary.ArtistSearchReadCorruptions,

@@ -11,6 +11,50 @@ namespace Melodee.Tests.Common.Plugins.Conversion;
 public class MediaConvertorTests
 {
     [Fact]
+    public async Task IsUsableConvertedMp3Async_WithMp3Header_ReturnsTrue()
+    {
+        var testPath = Path.Combine(Path.GetTempPath(), $"melodee-converted-{Guid.NewGuid():N}.mp3");
+
+        try
+        {
+            await File.WriteAllBytesAsync(testPath, [(byte)'I', (byte)'D', (byte)'3', 0]);
+
+            var result = await MediaConvertor.IsUsableConvertedMp3Async(new FileInfo(testPath));
+
+            Assert.True(result);
+        }
+        finally
+        {
+            if (File.Exists(testPath))
+            {
+                File.Delete(testPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task IsUsableConvertedMp3Async_WithInvalidMp3File_ReturnsFalse()
+    {
+        var testPath = Path.Combine(Path.GetTempPath(), $"melodee-converted-{Guid.NewGuid():N}.mp3");
+
+        try
+        {
+            await File.WriteAllTextAsync(testPath, "not audio");
+
+            var result = await MediaConvertor.IsUsableConvertedMp3Async(new FileInfo(testPath));
+
+            Assert.False(result);
+        }
+        finally
+        {
+            if (File.Exists(testPath))
+            {
+                File.Delete(testPath);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ValidateConvertingFlacToMp3Async()
     {
         var testFile = @"/melodee_test/tests/testflac.flac";

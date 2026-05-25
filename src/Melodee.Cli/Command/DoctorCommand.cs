@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Diagnostics;
 using System.Text.Json;
+using DecentDB.AdoNet;
 using Melodee.Cli.CommandSettings;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
@@ -216,6 +217,19 @@ public sealed class DoctorCommand : CommandBase<DoctorSettings>
 
 public sealed class CliDoctorService : DoctorServiceBase
 {
+    private static readonly string[] RequiredMusicBrainzTables =
+    [
+        "Artist",
+        "Album",
+        "ArtistAlias"
+    ];
+
+    private static readonly string[] RequiredArtistSearchTables =
+    [
+        "Artists",
+        "Albums"
+    ];
+
     private readonly Serilog.ILogger _logger;
     private readonly IDbContextFactory<MelodeeDbContext> _dbContextFactory;
     private readonly IDbContextFactory<MusicBrainzDbContext> _musicBrainzDbContextFactory;
@@ -273,15 +287,22 @@ public sealed class CliDoctorService : DoctorServiceBase
                 await RunCheckAsync(progress, checks, "Database: MusicBrainz (DecentDB)", async () =>
                 {
                     var checkSw = Stopwatch.StartNew();
-                    var (canQuery, _, error) = await ProbeMusicBrainzDatabaseAsync(cancellationToken);
                     var cs = GetConnectionString("MusicBrainzConnection");
                     var fileInfo = DescribeFileDatabasePath(cs);
-                    var details = canQuery
-                        ? $"OK; {fileInfo}"
-                        : string.IsNullOrWhiteSpace(error)
-                            ? $"Unable to query; {fileInfo}"
-                            : $"{error}; {fileInfo}";
-                    return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", canQuery, details, checkSw.Elapsed);
+                    var probe = await ProbeDecentDbDatabaseAsync(
+                            cs,
+                            RequiredMusicBrainzTables,
+                            [
+                                """SELECT "Id" FROM "Artist" LIMIT 1""",
+                                """SELECT "Id" FROM "Album" LIMIT 1"""
+                            ],
+                            requireRowsForReadQueries: true,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    var details = probe.Success
+                        ? $"{probe.Details}; {fileInfo}"
+                        : $"{probe.Details}; {fileInfo}";
+                    return new DoctorCheckResult("Database: MusicBrainz (DecentDB)", probe.Success, details, checkSw.Elapsed);
                 });
 
                 await RunCheckAsync(progress, checks, "Database: ArtistSearchEngine (DecentDB)", async () =>
@@ -309,13 +330,20 @@ public sealed class CliDoctorService : DoctorServiceBase
                             checkSw.Elapsed);
                     }
 
-                    var (canQuery, error) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
-                    var details = canQuery
-                        ? $"OK; {fileInfo}"
-                        : string.IsNullOrWhiteSpace(error)
-                            ? $"Unable to query; {fileInfo}"
-                            : $"{error}; {fileInfo}";
-                    return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", canQuery, details, checkSw.Elapsed);
+                    var probe = await ProbeDecentDbDatabaseAsync(
+                            cs,
+                            RequiredArtistSearchTables,
+                            [
+                                """SELECT "Id" FROM "Artists" LIMIT 1""",
+                                """SELECT "Id" FROM "Albums" LIMIT 1"""
+                            ],
+                            requireRowsForReadQueries: false,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    var details = probe.Success
+                        ? $"{probe.Details}; {fileInfo}"
+                        : $"{probe.Details}; {fileInfo}";
+                    return new DoctorCheckResult("Database: ArtistSearchEngine (DecentDB)", probe.Success, details, checkSw.Elapsed);
                 });
 
                 await RunCheckAsync(progress, checks, "Library Paths", async () =>
@@ -433,56 +461,86 @@ public sealed class CliDoctorService : DoctorServiceBase
         }
     }
 
-    private async Task<(bool CanQuery, string? Error)> ProbeArtistSearchDatabaseAsync(
-        CancellationToken cancellationToken)
+    public static async Task<DecentDbDoctorProbeResult> ProbeDecentDbDatabaseAsync(
+        string connectionString,
+        IReadOnlyCollection<string> requiredTables,
+        IReadOnlyCollection<string> readQueries,
+        bool requireRowsForReadQueries,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
-            await db.Database.EnsureCreatedAsync(cancellationToken);
-            if (db.Database.IsRelational())
+            var dataSource = GetDataSourceFromConnectionString(connectionString);
+            if (string.IsNullOrWhiteSpace(dataSource))
             {
-                await db.Database.ExecuteSqlRawAsync(
-                    """
-                    CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
-                    ON "Artists" ("IsLocked", "LastRefreshed")
-                    """,
-                    cancellationToken);
+                return DecentDbDoctorProbeResult.Fail("Data Source is empty or invalid");
             }
 
-            _ = await db.Artists
-                .AsNoTracking()
-                .Select(x => x.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-            _ = await db.Albums
-                .AsNoTracking()
-                .Select(x => x.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+            if (!File.Exists(dataSource))
+            {
+                return DecentDbDoctorProbeResult.Fail($"Database file does not exist: {dataSource}");
+            }
 
-            return (true, null);
+            var databaseFile = new FileInfo(dataSource);
+            if (databaseFile.Length == 0)
+            {
+                return DecentDbDoctorProbeResult.Fail($"Database file is empty: {dataSource}");
+            }
+
+            await using var connection = new DecentDBConnection(connectionString);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            var tables = ParseTableNames(connection.ListTablesJson());
+            var missingTables = requiredTables
+                .Where(required => !tables.Contains(required, StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+            if (missingTables.Length > 0)
+            {
+                return DecentDbDoctorProbeResult.Fail($"Missing required table(s): {string.Join(", ", missingTables)}");
+            }
+
+            foreach (var table in requiredTables)
+            {
+                var ddl = connection.GetTableDdl(table);
+                if (string.IsNullOrWhiteSpace(ddl))
+                {
+                    return DecentDbDoctorProbeResult.Fail($"Required table [{table}] has no DDL from schema introspection");
+                }
+            }
+
+            foreach (var query in readQueries)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = query;
+                var scalar = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                if (requireRowsForReadQueries && (scalar is null || scalar == DBNull.Value))
+                {
+                    return DecentDbDoctorProbeResult.Fail($"Read query returned no rows: {query}");
+                }
+            }
+
+            return DecentDbDoctorProbeResult.Ok($"OK; opened; tables={tables.Length}; readQueries={readQueries.Count}");
         }
         catch (Exception ex)
         {
-            return (false, ex.Message);
+            return DecentDbDoctorProbeResult.Fail($"Unable to open/query DecentDB: {ex.Message}");
         }
     }
 
-    private async Task<(bool CanQuery, bool HasArtistData, string? Error)> ProbeMusicBrainzDatabaseAsync(
-        CancellationToken cancellationToken)
+    private static string[] ParseTableNames(string tablesJson)
     {
+        if (string.IsNullOrWhiteSpace(tablesJson))
+        {
+            return [];
+        }
+
         try
         {
-            await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
-            var firstArtistId = await db.Artists
-                .AsNoTracking()
-                .Select(x => x.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            return (true, firstArtistId != 0, null);
+            return JsonSerializer.Deserialize<string[]>(tablesJson) ?? [];
         }
-        catch (Exception ex)
+        catch
         {
-            return (false, false, ex.Message);
+            return [];
         }
     }
 }
@@ -496,4 +554,11 @@ public sealed class CliDoctorCheckResults
     public TimeSpan Duration { get; init; }
 
     public int IssuesCount => Checks.Count(c => !c.Success);
+}
+
+public sealed record DecentDbDoctorProbeResult(bool Success, string Details)
+{
+    public static DecentDbDoctorProbeResult Ok(string details) => new(true, details);
+
+    public static DecentDbDoctorProbeResult Fail(string details) => new(false, details);
 }

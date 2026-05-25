@@ -65,6 +65,10 @@ public sealed class DirectoryProcessorToStagingService(
         Nfo.HandlesExtension,
         SimpleFileVerification.HandlesExtension
     };
+    private static readonly HashSet<string> SourceResidueTextExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "txt"
+    };
 
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
     private readonly SemaphoreSlim _conversionThrottle = new(CalculateMaxConcurrentConversions(Environment.ProcessorCount));
@@ -478,7 +482,7 @@ public sealed class DirectoryProcessorToStagingService(
 
         if (_configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal))
         {
-            DeleteSourceMetadataOnlyDirectoryFiles(fileSystemDirectoryInfo, Logger);
+            DeleteSourceResidueOnlyDirectoryFiles(fileSystemDirectoryInfo, Logger);
         }
 
         fileSystemDirectoryInfo.DeleteAllEmptyDirectories();
@@ -576,6 +580,17 @@ public sealed class DirectoryProcessorToStagingService(
         Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
         try
         {
+            var unstableSourceFile = await FindUnstableSourceFileAsync(directoryInfoToProcess, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            if (unstableSourceFile.Nullify() != null)
+            {
+                var message = $"Deferred directory [{directoryInfoToProcess.Path}] because source file [{unstableSourceFile}] is still changing.";
+                processingMessages.Add(message);
+                LogAndRaiseEvent(LogEventLevel.Warning, message);
+
+                return (numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
+            }
+
             // Script evaluation hooks can skip a directory, but ingestion must not
             // physically delete releases before they have a chance to reach staging.
             var scriptResult = await EvaluateDirectoryScriptsAsync(
@@ -1328,6 +1343,51 @@ public sealed class DirectoryProcessorToStagingService(
         return SourceSidecarMetadataExtensions.Contains(extension);
     }
 
+    public static bool IsSourceResidueFile(FileInfo fileInfo)
+    {
+        if (IsSourceSidecarMetadataFile(fileInfo))
+        {
+            return true;
+        }
+
+        var extension = fileInfo.Extension.TrimStart('.');
+        return FileHelper.IsFileImageType(extension) ||
+               SourceResidueTextExtensions.Contains(extension);
+    }
+
+    public static async Task<string?> FindUnstableSourceFileAsync(
+        FileSystemDirectoryInfo directoryInfo,
+        int delayMs = 250,
+        CancellationToken cancellationToken = default)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists)
+        {
+            return null;
+        }
+
+        var firstSnapshot = SnapshotSourceFiles(dirInfo);
+        if (firstSnapshot.Count == 0)
+        {
+            return null;
+        }
+
+        await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+
+        var secondSnapshot = SnapshotSourceFiles(dirInfo);
+        foreach (var (path, first) in firstSnapshot)
+        {
+            if (!secondSnapshot.TryGetValue(path, out var second) ||
+                first.Length != second.Length ||
+                first.LastWriteTimeUtc != second.LastWriteTimeUtc)
+            {
+                return path;
+            }
+        }
+
+        return secondSnapshot.Keys.FirstOrDefault(path => !firstSnapshot.ContainsKey(path));
+    }
+
     public static bool TryResolveSourceFileForStaging(
         FileSystemDirectoryInfo sourceDirectory,
         FileSystemFileInfo file,
@@ -1389,6 +1449,20 @@ public sealed class DirectoryProcessorToStagingService(
         return files.Length > 0 && files.All(IsSourceSidecarMetadataFile);
     }
 
+    public static bool IsSourceResidueOnlyDirectory(FileSystemDirectoryInfo directoryInfo)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists || dirInfo.EnumerateDirectories("*", SearchOption.TopDirectoryOnly).Any())
+        {
+            return false;
+        }
+
+        var files = dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly).ToArray();
+        return files.Length > 0 &&
+               !files.Any(file => FileHelper.IsFileMediaType(file.Extension)) &&
+               files.All(IsSourceResidueFile);
+    }
+
     public static int DeleteSourceSidecarMetadataFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
     {
         var dirInfo = directoryInfo.ToDirectoryInfo();
@@ -1415,7 +1489,33 @@ public sealed class DirectoryProcessorToStagingService(
         return deletedCount;
     }
 
-    private static int DeleteSourceMetadataOnlyDirectoryFiles(FileSystemDirectoryInfo rootDirectory, ILogger logger)
+    public static int DeleteSourceResidueFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists)
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+                     .Where(IsSourceResidueFile))
+        {
+            try
+            {
+                fileInfo.Delete();
+                deletedCount++;
+            }
+            catch (Exception e)
+            {
+                logger?.Warning(e, "Unable to delete source residue file [{FileName}]", fileInfo.FullName);
+            }
+        }
+
+        return deletedCount;
+    }
+
+    public static int DeleteSourceResidueOnlyDirectoryFiles(FileSystemDirectoryInfo rootDirectory, ILogger logger)
     {
         var rootDirectoryInfo = rootDirectory.ToDirectoryInfo();
         if (!rootDirectoryInfo.Exists)
@@ -1425,20 +1525,22 @@ public sealed class DirectoryProcessorToStagingService(
 
         var deletedCount = 0;
         foreach (var directoryInfo in rootDirectoryInfo.EnumerateDirectories("*", SearchOption.AllDirectories)
+                     .OrderByDescending(x => x.FullName.Length)
                      .Select(x => x.ToDirectorySystemInfo()))
         {
-            if (!IsSourceMetadataOnlyDirectory(directoryInfo))
+            if (!IsSourceResidueOnlyDirectory(directoryInfo))
             {
                 continue;
             }
 
-            deletedCount += DeleteSourceSidecarMetadataFiles(directoryInfo, logger);
+            deletedCount += DeleteSourceResidueFiles(directoryInfo, logger);
+            TryDeleteDirectoryIfEmpty(directoryInfo, logger);
         }
 
         if (deletedCount > 0)
         {
             logger.Information(
-                "[{ServiceName}] Deleted [{Count}] source metadata sidecar files from metadata-only directories",
+                "[{ServiceName}] Deleted [{Count}] source residue files from media-free directories",
                 nameof(DirectoryProcessorToStagingService),
                 deletedCount);
         }
@@ -1447,6 +1549,47 @@ public sealed class DirectoryProcessorToStagingService(
     }
 
     private record DirectoryScriptEvaluationResult(bool ShouldContinue, string? Message = null);
+
+    private static IReadOnlyDictionary<string, SourceFileSnapshot> SnapshotSourceFiles(DirectoryInfo dirInfo)
+    {
+        var snapshot = new Dictionary<string, SourceFileSnapshot>(StringComparer.OrdinalIgnoreCase);
+        foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                snapshot[fileInfo.FullName] = new SourceFileSnapshot(fileInfo.Length, fileInfo.LastWriteTimeUtc);
+            }
+            catch (IOException)
+            {
+                snapshot[fileInfo.FullName] = new SourceFileSnapshot(-1, DateTime.MinValue);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                snapshot[fileInfo.FullName] = new SourceFileSnapshot(-1, DateTime.MinValue);
+            }
+        }
+
+        return snapshot;
+    }
+
+    private static void TryDeleteDirectoryIfEmpty(FileSystemDirectoryInfo directoryInfo, ILogger logger)
+    {
+        try
+        {
+            var dirInfo = directoryInfo.ToDirectoryInfo();
+            if (dirInfo.Exists &&
+                !dirInfo.EnumerateFileSystemInfos("*", SearchOption.TopDirectoryOnly).Any())
+            {
+                dirInfo.Delete();
+            }
+        }
+        catch (Exception e)
+        {
+            logger.Warning(e, "Unable to delete empty source residue directory [{Directory}]", directoryInfo.Path);
+        }
+    }
+
+    private readonly record struct SourceFileSnapshot(long Length, DateTime LastWriteTimeUtc);
 
     private async Task<DirectoryScriptEvaluationResult> EvaluateDirectoryScriptsAsync(
         FileSystemDirectoryInfo directory,

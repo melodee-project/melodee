@@ -435,6 +435,165 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
         }
     }
 
+    [Fact]
+    public void IsSourceResidueOnlyDirectory_WithImageTextAndSidecarsNoMedia_ReturnsTrue()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "i-01-Front.jpg"), "image");
+            File.WriteAllText(Path.Combine(releasePath, "foo_dr.txt"), "text");
+
+            var result = DirectoryProcessorToStagingService.IsSourceResidueOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.True(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueOnlyDirectory_WithMediaFile_ReturnsFalse()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "i-01-Front.jpg"), "image");
+            File.WriteAllText(Path.Combine(releasePath, "01-track.mp3"), "media");
+
+            var result = DirectoryProcessorToStagingService.IsSourceResidueOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.False(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteSourceResidueOnlyDirectoryFiles_WithNestedResidueDirectories_RemovesLeafThenParentResidue()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-residue-root-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album (part ");
+        var childPath = Path.Combine(releasePath, " two) (2026)");
+
+        try
+        {
+            Directory.CreateDirectory(childPath);
+            File.WriteAllText(Path.Combine(releasePath, "cover.jpg"), "image");
+            File.WriteAllText(Path.Combine(childPath, "i-01-Front.jpg"), "image");
+
+            var deletedCount = DirectoryProcessorToStagingService.DeleteSourceResidueOnlyDirectoryFiles(
+                new FileSystemDirectoryInfo
+                {
+                    Path = rootPath,
+                    Name = Path.GetFileName(rootPath)
+                },
+                Logger);
+
+            Assert.Equal(2, deletedCount);
+            Assert.False(Directory.Exists(releasePath));
+            Assert.True(Directory.Exists(rootPath));
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FindUnstableSourceFileAsync_WhenFileChanges_ReturnsFilePath()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-unstable-{Guid.NewGuid():N}");
+        var filePath = Path.Combine(releasePath, "01-track.mp3");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            await File.WriteAllTextAsync(filePath, "media");
+
+            var stabilityTask = DirectoryProcessorToStagingService.FindUnstableSourceFileAsync(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                delayMs: 300);
+
+            await Task.Delay(50);
+            await File.AppendAllTextAsync(filePath, " changed");
+
+            var result = await stabilityTask;
+
+            Assert.Equal(filePath, result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FindUnstableSourceFileAsync_WhenFilesAreStable_ReturnsNull()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-stable-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            await File.WriteAllTextAsync(Path.Combine(releasePath, "01-track.mp3"), "media");
+
+            var result = await DirectoryProcessorToStagingService.FindUnstableSourceFileAsync(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                delayMs: 10);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
     #endregion
 
     #region Converted Source Resolution Tests

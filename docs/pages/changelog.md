@@ -31,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `mcli library scan` performance reporting for artist lookup cache behavior, conversion time, copy time, revalidation skips, and DecentDB artist-search persistence retry counts.
 - `mcli library scan` now shows live progress messages and item counts for inbound processing, staging revalidation, storage transfer, and database insert work instead of leaving active steps at an apparent 0%.
 - `mcli library scan` now suppresses ATL library stack traces during progress rendering and reports non-fatal inbound processing errors as scan warnings instead of letting raw exception text corrupt the TUI.
-- Artist search database read errors, including DecentDB corruption errors, are now counted in full-scan performance output and reported as scan warnings.
+- Artist search database read/open errors, including non-retryable DecentDB provider failures, are now counted in full-scan performance output and reported as scan warnings.
+- `mcli doctor` now validates DecentDB files by checking file presence, opening the configured database, inspecting expected schema tables, and running read queries instead of relying on shallow connection checks.
 - Bounded concurrent media conversions during inbound processing to reduce CPU and disk saturation on large batch scans.
 - Staging artist revalidation now uses a staging-local `.melodee-revalidation.ddb` retry state database so repeated scans defer recently failed albums instead of re-querying every invalid staged release on every run; the state database is recreated automatically if missing or corrupt.
 
@@ -47,10 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inbound staging now tracks media files converted during processing, so NFO-derived albums that start as FLAC are staged from the converted MP3 files instead of leaving converted songs behind in `inbound`.
 - Storage-transfer chaining now treats albums merged into existing storage directories as handled work, so the next ingestion step can continue after merge-only batches.
 - Full-scan artist lookup work now shares one run-scoped cache across inbound processing and staging revalidation, including forced revalidation lookups.
-- Artist search persistence now retries transient DecentDB transaction conflicts while surfacing corruption errors without retrying them.
+- Artist search persistence now retries transient DecentDB transaction conflicts while surfacing non-retryable DecentDB provider errors without retrying them.
 - Compound release artists such as `Artist One feat. Artist Two` now get conservative fallback artist lookups when the fallback candidate has trusted identity data and matching release evidence.
 - Staging revalidation now skips albums whose artist metadata is blank or obviously unsearchable instead of repeatedly calling external artist providers.
 - Forced staging revalidation no longer expands compound artist names into multiple fallback provider searches, preventing `mcli library scan` from appearing hung on batches of invalid collaboration artists.
+- Move-mode inbound cleanup now removes source residue files such as release artwork and `.txt` notes only after media files are gone, allowing empty inbound release directories to be removed without deleting unprocessed media.
+- Inbound processing now defers directories whose files are still changing instead of partially staging releases while the source copy is still in progress.
+- Media conversion now accepts a valid generated MP3 when ffmpeg produced usable output but ATL reports an unexpected format label, preventing converted tracks from being stranded in inbound.
 
 ## [2.1.0] - 2026-05-24
 

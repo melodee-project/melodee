@@ -484,7 +484,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         }
         if (performanceSummary.ArtistSearchReadCorruptions > 0)
         {
-            warnings.Add($"Artist search DecentDB corruption detected {performanceSummary.ArtistSearchReadCorruptions:N0} time(s); rebuild or replace the artist search database.");
+            warnings.Add($"Artist search DecentDB open/read failure reported {performanceSummary.ArtistSearchReadCorruptions:N0} time(s); verify the configured database path, WAL state, and .NET provider logs.");
         }
 
         if (settings.Json)
@@ -548,9 +548,9 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     copyTimeMs = performanceSummary.CopyTimeMs,
                     artistSearchPersistenceRetries = performanceSummary.ArtistSearchPersistenceRetries,
                     artistSearchPersistenceConflicts = performanceSummary.ArtistSearchPersistenceConflicts,
-                    artistSearchPersistenceCorruptions = performanceSummary.ArtistSearchPersistenceCorruptions,
+                    artistSearchPersistenceNonRetryableErrors = performanceSummary.ArtistSearchPersistenceCorruptions,
                     artistSearchReadErrors = performanceSummary.ArtistSearchReadErrors,
-                    artistSearchReadCorruptions = performanceSummary.ArtistSearchReadCorruptions,
+                    artistSearchReadOpenFailures = performanceSummary.ArtistSearchReadCorruptions,
                     albumsSkippedRevalidation = performanceSummary.AlbumsSkippedRevalidation,
                     albumsDeferredRevalidation = performanceSummary.AlbumsDeferredRevalidation,
                     artistSearchCache = new
@@ -724,13 +724,13 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             {
                 performanceTable.AddRow("DecentDB conflicts", FormatNumber(performanceSummary.ArtistSearchPersistenceConflicts));
                 performanceTable.AddRow("DecentDB retries", FormatNumber(performanceSummary.ArtistSearchPersistenceRetries));
-                performanceTable.AddRow("DecentDB corruptions", FormatNumber(performanceSummary.ArtistSearchPersistenceCorruptions));
+                performanceTable.AddRow("DecentDB non-retryable errors", FormatNumber(performanceSummary.ArtistSearchPersistenceCorruptions));
             }
             if (performanceSummary.ArtistSearchReadErrors > 0 ||
                 performanceSummary.ArtistSearchReadCorruptions > 0)
             {
                 performanceTable.AddRow("Artist search read errors", FormatNumber(performanceSummary.ArtistSearchReadErrors));
-                performanceTable.AddRow("Artist search corruptions", FormatNumber(performanceSummary.ArtistSearchReadCorruptions));
+                performanceTable.AddRow("Artist search open/read failures", FormatNumber(performanceSummary.ArtistSearchReadCorruptions));
             }
             if (performanceSummary.AlbumsSkippedRevalidation > 0)
             {

@@ -277,7 +277,7 @@ public class ArtistSearchEngineService(
     }
 
     /// <summary>
-    ///     Returns whether an exception represents DecentDB corruption and should not be retried.
+    ///     Returns whether an exception represents a non-retryable DecentDB open/read error.
     /// </summary>
     public static bool IsDecentDbCorruption(Exception exception)
     {
@@ -308,7 +308,7 @@ public class ArtistSearchEngineService(
             {
                 runContext?.RecordArtistSearchPersistenceCorruption();
                 Logger.Error(ex,
-                    "[{Name}] DecentDB corruption while saving artist search data during [{Operation}]. Retry suppressed.",
+                    "[{Name}] Non-retryable DecentDB error while saving artist search data during [{Operation}]. Retry suppressed.",
                     nameof(ArtistSearchEngineService),
                     operationName);
                 throw;
