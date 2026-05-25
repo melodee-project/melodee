@@ -320,6 +320,107 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 
     #endregion
 
+    #region Source Metadata Cleanup Tests
+
+    [Fact]
+    public void IsSourceMetadataOnlyDirectory_WithOnlyKnownSidecars_ReturnsTrue()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-sidecars-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+
+            var result = DirectoryProcessorToStagingService.IsSourceMetadataOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.True(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceMetadataOnlyDirectory_WithUnknownFile_ReturnsFalse()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-sidecars-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "keep.txt"), "not sidecar metadata");
+
+            var result = DirectoryProcessorToStagingService.IsSourceMetadataOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.False(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteSourceSidecarMetadataFiles_DeletesKnownSidecarsOnly()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-sidecars-{Guid.NewGuid():N}");
+        var keepFilePath = Path.Combine(releasePath, "keep.txt");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.cue"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.m3u"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, ".blackbeard.provenance.json"), "{}");
+            File.WriteAllText(keepFilePath, "keep");
+
+            var deletedCount = DirectoryProcessorToStagingService.DeleteSourceSidecarMetadataFiles(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                Logger);
+
+            Assert.Equal(5, deletedCount);
+            Assert.True(File.Exists(keepFilePath));
+            var remainingFiles = Directory.EnumerateFiles(releasePath).ToArray();
+            Assert.Single(remainingFiles);
+            Assert.Equal(keepFilePath, remainingFiles[0]);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    #endregion
+
     #region Script Safety Tests
 
     [Fact]

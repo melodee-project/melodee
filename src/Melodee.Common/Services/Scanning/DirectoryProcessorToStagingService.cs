@@ -57,6 +57,15 @@ public sealed class DirectoryProcessorToStagingService(
     IImageProcessor imageProcessor)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
+    private const string CueSheetExtension = "CUE";
+    private static readonly HashSet<string> SourceSidecarMetadataExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        CueSheetExtension,
+        M3UPlaylist.HandlesExtension,
+        Nfo.HandlesExtension,
+        SimpleFileVerification.HandlesExtension
+    };
+
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
     private bool _disposed;
     private IAlbumNamesInDirectoryPlugin _albumNamesInDirectoryPlugin = null!;
@@ -426,6 +435,11 @@ public sealed class DirectoryProcessorToStagingService(
                     Data = result
                 };
             }
+        }
+
+        if (_configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal))
+        {
+            DeleteSourceMetadataOnlyDirectoryFiles(fileSystemDirectoryInfo, Logger);
         }
 
         fileSystemDirectoryInfo.DeleteAllEmptyDirectories();
@@ -1180,6 +1194,19 @@ public sealed class DirectoryProcessorToStagingService(
                     {
                         fileSystemService.DeleteFile(album.MelodeeDataFileName);
                     }
+
+                    if (deleteOriginal)
+                    {
+                        var deletedSourceMetadataFiles = DeleteSourceSidecarMetadataFiles(album.OriginalDirectory, Logger);
+                        if (deletedSourceMetadataFiles > 0)
+                        {
+                            LogAndRaiseEvent(LogEventLevel.Debug,
+                                "Deleted [{0}] source metadata sidecar files for album [{1}]",
+                                null,
+                                deletedSourceMetadataFiles,
+                                album.AlbumTitle() ?? string.Empty);
+                        }
+                    }
                 }
                 else
                 {
@@ -1198,6 +1225,86 @@ public sealed class DirectoryProcessorToStagingService(
 
         runContext.AddAlbumProcessingTime((long)Stopwatch.GetElapsedTime(albumStartTicks).TotalMilliseconds);
         return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
+    }
+
+    public static bool IsSourceSidecarMetadataFile(FileInfo fileInfo)
+    {
+        if (fileInfo.Name.DoStringsMatch(Blackbeard.HandlesFileName))
+        {
+            return true;
+        }
+
+        var extension = fileInfo.Extension.TrimStart('.');
+        return SourceSidecarMetadataExtensions.Contains(extension);
+    }
+
+    public static bool IsSourceMetadataOnlyDirectory(FileSystemDirectoryInfo directoryInfo)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists || dirInfo.EnumerateDirectories("*", SearchOption.TopDirectoryOnly).Any())
+        {
+            return false;
+        }
+
+        var files = dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly).ToArray();
+        return files.Length > 0 && files.All(IsSourceSidecarMetadataFile);
+    }
+
+    public static int DeleteSourceSidecarMetadataFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists)
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+                     .Where(IsSourceSidecarMetadataFile))
+        {
+            try
+            {
+                fileInfo.Delete();
+                deletedCount++;
+            }
+            catch (Exception e)
+            {
+                logger?.Warning(e, "Unable to delete source metadata sidecar file [{FileName}]", fileInfo.FullName);
+            }
+        }
+
+        return deletedCount;
+    }
+
+    private static int DeleteSourceMetadataOnlyDirectoryFiles(FileSystemDirectoryInfo rootDirectory, ILogger logger)
+    {
+        var rootDirectoryInfo = rootDirectory.ToDirectoryInfo();
+        if (!rootDirectoryInfo.Exists)
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var directoryInfo in rootDirectoryInfo.EnumerateDirectories("*", SearchOption.AllDirectories)
+                     .Select(x => x.ToDirectorySystemInfo()))
+        {
+            if (!IsSourceMetadataOnlyDirectory(directoryInfo))
+            {
+                continue;
+            }
+
+            deletedCount += DeleteSourceSidecarMetadataFiles(directoryInfo, logger);
+        }
+
+        if (deletedCount > 0)
+        {
+            logger.Information(
+                "[{ServiceName}] Deleted [{Count}] source metadata sidecar files from metadata-only directories",
+                nameof(DirectoryProcessorToStagingService),
+                deletedCount);
+        }
+
+        return deletedCount;
     }
 
     private record DirectoryScriptEvaluationResult(bool ShouldContinue, string? Message = null);

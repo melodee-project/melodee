@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - iTunes artist matches now count as trusted artist identities alongside Spotify and MusicBrainz matches, allowing iTunes-only artist lookups to validate staged albums and participate in storage insert matching.
 - Staging revalidation now clears stale invalid-artist statuses when an album already contains a trusted artist identity, and iTunes-only artist IDs can be used for storage directory naming.
 - Dashboard loading now updates the layout spinner through the layout notification event and clears the global spinner when leaving the page.
+- Inbound move-mode processing now removes source sidecar metadata files such as `.sfv`, `.nfo`, `.m3u`, `.cue`, and Blackbeard provenance after albums are staged, including metadata-only directories left by earlier runs.
 - Storage-transfer chaining now treats albums merged into existing storage directories as handled work, so the next ingestion step can continue after merge-only batches.
 
 ## [2.1.0] - 2026-05-24
