@@ -95,6 +95,7 @@ public class StagingAlbumRevalidationJob(
     public override async Task Execute(IJobExecutionContext context)
     {
         var startTicks = Stopwatch.GetTimestamp();
+        var albumsProcessed = 0;
         var albumsRevalidated = 0;
         var albumsNowValid = 0;
         var albumsSkippedRevalidation = 0;
@@ -177,6 +178,7 @@ public class StagingAlbumRevalidationJob(
 
                 try
                 {
+                    albumsProcessed++;
                     if (!CanAttemptArtistRevalidation(album))
                     {
                         albumsSkippedRevalidation++;
@@ -186,6 +188,13 @@ public class StagingAlbumRevalidationJob(
                             nameof(StagingAlbumRevalidationJob),
                             album.AlbumTitle(),
                             album.StatusReasons);
+                        OnProcessingEvent?.Invoke(
+                            this,
+                            new ProcessingEvent(ProcessingEventType.Processing,
+                                nameof(StagingAlbumRevalidationJob),
+                                albumsNeedingRevalidation.Length,
+                                albumsProcessed,
+                                $"Processed [{albumsProcessed}/{albumsNeedingRevalidation.Length}], revalidated [{albumsRevalidated}], skipped [{albumsSkippedRevalidation}]"));
                         continue;
                     }
 
@@ -275,8 +284,8 @@ public class StagingAlbumRevalidationJob(
                         new ProcessingEvent(ProcessingEventType.Processing,
                             nameof(StagingAlbumRevalidationJob),
                             albumsNeedingRevalidation.Length,
-                            albumsRevalidated,
-                            $"Revalidated [{albumsRevalidated}/{albumsNeedingRevalidation.Length}]"));
+                            albumsProcessed,
+                            $"Processed [{albumsProcessed}/{albumsNeedingRevalidation.Length}], revalidated [{albumsRevalidated}], skipped [{albumsSkippedRevalidation}]"));
                 }
                 catch (Exception ex)
                 {

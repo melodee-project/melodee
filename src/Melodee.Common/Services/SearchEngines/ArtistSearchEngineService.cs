@@ -249,6 +249,24 @@ public class ArtistSearchEngineService(
     }
 
     /// <summary>
+    ///     Returns whether the search should run extra compound-artist fallback provider lookups.
+    /// </summary>
+    public static bool ShouldAttemptCompoundArtistFallback(ArtistQuery originalQuery, bool bypassNegativeCache)
+    {
+        if (bypassNegativeCache)
+        {
+            return false;
+        }
+
+        if (originalQuery.AlbumKeyValues is null || originalQuery.AlbumKeyValues.Length == 0)
+        {
+            return false;
+        }
+
+        return GetCompoundArtistFallbackNames(originalQuery.Name).Length > 0;
+    }
+
+    /// <summary>
     ///     Returns whether an exception represents a transient DecentDB transaction conflict.
     /// </summary>
     public static bool IsDecentDbTransientTransactionConflict(Exception exception)
@@ -1064,8 +1082,11 @@ public class ArtistSearchEngineService(
                     {
                         var newArtist = await GetArtistFromSearchProviders(normalizedQuery, maxResultsValue, cancellationToken)
                             .ConfigureAwait(false);
-                        newArtist ??= await GetArtistFromCompoundFallbackAsync(normalizedQuery, maxResultsValue, cancellationToken)
-                            .ConfigureAwait(false);
+                        if (newArtist == null && ShouldAttemptCompoundArtistFallback(normalizedQuery, bypassNegativeCache))
+                        {
+                            newArtist = await GetArtistFromCompoundFallbackAsync(normalizedQuery, maxResultsValue, cancellationToken)
+                                .ConfigureAwait(false);
+                        }
                         if (newArtist != null)
                         {
                             var nameNormalized = newArtist.Name.ToNormalizedString() ?? newArtist.Name;

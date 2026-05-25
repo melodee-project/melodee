@@ -172,6 +172,38 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
     }
 
     [Fact]
+    public void ShouldAttemptCompoundArtistFallback_WithForcedRevalidation_ReturnsFalse()
+    {
+        var query = new ArtistQuery
+        {
+            Name = "Artist One feat. Artist Two",
+            AlbumKeyValues = [new KeyValue("2026", "SHAREDRELEASE")]
+        };
+
+        var result = ArtistSearchEngineService.ShouldAttemptCompoundArtistFallback(
+            query,
+            bypassNegativeCache: true);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void ShouldAttemptCompoundArtistFallback_WithAlbumEvidenceAndNormalSearch_ReturnsTrue()
+    {
+        var query = new ArtistQuery
+        {
+            Name = "Artist One feat. Artist Two",
+            AlbumKeyValues = [new KeyValue("2026", "SHAREDRELEASE")]
+        };
+
+        var result = ArtistSearchEngineService.ShouldAttemptCompoundArtistFallback(
+            query,
+            bypassNegativeCache: false);
+
+        Assert.True(result);
+    }
+
+    [Fact]
     public void IsDecentDbTransientTransactionConflict_WithConflictMessage_ReturnsTrue()
     {
         var exception = new InvalidOperationException("DecentDB error 4: transaction conflict");

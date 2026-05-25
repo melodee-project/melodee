@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Artist search persistence now retries transient DecentDB transaction conflicts while surfacing corruption errors without retrying them.
 - Compound release artists such as `Artist One feat. Artist Two` now get conservative fallback artist lookups when the fallback candidate has trusted identity data and matching release evidence.
 - Staging revalidation now skips albums whose artist metadata is blank or obviously unsearchable instead of repeatedly calling external artist providers.
+- Forced staging revalidation no longer expands compound artist names into multiple fallback provider searches, preventing `mcli library scan` from appearing hung on batches of invalid collaboration artists.
 
 ## [2.1.0] - 2026-05-24
 
