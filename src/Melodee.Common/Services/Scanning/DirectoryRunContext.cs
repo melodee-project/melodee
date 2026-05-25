@@ -20,6 +20,8 @@ public sealed record DirectoryRunPerformanceSummary(
     int ArtistSearchPersistenceRetries,
     int ArtistSearchPersistenceConflicts,
     int ArtistSearchPersistenceCorruptions,
+    int ArtistSearchReadErrors,
+    int ArtistSearchReadCorruptions,
     int AlbumsSkippedRevalidation,
     int AlbumsDeferredRevalidation,
     CacheStatistics ArtistSearchCache,
@@ -44,6 +46,8 @@ public sealed class DirectoryRunContext : IDisposable
     private int _artistSearchPersistenceRetries;
     private int _artistSearchPersistenceConflicts;
     private int _artistSearchPersistenceCorruptions;
+    private int _artistSearchReadErrors;
+    private int _artistSearchReadCorruptions;
     private int _albumsSkippedRevalidation;
     private int _albumsDeferredRevalidation;
 
@@ -212,6 +216,22 @@ public sealed class DirectoryRunContext : IDisposable
     }
 
     /// <summary>
+    ///     Records an artist search database read error.
+    /// </summary>
+    public void RecordArtistSearchReadError()
+    {
+        Interlocked.Increment(ref _artistSearchReadErrors);
+    }
+
+    /// <summary>
+    ///     Records an artist search database read corruption error.
+    /// </summary>
+    public void RecordArtistSearchReadCorruption()
+    {
+        Interlocked.Increment(ref _artistSearchReadCorruptions);
+    }
+
+    /// <summary>
     ///     Records a staging album skipped because it could not usefully be revalidated.
     /// </summary>
     public void RecordAlbumSkippedRevalidation()
@@ -244,6 +264,8 @@ public sealed class DirectoryRunContext : IDisposable
             ArtistSearchPersistenceRetries: _artistSearchPersistenceRetries,
             ArtistSearchPersistenceConflicts: _artistSearchPersistenceConflicts,
             ArtistSearchPersistenceCorruptions: _artistSearchPersistenceCorruptions,
+            ArtistSearchReadErrors: _artistSearchReadErrors,
+            ArtistSearchReadCorruptions: _artistSearchReadCorruptions,
             AlbumsSkippedRevalidation: _albumsSkippedRevalidation,
             AlbumsDeferredRevalidation: _albumsDeferredRevalidation,
             ArtistSearchCache: ArtistSearchCache.GetStatistics(),
@@ -299,12 +321,17 @@ public sealed class DirectoryRunContext : IDisposable
         if (summary.ArtistSearchPersistenceConflicts > 0 ||
             summary.ArtistSearchPersistenceRetries > 0 ||
             summary.ArtistSearchPersistenceCorruptions > 0 ||
+            summary.ArtistSearchReadErrors > 0 ||
+            summary.ArtistSearchReadCorruptions > 0 ||
             summary.AlbumsSkippedRevalidation > 0 ||
             summary.AlbumsDeferredRevalidation > 0)
         {
             Log.Information(
-                "[DirectoryRunContext] Artist persistence: {Conflicts} conflicts, {Retries} retries, {Corruptions} corruptions | " +
+                "[DirectoryRunContext] Artist search: {ReadErrors} read errors, {ReadCorruptions} read corruptions | " +
+                "Artist persistence: {Conflicts} conflicts, {Retries} retries, {Corruptions} corruptions | " +
                 "Revalidation skipped: {Skipped}, deferred: {Deferred}",
+                summary.ArtistSearchReadErrors,
+                summary.ArtistSearchReadCorruptions,
                 summary.ArtistSearchPersistenceConflicts,
                 summary.ArtistSearchPersistenceRetries,
                 summary.ArtistSearchPersistenceCorruptions,

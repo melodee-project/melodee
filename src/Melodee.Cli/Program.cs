@@ -9,6 +9,8 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        ATL.Settings.OutputStacktracesToConsole = false;
+
         // Support "mcli help [command path]" as an alias for "--help" / "<command> --help".
         // (Spectre.Console.Cli supports --help, but users commonly expect a help subcommand.)
         if (args.Length > 0 && string.Equals(args[0], "help", StringComparison.OrdinalIgnoreCase))

@@ -1,3 +1,4 @@
+using FluentAssertions;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Imaging;
@@ -15,6 +16,21 @@ namespace Melodee.Tests.Common.Services.Scanning;
 public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 {
     #region Helper Methods
+
+    [Fact]
+    public void FormatProcessingEventMessage_WithException_ReturnsSingleLineSummary()
+    {
+        var exception = new InvalidOperationException("Non-negative number required.\nStack detail");
+
+        var result = DirectoryProcessorToStagingService.FormatProcessingEventMessage(
+            "Processing Directory [{0}]",
+            exception,
+            "Album Name");
+
+        result.Should().Be("Error: Processing Directory [Album Name]: Non-negative number required. Stack detail");
+        result.Should().NotContain("System.InvalidOperationException");
+        result.Should().NotContain(" at ");
+    }
 
     private DirectoryProcessorToStagingService GetDirectoryProcessorService()
     {

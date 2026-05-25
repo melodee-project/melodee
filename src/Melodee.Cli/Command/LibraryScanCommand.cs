@@ -146,6 +146,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             NewArtistsCount = summary.NewArtistsCount + result.NewArtistsCount,
             NewAlbumsCount = summary.NewAlbumsCount + result.NewAlbumsCount,
             NewSongsCount = summary.NewSongsCount + result.NewSongsCount,
+            InboundProcessingErrors = summary.InboundProcessingErrors + result.InboundProcessingErrors,
             AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
             AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
             AlbumsSkippedRevalidation = summary.AlbumsSkippedRevalidation + result.AlbumsSkippedRevalidation,
@@ -228,6 +229,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 
         var summary = new ScanStepResult();
         var errors = new List<string>();
+        var warnings = new List<string>();
         using var scanRunContext = new DirectoryRunContext();
 
         var steps = new (string Name, Func<ScanProgressState?, Task<ScanStepResult?>> Execute)[]
@@ -375,7 +377,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             })
         };
 
-        var stepResults = new Dictionary<string, (bool Success, TimeSpan Elapsed)>();
+        var stepResults = new Dictionary<string, (bool Success, bool HasWarnings, TimeSpan Elapsed)>();
 
         if (isSilent)
         {
@@ -388,12 +390,16 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     if (result is not null)
                     {
                         summary = AddStepResult(summary, result);
+                        if (result.HasWarnings)
+                        {
+                            warnings.Add($"{name}: {result.NonFatalErrorCount:N0} non-fatal processing error(s); see log for details.");
+                        }
                     }
-                    stepResults[name] = (true, Stopwatch.GetElapsedTime(stepStartTime));
+                    stepResults[name] = (true, result?.HasWarnings ?? false, Stopwatch.GetElapsedTime(stepStartTime));
                 }
                 catch (Exception ex)
                 {
-                    stepResults[name] = (false, Stopwatch.GetElapsedTime(stepStartTime));
+                    stepResults[name] = (false, false, Stopwatch.GetElapsedTime(stepStartTime));
                     errors.Add($"{name}: {ex.Message}");
                     logger.Error(ex, "Error during {StepName}", name);
                 }
@@ -435,14 +441,20 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                             if (result is not null)
                             {
                                 summary = AddStepResult(summary, result);
+                                if (result.HasWarnings)
+                                {
+                                    warnings.Add($"{name}: {result.NonFatalErrorCount:N0} non-fatal processing error(s); see log for details.");
+                                }
                             }
 
                             var elapsed = Stopwatch.GetElapsedTime(stepStartTime);
-                            stepTask.Description = $"[green]✓ {name}[/] [dim]({elapsed:mm\\:ss})[/]";
+                            stepTask.Description = result?.HasWarnings == true
+                                ? $"[yellow]! {name}[/] [dim]({elapsed:mm\\:ss}, warnings)[/]"
+                                : $"[green]✓ {name}[/] [dim]({elapsed:mm\\:ss})[/]";
                             stepTask.MaxValue = 100;
                             stepTask.Value = 100;
                             stepTask.IsIndeterminate = false;
-                            stepResults[name] = (true, elapsed);
+                            stepResults[name] = (true, result?.HasWarnings ?? false, elapsed);
                         }
                         catch (Exception ex)
                         {
@@ -451,7 +463,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                             stepTask.MaxValue = 100;
                             stepTask.Value = 100;
                             stepTask.IsIndeterminate = false;
-                            stepResults[name] = (false, elapsed);
+                            stepResults[name] = (false, false, elapsed);
                             errors.Add($"{name}: {ex.Message}");
                             logger.Error(ex, "Error during {StepName}", name);
                         }
@@ -466,6 +478,14 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 
         var totalElapsed = Stopwatch.GetElapsedTime(overallStartTime);
         var performanceSummary = scanRunContext.GetPerformanceSummary();
+        if (performanceSummary.ArtistSearchReadErrors > 0)
+        {
+            warnings.Add($"Artist search: {performanceSummary.ArtistSearchReadErrors:N0} read error(s); see log for details.");
+        }
+        if (performanceSummary.ArtistSearchReadCorruptions > 0)
+        {
+            warnings.Add($"Artist search DecentDB corruption detected {performanceSummary.ArtistSearchReadCorruptions:N0} time(s); rebuild or replace the artist search database.");
+        }
 
         if (settings.Json)
         {
@@ -478,6 +498,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                 {
                     name = s.Key,
                     success = s.Value.Success,
+                    warnings = s.Value.HasWarnings,
                     durationSeconds = s.Value.Elapsed.TotalSeconds
                 }),
                 summary = new
@@ -486,7 +507,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     {
                         newArtists = summary.NewArtistsCount,
                         newAlbums = summary.NewAlbumsCount,
-                        newSongs = summary.NewSongsCount
+                        newSongs = summary.NewSongsCount,
+                        processingErrors = summary.InboundProcessingErrors
                     },
                     stagingRevalidation = new
                     {
@@ -513,6 +535,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                         songsInserted = summary.SongsInserted
                     }
                 },
+                warnings,
                 performance = new
                 {
                     runtimeMs = performanceSummary.RuntimeMs,
@@ -526,6 +549,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     artistSearchPersistenceRetries = performanceSummary.ArtistSearchPersistenceRetries,
                     artistSearchPersistenceConflicts = performanceSummary.ArtistSearchPersistenceConflicts,
                     artistSearchPersistenceCorruptions = performanceSummary.ArtistSearchPersistenceCorruptions,
+                    artistSearchReadErrors = performanceSummary.ArtistSearchReadErrors,
+                    artistSearchReadCorruptions = performanceSummary.ArtistSearchReadCorruptions,
                     albumsSkippedRevalidation = performanceSummary.AlbumsSkippedRevalidation,
                     albumsDeferredRevalidation = performanceSummary.AlbumsDeferredRevalidation,
                     artistSearchCache = new
@@ -567,6 +592,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         AnsiConsole.WriteLine();
 
         var hasActivity = summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 || summary.NewSongsCount > 0 ||
+                          summary.InboundProcessingErrors > 0 ||
                           summary.AlbumsRevalidated > 0 || summary.AlbumsSkippedRevalidation > 0 ||
                           summary.AlbumsDeferredRevalidation > 0 || summary.AlbumsReadyToMove > 0 ||
                           summary.AlbumsHandledByStorageTransfer > 0 || summary.AlbumsSkippedByStatus > 0 ||
@@ -583,7 +609,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             summaryTable.AddColumn("Category");
             summaryTable.AddColumn(new TableColumn("Count").RightAligned());
 
-            if (summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 || summary.NewSongsCount > 0)
+            if (summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 ||
+                summary.NewSongsCount > 0 || summary.InboundProcessingErrors > 0)
             {
                 summaryTable.AddRow("[bold]Inbound Processing[/]", "");
                 if (summary.NewArtistsCount > 0)
@@ -592,6 +619,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     summaryTable.AddRow("  New albums discovered", FormatNumber(summary.NewAlbumsCount));
                 if (summary.NewSongsCount > 0)
                     summaryTable.AddRow("  New songs discovered", FormatNumber(summary.NewSongsCount));
+                if (summary.InboundProcessingErrors > 0)
+                    summaryTable.AddRow("  Processing errors", $"[yellow]{FormatNumber(summary.InboundProcessingErrors)}[/]");
             }
 
             if (summary.AlbumsRevalidated > 0 || summary.AlbumsNowValid > 0 ||
@@ -663,6 +692,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                                      performanceSummary.ArtistSearchPersistenceRetries > 0 ||
                                      performanceSummary.ArtistSearchPersistenceConflicts > 0 ||
                                      performanceSummary.ArtistSearchPersistenceCorruptions > 0 ||
+                                     performanceSummary.ArtistSearchReadErrors > 0 ||
+                                     performanceSummary.ArtistSearchReadCorruptions > 0 ||
                                      performanceSummary.AlbumsSkippedRevalidation > 0 ||
                                      performanceSummary.AlbumsDeferredRevalidation > 0;
         if (hasPerformanceActivity)
@@ -695,6 +726,12 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                 performanceTable.AddRow("DecentDB retries", FormatNumber(performanceSummary.ArtistSearchPersistenceRetries));
                 performanceTable.AddRow("DecentDB corruptions", FormatNumber(performanceSummary.ArtistSearchPersistenceCorruptions));
             }
+            if (performanceSummary.ArtistSearchReadErrors > 0 ||
+                performanceSummary.ArtistSearchReadCorruptions > 0)
+            {
+                performanceTable.AddRow("Artist search read errors", FormatNumber(performanceSummary.ArtistSearchReadErrors));
+                performanceTable.AddRow("Artist search corruptions", FormatNumber(performanceSummary.ArtistSearchReadCorruptions));
+            }
             if (performanceSummary.AlbumsSkippedRevalidation > 0)
             {
                 performanceTable.AddRow("Revalidation skipped", FormatNumber(performanceSummary.AlbumsSkippedRevalidation));
@@ -705,6 +742,16 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             }
 
             AnsiConsole.Write(performanceTable);
+        }
+
+        if (warnings.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"[yellow]Warnings encountered: {warnings.Count}[/]");
+            foreach (var warning in warnings)
+            {
+                AnsiConsole.MarkupLine($"  [yellow]• {Markup.Escape(warning)}[/]");
+            }
         }
 
         if (errors.Count > 0)

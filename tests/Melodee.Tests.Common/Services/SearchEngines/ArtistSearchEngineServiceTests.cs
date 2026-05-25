@@ -223,6 +223,16 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
         Assert.True(result);
     }
 
+    [Fact]
+    public void IsDecentDbCorruption_WithDatabaseCorruptionMessage_ReturnsTrue()
+    {
+        var exception = new InvalidOperationException("DecentDB error 2: database corruption: page WAL frame used page id 0");
+
+        var result = ArtistSearchEngineService.IsDecentDbCorruption(exception);
+
+        Assert.True(result);
+    }
+
     #endregion
 
     #region ListAsync Tests

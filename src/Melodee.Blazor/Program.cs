@@ -70,6 +70,7 @@ builder.Configuration
 
 Trace.Listeners.Clear();
 Trace.Listeners.Add(new ConsoleTraceListener());
+ATL.Settings.OutputStacktracesToConsole = false;
 
 builder.Host.UseSerilog((hostingContext, loggerConfiguration)
     => loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration));

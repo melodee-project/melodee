@@ -284,6 +284,8 @@ public class ArtistSearchEngineService(
         var message = exception.ToString();
         return message.Contains("corrupt", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("checksum", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("database corruption", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("DecentDB error 2", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("DecentDB error 11", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -1225,6 +1227,12 @@ public class ArtistSearchEngineService(
         }
         catch (Exception e)
         {
+            runContext?.RecordArtistSearchReadError();
+            if (IsDecentDbCorruption(e))
+            {
+                runContext?.RecordArtistSearchReadCorruption();
+            }
+
             Logger.Error(e, "Attempting to Search [{Artist}]", normalizedQuery.Name);
         }
 

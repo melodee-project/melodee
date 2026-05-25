@@ -4,6 +4,7 @@ public sealed record ScanStepResult(
     int NewArtistsCount = 0,
     int NewAlbumsCount = 0,
     int NewSongsCount = 0,
+    int InboundProcessingErrors = 0,
     int AlbumsRevalidated = 0,
     int AlbumsNowValid = 0,
     int AlbumsSkippedRevalidation = 0,
@@ -20,4 +21,8 @@ public sealed record ScanStepResult(
     IReadOnlyDictionary<string, int>? AlbumsSkippedByReason = null)
 {
     public int AlbumsHandledByStorageTransfer => AlbumsMoved + AlbumsMergedWithExisting;
+
+    public int NonFatalErrorCount => InboundProcessingErrors;
+
+    public bool HasWarnings => NonFatalErrorCount > 0;
 }

@@ -531,6 +531,12 @@ public sealed class DirectoryProcessorToStagingService(
             Log.Write(logLevel, messageTemplate, args);
         }
 
+        OnProcessingEvent?.Invoke(this, FormatProcessingEventMessage(messageTemplate, exception, args));
+    }
+
+    public static string FormatProcessingEventMessage(string messageTemplate, Exception? exception = null,
+        params object[] args)
+    {
         var eventMessage = messageTemplate;
         if (args.Length > 0)
         {
@@ -538,13 +544,15 @@ public sealed class DirectoryProcessorToStagingService(
             {
                 eventMessage = Smart.Format(eventMessage, args);
             }
-            catch (Exception e)
+            catch
             {
-                Trace.WriteLine(e);
+                eventMessage = $"{messageTemplate} [{string.Join(", ", args.Select(x => x?.ToString() ?? string.Empty))}]";
             }
         }
 
-        OnProcessingEvent?.Invoke(this, exception?.ToString() ?? eventMessage);
+        return exception is null
+            ? eventMessage.ReplaceLineEndings(" ")
+            : $"Error: {eventMessage}: {exception.Message}".ReplaceLineEndings(" ");
     }
 
     private async Task<(int, int)> ProcessSingleDirectoryAsync(

@@ -132,7 +132,8 @@ public sealed class LibraryInboundProcessJob(
             context.Result = new ScanStepResult(
                 NewArtistsCount: result.Data.NewArtistsCount,
                 NewAlbumsCount: result.Data.NewAlbumsCount,
-                NewSongsCount: result.Data.NewSongsCount);
+                NewSongsCount: result.Data.NewSongsCount,
+                InboundProcessingErrors: result.Errors?.Count() ?? 0);
 
             // Chain to StagingAutoMoveJob if this was a scheduled run (not manual) and we processed something,
             // or if ChainOnComplete flag is set (for programmatic triggers like after upload)
