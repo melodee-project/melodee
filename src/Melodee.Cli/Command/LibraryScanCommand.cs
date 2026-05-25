@@ -4,8 +4,10 @@ using Melodee.Cli.CommandSettings;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Jobs;
+using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services;
+using Melodee.Common.Services.Models;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.SearchEngines;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +35,40 @@ namespace Melodee.Cli.Command;
 /// </remarks>
 public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 {
+    private sealed class ScanProgressState
+    {
+        private readonly object _lock = new();
+        private int _current;
+        private int _max;
+        private string _message = "Starting...";
+
+        public void SetMessage(string message)
+        {
+            lock (_lock)
+            {
+                _message = message;
+            }
+        }
+
+        public void Update(int current, int max, string message)
+        {
+            lock (_lock)
+            {
+                _current = Math.Max(0, current);
+                _max = Math.Max(0, max);
+                _message = message;
+            }
+        }
+
+        public (int Current, int Max, string Message) Snapshot()
+        {
+            lock (_lock)
+            {
+                return (_current, _max, _message);
+            }
+        }
+    }
+
     private static string FormatNumber(long number)
     {
         return number.ToString("N0");
@@ -41,6 +77,66 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
     private static string FormatDurationMs(long milliseconds)
     {
         return TimeSpan.FromMilliseconds(milliseconds).ToString(@"hh\:mm\:ss");
+    }
+
+    private static string TrimProgressMessage(string message)
+    {
+        var singleLine = message
+            .ReplaceLineEndings(" ")
+            .Trim();
+
+        return singleLine.Length > 90 ? singleLine[..87] + "..." : singleLine;
+    }
+
+    private static void ApplyProcessingEvent(ScanProgressState? progress, ProcessingEvent processingEvent)
+    {
+        progress?.Update(
+            processingEvent.Current,
+            processingEvent.Max,
+            processingEvent.Message);
+    }
+
+    private static void UpdateProgressTask(ProgressTask stepTask, string stepName, ScanProgressState? progress)
+    {
+        if (progress is null)
+        {
+            return;
+        }
+
+        var (current, max, message) = progress.Snapshot();
+        if (max > 0)
+        {
+            var maxValue = Math.Max(1, max);
+            stepTask.IsIndeterminate = false;
+            stepTask.MaxValue = maxValue;
+            stepTask.Value = Math.Min(current, maxValue);
+        }
+        else
+        {
+            stepTask.IsIndeterminate = true;
+        }
+
+        stepTask.Description = $"[green]{Markup.Escape(stepName)}[/] [dim]{Markup.Escape(TrimProgressMessage(message))}[/]";
+    }
+
+    private static async Task<ScanStepResult?> ExecuteStepWithProgressAsync(
+        string stepName,
+        Func<ScanProgressState?, Task<ScanStepResult?>> execute,
+        ProgressTask stepTask,
+        CancellationToken cancellationToken)
+    {
+        var progress = new ScanProgressState();
+        var executionTask = execute(progress);
+
+        while (!executionTask.IsCompleted)
+        {
+            UpdateProgressTask(stepTask, stepName, progress);
+            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+        }
+
+        UpdateProgressTask(stepTask, stepName, progress);
+
+        return await executionTask.ConfigureAwait(false);
     }
 
     private static ScanStepResult AddStepResult(ScanStepResult summary, ScanStepResult result)
@@ -53,6 +149,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
             AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
             AlbumsSkippedRevalidation = summary.AlbumsSkippedRevalidation + result.AlbumsSkippedRevalidation,
+            AlbumsDeferredRevalidation = summary.AlbumsDeferredRevalidation + result.AlbumsDeferredRevalidation,
             AlbumsReadyToMove = summary.AlbumsReadyToMove + result.AlbumsReadyToMove,
             AlbumsMoved = summary.AlbumsMoved + result.AlbumsMoved,
             AlbumsMergedWithExisting = summary.AlbumsMergedWithExisting + result.AlbumsMergedWithExisting,
@@ -121,6 +218,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         var directoryProcessor = scope.ServiceProvider.GetRequiredService<DirectoryProcessorToStagingService>();
         var albumDiscoveryService = scope.ServiceProvider.GetRequiredService<AlbumDiscoveryService>();
         var artistSearchEngineService = scope.ServiceProvider.GetRequiredService<ArtistSearchEngineService>();
+        var revalidationStateStore = scope.ServiceProvider.GetRequiredService<IStagingAlbumRevalidationStateStore>();
         var serializer = scope.ServiceProvider.GetRequiredService<ISerializer>();
         var fileSystemService = scope.ServiceProvider.GetRequiredService<IFileSystemService>();
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();
@@ -132,42 +230,148 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         var errors = new List<string>();
         using var scanRunContext = new DirectoryRunContext();
 
-        var steps = new (string Name, Func<Task<ScanStepResult?>> Execute)[]
+        var steps = new (string Name, Func<ScanProgressState?, Task<ScanStepResult?>> Execute)[]
         {
-            ("Processing inbound files", async () =>
+            ("Processing inbound files", async progress =>
             {
+                progress?.SetMessage("Discovering inbound directories...");
                 var job = new LibraryInboundProcessJob(logger, configFactory, libraryService, directoryProcessor, schedulerFactory);
                 var jobContext = new MelodeeJobExecutionContext(cancellationToken);
                 jobContext.Put(MelodeeJobExecutionContext.ForceMode, settings.ForceMode);
                 jobContext.Put(MelodeeJobExecutionContext.Verbose, settings.Verbose);
                 jobContext.Put(MelodeeJobExecutionContext.DirectoryRunContext, scanRunContext);
-                await job.Execute(jobContext);
-                return jobContext.Result as ScanStepResult;
+                var totalDirectories = 0;
+                var processedDirectories = 0;
+
+                void OnProcessingStart(object? sender, int count)
+                {
+                    totalDirectories = count;
+                    progress?.Update(0, totalDirectories, $"Found [{count:N0}] directories to process");
+                }
+
+                void OnDirectoryProcessed(object? sender, FileSystemDirectoryInfo directoryInfo)
+                {
+                    var current = Interlocked.Increment(ref processedDirectories);
+                    progress?.Update(current, totalDirectories, $"Processed [{directoryInfo.Name}]");
+                }
+
+                void OnProcessingEvent(object? sender, string message)
+                {
+                    progress?.Update(processedDirectories, totalDirectories, message);
+                }
+
+                if (progress is not null)
+                {
+                    directoryProcessor.OnProcessingStart += OnProcessingStart;
+                    directoryProcessor.OnDirectoryProcessed += OnDirectoryProcessed;
+                    directoryProcessor.OnProcessingEvent += OnProcessingEvent;
+                }
+
+                try
+                {
+                    await job.Execute(jobContext);
+                    return jobContext.Result as ScanStepResult;
+                }
+                finally
+                {
+                    if (progress is not null)
+                    {
+                        directoryProcessor.OnProcessingStart -= OnProcessingStart;
+                        directoryProcessor.OnDirectoryProcessed -= OnDirectoryProcessed;
+                        directoryProcessor.OnProcessingEvent -= OnProcessingEvent;
+                    }
+                }
             }),
-            ("Revalidating staging albums", async () =>
+            ("Revalidating staging albums", async progress =>
             {
-                var job = new StagingAlbumRevalidationJob(logger, configFactory, libraryService, albumDiscoveryService, artistSearchEngineService, serializer, fileSystemService);
+                progress?.SetMessage("Discovering staged albums...");
+                var job = new StagingAlbumRevalidationJob(logger, configFactory, libraryService, albumDiscoveryService, artistSearchEngineService, serializer, fileSystemService, revalidationStateStore);
                 var jobContext = new MelodeeJobExecutionContext(cancellationToken);
                 jobContext.Put(MelodeeJobExecutionContext.ForceMode, settings.ForceMode);
                 jobContext.Put(MelodeeJobExecutionContext.DirectoryRunContext, scanRunContext);
-                await job.Execute(jobContext);
-                return jobContext.Result as ScanStepResult;
+
+                void OnProcessingEvent(object? sender, ProcessingEvent processingEvent)
+                {
+                    ApplyProcessingEvent(progress, processingEvent);
+                }
+
+                if (progress is not null)
+                {
+                    job.OnProcessingEvent += OnProcessingEvent;
+                }
+
+                try
+                {
+                    await job.Execute(jobContext);
+                    return jobContext.Result as ScanStepResult;
+                }
+                finally
+                {
+                    if (progress is not null)
+                    {
+                        job.OnProcessingEvent -= OnProcessingEvent;
+                    }
+                }
             }),
-            ("Moving approved albums to storage", async () =>
+            ("Moving approved albums to storage", async progress =>
             {
+                progress?.SetMessage("Finding approved staging albums...");
                 var job = new StagingAutoMoveJob(logger, configFactory, libraryService, schedulerFactory);
                 var jobContext = new MelodeeJobExecutionContext(cancellationToken);
-                await job.Execute(jobContext);
-                return jobContext.Result as ScanStepResult;
+
+                void OnProcessingEvent(object? sender, ProcessingEvent processingEvent)
+                {
+                    ApplyProcessingEvent(progress, processingEvent);
+                }
+
+                if (progress is not null)
+                {
+                    libraryService.OnProcessingProgressEvent += OnProcessingEvent;
+                }
+
+                try
+                {
+                    await job.Execute(jobContext);
+                    return jobContext.Result as ScanStepResult;
+                }
+                finally
+                {
+                    if (progress is not null)
+                    {
+                        libraryService.OnProcessingProgressEvent -= OnProcessingEvent;
+                    }
+                }
             }),
-            ("Inserting albums into database", async () =>
+            ("Inserting albums into database", async progress =>
             {
+                progress?.SetMessage("Discovering library metadata...");
                 var job = new LibraryInsertJob(logger, configFactory, libraryService, serializer, dbContextFactory, artistService, albumService, albumDiscoveryService, directoryProcessor, bus);
                 var jobContext = new MelodeeJobExecutionContext(cancellationToken);
                 jobContext.Put(MelodeeJobExecutionContext.ForceMode, settings.ForceMode);
                 jobContext.Put(MelodeeJobExecutionContext.Verbose, settings.Verbose);
-                await job.Execute(jobContext);
-                return jobContext.Result as ScanStepResult;
+
+                void OnProcessingEvent(object? sender, ProcessingEvent processingEvent)
+                {
+                    ApplyProcessingEvent(progress, processingEvent);
+                }
+
+                if (progress is not null)
+                {
+                    job.OnProcessingEvent += OnProcessingEvent;
+                }
+
+                try
+                {
+                    await job.Execute(jobContext);
+                    return jobContext.Result as ScanStepResult;
+                }
+                finally
+                {
+                    if (progress is not null)
+                    {
+                        job.OnProcessingEvent -= OnProcessingEvent;
+                    }
+                }
             })
         };
 
@@ -180,7 +384,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                 var stepStartTime = Stopwatch.GetTimestamp();
                 try
                 {
-                    var result = await execute();
+                    var result = await execute(null);
                     if (result is not null)
                     {
                         summary = AddStepResult(summary, result);
@@ -223,7 +427,11 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 
                         try
                         {
-                            var result = await execute();
+                            var result = await ExecuteStepWithProgressAsync(
+                                name,
+                                execute,
+                                stepTask,
+                                cancellationToken).ConfigureAwait(false);
                             if (result is not null)
                             {
                                 summary = AddStepResult(summary, result);
@@ -231,8 +439,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 
                             var elapsed = Stopwatch.GetElapsedTime(stepStartTime);
                             stepTask.Description = $"[green]✓ {name}[/] [dim]({elapsed:mm\\:ss})[/]";
-                            stepTask.Value = 100;
                             stepTask.MaxValue = 100;
+                            stepTask.Value = 100;
                             stepTask.IsIndeterminate = false;
                             stepResults[name] = (true, elapsed);
                         }
@@ -240,8 +448,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                         {
                             var elapsed = Stopwatch.GetElapsedTime(stepStartTime);
                             stepTask.Description = $"[red]✗ {name}[/] [dim]({elapsed:mm\\:ss})[/]";
-                            stepTask.Value = 100;
                             stepTask.MaxValue = 100;
+                            stepTask.Value = 100;
                             stepTask.IsIndeterminate = false;
                             stepResults[name] = (false, elapsed);
                             errors.Add($"{name}: {ex.Message}");
@@ -284,7 +492,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     {
                         albumsRevalidated = summary.AlbumsRevalidated,
                         albumsNowValid = summary.AlbumsNowValid,
-                        albumsSkippedRevalidation = summary.AlbumsSkippedRevalidation
+                        albumsSkippedRevalidation = summary.AlbumsSkippedRevalidation,
+                        albumsDeferredRevalidation = summary.AlbumsDeferredRevalidation
                     },
                     storageTransfer = new
                     {
@@ -318,6 +527,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     artistSearchPersistenceConflicts = performanceSummary.ArtistSearchPersistenceConflicts,
                     artistSearchPersistenceCorruptions = performanceSummary.ArtistSearchPersistenceCorruptions,
                     albumsSkippedRevalidation = performanceSummary.AlbumsSkippedRevalidation,
+                    albumsDeferredRevalidation = performanceSummary.AlbumsDeferredRevalidation,
                     artistSearchCache = new
                     {
                         entries = performanceSummary.ArtistSearchCache.TotalEntries,
@@ -357,7 +567,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         AnsiConsole.WriteLine();
 
         var hasActivity = summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 || summary.NewSongsCount > 0 ||
-                          summary.AlbumsRevalidated > 0 || summary.AlbumsSkippedRevalidation > 0 || summary.AlbumsReadyToMove > 0 ||
+                          summary.AlbumsRevalidated > 0 || summary.AlbumsSkippedRevalidation > 0 ||
+                          summary.AlbumsDeferredRevalidation > 0 || summary.AlbumsReadyToMove > 0 ||
                           summary.AlbumsHandledByStorageTransfer > 0 || summary.AlbumsSkippedByStatus > 0 ||
                           summary.AlbumsSkippedAsDuplicateDirectory > 0 || summary.AlbumsFailedToLoad > 0 ||
                           summary.ArtistsInserted > 0 || summary.AlbumsInserted > 0 || summary.SongsInserted > 0;
@@ -383,7 +594,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     summaryTable.AddRow("  New songs discovered", FormatNumber(summary.NewSongsCount));
             }
 
-            if (summary.AlbumsRevalidated > 0 || summary.AlbumsNowValid > 0 || summary.AlbumsSkippedRevalidation > 0)
+            if (summary.AlbumsRevalidated > 0 || summary.AlbumsNowValid > 0 ||
+                summary.AlbumsSkippedRevalidation > 0 || summary.AlbumsDeferredRevalidation > 0)
             {
                 summaryTable.AddRow("[bold]Staging Revalidation[/]", "");
                 if (summary.AlbumsRevalidated > 0)
@@ -392,6 +604,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     summaryTable.AddRow("  Albums now valid", $"[green]{FormatNumber(summary.AlbumsNowValid)}[/]");
                 if (summary.AlbumsSkippedRevalidation > 0)
                     summaryTable.AddRow("  Albums skipped", $"[yellow]{FormatNumber(summary.AlbumsSkippedRevalidation)}[/]");
+                if (summary.AlbumsDeferredRevalidation > 0)
+                    summaryTable.AddRow("  Albums deferred", $"[yellow]{FormatNumber(summary.AlbumsDeferredRevalidation)}[/]");
             }
 
             if (summary.AlbumsReadyToMove > 0 ||
@@ -449,7 +663,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                                      performanceSummary.ArtistSearchPersistenceRetries > 0 ||
                                      performanceSummary.ArtistSearchPersistenceConflicts > 0 ||
                                      performanceSummary.ArtistSearchPersistenceCorruptions > 0 ||
-                                     performanceSummary.AlbumsSkippedRevalidation > 0;
+                                     performanceSummary.AlbumsSkippedRevalidation > 0 ||
+                                     performanceSummary.AlbumsDeferredRevalidation > 0;
         if (hasPerformanceActivity)
         {
             AnsiConsole.WriteLine();
@@ -483,6 +698,10 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             if (performanceSummary.AlbumsSkippedRevalidation > 0)
             {
                 performanceTable.AddRow("Revalidation skipped", FormatNumber(performanceSummary.AlbumsSkippedRevalidation));
+            }
+            if (performanceSummary.AlbumsDeferredRevalidation > 0)
+            {
+                performanceTable.AddRow("Revalidation deferred", FormatNumber(performanceSummary.AlbumsDeferredRevalidation));
             }
 
             AnsiConsole.Write(performanceTable);

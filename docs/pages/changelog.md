@@ -29,7 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced the top-navbar `Documentation` link with `News` so release posts are easier to find from the docs site.
 - Expanded `mcli library scan` storage-transfer reporting to separate ready albums, newly moved albums, albums merged with existing storage, duplicate-prefixed staging directories, failed metadata loads, and albums left in staging with their validation reason counts.
 - Added `mcli library scan` performance reporting for artist lookup cache behavior, conversion time, copy time, revalidation skips, and DecentDB artist-search persistence retry counts.
+- `mcli library scan` now shows live progress messages and item counts for inbound processing, staging revalidation, storage transfer, and database insert work instead of leaving active steps at an apparent 0%.
 - Bounded concurrent media conversions during inbound processing to reduce CPU and disk saturation on large batch scans.
+- Staging artist revalidation now uses a staging-local `.melodee-revalidation.ddb` retry state database so repeated scans defer recently failed albums instead of re-querying every invalid staged release on every run; the state database is recreated automatically if missing or corrupt.
 
 ### Fixed
 

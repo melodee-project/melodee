@@ -11,6 +11,7 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Models;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.SearchEngines;
+using Melodee.Common.Utility;
 using Quartz;
 using Serilog;
 
@@ -61,7 +62,8 @@ public class StagingAlbumRevalidationJob(
     AlbumDiscoveryService albumDiscoveryService,
     ArtistSearchEngineService artistSearchEngineService,
     ISerializer serializer,
-    IFileSystemService fileSystemService) : JobBase(logger, configurationFactory)
+    IFileSystemService fileSystemService,
+    IStagingAlbumRevalidationStateStore revalidationStateStore) : JobBase(logger, configurationFactory)
 {
     /// <summary>
     ///     This is raised when a Log event happens to return activity to caller.
@@ -99,7 +101,9 @@ public class StagingAlbumRevalidationJob(
         var albumsRevalidated = 0;
         var albumsNowValid = 0;
         var albumsSkippedRevalidation = 0;
+        var albumsDeferredRevalidation = 0;
         var dataMap = context.JobDetail.JobDataMap;
+        var forceMode = SafeParser.ToBoolean(context.Get(MelodeeJobExecutionContext.ForceMode));
         var sharedRunContext = context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.DirectoryRunContext)
             ? context.MergedJobDataMap[MelodeeJobExecutionContext.DirectoryRunContext] as DirectoryRunContext
             : null;
@@ -161,6 +165,12 @@ public class StagingAlbumRevalidationJob(
                 nameof(StagingAlbumRevalidationJob),
                 albumsNeedingRevalidation.Length);
 
+            await using var revalidationStateSession = await OpenRevalidationStateSessionAsync(
+                    stagingLibrary.Path,
+                    albumsNeedingRevalidation,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
+
             OnProcessingEvent?.Invoke(
                 this,
                 new ProcessingEvent(ProcessingEventType.Start,
@@ -179,10 +189,34 @@ public class StagingAlbumRevalidationJob(
                 try
                 {
                     albumsProcessed++;
+                    var now = DateTimeOffset.UtcNow;
+                    var revalidationDecision = revalidationStateSession.GetDecision(album, now, forceMode);
+                    if (!revalidationDecision.IsDue)
+                    {
+                        albumsDeferredRevalidation++;
+                        activeRunContext.RecordAlbumDeferredRevalidation();
+                        Logger.Debug(
+                            "[{JobName}] Deferring album [{Album}] artist revalidation until [{NextAttemptAt}] after [{AttemptCount}] attempts",
+                            nameof(StagingAlbumRevalidationJob),
+                            album.AlbumTitle(),
+                            revalidationDecision.NextAttemptAt,
+                            revalidationDecision.AttemptCount);
+                        OnProcessingEvent?.Invoke(
+                            this,
+                            new ProcessingEvent(ProcessingEventType.Processing,
+                                nameof(StagingAlbumRevalidationJob),
+                                albumsNeedingRevalidation.Length,
+                                albumsProcessed,
+                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsSkippedRevalidation, albumsDeferredRevalidation)));
+                        continue;
+                    }
+
                     if (!CanAttemptArtistRevalidation(album))
                     {
                         albumsSkippedRevalidation++;
                         activeRunContext.RecordAlbumSkippedRevalidation();
+                        revalidationStateSession.RecordAttempt(album, now, "ArtistDataNotSearchable");
+                        await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
                         Logger.Debug(
                             "[{JobName}] Skipping album [{Album}] revalidation because artist data is not searchable: [{Reasons}]",
                             nameof(StagingAlbumRevalidationJob),
@@ -194,14 +228,16 @@ public class StagingAlbumRevalidationJob(
                                 nameof(StagingAlbumRevalidationJob),
                                 albumsNeedingRevalidation.Length,
                                 albumsProcessed,
-                                $"Processed [{albumsProcessed}/{albumsNeedingRevalidation.Length}], revalidated [{albumsRevalidated}], skipped [{albumsSkippedRevalidation}]"));
+                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsSkippedRevalidation, albumsDeferredRevalidation)));
                         continue;
                     }
 
                     var shouldRevalidateAlbum = album.Artist.IsValid();
+                    var artistLookupAttempted = false;
 
                     if (!shouldRevalidateAlbum)
                     {
+                        artistLookupAttempted = true;
                         var searchRequest = album.Artist.ToArtistQuery([
                             new KeyValue((album.AlbumYear() ?? 0).ToString(),
                                 album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
@@ -250,7 +286,7 @@ public class StagingAlbumRevalidationJob(
                         album.ValidationMessages = validationResult.Data.Messages ?? [];
                         album.Status = validationResult.Data.AlbumStatus;
                         album.StatusReasons = validationResult.Data.AlbumStatusReasons;
-                        album.Modified = DateTimeOffset.UtcNow;
+                        album.Modified = now;
 
                         var jsonPath = fileSystemService.CombinePath(album.Directory.FullName(), Album.JsonFileName);
                         var serialized = serializer.Serialize(album);
@@ -260,6 +296,16 @@ public class StagingAlbumRevalidationJob(
                             context.CancellationToken).ConfigureAwait(false);
 
                         albumsRevalidated++;
+
+                        if (album.Status == AlbumStatus.Ok || !NeedsArtistRevalidation(album))
+                        {
+                            revalidationStateSession.RecordSuccess(album);
+                        }
+                        else
+                        {
+                            revalidationStateSession.RecordAttempt(album, now, "StillInvalidAfterValidation");
+                        }
+                        await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
 
                         if (album.Status == AlbumStatus.Ok)
                         {
@@ -278,6 +324,11 @@ public class StagingAlbumRevalidationJob(
                                 album.StatusReasons);
                         }
                     }
+                    else if (artistLookupAttempted)
+                    {
+                        revalidationStateSession.RecordAttempt(album, now, "ArtistLookupNoMatch");
+                        await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
+                    }
 
                     OnProcessingEvent?.Invoke(
                         this,
@@ -285,7 +336,7 @@ public class StagingAlbumRevalidationJob(
                             nameof(StagingAlbumRevalidationJob),
                             albumsNeedingRevalidation.Length,
                             albumsProcessed,
-                            $"Processed [{albumsProcessed}/{albumsNeedingRevalidation.Length}], revalidated [{albumsRevalidated}], skipped [{albumsSkippedRevalidation}]"));
+                            ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsSkippedRevalidation, albumsDeferredRevalidation)));
                 }
                 catch (Exception ex)
                 {
@@ -304,7 +355,8 @@ public class StagingAlbumRevalidationJob(
             context.Result = new ScanStepResult(
                 AlbumsRevalidated: albumsRevalidated,
                 AlbumsNowValid: albumsNowValid,
-                AlbumsSkippedRevalidation: albumsSkippedRevalidation);
+                AlbumsSkippedRevalidation: albumsSkippedRevalidation,
+                AlbumsDeferredRevalidation: albumsDeferredRevalidation);
 
             OnProcessingEvent?.Invoke(
                 this,
@@ -312,19 +364,82 @@ public class StagingAlbumRevalidationJob(
                     nameof(StagingAlbumRevalidationJob),
                     albumsNeedingRevalidation.Length,
                     albumsRevalidated,
-                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid, skipped [{albumsSkippedRevalidation}]"));
+                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid, skipped [{albumsSkippedRevalidation}], deferred [{albumsDeferredRevalidation}]"));
 
             Logger.Information(
-                "[{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move, skipped [{Skipped}]",
+                "[{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move, skipped [{Skipped}], deferred [{Deferred}]",
                 nameof(StagingAlbumRevalidationJob),
                 elapsed.TotalMilliseconds,
                 albumsRevalidated,
                 albumsNowValid,
-                albumsSkippedRevalidation);
+                albumsSkippedRevalidation,
+                albumsDeferredRevalidation);
         }
         catch (Exception e)
         {
             Logger.Error(e, "[{JobName}] Processing Exception", nameof(StagingAlbumRevalidationJob));
+        }
+    }
+
+    private async Task<IStagingAlbumRevalidationStateSession> OpenRevalidationStateSessionAsync(
+        string stagingPath,
+        IReadOnlyCollection<Album> albumsNeedingRevalidation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await revalidationStateStore.OpenAsync(stagingPath, albumsNeedingRevalidation, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.Warning(
+                ex,
+                "[{JobName}] Unable to open staging revalidation state store. Continuing without persistent revalidation backoff.",
+                nameof(StagingAlbumRevalidationJob));
+            return new PassthroughRevalidationStateSession();
+        }
+    }
+
+    private static bool NeedsArtistRevalidation(Album album)
+    {
+        return album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists) ||
+               album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasUnknownArtist);
+    }
+
+    private static string ProgressMessage(
+        int processed,
+        int total,
+        int revalidated,
+        int skipped,
+        int deferred)
+    {
+        return $"Processed [{processed}/{total}], revalidated [{revalidated}], skipped [{skipped}], deferred [{deferred}]";
+    }
+
+    private sealed class PassthroughRevalidationStateSession : IStagingAlbumRevalidationStateSession
+    {
+        public StagingAlbumRevalidationDecision GetDecision(Album album, DateTimeOffset now, bool force)
+        {
+            return new StagingAlbumRevalidationDecision(true, Reason: "Passthrough");
+        }
+
+        public void RecordAttempt(Album album, DateTimeOffset now, string outcome)
+        {
+        }
+
+        public void RecordSuccess(Album album)
+        {
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 }

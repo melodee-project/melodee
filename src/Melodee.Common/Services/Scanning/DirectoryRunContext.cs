@@ -21,6 +21,7 @@ public sealed record DirectoryRunPerformanceSummary(
     int ArtistSearchPersistenceConflicts,
     int ArtistSearchPersistenceCorruptions,
     int AlbumsSkippedRevalidation,
+    int AlbumsDeferredRevalidation,
     CacheStatistics ArtistSearchCache,
     CacheStatistics ForcedArtistSearchCache,
     CacheStatistics AlbumImageCache,
@@ -44,6 +45,7 @@ public sealed class DirectoryRunContext : IDisposable
     private int _artistSearchPersistenceConflicts;
     private int _artistSearchPersistenceCorruptions;
     private int _albumsSkippedRevalidation;
+    private int _albumsDeferredRevalidation;
 
     /// <summary>
     ///     Per-run cache for artist search results.
@@ -218,6 +220,14 @@ public sealed class DirectoryRunContext : IDisposable
     }
 
     /// <summary>
+    ///     Records a staging album deferred by the persistent revalidation backoff policy.
+    /// </summary>
+    public void RecordAlbumDeferredRevalidation()
+    {
+        Interlocked.Increment(ref _albumsDeferredRevalidation);
+    }
+
+    /// <summary>
     ///     Returns a snapshot of the run counters.
     /// </summary>
     public DirectoryRunPerformanceSummary GetPerformanceSummary()
@@ -235,6 +245,7 @@ public sealed class DirectoryRunContext : IDisposable
             ArtistSearchPersistenceConflicts: _artistSearchPersistenceConflicts,
             ArtistSearchPersistenceCorruptions: _artistSearchPersistenceCorruptions,
             AlbumsSkippedRevalidation: _albumsSkippedRevalidation,
+            AlbumsDeferredRevalidation: _albumsDeferredRevalidation,
             ArtistSearchCache: ArtistSearchCache.GetStatistics(),
             ForcedArtistSearchCache: ForcedArtistSearchCache.GetStatistics(),
             AlbumImageCache: AlbumImageCache.GetStatistics(),
@@ -288,15 +299,17 @@ public sealed class DirectoryRunContext : IDisposable
         if (summary.ArtistSearchPersistenceConflicts > 0 ||
             summary.ArtistSearchPersistenceRetries > 0 ||
             summary.ArtistSearchPersistenceCorruptions > 0 ||
-            summary.AlbumsSkippedRevalidation > 0)
+            summary.AlbumsSkippedRevalidation > 0 ||
+            summary.AlbumsDeferredRevalidation > 0)
         {
             Log.Information(
                 "[DirectoryRunContext] Artist persistence: {Conflicts} conflicts, {Retries} retries, {Corruptions} corruptions | " +
-                "Revalidation skipped: {Skipped}",
+                "Revalidation skipped: {Skipped}, deferred: {Deferred}",
                 summary.ArtistSearchPersistenceConflicts,
                 summary.ArtistSearchPersistenceRetries,
                 summary.ArtistSearchPersistenceCorruptions,
-                summary.AlbumsSkippedRevalidation);
+                summary.AlbumsSkippedRevalidation,
+                summary.AlbumsDeferredRevalidation);
         }
 
         foreach (var (provider, stats) in summary.ApiThrottleStatistics)

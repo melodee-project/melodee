@@ -120,6 +120,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton<IImageProcessor, ImageProcessor>();
         services.AddScoped<ISpotifyClientBuilder, SpotifyClientBuilder>();
         services.AddScoped<AlbumDiscoveryService>();
+        services.AddSingleton<IStagingAlbumRevalidationStateStore, StagingAlbumRevalidationStateStore>();
         services.AddScoped<AlbumImageSearchEngineService>();
         services.AddScoped<ArtistImageSearchEngineService>();
         services.AddScoped<ArtistSearchEngineService>();

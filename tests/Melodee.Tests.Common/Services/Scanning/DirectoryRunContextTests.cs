@@ -200,6 +200,7 @@ public sealed class DirectoryRunContextTests
         context.RecordArtistSearchPersistenceRetry();
         context.RecordArtistSearchPersistenceCorruption();
         context.RecordAlbumSkippedRevalidation();
+        context.RecordAlbumDeferredRevalidation();
 
         var summary = context.GetPerformanceSummary();
 
@@ -211,5 +212,6 @@ public sealed class DirectoryRunContextTests
         Assert.Equal(1, summary.ArtistSearchPersistenceRetries);
         Assert.Equal(1, summary.ArtistSearchPersistenceCorruptions);
         Assert.Equal(1, summary.AlbumsSkippedRevalidation);
+        Assert.Equal(1, summary.AlbumsDeferredRevalidation);
     }
 }

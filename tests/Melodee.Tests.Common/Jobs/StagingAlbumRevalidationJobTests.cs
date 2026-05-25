@@ -36,7 +36,8 @@ public class StagingAlbumRevalidationJobTests : ServiceTestBase
             albumDiscoveryService,
             GetArtistSearchEngineService(),
             Serializer,
-            mockFileSystem);
+            mockFileSystem,
+            new AlwaysDueRevalidationStateStore());
         var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
         await job.Execute(context);
@@ -118,5 +119,42 @@ public class StagingAlbumRevalidationJobTests : ServiceTestBase
                 new MetaTag<object?> { Identifier = MetaTagIdentifier.RecordingYear, Value = "2026" }
             ]
         };
+    }
+
+    private sealed class AlwaysDueRevalidationStateStore : IStagingAlbumRevalidationStateStore
+    {
+        public Task<IStagingAlbumRevalidationStateSession> OpenAsync(
+            string stagingPath,
+            IReadOnlyCollection<Album> currentAlbums,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IStagingAlbumRevalidationStateSession>(new AlwaysDueRevalidationStateSession());
+        }
+    }
+
+    private sealed class AlwaysDueRevalidationStateSession : IStagingAlbumRevalidationStateSession
+    {
+        public StagingAlbumRevalidationDecision GetDecision(Album album, DateTimeOffset now, bool force)
+        {
+            return new StagingAlbumRevalidationDecision(true, Reason: "Test");
+        }
+
+        public void RecordAttempt(Album album, DateTimeOffset now, string outcome)
+        {
+        }
+
+        public void RecordSuccess(Album album)
+        {
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
     }
 }

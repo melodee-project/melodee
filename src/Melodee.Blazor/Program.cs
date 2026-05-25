@@ -561,6 +561,7 @@ builder.Services
     .AddSingleton<IPasswordHashService, PasswordHashService>()
     .AddSingleton<ISecretProtector, SecretProtector>()
     .AddScoped<AlbumDiscoveryService>()
+    .AddSingleton<IStagingAlbumRevalidationStateStore, StagingAlbumRevalidationStateStore>()
     .AddScoped<MediaEditService>()
     .AddScoped<DirectoryProcessorToStagingService>()
     .AddScoped<IScriptAdminService, ScriptAdminService>()
