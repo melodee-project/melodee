@@ -310,6 +310,7 @@ builder.Services.AddAuthentication(options =>
         };
     });
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<IThemeClientService, ThemeClientService>();
