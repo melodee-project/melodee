@@ -149,6 +149,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             InboundProcessingErrors = summary.InboundProcessingErrors + result.InboundProcessingErrors,
             AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
             AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
+            AlbumsRevalidationLookupsAttempted = summary.AlbumsRevalidationLookupsAttempted + result.AlbumsRevalidationLookupsAttempted,
+            AlbumsRevalidationNoMatch = summary.AlbumsRevalidationNoMatch + result.AlbumsRevalidationNoMatch,
             AlbumsSkippedRevalidation = summary.AlbumsSkippedRevalidation + result.AlbumsSkippedRevalidation,
             AlbumsDeferredRevalidation = summary.AlbumsDeferredRevalidation + result.AlbumsDeferredRevalidation,
             AlbumsReadyToMove = summary.AlbumsReadyToMove + result.AlbumsReadyToMove,
@@ -514,6 +516,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     {
                         albumsRevalidated = summary.AlbumsRevalidated,
                         albumsNowValid = summary.AlbumsNowValid,
+                        albumsRevalidationLookupsAttempted = summary.AlbumsRevalidationLookupsAttempted,
+                        albumsRevalidationNoMatch = summary.AlbumsRevalidationNoMatch,
                         albumsSkippedRevalidation = summary.AlbumsSkippedRevalidation,
                         albumsDeferredRevalidation = summary.AlbumsDeferredRevalidation
                     },
@@ -593,7 +597,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 
         var hasActivity = summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 || summary.NewSongsCount > 0 ||
                           summary.InboundProcessingErrors > 0 ||
-                          summary.AlbumsRevalidated > 0 || summary.AlbumsSkippedRevalidation > 0 ||
+                          summary.AlbumsRevalidated > 0 || summary.AlbumsRevalidationLookupsAttempted > 0 ||
+                          summary.AlbumsRevalidationNoMatch > 0 || summary.AlbumsSkippedRevalidation > 0 ||
                           summary.AlbumsDeferredRevalidation > 0 || summary.AlbumsReadyToMove > 0 ||
                           summary.AlbumsHandledByStorageTransfer > 0 || summary.AlbumsSkippedByStatus > 0 ||
                           summary.AlbumsSkippedAsDuplicateDirectory > 0 || summary.AlbumsFailedToLoad > 0 ||
@@ -624,6 +629,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             }
 
             if (summary.AlbumsRevalidated > 0 || summary.AlbumsNowValid > 0 ||
+                summary.AlbumsRevalidationLookupsAttempted > 0 || summary.AlbumsRevalidationNoMatch > 0 ||
                 summary.AlbumsSkippedRevalidation > 0 || summary.AlbumsDeferredRevalidation > 0)
             {
                 summaryTable.AddRow("[bold]Staging Revalidation[/]", "");
@@ -631,6 +637,10 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     summaryTable.AddRow("  Albums revalidated", FormatNumber(summary.AlbumsRevalidated));
                 if (summary.AlbumsNowValid > 0)
                     summaryTable.AddRow("  Albums now valid", $"[green]{FormatNumber(summary.AlbumsNowValid)}[/]");
+                if (summary.AlbumsRevalidationLookupsAttempted > 0)
+                    summaryTable.AddRow("  Artist lookups attempted", FormatNumber(summary.AlbumsRevalidationLookupsAttempted));
+                if (summary.AlbumsRevalidationNoMatch > 0)
+                    summaryTable.AddRow("  Artist lookups with no match", $"[yellow]{FormatNumber(summary.AlbumsRevalidationNoMatch)}[/]");
                 if (summary.AlbumsSkippedRevalidation > 0)
                     summaryTable.AddRow("  Albums skipped", $"[yellow]{FormatNumber(summary.AlbumsSkippedRevalidation)}[/]");
                 if (summary.AlbumsDeferredRevalidation > 0)

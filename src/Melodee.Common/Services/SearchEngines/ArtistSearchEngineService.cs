@@ -526,7 +526,7 @@ public class ArtistSearchEngineService(
     {
         CheckInitialized();
 
-        var maxResultsValue = maxResults ?? _configuration.GetValue<int>(SettingRegistry.SearchEngineDefaultPageSize);
+        var maxResultsValue = GetBoundedMaxResults(maxResults);
         var totalCount = 0;
         long operationTime = 0;
 
@@ -620,7 +620,7 @@ public class ArtistSearchEngineService(
                 }
 
                 var startTicks = Stopwatch.GetTimestamp();
-                var pluginResult = await plugin.DoArtistSearchAsync(query, int.MaxValue, cancellationToken).ConfigureAwait(false);
+                var pluginResult = await plugin.DoArtistSearchAsync(query, maxResultsValue, cancellationToken).ConfigureAwait(false);
                 if (pluginResult is { IsSuccess: true, Data: not null })
                 {
                     foreach (var d in pluginResult.Data)
@@ -942,7 +942,7 @@ public class ArtistSearchEngineService(
 
         var result = new List<ArtistSearchResult>();
 
-        var maxResultsValue = maxResults ?? _configuration.GetValue<int>(SettingRegistry.SearchEngineDefaultPageSize);
+        var maxResultsValue = GetBoundedMaxResults(maxResults);
 
         long operationTime = 0;
         var totalCount = 0;
@@ -1584,7 +1584,7 @@ public class ArtistSearchEngineService(
                 var startTicks = Stopwatch.GetTimestamp();
                 var pluginResult = await plugin.DoArtistSearchAsync(
                     normalizedQuery,
-                    maxResults ?? _configuration.GetValue<int>(SettingRegistry.SearchEngineDefaultPageSize),
+                    GetBoundedMaxResults(maxResults),
                     cancellationToken).ConfigureAwait(false);
 
                 totalOperationTime += Stopwatch.GetElapsedTime(startTicks).Milliseconds;
@@ -1620,7 +1620,7 @@ public class ArtistSearchEngineService(
         return new ArtistLookupResult
         {
             Candidates = uniqueCandidates.Values
-                .Take(maxResults ?? _configuration.GetValue<int>(SettingRegistry.SearchEngineDefaultPageSize))
+                .Take(GetBoundedMaxResults(maxResults))
                 .ToArray(),
             HasPartialFailures = failedProviders.Count > 0,
             FailedProviderIds = failedProviders.Select(x => x.ProviderId).ToArray(),
@@ -1634,6 +1634,16 @@ public class ArtistSearchEngineService(
             result.MusicBrainzId?.ToString() ?? string.Empty,
             result.SpotifyId ?? string.Empty,
             result.Name.ToNormalizedString() ?? string.Empty);
+    }
+
+    private int GetBoundedMaxResults(int? maxResults)
+    {
+        var defaultPageSize = _configuration.GetValue<int>(SettingRegistry.SearchEngineDefaultPageSize);
+        var maximumAllowedPageSize = _configuration.GetValue<int>(SettingRegistry.SearchEngineMaximumAllowedPageSize);
+        var upperBound = Math.Max(1, maximumAllowedPageSize > 0 ? maximumAllowedPageSize : defaultPageSize);
+        var requestedPageSize = maxResults ?? defaultPageSize;
+
+        return Math.Clamp(requestedPageSize, 1, upperBound);
     }
 
     private static bool IsAlbumUniqueConstraint(DbUpdateException ex)

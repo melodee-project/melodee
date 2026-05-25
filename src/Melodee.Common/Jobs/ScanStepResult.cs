@@ -7,6 +7,8 @@ public sealed record ScanStepResult(
     int InboundProcessingErrors = 0,
     int AlbumsRevalidated = 0,
     int AlbumsNowValid = 0,
+    int AlbumsRevalidationLookupsAttempted = 0,
+    int AlbumsRevalidationNoMatch = 0,
     int AlbumsSkippedRevalidation = 0,
     int AlbumsDeferredRevalidation = 0,
     int AlbumsReadyToMove = 0,

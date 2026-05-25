@@ -42,6 +42,22 @@ public sealed class StagingAlbumRevalidationStateStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenAsync_CreatesHiddenDatabaseFileInStagingRoot()
+    {
+        var album = CreateAlbum(_stagingPath);
+
+        await using (var session = await _store.OpenAsync(_stagingPath, [album], CancellationToken.None))
+        {
+            await session.SaveChangesAsync(CancellationToken.None);
+        }
+
+        var databasePath = StagingAlbumRevalidationStateStore.GetDatabasePath(_stagingPath);
+
+        File.Exists(databasePath).Should().BeTrue();
+        Path.GetFileName(databasePath).Should().Be(StagingAlbumRevalidationStateStore.DatabaseFileName);
+    }
+
+    [Fact]
     public async Task GetDecision_WhenAlbumFingerprintChanged_ReturnsDue()
     {
         var now = new DateTimeOffset(2026, 5, 25, 12, 0, 0, TimeSpan.Zero);

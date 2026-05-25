@@ -110,6 +110,7 @@ public sealed class StagingAlbumRevalidationStateStore(ILogger logger) : IStagin
         IReadOnlyCollection<Album> currentAlbums,
         CancellationToken cancellationToken)
     {
+        var databaseExists = File.Exists(databasePath);
         var options = new DbContextOptionsBuilder<StagingAlbumRevalidationStateDbContext>()
             .UseDecentDB($"Data Source={databasePath}")
             .Options;
@@ -141,6 +142,15 @@ public sealed class StagingAlbumRevalidationStateStore(ILogger logger) : IStagin
                     staleStates.Length,
                     databasePath);
             }
+
+            logger.Information(
+                "[{Name}] Opened staging revalidation state database [{DatabasePath}]. ExistsBeforeOpen={ExistsBeforeOpen}; currentAlbums={CurrentAlbumCount}; stateRows={StateRowCount}; staleRowsRemoved={StaleRowCount}",
+                nameof(StagingAlbumRevalidationStateStore),
+                databasePath,
+                databaseExists,
+                currentAlbums.Count,
+                states.Count - staleStates.Length,
+                staleStates.Length);
 
             return new StagingAlbumRevalidationStateSession(
                 dbContext,

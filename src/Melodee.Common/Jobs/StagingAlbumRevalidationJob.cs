@@ -100,6 +100,8 @@ public class StagingAlbumRevalidationJob(
         var albumsProcessed = 0;
         var albumsRevalidated = 0;
         var albumsNowValid = 0;
+        var albumsRevalidationLookupsAttempted = 0;
+        var albumsRevalidationNoMatch = 0;
         var albumsSkippedRevalidation = 0;
         var albumsDeferredRevalidation = 0;
         var dataMap = context.JobDetail.JobDataMap;
@@ -207,7 +209,7 @@ public class StagingAlbumRevalidationJob(
                                 nameof(StagingAlbumRevalidationJob),
                                 albumsNeedingRevalidation.Length,
                                 albumsProcessed,
-                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsSkippedRevalidation, albumsDeferredRevalidation)));
+                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsRevalidationLookupsAttempted, albumsRevalidationNoMatch, albumsSkippedRevalidation, albumsDeferredRevalidation)));
                         continue;
                     }
 
@@ -228,7 +230,7 @@ public class StagingAlbumRevalidationJob(
                                 nameof(StagingAlbumRevalidationJob),
                                 albumsNeedingRevalidation.Length,
                                 albumsProcessed,
-                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsSkippedRevalidation, albumsDeferredRevalidation)));
+                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsRevalidationLookupsAttempted, albumsRevalidationNoMatch, albumsSkippedRevalidation, albumsDeferredRevalidation)));
                         continue;
                     }
 
@@ -238,6 +240,7 @@ public class StagingAlbumRevalidationJob(
                     if (!shouldRevalidateAlbum)
                     {
                         artistLookupAttempted = true;
+                        albumsRevalidationLookupsAttempted++;
                         var searchRequest = album.Artist.ToArtistQuery([
                             new KeyValue((album.AlbumYear() ?? 0).ToString(),
                                 album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
@@ -326,8 +329,13 @@ public class StagingAlbumRevalidationJob(
                     }
                     else if (artistLookupAttempted)
                     {
+                        albumsRevalidationNoMatch++;
                         revalidationStateSession.RecordAttempt(album, now, "ArtistLookupNoMatch");
                         await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
+                        Logger.Debug(
+                            "[{JobName}] Album [{Album}] artist lookup found no match during revalidation",
+                            nameof(StagingAlbumRevalidationJob),
+                            album.AlbumTitle());
                     }
 
                     OnProcessingEvent?.Invoke(
@@ -336,7 +344,7 @@ public class StagingAlbumRevalidationJob(
                             nameof(StagingAlbumRevalidationJob),
                             albumsNeedingRevalidation.Length,
                             albumsProcessed,
-                            ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsSkippedRevalidation, albumsDeferredRevalidation)));
+                            ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsRevalidationLookupsAttempted, albumsRevalidationNoMatch, albumsSkippedRevalidation, albumsDeferredRevalidation)));
                 }
                 catch (Exception ex)
                 {
@@ -355,6 +363,8 @@ public class StagingAlbumRevalidationJob(
             context.Result = new ScanStepResult(
                 AlbumsRevalidated: albumsRevalidated,
                 AlbumsNowValid: albumsNowValid,
+                AlbumsRevalidationLookupsAttempted: albumsRevalidationLookupsAttempted,
+                AlbumsRevalidationNoMatch: albumsRevalidationNoMatch,
                 AlbumsSkippedRevalidation: albumsSkippedRevalidation,
                 AlbumsDeferredRevalidation: albumsDeferredRevalidation);
 
@@ -364,14 +374,16 @@ public class StagingAlbumRevalidationJob(
                     nameof(StagingAlbumRevalidationJob),
                     albumsNeedingRevalidation.Length,
                     albumsRevalidated,
-                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid, skipped [{albumsSkippedRevalidation}], deferred [{albumsDeferredRevalidation}]"));
+                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid, lookup attempts [{albumsRevalidationLookupsAttempted}], no matches [{albumsRevalidationNoMatch}], skipped [{albumsSkippedRevalidation}], deferred [{albumsDeferredRevalidation}]"));
 
             Logger.Information(
-                "[{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move, skipped [{Skipped}], deferred [{Deferred}]",
+                "[{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move, lookup attempts [{LookupAttempts}], no matches [{NoMatch}], skipped [{Skipped}], deferred [{Deferred}]",
                 nameof(StagingAlbumRevalidationJob),
                 elapsed.TotalMilliseconds,
                 albumsRevalidated,
                 albumsNowValid,
+                albumsRevalidationLookupsAttempted,
+                albumsRevalidationNoMatch,
                 albumsSkippedRevalidation,
                 albumsDeferredRevalidation);
         }
@@ -411,10 +423,12 @@ public class StagingAlbumRevalidationJob(
         int processed,
         int total,
         int revalidated,
+        int lookupAttempts,
+        int noMatches,
         int skipped,
         int deferred)
     {
-        return $"Processed [{processed}/{total}], revalidated [{revalidated}], skipped [{skipped}], deferred [{deferred}]";
+        return $"Processed [{processed}/{total}], revalidated [{revalidated}], lookups [{lookupAttempts}], no matches [{noMatches}], skipped [{skipped}], deferred [{deferred}]";
     }
 
     private sealed class PassthroughRevalidationStateSession : IStagingAlbumRevalidationStateSession

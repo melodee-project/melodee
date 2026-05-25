@@ -1,12 +1,17 @@
 using System.Text;
 using FluentAssertions;
+using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Jobs;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.SearchEngines;
+using Melodee.Tests.Common;
 using Melodee.Tests.Common.Services;
+using Moq;
 
 namespace Melodee.Tests.Common.Jobs;
 
@@ -49,6 +54,45 @@ public class StagingAlbumRevalidationJobTests : ServiceTestBase
         var persistedAlbum = Serializer.Deserialize<Album>(Encoding.UTF8.GetString(persistedBytes));
         persistedAlbum.Should().NotBeNull();
         persistedAlbum!.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Execute_WhenArtistLookupFindsNoMatch_ReportsAttemptAndNoMatch()
+    {
+        const string stagingPath = "/melodee_test/staging";
+        const string albumDirectoryName = "Unknown Artist - [2026] Missing Artist Album";
+        var albumDirectoryPath = Path.Combine(stagingPath, albumDirectoryName);
+        var albumFilePath = Path.Combine(albumDirectoryPath, Album.JsonFileName);
+        var mockFileSystem = new MockFileSystemService().SetDirectoryExists(stagingPath);
+        var album = CreateInvalidArtistAlbumWithoutIdentifiers(albumDirectoryPath, albumDirectoryName);
+        mockFileSystem.SetAlbumForFile(albumFilePath, album);
+
+        var configFactory = SearchEnginesDisabledConfigurationFactory();
+        var albumDiscoveryService = new AlbumDiscoveryService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            configFactory,
+            mockFileSystem);
+        var job = new StagingAlbumRevalidationJob(
+            Logger,
+            configFactory,
+            MockLibraryService(),
+            albumDiscoveryService,
+            CreateArtistSearchEngineService(configFactory),
+            Serializer,
+            mockFileSystem,
+            new AlwaysDueRevalidationStateStore());
+        var context = new MelodeeJobExecutionContext(CancellationToken.None);
+
+        await job.Execute(context);
+
+        var result = context.Result.Should().BeOfType<ScanStepResult>().Subject;
+        result.AlbumsRevalidationLookupsAttempted.Should().Be(1);
+        result.AlbumsRevalidationNoMatch.Should().Be(1);
+        result.AlbumsRevalidated.Should().Be(0);
+        result.AlbumsSkippedRevalidation.Should().Be(0);
+        result.AlbumsDeferredRevalidation.Should().Be(0);
     }
 
     [Fact]
@@ -119,6 +163,70 @@ public class StagingAlbumRevalidationJobTests : ServiceTestBase
                 new MetaTag<object?> { Identifier = MetaTagIdentifier.RecordingYear, Value = "2026" }
             ]
         };
+    }
+
+    private static Album CreateInvalidArtistAlbumWithoutIdentifiers(string albumDirectoryPath, string albumDirectoryName)
+    {
+        const string artistName = "Unknown Revalidation Artist";
+        return new Album
+        {
+            Id = Guid.NewGuid(),
+            AlbumType = AlbumType.Album,
+            Artist = new Artist(
+                artistName,
+                artistName.ToNormalizedString()!,
+                artistName),
+            Directory = new FileSystemDirectoryInfo
+            {
+                Path = albumDirectoryPath,
+                Name = albumDirectoryName
+            },
+            OriginalDirectory = new FileSystemDirectoryInfo
+            {
+                Path = albumDirectoryPath,
+                Name = albumDirectoryName
+            },
+            Status = AlbumStatus.Invalid,
+            StatusReasons = AlbumNeedsAttentionReasons.HasInvalidArtists,
+            ViaPlugins = [],
+            Tags =
+            [
+                new MetaTag<object?> { Identifier = MetaTagIdentifier.AlbumArtist, Value = artistName },
+                new MetaTag<object?> { Identifier = MetaTagIdentifier.Album, Value = "Missing Artist Album" },
+                new MetaTag<object?> { Identifier = MetaTagIdentifier.RecordingYear, Value = "2026" }
+            ]
+        };
+    }
+
+    private ArtistSearchEngineService CreateArtistSearchEngineService(IMelodeeConfigurationFactory configFactory)
+    {
+        return new ArtistSearchEngineService(
+            Logger,
+            CacheManager,
+            MockSettingService(),
+            MockSpotifyClientBuilder(),
+            configFactory,
+            MockFactory(),
+            MockArtistSearchEngineFactory(),
+            GetMusicBrainzRepository(),
+            Serializer,
+            MockHttpClientFactory());
+    }
+
+    private static IMelodeeConfigurationFactory SearchEnginesDisabledConfigurationFactory()
+    {
+        var settings = TestsBase.NewConfiguration();
+        settings[SettingRegistry.SearchEngineMusicBrainzEnabled] = "false";
+        settings[SettingRegistry.SearchEngineSpotifyEnabled] = "false";
+        settings[SettingRegistry.SearchEngineITunesEnabled] = "false";
+        settings[SettingRegistry.SearchEngineLastFmEnabled] = "false";
+        settings[SettingRegistry.SearchEngineDiscogsEnabled] = "false";
+        settings[SettingRegistry.SearchEngineWikiDataEnabled] = "false";
+
+        var mock = new Mock<IMelodeeConfigurationFactory>();
+        mock.Setup(f => f.GetConfigurationAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MelodeeConfiguration(settings));
+        return mock.Object;
     }
 
     private sealed class AlwaysDueRevalidationStateStore : IStagingAlbumRevalidationStateStore

@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mcli doctor` now validates DecentDB files by checking file presence, opening the configured database, inspecting expected schema tables, and running read queries instead of relying on shallow connection checks.
 - Bounded concurrent media conversions during inbound processing to reduce CPU and disk saturation on large batch scans.
 - Staging artist revalidation now uses a staging-local `.melodee-revalidation.ddb` retry state database so repeated scans defer recently failed albums instead of re-querying every invalid staged release on every run; the state database is recreated automatically if missing or corrupt.
+- Staging artist revalidation now logs the retry state database path and row counts, and `mcli library scan` reports artist lookup attempts and no-match counts for revalidation work.
 
 ### Fixed
 
@@ -55,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move-mode inbound cleanup now removes source residue files such as release artwork and `.txt` notes only after media files are gone, allowing empty inbound release directories to be removed without deleting unprocessed media.
 - Inbound processing now defers directories whose files are still changing instead of partially staging releases while the source copy is still in progress.
 - Media conversion now accepts a valid generated MP3 when ffmpeg produced usable output but ATL reports an unexpected format label, preventing converted tracks from being stranded in inbound.
+- External artist provider searches now honor bounded requested result limits instead of requesting unbounded provider result sets during forced lookups.
+- iTunes artist searches now deserialize large Apple artist, collection, AMG, and genre identifiers without failing, and artist image searches correctly send the requested result limit.
 
 ## [2.1.0] - 2026-05-24
 

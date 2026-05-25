@@ -1,8 +1,14 @@
+using System.Net;
+using System.Text;
 using Melodee.Blazor.Controllers.Melodee.Models.ArtistLookup;
+using Melodee.Common.Configuration;
+using Melodee.Common.Constants;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Services.SearchEngines;
+using Melodee.Tests.Common;
+using Moq;
 using Album = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Album;
 using Artist = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Artist;
 
@@ -88,6 +94,39 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
         var bypassResult = await service.DoSearchAsync(query, 10, bypassNegativeCache: true);
         var artist = Assert.Single(bypassResult.Data ?? []);
         Assert.Equal(artistName, artist.Name);
+    }
+
+    [Fact]
+    public async Task DoSearchAsync_PassesBoundedMaxResultsToExternalProviders()
+    {
+        Uri? requestedUri = null;
+        var handler = new HttpHandlerStubDelegate((request, _) =>
+        {
+            requestedUri = request.RequestUri;
+            const string json = """{"resultCount":0,"results":[]}""";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        });
+        using var httpClient = new HttpClient(handler);
+        var configFactory = SearchConfigurationFactory(new Dictionary<string, object?>
+        {
+            [SettingRegistry.SearchEngineMusicBrainzEnabled] = "false",
+            [SettingRegistry.SearchEngineSpotifyEnabled] = "false",
+            [SettingRegistry.SearchEngineITunesEnabled] = "true",
+            [SettingRegistry.SearchEngineLastFmEnabled] = "false",
+            [SettingRegistry.SearchEngineDiscogsEnabled] = "false",
+            [SettingRegistry.SearchEngineWikiDataEnabled] = "false"
+        });
+        var service = CreateArtistSearchEngineService(
+            configFactory,
+            new TestHttpClientFactory(httpClient));
+        await service.InitializeAsync();
+
+        await service.DoSearchAsync(new ArtistQuery { Name = "Bounded Provider Limit Artist" }, 1, bypassNegativeCache: true);
+
+        Assert.Contains("limit=1", requestedUri?.ToString());
     }
 
     #endregion
@@ -300,6 +339,38 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
             AlbumType = 1,
             Year = year
         };
+    }
+
+    private ArtistSearchEngineService CreateArtistSearchEngineService(
+        IMelodeeConfigurationFactory configFactory,
+        IHttpClientFactory httpClientFactory)
+    {
+        return new ArtistSearchEngineService(
+            Logger,
+            CacheManager,
+            MockSettingService(),
+            MockSpotifyClientBuilder(),
+            configFactory,
+            MockFactory(),
+            MockArtistSearchEngineFactory(),
+            GetMusicBrainzRepository(),
+            Serializer,
+            httpClientFactory);
+    }
+
+    private static IMelodeeConfigurationFactory SearchConfigurationFactory(
+        IReadOnlyDictionary<string, object?> overrides)
+    {
+        var settings = TestsBase.NewConfiguration();
+        foreach (var (key, value) in overrides)
+        {
+            settings[key] = value;
+        }
+
+        var mock = new Mock<IMelodeeConfigurationFactory>();
+        mock.Setup(f => f.GetConfigurationAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MelodeeConfiguration(settings));
+        return mock.Object;
     }
 
     #endregion
