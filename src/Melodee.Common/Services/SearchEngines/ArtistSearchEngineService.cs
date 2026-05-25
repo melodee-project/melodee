@@ -174,6 +174,20 @@ public class ArtistSearchEngineService(
         }
     }
 
+    private static bool HasTrustedArtistIdentifier(ArtistSearchResult artist)
+    {
+        return artist.MusicBrainzId.HasValue ||
+               artist.SpotifyId.Nullify() != null ||
+               artist.ItunesId.Nullify() != null;
+    }
+
+    private static bool HasMatchingTrustedArtistIdentifier(ArtistSearchResult current, ArtistSearchResult candidate)
+    {
+        return (current.MusicBrainzId.HasValue && current.MusicBrainzId == candidate.MusicBrainzId) ||
+               (current.SpotifyId.Nullify() != null && current.SpotifyId == candidate.SpotifyId) ||
+               (current.ItunesId.Nullify() != null && current.ItunesId == candidate.ItunesId);
+    }
+
     public async Task<PagedResult<Artist>> ListAsync(
         PagedRequest pagedRequest,
         CancellationToken cancellationToken = default)
@@ -491,8 +505,7 @@ public class ArtistSearchEngineService(
                         WikiDataId = pluginResult.WikiDataId
                     };
                     var seenArtist = artistsFromSearchResult.FirstOrDefault(x =>
-                        x.MusicBrainzId == artistFromSearchResult.MusicBrainzId
-                        || x.SpotifyId == artistFromSearchResult.SpotifyId);
+                        HasMatchingTrustedArtistIdentifier(x, artistFromSearchResult));
                     if (seenArtist == null)
                     {
                         artistFromSearchResult = pluginsResult.Aggregate(artistFromSearchResult, (current, r) =>
@@ -550,7 +563,7 @@ public class ArtistSearchEngineService(
                         .Where(x => x.AlbumType is AlbumType.Album or AlbumType.EP).ToArray();
                     artistsFromSearchResult.Add(artistFromSearchResult);
 
-                    if (artistFromSearchResult.SpotifyId == null && artistFromSearchResult.MusicBrainzId == null)
+                    if (!HasTrustedArtistIdentifier(artistFromSearchResult))
                     {
                         Logger.Warning("[{Name}]:[{MethodName}] unable to find artist for provided query.",
                             nameof(ArtistSearchEngineService),

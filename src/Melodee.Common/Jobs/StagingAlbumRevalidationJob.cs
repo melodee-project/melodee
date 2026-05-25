@@ -147,74 +147,83 @@ public class StagingAlbumRevalidationJob(
 
                 try
                 {
-                    var searchRequest = album.Artist.ToArtistQuery([
-                        new KeyValue((album.AlbumYear() ?? 0).ToString(),
-                            album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
-                    ]);
+                    var shouldRevalidateAlbum = album.Artist.IsValid();
 
-                    var artistSearchResult = await artistSearchEngineService.DoSearchAsync(
-                        searchRequest,
-                        1,
-                        bypassNegativeCache: true,
-                        context.CancellationToken).ConfigureAwait(false);
-
-                    if (artistSearchResult.IsSuccess && artistSearchResult.Data.Any())
+                    if (!shouldRevalidateAlbum)
                     {
-                        var artistFromSearch = artistSearchResult.Data.OrderByDescending(x => x.Rank).FirstOrDefault();
-                        if (artistFromSearch != null)
+                        var searchRequest = album.Artist.ToArtistQuery([
+                            new KeyValue((album.AlbumYear() ?? 0).ToString(),
+                                album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
+                        ]);
+
+                        var artistSearchResult = await artistSearchEngineService.DoSearchAsync(
+                            searchRequest,
+                            1,
+                            bypassNegativeCache: true,
+                            context.CancellationToken).ConfigureAwait(false);
+
+                        if (artistSearchResult.IsSuccess && artistSearchResult.Data.Any())
                         {
-                            album.Artist = album.Artist with
+                            var artistFromSearch = artistSearchResult.Data.OrderByDescending(x => x.Rank).FirstOrDefault();
+                            if (artistFromSearch != null)
                             {
-                                AmgId = album.Artist.AmgId ?? artistFromSearch.AmgId,
-                                ArtistDbId = album.Artist.ArtistDbId ?? artistFromSearch.Id,
-                                DiscogsId = album.Artist.DiscogsId ?? artistFromSearch.DiscogsId,
-                                ItunesId = album.Artist.ItunesId ?? artistFromSearch.ItunesId,
-                                LastFmId = album.Artist.LastFmId ?? artistFromSearch.LastFmId,
-                                MusicBrainzId = album.Artist.MusicBrainzId ?? artistFromSearch.MusicBrainzId,
-                                Name = album.Artist.Name.Nullify() ?? artistFromSearch.Name,
-                                NameNormalized = album.Artist.NameNormalized.Nullify() ??
-                                                artistFromSearch.Name.ToNormalizedString() ??
-                                                artistFromSearch.Name,
-                                OriginalName = artistFromSearch.Name != album.Artist.Name ? album.Artist.Name : null,
-                                SearchEngineResultUniqueId = album.Artist.SearchEngineResultUniqueId is null or < 1
-                                    ? artistFromSearch.UniqueId
-                                    : album.Artist.SearchEngineResultUniqueId,
-                                SortName = album.Artist.SortName.Nullify() ?? artistFromSearch.SortName,
-                                SpotifyId = album.Artist.SpotifyId ?? artistFromSearch.SpotifyId,
-                                WikiDataId = album.Artist.WikiDataId ?? artistFromSearch.WikiDataId
-                            };
-
-                            var validationResult = albumValidator.ValidateAlbum(album);
-                            album.ValidationMessages = validationResult.Data.Messages ?? [];
-                            album.Status = validationResult.Data.AlbumStatus;
-                            album.StatusReasons = validationResult.Data.AlbumStatusReasons;
-                            album.Modified = DateTimeOffset.UtcNow;
-
-                            var jsonPath = fileSystemService.CombinePath(album.Directory.FullName(), Album.JsonFileName);
-                            var serialized = serializer.Serialize(album);
-                            await fileSystemService.WriteAllBytesAsync(
-                                jsonPath,
-                                System.Text.Encoding.UTF8.GetBytes(serialized ?? string.Empty),
-                                context.CancellationToken).ConfigureAwait(false);
-
-                            albumsRevalidated++;
-
-                            if (album.Status == AlbumStatus.Ok)
-                            {
-                                albumsNowValid++;
-                                Logger.Information(
-                                    "[{JobName}] Album [{Album}] is now valid after artist revalidation",
-                                    nameof(StagingAlbumRevalidationJob),
-                                    album.AlbumTitle());
+                                album.Artist = album.Artist with
+                                {
+                                    AmgId = album.Artist.AmgId ?? artistFromSearch.AmgId,
+                                    ArtistDbId = album.Artist.ArtistDbId ?? artistFromSearch.Id,
+                                    DiscogsId = album.Artist.DiscogsId ?? artistFromSearch.DiscogsId,
+                                    ItunesId = album.Artist.ItunesId ?? artistFromSearch.ItunesId,
+                                    LastFmId = album.Artist.LastFmId ?? artistFromSearch.LastFmId,
+                                    MusicBrainzId = album.Artist.MusicBrainzId ?? artistFromSearch.MusicBrainzId,
+                                    Name = album.Artist.Name.Nullify() ?? artistFromSearch.Name,
+                                    NameNormalized = album.Artist.NameNormalized.Nullify() ??
+                                                    artistFromSearch.Name.ToNormalizedString() ??
+                                                    artistFromSearch.Name,
+                                    OriginalName = artistFromSearch.Name != album.Artist.Name ? album.Artist.Name : null,
+                                    SearchEngineResultUniqueId = album.Artist.SearchEngineResultUniqueId is null or < 1
+                                        ? artistFromSearch.UniqueId
+                                        : album.Artist.SearchEngineResultUniqueId,
+                                    SortName = album.Artist.SortName.Nullify() ?? artistFromSearch.SortName,
+                                    SpotifyId = album.Artist.SpotifyId ?? artistFromSearch.SpotifyId,
+                                    WikiDataId = album.Artist.WikiDataId ?? artistFromSearch.WikiDataId
+                                };
+                                shouldRevalidateAlbum = true;
                             }
-                            else
-                            {
-                                Logger.Debug(
-                                    "[{JobName}] Album [{Album}] artist found but still invalid: [{Reasons}]",
-                                    nameof(StagingAlbumRevalidationJob),
-                                    album.AlbumTitle(),
-                                    album.StatusReasons);
-                            }
+                        }
+                    }
+
+                    if (shouldRevalidateAlbum)
+                    {
+                        var validationResult = albumValidator.ValidateAlbum(album);
+                        album.ValidationMessages = validationResult.Data.Messages ?? [];
+                        album.Status = validationResult.Data.AlbumStatus;
+                        album.StatusReasons = validationResult.Data.AlbumStatusReasons;
+                        album.Modified = DateTimeOffset.UtcNow;
+
+                        var jsonPath = fileSystemService.CombinePath(album.Directory.FullName(), Album.JsonFileName);
+                        var serialized = serializer.Serialize(album);
+                        await fileSystemService.WriteAllBytesAsync(
+                            jsonPath,
+                            System.Text.Encoding.UTF8.GetBytes(serialized ?? string.Empty),
+                            context.CancellationToken).ConfigureAwait(false);
+
+                        albumsRevalidated++;
+
+                        if (album.Status == AlbumStatus.Ok)
+                        {
+                            albumsNowValid++;
+                            Logger.Information(
+                                "[{JobName}] Album [{Album}] is now valid after artist revalidation",
+                                nameof(StagingAlbumRevalidationJob),
+                                album.AlbumTitle());
+                        }
+                        else
+                        {
+                            Logger.Debug(
+                                "[{JobName}] Album [{Album}] revalidated but still invalid: [{Reasons}]",
+                                nameof(StagingAlbumRevalidationJob),
+                                album.AlbumTitle(),
+                                album.StatusReasons);
                         }
                     }
 

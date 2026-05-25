@@ -207,22 +207,24 @@ public sealed partial class AlbumValidator(IMelodeeConfiguration configuration) 
 
     private void ArtistHasSearchEngineResult(Artist albumArtist)
     {
-        if (albumArtist.SearchEngineResultUniqueId == null)
+        if (albumArtist.SearchEngineResultUniqueId != null || albumArtist.IsValid())
         {
-            _validationMessages.Add(new ValidationResultMessage
-            {
-                Message = "Album Artist is unknown, will need manual validation.",
-                Severity = ValidationResultMessageSeverity.Critical
-            });
-            if (albumArtist.Name.Nullify() == null &&
-                _albumNeedsAttentionReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists) == false)
-            {
-                _albumNeedsAttentionReasons |= AlbumNeedsAttentionReasons.HasUnknownArtist;
-            }
-            else if (!_albumNeedsAttentionReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists))
-            {
-                _albumNeedsAttentionReasons |= AlbumNeedsAttentionReasons.HasInvalidArtists;
-            }
+            return;
+        }
+
+        _validationMessages.Add(new ValidationResultMessage
+        {
+            Message = "Album Artist is unknown, will need manual validation.",
+            Severity = ValidationResultMessageSeverity.Critical
+        });
+        if (albumArtist.Name.Nullify() == null &&
+            _albumNeedsAttentionReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists) == false)
+        {
+            _albumNeedsAttentionReasons |= AlbumNeedsAttentionReasons.HasUnknownArtist;
+        }
+        else if (!_albumNeedsAttentionReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists))
+        {
+            _albumNeedsAttentionReasons |= AlbumNeedsAttentionReasons.HasInvalidArtists;
         }
     }
 

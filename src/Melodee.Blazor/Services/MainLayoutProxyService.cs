@@ -5,7 +5,7 @@ namespace Melodee.Blazor.Services;
 /// </summary>
 public sealed class MainLayoutProxyService
 {
-    public bool ShowSpinner { get; set; }
+    public bool ShowSpinner { get; private set; }
 
     public string Header { get; set; } = "Loading...";
 
@@ -22,7 +22,17 @@ public sealed class MainLayoutProxyService
 
     public void ToggleSpinnerVisible(bool? forceState = null)
     {
-        ShowSpinner = forceState ?? !ShowSpinner;
+        SetSpinnerVisible(forceState ?? !ShowSpinner);
+    }
+
+    public void SetSpinnerVisible(bool isVisible)
+    {
+        if (ShowSpinner == isVisible)
+        {
+            return;
+        }
+
+        ShowSpinner = isVisible;
         SpinnerVisibleChanged?.Invoke(this, EventArgs.Empty);
     }
 

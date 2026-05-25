@@ -357,6 +357,28 @@ public class ArtistService(
         string? bySpotifyId,
         CancellationToken cancellationToken = default)
     {
+        return await FindArtistAsync(
+            byId,
+            byApiKey,
+            byName,
+            byMusicBrainzId,
+            bySpotifyId,
+            null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Find the Artist using various given Ids.
+    /// </summary>
+    public async Task<MelodeeModels.OperationResult<Artist?>> FindArtistAsync(
+        int? byId,
+        Guid byApiKey,
+        string? byName,
+        Guid? byMusicBrainzId,
+        string? bySpotifyId,
+        string? byItunesId,
+        CancellationToken cancellationToken = default)
+    {
         int? id = null;
 
         await using var scopedContext = await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -385,13 +407,17 @@ public class ArtistService(
                     .ConfigureAwait(false);
             }
 
-            // Try to find by MusicBrainz ID or Spotify ID
-            if (id == null && (byMusicBrainzId != null || bySpotifyId != null))
+            var spotifyId = bySpotifyId.Nullify();
+            var itunesId = byItunesId.Nullify();
+
+            // Try to find by trusted external IDs
+            if (id == null && (byMusicBrainzId != null || spotifyId != null || itunesId != null))
             {
                 id = await scopedContext.Artists
                     .AsNoTracking()
                     .Where(a => (byMusicBrainzId != null && a.MusicBrainzId == byMusicBrainzId) ||
-                                (bySpotifyId != null && a.SpotifyId == bySpotifyId))
+                                (spotifyId != null && a.SpotifyId == spotifyId) ||
+                                (itunesId != null && a.ItunesId == itunesId))
                     .Select(a => (int?)a.Id)
                     .FirstOrDefaultAsync(cancellationToken)
                     .ConfigureAwait(false);
@@ -411,13 +437,14 @@ public class ArtistService(
         catch (Exception e)
         {
             Logger.Error(e,
-                "[{ServiceName}] attempting to Find Artist id [{Id}], apiKey [{ApiKey}], name [{Name}] musicbrainzId [{MbId}] spotifyId [{SpotifyId}]",
+                "[{ServiceName}] attempting to Find Artist id [{Id}], apiKey [{ApiKey}], name [{Name}] musicbrainzId [{MbId}] spotifyId [{SpotifyId}] itunesId [{ItunesId}]",
                 nameof(ArtistService),
                 byId,
                 byApiKey,
                 byName,
                 byMusicBrainzId,
-                bySpotifyId);
+                bySpotifyId,
+                byItunesId);
         }
 
         if (id == null)

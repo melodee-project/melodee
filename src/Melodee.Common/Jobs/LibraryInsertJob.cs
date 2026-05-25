@@ -439,7 +439,7 @@ public class LibraryInsertJob(
                     var artistNormalizedName = artistName.ToNormalizedString() ?? artistName;
                     var dbArtistResult = await artistService.FindArtistAsync(melodeeAlbum.Artist.ArtistDbId,
                         melodeeAlbum.Artist.Id, artistNormalizedName, melodeeAlbum.Artist.MusicBrainzId,
-                        melodeeAlbum.Artist.SpotifyId, cancellationToken).ConfigureAwait(false);
+                        melodeeAlbum.Artist.SpotifyId, melodeeAlbum.Artist.ItunesId, cancellationToken).ConfigureAwait(false);
                     var dbArtistId = dbArtistResult.Data?.Id;
                     var dbArtist = dbArtistId == null
                         ? null
@@ -790,11 +790,14 @@ public class LibraryInsertJob(
                     .Select(x => x.MusicBrainzId!.Value).ToArray();
                 var artistSpotifyIds = artists.Where(x => !string.IsNullOrEmpty(x.SpotifyId))
                     .Select(x => x.SpotifyId!).ToArray();
+                var artistItunesIds = artists.Where(x => !string.IsNullOrEmpty(x.ItunesId))
+                    .Select(x => x.ItunesId!).ToArray();
 
                 var existingArtists = await scopedContext.Artists
                     .Where(x => artistNormalizedNames.Contains(x.NameNormalized) ||
                                (x.MusicBrainzId.HasValue && artistMusicBrainzIds.Contains(x.MusicBrainzId.Value)) ||
-                               (x.SpotifyId != null && artistSpotifyIds.Contains(x.SpotifyId)))
+                               (x.SpotifyId != null && artistSpotifyIds.Contains(x.SpotifyId)) ||
+                               (x.ItunesId != null && artistItunesIds.Contains(x.ItunesId)))
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false);
 
@@ -807,6 +810,8 @@ public class LibraryInsertJob(
                         existingArtistLookup.TryAdd($"mb:{existingArtist.MusicBrainzId.Value}", existingArtist);
                     if (!string.IsNullOrEmpty(existingArtist.SpotifyId))
                         existingArtistLookup.TryAdd($"sp:{existingArtist.SpotifyId}", existingArtist);
+                    if (!string.IsNullOrEmpty(existingArtist.ItunesId))
+                        existingArtistLookup.TryAdd($"it:{existingArtist.ItunesId}", existingArtist);
                 }
 
                 var dbArtistsToAdd = new List<dbModels.Artist>();
@@ -824,6 +829,11 @@ public class LibraryInsertJob(
                              existingArtistLookup.TryGetValue($"sp:{artist.SpotifyId}", out existingArtist))
                     {
                         // Found by Spotify ID
+                    }
+                    else if (!string.IsNullOrEmpty(artist.ItunesId) &&
+                             existingArtistLookup.TryGetValue($"it:{artist.ItunesId}", out existingArtist))
+                    {
+                        // Found by iTunes ID
                     }
                     else if (existingArtistLookup.TryGetValue($"name:{artist.NameNormalized}", out existingArtist))
                     {
@@ -874,6 +884,8 @@ public class LibraryInsertJob(
                             existingArtistLookup.TryAdd($"mb:{artist.MusicBrainzId.Value}", newArtist);
                         if (!string.IsNullOrEmpty(artist.SpotifyId))
                             existingArtistLookup.TryAdd($"sp:{artist.SpotifyId}", newArtist);
+                        if (!string.IsNullOrEmpty(artist.ItunesId))
+                            existingArtistLookup.TryAdd($"it:{artist.ItunesId}", newArtist);
                     }
                 }
 

@@ -363,6 +363,7 @@
     private bool _artistsLoading = true;
     private bool _albumsLoading = true;
     private bool _isLoading => _healthLoading || _pinsLoading || _kpisLoading || _playsLoading || _topSongsLoading || _recentlyPlayedLoading || _requestsLoading || _artistsLoading || _albumsLoading;
+    private bool _isDisposed;
 
     private short _latestPageSize;
     private LocalDate _rangeStart;
@@ -431,7 +432,7 @@
         var userApiKey = CurrentUser?.ToApiGuid() ?? Guid.Empty;
         var userId = CurrentUser?.UserId() ?? 0;
 
-        MainLayoutProxyService.ShowSpinner = true;
+        MainLayoutProxyService.SetSpinnerVisible(true);
 
         _ = LoadHealthAsync();
         _ = LoadPinsAsync(userId);
@@ -446,8 +447,24 @@
 
     private void UpdateSpinner()
     {
+        if (_isDisposed)
+        {
+            MainLayoutProxyService.SetSpinnerVisible(false);
+            return;
+        }
+
         var anyLoading = _healthLoading || _pinsLoading || _kpisLoading || _playsLoading || _topSongsLoading || _recentlyPlayedLoading || _requestsLoading || _artistsLoading || _albumsLoading;
-        MainLayoutProxyService.ShowSpinner = anyLoading;
+        MainLayoutProxyService.SetSpinnerVisible(anyLoading);
+    }
+
+    private async Task NotifyDashboardChangedAsync()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadHealthAsync()
@@ -464,7 +481,7 @@
         {
             _healthLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -486,7 +503,7 @@
         {
             _pinsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -505,7 +522,7 @@
         {
             _kpisLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -524,7 +541,7 @@
         {
             _playsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -543,7 +560,7 @@
         {
             _topSongsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -599,7 +616,7 @@
         {
             _recentlyPlayedLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -618,7 +635,7 @@
         {
             _requestsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -644,7 +661,7 @@
         {
             _artistsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -670,7 +687,7 @@
         {
             _albumsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -679,6 +696,11 @@
         _ = InvokeAsync(async () =>
         {
             var authenticationState = await authenticationStateTask;
+            if (_isDisposed)
+            {
+                return;
+            }
+
             _isAdmin = authenticationState.User.IsAdmin();
             _showHealthWarning = await DashboardHealthWarningEvaluator.ShouldShowAsync(authenticationState.User, DoctorService);
             StateHasChanged();
@@ -687,7 +709,9 @@
 
     public void Dispose()
     {
+        _isDisposed = true;
         DashboardAuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        MainLayoutProxyService.SetSpinnerVisible(false);
     }
 
 }
