@@ -726,6 +726,25 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 
     #endregion
 
+    #region Conversion Throttle Tests
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(2, 1)]
+    [InlineData(4, 2)]
+    [InlineData(32, 2)]
+    public void CalculateMaxConcurrentConversions_WithProcessorCount_ReturnsBoundedConcurrency(
+        int processorCount,
+        int expectedConcurrency)
+    {
+        var result = DirectoryProcessorToStagingService.CalculateMaxConcurrentConversions(processorCount);
+
+        Assert.Equal(expectedConcurrency, result);
+    }
+
+    #endregion
+
     #region DirectoryProcessorResult Tests
 
     [Fact]

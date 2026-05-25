@@ -68,12 +68,42 @@ public class StagingAlbumRevalidationJob(
     /// </summary>
     public event EventHandler<ProcessingEvent>? OnProcessingEvent;
 
+    /// <summary>
+    ///     Returns whether an album has enough useful artist information to spend a revalidation lookup on it.
+    /// </summary>
+    public static bool CanAttemptArtistRevalidation(Album album)
+    {
+        if (album.Artist.IsValid())
+        {
+            return true;
+        }
+
+        if (album.Artist.Name.Nullify() == null)
+        {
+            return false;
+        }
+
+        if (album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.ArtistNameHasUnwantedText))
+        {
+            return false;
+        }
+
+        return album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists) ||
+               album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasUnknownArtist);
+    }
+
     public override async Task Execute(IJobExecutionContext context)
     {
         var startTicks = Stopwatch.GetTimestamp();
         var albumsRevalidated = 0;
         var albumsNowValid = 0;
+        var albumsSkippedRevalidation = 0;
         var dataMap = context.JobDetail.JobDataMap;
+        var sharedRunContext = context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.DirectoryRunContext)
+            ? context.MergedJobDataMap[MelodeeJobExecutionContext.DirectoryRunContext] as DirectoryRunContext
+            : null;
+        using var localRunContext = sharedRunContext is null ? new DirectoryRunContext() : null;
+        var activeRunContext = sharedRunContext ?? localRunContext!;
 
         try
         {
@@ -147,6 +177,18 @@ public class StagingAlbumRevalidationJob(
 
                 try
                 {
+                    if (!CanAttemptArtistRevalidation(album))
+                    {
+                        albumsSkippedRevalidation++;
+                        activeRunContext.RecordAlbumSkippedRevalidation();
+                        Logger.Debug(
+                            "[{JobName}] Skipping album [{Album}] revalidation because artist data is not searchable: [{Reasons}]",
+                            nameof(StagingAlbumRevalidationJob),
+                            album.AlbumTitle(),
+                            album.StatusReasons);
+                        continue;
+                    }
+
                     var shouldRevalidateAlbum = album.Artist.IsValid();
 
                     if (!shouldRevalidateAlbum)
@@ -159,6 +201,7 @@ public class StagingAlbumRevalidationJob(
                         var artistSearchResult = await artistSearchEngineService.DoSearchAsync(
                             searchRequest,
                             1,
+                            activeRunContext,
                             bypassNegativeCache: true,
                             context.CancellationToken).ConfigureAwait(false);
 
@@ -251,7 +294,8 @@ public class StagingAlbumRevalidationJob(
 
             context.Result = new ScanStepResult(
                 AlbumsRevalidated: albumsRevalidated,
-                AlbumsNowValid: albumsNowValid);
+                AlbumsNowValid: albumsNowValid,
+                AlbumsSkippedRevalidation: albumsSkippedRevalidation);
 
             OnProcessingEvent?.Invoke(
                 this,
@@ -259,14 +303,15 @@ public class StagingAlbumRevalidationJob(
                     nameof(StagingAlbumRevalidationJob),
                     albumsNeedingRevalidation.Length,
                     albumsRevalidated,
-                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid"));
+                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid, skipped [{albumsSkippedRevalidation}]"));
 
             Logger.Information(
-                "ℹ️ [{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move",
+                "[{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move, skipped [{Skipped}]",
                 nameof(StagingAlbumRevalidationJob),
                 elapsed.TotalMilliseconds,
                 albumsRevalidated,
-                albumsNowValid);
+                albumsNowValid,
+                albumsSkippedRevalidation);
         }
         catch (Exception e)
         {

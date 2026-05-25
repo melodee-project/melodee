@@ -67,6 +67,7 @@ public sealed class DirectoryProcessorToStagingService(
     };
 
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
+    private readonly SemaphoreSlim _conversionThrottle = new(CalculateMaxConcurrentConversions(Environment.ProcessorCount));
     private bool _disposed;
     private IAlbumNamesInDirectoryPlugin _albumNamesInDirectoryPlugin = null!;
     private IAlbumValidator _albumValidator = new AlbumValidator(new MelodeeConfiguration([]));
@@ -106,6 +107,20 @@ public sealed class DirectoryProcessorToStagingService(
     {
         _disposed = true;
         _processingThrottle.Dispose();
+        _conversionThrottle.Dispose();
+    }
+
+    /// <summary>
+    ///     Calculates the conversion concurrency cap used to avoid saturating CPU and disk with ffmpeg processes.
+    /// </summary>
+    public static int CalculateMaxConcurrentConversions(int processorCount)
+    {
+        if (processorCount < 1)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, Math.Min(2, processorCount / 2));
     }
 
     public async Task InitializeAsync(IMelodeeConfiguration? configuration = null, CancellationToken token = default)
@@ -208,12 +223,35 @@ public sealed class DirectoryProcessorToStagingService(
         FileSystemDirectoryInfo fileSystemDirectoryInfo, Instant? lastProcessDate, int? maxAlbumsToProcess,
         CancellationToken cancellationToken = default)
     {
-        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, null, cancellationToken);
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, (int?)null, cancellationToken);
+    }
+
+    public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo,
+        Instant? lastProcessDate,
+        int? maxAlbumsToProcess,
+        DirectoryRunContext? runContext,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, null, runContext, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
         FileSystemDirectoryInfo fileSystemDirectoryInfo, Instant? lastProcessDate, int? maxAlbumsToProcess,
         int? libraryId,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, libraryId, null, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo,
+        Instant? lastProcessDate,
+        int? maxAlbumsToProcess,
+        int? libraryId,
+        DirectoryRunContext? runContext,
         CancellationToken cancellationToken = default)
     {
         CheckInitialized();
@@ -250,8 +288,9 @@ public sealed class DirectoryProcessorToStagingService(
 
         var startTicks = Stopwatch.GetTimestamp();
 
-        // Create a run context for caching and observability
-        using var runContext = new DirectoryRunContext();
+        // Standalone processing owns the run context; full library scans pass one shared context across stages.
+        using var localRunContext = runContext is null ? new DirectoryRunContext() : null;
+        var activeRunContext = runContext ?? localRunContext!;
 
         // Ensure directory to process exists
         Trace.WriteLine($"Ensuring processing path [{fileSystemDirectoryInfo.Path}] exists...");
@@ -369,12 +408,12 @@ public sealed class DirectoryProcessorToStagingService(
                         artistsIdsSeen,
                         albumsIdsSeen,
                         songsIdsSeen,
-                        runContext,
+                        activeRunContext,
                         libraryId,
                         ct);
                     numberOfAlbumsProcessed += processingResult.Item1;
                     numberOfValidAlbumsProcessed += processingResult.Item2;
-                    runContext.IncrementDirectoriesProcessed();
+                    activeRunContext.IncrementDirectoriesProcessed();
 
                     var currentCount = Interlocked.Increment(ref processedCount);
                     if (currentCount >= nextProgressReport || currentCount == totalDirectories)
@@ -645,8 +684,30 @@ public sealed class DirectoryProcessorToStagingService(
 
                     if (plugin.DoesHandleFile(directoryInfoToProcess, fsi))
                     {
-                        var pluginResult = await plugin
-                            .ProcessFileAsync(directoryInfoToProcess, fsi, cancellationToken).ConfigureAwait(false);
+                        await _conversionThrottle.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        var conversionStartTicks = Stopwatch.GetTimestamp();
+                        OperationResult<FileSystemFileInfo> pluginResult;
+                        try
+                        {
+                            pluginResult = await plugin
+                                .ProcessFileAsync(directoryInfoToProcess, fsi, cancellationToken).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            runContext.AddConversionTime((long)Stopwatch.GetElapsedTime(conversionStartTicks).TotalMilliseconds);
+                            if (!_disposed)
+                            {
+                                try
+                                {
+                                    _conversionThrottle.Release();
+                                }
+                                catch (ObjectDisposedException)
+                                {
+                                    // Service shutdown disposed the semaphore while processing was being cancelled.
+                                }
+                            }
+                        }
+
                         if (!pluginResult.IsSuccess)
                         {
                             // ConcurrentBag doesn't have AddRange, so add items individually

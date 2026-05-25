@@ -99,11 +99,14 @@ public sealed class LibraryInboundProcessJob(
             dataMap[JobMapNameRegistry.ScanStatus] = ScanStatus.InProcess.ToString();
             await directoryProcessorToStagingService.InitializeAsync(null, context.CancellationToken)
                 .ConfigureAwait(false);
+            var runContext = context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.DirectoryRunContext)
+                ? context.MergedJobDataMap[MelodeeJobExecutionContext.DirectoryRunContext] as DirectoryRunContext
+                : null;
             var result = await directoryProcessorToStagingService.ProcessDirectoryAsync(new FileSystemDirectoryInfo
             {
                 Path = directoryInbound,
                 Name = directoryInbound
-            }, inboundLibrary.LastScanAt, null, context.CancellationToken).ConfigureAwait(false);
+            }, inboundLibrary.LastScanAt, null, runContext, context.CancellationToken).ConfigureAwait(false);
 
             if (!result.IsSuccess)
             {

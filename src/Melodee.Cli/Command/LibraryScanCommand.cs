@@ -33,9 +33,14 @@ namespace Melodee.Cli.Command;
 /// </remarks>
 public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 {
-    private static string FormatNumber(int number)
+    private static string FormatNumber(long number)
     {
         return number.ToString("N0");
+    }
+
+    private static string FormatDurationMs(long milliseconds)
+    {
+        return TimeSpan.FromMilliseconds(milliseconds).ToString(@"hh\:mm\:ss");
     }
 
     private static ScanStepResult AddStepResult(ScanStepResult summary, ScanStepResult result)
@@ -47,6 +52,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
             NewSongsCount = summary.NewSongsCount + result.NewSongsCount,
             AlbumsRevalidated = summary.AlbumsRevalidated + result.AlbumsRevalidated,
             AlbumsNowValid = summary.AlbumsNowValid + result.AlbumsNowValid,
+            AlbumsSkippedRevalidation = summary.AlbumsSkippedRevalidation + result.AlbumsSkippedRevalidation,
             AlbumsReadyToMove = summary.AlbumsReadyToMove + result.AlbumsReadyToMove,
             AlbumsMoved = summary.AlbumsMoved + result.AlbumsMoved,
             AlbumsMergedWithExisting = summary.AlbumsMergedWithExisting + result.AlbumsMergedWithExisting,
@@ -124,6 +130,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
 
         var summary = new ScanStepResult();
         var errors = new List<string>();
+        using var scanRunContext = new DirectoryRunContext();
 
         var steps = new (string Name, Func<Task<ScanStepResult?>> Execute)[]
         {
@@ -133,6 +140,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                 var jobContext = new MelodeeJobExecutionContext(cancellationToken);
                 jobContext.Put(MelodeeJobExecutionContext.ForceMode, settings.ForceMode);
                 jobContext.Put(MelodeeJobExecutionContext.Verbose, settings.Verbose);
+                jobContext.Put(MelodeeJobExecutionContext.DirectoryRunContext, scanRunContext);
                 await job.Execute(jobContext);
                 return jobContext.Result as ScanStepResult;
             }),
@@ -141,6 +149,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                 var job = new StagingAlbumRevalidationJob(logger, configFactory, libraryService, albumDiscoveryService, artistSearchEngineService, serializer, fileSystemService);
                 var jobContext = new MelodeeJobExecutionContext(cancellationToken);
                 jobContext.Put(MelodeeJobExecutionContext.ForceMode, settings.ForceMode);
+                jobContext.Put(MelodeeJobExecutionContext.DirectoryRunContext, scanRunContext);
                 await job.Execute(jobContext);
                 return jobContext.Result as ScanStepResult;
             }),
@@ -248,6 +257,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         }
 
         var totalElapsed = Stopwatch.GetElapsedTime(overallStartTime);
+        var performanceSummary = scanRunContext.GetPerformanceSummary();
 
         if (settings.Json)
         {
@@ -273,7 +283,8 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     stagingRevalidation = new
                     {
                         albumsRevalidated = summary.AlbumsRevalidated,
-                        albumsNowValid = summary.AlbumsNowValid
+                        albumsNowValid = summary.AlbumsNowValid,
+                        albumsSkippedRevalidation = summary.AlbumsSkippedRevalidation
                     },
                     storageTransfer = new
                     {
@@ -291,6 +302,37 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                         artistsInserted = summary.ArtistsInserted,
                         albumsInserted = summary.AlbumsInserted,
                         songsInserted = summary.SongsInserted
+                    }
+                },
+                performance = new
+                {
+                    runtimeMs = performanceSummary.RuntimeMs,
+                    directoriesProcessed = performanceSummary.DirectoriesProcessed,
+                    pluginTimeMs = performanceSummary.PluginTimeMs,
+                    albumProcessingTimeMs = performanceSummary.AlbumProcessingTimeMs,
+                    enrichmentTimeMs = performanceSummary.EnrichmentTimeMs,
+                    conversionTimeMs = performanceSummary.ConversionTimeMs,
+                    conversionFilesProcessed = performanceSummary.ConversionFilesProcessed,
+                    copyTimeMs = performanceSummary.CopyTimeMs,
+                    artistSearchPersistenceRetries = performanceSummary.ArtistSearchPersistenceRetries,
+                    artistSearchPersistenceConflicts = performanceSummary.ArtistSearchPersistenceConflicts,
+                    artistSearchPersistenceCorruptions = performanceSummary.ArtistSearchPersistenceCorruptions,
+                    albumsSkippedRevalidation = performanceSummary.AlbumsSkippedRevalidation,
+                    artistSearchCache = new
+                    {
+                        entries = performanceSummary.ArtistSearchCache.TotalEntries,
+                        hits = performanceSummary.ArtistSearchCache.Hits,
+                        misses = performanceSummary.ArtistSearchCache.Misses,
+                        coalesced = performanceSummary.ArtistSearchCache.CoalescedRequests,
+                        hitRate = performanceSummary.ArtistSearchCache.HitRate
+                    },
+                    forcedArtistSearchCache = new
+                    {
+                        entries = performanceSummary.ForcedArtistSearchCache.TotalEntries,
+                        hits = performanceSummary.ForcedArtistSearchCache.Hits,
+                        misses = performanceSummary.ForcedArtistSearchCache.Misses,
+                        coalesced = performanceSummary.ForcedArtistSearchCache.CoalescedRequests,
+                        hitRate = performanceSummary.ForcedArtistSearchCache.HitRate
                     }
                 },
                 errors = errors
@@ -315,7 +357,7 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         AnsiConsole.WriteLine();
 
         var hasActivity = summary.NewArtistsCount > 0 || summary.NewAlbumsCount > 0 || summary.NewSongsCount > 0 ||
-                          summary.AlbumsRevalidated > 0 || summary.AlbumsReadyToMove > 0 ||
+                          summary.AlbumsRevalidated > 0 || summary.AlbumsSkippedRevalidation > 0 || summary.AlbumsReadyToMove > 0 ||
                           summary.AlbumsHandledByStorageTransfer > 0 || summary.AlbumsSkippedByStatus > 0 ||
                           summary.AlbumsSkippedAsDuplicateDirectory > 0 || summary.AlbumsFailedToLoad > 0 ||
                           summary.ArtistsInserted > 0 || summary.AlbumsInserted > 0 || summary.SongsInserted > 0;
@@ -341,13 +383,15 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
                     summaryTable.AddRow("  New songs discovered", FormatNumber(summary.NewSongsCount));
             }
 
-            if (summary.AlbumsRevalidated > 0 || summary.AlbumsNowValid > 0)
+            if (summary.AlbumsRevalidated > 0 || summary.AlbumsNowValid > 0 || summary.AlbumsSkippedRevalidation > 0)
             {
                 summaryTable.AddRow("[bold]Staging Revalidation[/]", "");
                 if (summary.AlbumsRevalidated > 0)
                     summaryTable.AddRow("  Albums revalidated", FormatNumber(summary.AlbumsRevalidated));
                 if (summary.AlbumsNowValid > 0)
                     summaryTable.AddRow("  Albums now valid", $"[green]{FormatNumber(summary.AlbumsNowValid)}[/]");
+                if (summary.AlbumsSkippedRevalidation > 0)
+                    summaryTable.AddRow("  Albums skipped", $"[yellow]{FormatNumber(summary.AlbumsSkippedRevalidation)}[/]");
             }
 
             if (summary.AlbumsReadyToMove > 0 ||
@@ -393,6 +437,55 @@ public class LibraryScanCommand : CommandBase<LibraryScanSettings>
         else
         {
             AnsiConsole.MarkupLine("[dim]No new content processed during this scan.[/]");
+        }
+
+        var hasPerformanceActivity = performanceSummary.ArtistSearchCache.Hits > 0 ||
+                                     performanceSummary.ArtistSearchCache.Misses > 0 ||
+                                     performanceSummary.ArtistSearchCache.CoalescedRequests > 0 ||
+                                     performanceSummary.ForcedArtistSearchCache.Hits > 0 ||
+                                     performanceSummary.ForcedArtistSearchCache.Misses > 0 ||
+                                     performanceSummary.ForcedArtistSearchCache.CoalescedRequests > 0 ||
+                                     performanceSummary.ConversionFilesProcessed > 0 ||
+                                     performanceSummary.ArtistSearchPersistenceRetries > 0 ||
+                                     performanceSummary.ArtistSearchPersistenceConflicts > 0 ||
+                                     performanceSummary.ArtistSearchPersistenceCorruptions > 0 ||
+                                     performanceSummary.AlbumsSkippedRevalidation > 0;
+        if (hasPerformanceActivity)
+        {
+            AnsiConsole.WriteLine();
+            var performanceTable = new Table()
+                .Border(TableBorder.Rounded)
+                .BorderColor(Color.Grey)
+                .Title("[yellow]Scan Performance[/]");
+
+            performanceTable.AddColumn("Metric");
+            performanceTable.AddColumn(new TableColumn("Value").RightAligned());
+
+            performanceTable.AddRow("Directories processed", FormatNumber(performanceSummary.DirectoriesProcessed));
+            performanceTable.AddRow("Artist cache hits", FormatNumber(performanceSummary.ArtistSearchCache.Hits));
+            performanceTable.AddRow("Artist cache misses", FormatNumber(performanceSummary.ArtistSearchCache.Misses));
+            performanceTable.AddRow("Artist cache coalesced", FormatNumber(performanceSummary.ArtistSearchCache.CoalescedRequests));
+            performanceTable.AddRow("Forced artist cache hits", FormatNumber(performanceSummary.ForcedArtistSearchCache.Hits));
+            performanceTable.AddRow("Forced artist cache misses", FormatNumber(performanceSummary.ForcedArtistSearchCache.Misses));
+            performanceTable.AddRow("Forced artist cache coalesced", FormatNumber(performanceSummary.ForcedArtistSearchCache.CoalescedRequests));
+            performanceTable.AddRow("Artist lookup time", FormatDurationMs(performanceSummary.EnrichmentTimeMs));
+            performanceTable.AddRow("Conversion files", FormatNumber(performanceSummary.ConversionFilesProcessed));
+            performanceTable.AddRow("Conversion time", FormatDurationMs(performanceSummary.ConversionTimeMs));
+            performanceTable.AddRow("Copy time", FormatDurationMs(performanceSummary.CopyTimeMs));
+            if (performanceSummary.ArtistSearchPersistenceConflicts > 0 ||
+                performanceSummary.ArtistSearchPersistenceRetries > 0 ||
+                performanceSummary.ArtistSearchPersistenceCorruptions > 0)
+            {
+                performanceTable.AddRow("DecentDB conflicts", FormatNumber(performanceSummary.ArtistSearchPersistenceConflicts));
+                performanceTable.AddRow("DecentDB retries", FormatNumber(performanceSummary.ArtistSearchPersistenceRetries));
+                performanceTable.AddRow("DecentDB corruptions", FormatNumber(performanceSummary.ArtistSearchPersistenceCorruptions));
+            }
+            if (performanceSummary.AlbumsSkippedRevalidation > 0)
+            {
+                performanceTable.AddRow("Revalidation skipped", FormatNumber(performanceSummary.AlbumsSkippedRevalidation));
+            }
+
+            AnsiConsole.Write(performanceTable);
         }
 
         if (errors.Count > 0)

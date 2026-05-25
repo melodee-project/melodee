@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Ardalis.GuardClauses;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
@@ -50,7 +51,14 @@ public class ArtistSearchEngineService(
     private IArtistTopSongsSearchEnginePlugin[] _artistTopSongsSearchEnginePlugins = [];
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
     private bool _initialized;
+    private int _configurationChangeSubscribed;
     private readonly ArtistSearchCache _searchCache = new();
+    private static readonly SemaphoreSlim ArtistSearchPersistenceSemaphore = new(1, 1);
+    private static readonly Regex CompoundArtistSeparatorRegex = new(
+        @"\s*(?:;|\s+(?:&|\+|x|vs\.?|with|feat\.?|featuring)\s+)\s*",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
+        TimeSpan.FromMilliseconds(100));
+    private const int ArtistSearchPersistenceMaxAttempts = 3;
 
     /// <summary>
     /// MusicBrainz rate limit: 1 request per second.
@@ -69,8 +77,10 @@ public class ArtistSearchEngineService(
     {
         _configuration = configuration ?? await configurationFactory.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
-        // Subscribe to configuration changes to reload plugins
-        configurationFactory.ConfigurationChanged += OnConfigurationChanged;
+        if (Interlocked.Exchange(ref _configurationChangeSubscribed, 1) == 0)
+        {
+            configurationFactory.ConfigurationChanged += OnConfigurationChanged;
+        }
 
         await InitializePluginsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -186,6 +196,136 @@ public class ArtistSearchEngineService(
         return (current.MusicBrainzId.HasValue && current.MusicBrainzId == candidate.MusicBrainzId) ||
                (current.SpotifyId.Nullify() != null && current.SpotifyId == candidate.SpotifyId) ||
                (current.ItunesId.Nullify() != null && current.ItunesId == candidate.ItunesId);
+    }
+
+    /// <summary>
+    ///     Splits a likely compound release artist into fallback names for targeted provider lookup.
+    /// </summary>
+    public static string[] GetCompoundArtistFallbackNames(string artistName)
+    {
+        var normalizedName = artistName.Nullify();
+        if (normalizedName == null)
+        {
+            return [];
+        }
+
+        var parts = CompoundArtistSeparatorRegex
+            .Split(normalizedName)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 1)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .ToArray();
+
+        return parts.Length > 1 ? parts : [];
+    }
+
+    /// <summary>
+    ///     Returns whether a compound artist fallback result is trusted enough to attach to the original album query.
+    /// </summary>
+    public static bool ShouldUseCompoundArtistFallbackResult(ArtistSearchResult candidate, ArtistQuery originalQuery)
+    {
+        if (!HasTrustedArtistIdentifier(candidate))
+        {
+            return false;
+        }
+
+        if (originalQuery.AlbumKeyValues is null || originalQuery.AlbumKeyValues.Length == 0)
+        {
+            return true;
+        }
+
+        return (candidate.Releases ?? []).Any(release => originalQuery.AlbumKeyValues.Any(album =>
+        {
+            if (!string.Equals(release.NameNormalized, album.Value, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return album.Key.Nullify() == null ||
+                   album.Key == "0" ||
+                   release.Year?.ToString(CultureInfo.InvariantCulture) == album.Key;
+        }));
+    }
+
+    /// <summary>
+    ///     Returns whether an exception represents a transient DecentDB transaction conflict.
+    /// </summary>
+    public static bool IsDecentDbTransientTransactionConflict(Exception exception)
+    {
+        var message = exception.ToString();
+        return message.Contains("transaction conflict", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("DecentDB error 4", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Returns whether an exception represents DecentDB corruption and should not be retried.
+    /// </summary>
+    public static bool IsDecentDbCorruption(Exception exception)
+    {
+        var message = exception.ToString();
+        return message.Contains("corrupt", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("checksum", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("DecentDB error 11", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task SaveArtistSearchChangesAsync(
+        ArtistSearchEngineServiceDbContext scopedContext,
+        DirectoryRunContext? runContext,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= ArtistSearchPersistenceMaxAttempts; attempt++)
+        {
+            var shouldRetry = false;
+            await ArtistSearchPersistenceSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && IsDecentDbCorruption(ex))
+            {
+                runContext?.RecordArtistSearchPersistenceCorruption();
+                Logger.Error(ex,
+                    "[{Name}] DecentDB corruption while saving artist search data during [{Operation}]. Retry suppressed.",
+                    nameof(ArtistSearchEngineService),
+                    operationName);
+                throw;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && IsDecentDbTransientTransactionConflict(ex))
+            {
+                runContext?.RecordArtistSearchPersistenceConflict();
+                if (attempt >= ArtistSearchPersistenceMaxAttempts)
+                {
+                    Logger.Warning(ex,
+                        "[{Name}] DecentDB transaction conflict while saving artist search data during [{Operation}] after [{Attempt}] attempts.",
+                        nameof(ArtistSearchEngineService),
+                        operationName,
+                        attempt);
+                    throw;
+                }
+
+                runContext?.RecordArtistSearchPersistenceRetry();
+                shouldRetry = true;
+                Logger.Warning(ex,
+                    "[{Name}] DecentDB transaction conflict while saving artist search data during [{Operation}], retrying attempt [{Attempt}/{MaxAttempts}].",
+                    nameof(ArtistSearchEngineService),
+                    operationName,
+                    attempt + 1,
+                    ArtistSearchPersistenceMaxAttempts);
+            }
+            finally
+            {
+                ArtistSearchPersistenceSemaphore.Release();
+            }
+
+            if (shouldRetry)
+            {
+                var delay = TimeSpan.FromMilliseconds(50 * attempt + Random.Shared.Next(25, 100));
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 
     public async Task<PagedResult<Artist>> ListAsync(
@@ -617,6 +757,47 @@ public class ArtistSearchEngineService(
         return null;
     }
 
+    private async Task<ArtistSearchResult?> GetArtistFromCompoundFallbackAsync(
+        ArtistQuery originalQuery,
+        int maxResultsValue,
+        CancellationToken cancellationToken)
+    {
+        var fallbackNames = GetCompoundArtistFallbackNames(originalQuery.Name);
+        if (fallbackNames.Length == 0)
+        {
+            return null;
+        }
+
+        foreach (var fallbackName in fallbackNames)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            var fallbackQuery = originalQuery with
+            {
+                Name = fallbackName
+            };
+            var candidate = await GetArtistFromSearchProviders(fallbackQuery, maxResultsValue, cancellationToken)
+                .ConfigureAwait(false);
+            if (candidate == null || !ShouldUseCompoundArtistFallbackResult(candidate, originalQuery))
+            {
+                continue;
+            }
+
+            candidate.Rank = Math.Max(1, candidate.Rank - 1);
+            Logger.Information(
+                "[{Name}] Using compound artist fallback [{FallbackArtist}] for original artist [{OriginalArtist}]",
+                nameof(ArtistSearchEngineService),
+                fallbackName,
+                originalQuery.Name);
+            return candidate;
+        }
+
+        return null;
+    }
+
     /// <summary>
     ///     Performs artist search with directory-run caching and request coalescing.
     ///     When a runContext is provided, uses the run-scoped cache to avoid duplicate API calls.
@@ -627,18 +808,34 @@ public class ArtistSearchEngineService(
         DirectoryRunContext? runContext,
         CancellationToken cancellationToken = default)
     {
+        return await DoSearchAsync(query, maxResults, runContext, bypassNegativeCache: false, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Performs artist search with run-scoped caching and optional negative-cache bypass.
+    /// </summary>
+    public async Task<PagedResult<ArtistSearchResult>> DoSearchAsync(
+        ArtistQuery query,
+        int? maxResults,
+        DirectoryRunContext? runContext,
+        bool bypassNegativeCache,
+        CancellationToken cancellationToken = default)
+    {
         if (runContext == null)
         {
-            return await DoSearchAsync(query, maxResults, cancellationToken).ConfigureAwait(false);
+            return await DoSearchAsync(query, maxResults, bypassNegativeCache, cancellationToken).ConfigureAwait(false);
         }
 
         var startTicks = Stopwatch.GetTimestamp();
+        var cache = bypassNegativeCache ? runContext.ForcedArtistSearchCache : runContext.ArtistSearchCache;
 
-        var (results, wasHit, wasCoalesced) = await runContext.ArtistSearchCache.GetOrCreateAsync(
+        var (results, wasHit, wasCoalesced) = await cache.GetOrCreateAsync(
             query,
             async (q, ct) =>
             {
-                var searchResult = await DoSearchAsync(q, maxResults, ct).ConfigureAwait(false);
+                var searchResult = await DoSearchInternalAsync(q, maxResults, bypassNegativeCache, runContext, ct)
+                    .ConfigureAwait(false);
                 return searchResult.Data.ToArray();
             },
             cancellationToken).ConfigureAwait(false);
@@ -647,9 +844,10 @@ public class ArtistSearchEngineService(
         runContext.AddEnrichmentTime((long)elapsedMs);
 
         Logger.Debug(
-            "[{Name}] Artist search for [{Artist}]: cacheHit={Hit}, coalesced={Coalesced}, duration={Duration}ms",
+            "[{Name}] Artist search for [{Artist}]: forced={Forced}, cacheHit={Hit}, coalesced={Coalesced}, duration={Duration}ms",
             nameof(ArtistSearchEngineService),
             query.Name,
+            bypassNegativeCache,
             wasHit,
             wasCoalesced,
             elapsedMs);
@@ -672,6 +870,17 @@ public class ArtistSearchEngineService(
         ArtistQuery query,
         int? maxResults,
         bool bypassNegativeCache,
+        CancellationToken cancellationToken = default)
+    {
+        return await DoSearchInternalAsync(query, maxResults, bypassNegativeCache, null, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<PagedResult<ArtistSearchResult>> DoSearchInternalAsync(
+        ArtistQuery query,
+        int? maxResults,
+        bool bypassNegativeCache,
+        DirectoryRunContext? runContext,
         CancellationToken cancellationToken = default)
     {
         CheckInitialized();
@@ -813,7 +1022,12 @@ public class ArtistSearchEngineService(
                                 artist.Albums = albumsToAdd.ToArray();
                                 try
                                 {
-                                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                                    await SaveArtistSearchChangesAsync(
+                                            scopedContext,
+                                            runContext,
+                                            "refresh existing artist albums",
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
                                     Logger.Debug("[{Name}] Updated existing artist [{Artist}] added [{Count}] albums.",
                                         nameof(ArtistSearchEngineService),
                                         artist,
@@ -849,6 +1063,8 @@ public class ArtistSearchEngineService(
                     else
                     {
                         var newArtist = await GetArtistFromSearchProviders(normalizedQuery, maxResultsValue, cancellationToken)
+                            .ConfigureAwait(false);
+                        newArtist ??= await GetArtistFromCompoundFallbackAsync(normalizedQuery, maxResultsValue, cancellationToken)
                             .ConfigureAwait(false);
                         if (newArtist != null)
                         {
@@ -934,7 +1150,12 @@ public class ArtistSearchEngineService(
                                 scopedContext.Artists.Add(newDbArtist);
                                 try
                                 {
-                                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                                    await SaveArtistSearchChangesAsync(
+                                            scopedContext,
+                                            runContext,
+                                            "add artist search result",
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
                                 }
                                 catch (DbUpdateException ex) when (IsAlbumUniqueConstraint(ex))
                                 {
@@ -957,7 +1178,12 @@ public class ArtistSearchEngineService(
                                     else
                                     {
                                         scopedContext.Artists.Add(newDbArtist);
-                                        await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                                        await SaveArtistSearchChangesAsync(
+                                                scopedContext,
+                                                runContext,
+                                                "retry add artist search result after duplicate album",
+                                                cancellationToken)
+                                            .ConfigureAwait(false);
                                     }
                                 }
                                 newArtist = newArtist with

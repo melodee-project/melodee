@@ -1,6 +1,8 @@
 using Melodee.Blazor.Controllers.Melodee.Models.ArtistLookup;
+using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
+using Melodee.Common.Services.SearchEngines;
 using Album = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Album;
 using Artist = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Artist;
 
@@ -86,6 +88,107 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
         var bypassResult = await service.DoSearchAsync(query, 10, bypassNegativeCache: true);
         var artist = Assert.Single(bypassResult.Data ?? []);
         Assert.Equal(artistName, artist.Name);
+    }
+
+    #endregion
+
+    #region Performance Helper Tests
+
+    [Fact]
+    public void GetCompoundArtistFallbackNames_WithCompoundArtist_ReturnsParts()
+    {
+        var result = ArtistSearchEngineService.GetCompoundArtistFallbackNames("Artist One feat. Artist Two");
+
+        Assert.Equal(["Artist One", "Artist Two"], result);
+    }
+
+    [Fact]
+    public void GetCompoundArtistFallbackNames_WithSingleArtist_ReturnsEmpty()
+    {
+        var result = ArtistSearchEngineService.GetCompoundArtistFallbackNames("Earth Wind Fire");
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ShouldUseCompoundArtistFallbackResult_WithTrustedMatchingRelease_ReturnsTrue()
+    {
+        var candidate = new ArtistSearchResult
+        {
+            Name = "Artist One",
+            FromPlugin = "Test",
+            SpotifyId = "spotify:artist-one",
+            Releases =
+            [
+                new AlbumSearchResult
+                {
+                    AlbumType = AlbumType.Album,
+                    Name = "Shared Release",
+                    NameNormalized = "SHAREDRELEASE",
+                    SortName = "Shared Release",
+                    ReleaseDate = "2026-01-01"
+                }
+            ]
+        };
+        var query = new ArtistQuery
+        {
+            Name = "Artist One feat. Artist Two",
+            AlbumKeyValues = [new KeyValue("2026", "SHAREDRELEASE")]
+        };
+
+        var result = ArtistSearchEngineService.ShouldUseCompoundArtistFallbackResult(candidate, query);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ShouldUseCompoundArtistFallbackResult_WithoutTrustedIdentifier_ReturnsFalse()
+    {
+        var candidate = new ArtistSearchResult
+        {
+            Name = "Artist One",
+            FromPlugin = "Test",
+            Releases =
+            [
+                new AlbumSearchResult
+                {
+                    AlbumType = AlbumType.Album,
+                    Name = "Shared Release",
+                    NameNormalized = "SHAREDRELEASE",
+                    SortName = "Shared Release",
+                    ReleaseDate = "2026-01-01"
+                }
+            ]
+        };
+        var query = new ArtistQuery
+        {
+            Name = "Artist One feat. Artist Two",
+            AlbumKeyValues = [new KeyValue("2026", "SHAREDRELEASE")]
+        };
+
+        var result = ArtistSearchEngineService.ShouldUseCompoundArtistFallbackResult(candidate, query);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void IsDecentDbTransientTransactionConflict_WithConflictMessage_ReturnsTrue()
+    {
+        var exception = new InvalidOperationException("DecentDB error 4: transaction conflict");
+
+        var result = ArtistSearchEngineService.IsDecentDbTransientTransactionConflict(exception);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsDecentDbCorruption_WithChecksumMessage_ReturnsTrue()
+    {
+        var exception = new InvalidOperationException("DecentDB checksum mismatch detected");
+
+        var result = ArtistSearchEngineService.IsDecentDbCorruption(exception);
+
+        Assert.True(result);
     }
 
     #endregion

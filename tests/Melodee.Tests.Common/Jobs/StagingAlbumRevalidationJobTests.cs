@@ -50,6 +50,40 @@ public class StagingAlbumRevalidationJobTests : ServiceTestBase
         persistedAlbum!.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists).Should().BeFalse();
     }
 
+    [Fact]
+    public void CanAttemptArtistRevalidation_WithBlankArtistName_ReturnsFalse()
+    {
+        var album = CreateStaleInvalidArtistAlbum("/melodee_test/staging/Unknown", "Unknown");
+        album.Artist = new Artist(string.Empty, string.Empty, string.Empty);
+
+        var result = StagingAlbumRevalidationJob.CanAttemptArtistRevalidation(album);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CanAttemptArtistRevalidation_WithUnwantedArtistText_ReturnsFalse()
+    {
+        var album = CreateStaleInvalidArtistAlbum("/melodee_test/staging/Bad", "Bad");
+        album.Artist = new Artist("Artist [WEB]", "ARTISTWEB", "Artist [WEB]");
+        album.StatusReasons = AlbumNeedsAttentionReasons.HasInvalidArtists |
+                              AlbumNeedsAttentionReasons.ArtistNameHasUnwantedText;
+
+        var result = StagingAlbumRevalidationJob.CanAttemptArtistRevalidation(album);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CanAttemptArtistRevalidation_WithTrustedItunesArtist_ReturnsTrue()
+    {
+        var album = CreateStaleInvalidArtistAlbum("/melodee_test/staging/Trusted", "Trusted");
+
+        var result = StagingAlbumRevalidationJob.CanAttemptArtistRevalidation(album);
+
+        result.Should().BeTrue();
+    }
+
     private static Album CreateStaleInvalidArtistAlbum(string albumDirectoryPath, string albumDirectoryName)
     {
         var artistName = "iTunes Artist";

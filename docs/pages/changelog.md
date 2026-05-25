@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the docs release dropdown so the latest documentation track points to `2.1.0`, while patch releases continue to use the `2.1.x` application version line.
 - Replaced the top-navbar `Documentation` link with `News` so release posts are easier to find from the docs site.
 - Expanded `mcli library scan` storage-transfer reporting to separate ready albums, newly moved albums, albums merged with existing storage, duplicate-prefixed staging directories, failed metadata loads, and albums left in staging with their validation reason counts.
+- Added `mcli library scan` performance reporting for artist lookup cache behavior, conversion time, copy time, revalidation skips, and DecentDB artist-search persistence retry counts.
+- Bounded concurrent media conversions during inbound processing to reduce CPU and disk saturation on large batch scans.
 
 ### Fixed
 
@@ -40,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inbound move-mode processing now removes source sidecar metadata files such as `.sfv`, `.nfo`, `.m3u`, `.cue`, and Blackbeard provenance after albums are staged, including metadata-only directories left by earlier runs.
 - Inbound staging now tracks media files converted during processing, so NFO-derived albums that start as FLAC are staged from the converted MP3 files instead of leaving converted songs behind in `inbound`.
 - Storage-transfer chaining now treats albums merged into existing storage directories as handled work, so the next ingestion step can continue after merge-only batches.
+- Full-scan artist lookup work now shares one run-scoped cache across inbound processing and staging revalidation, including forced revalidation lookups.
+- Artist search persistence now retries transient DecentDB transaction conflicts while surfacing corruption errors without retrying them.
+- Compound release artists such as `Artist One feat. Artist Two` now get conservative fallback artist lookups when the fallback candidate has trusted identity data and matching release evidence.
+- Staging revalidation now skips albums whose artist metadata is blank or obviously unsearchable instead of repeatedly calling external artist providers.
 
 ## [2.1.0] - 2026-05-24
 
