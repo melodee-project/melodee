@@ -9,7 +9,7 @@
     <Deterministic>false</Deterministic>
     <NoWarn>$(NoWarn);NU1507</NoWarn>
 
-    <VersionPrefix>2.0.1</VersionPrefix>
+    <VersionPrefix>2.1.0</VersionPrefix>
 
     <VersionSuffix>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionSuffix>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>

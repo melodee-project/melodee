@@ -1,5 +1,6 @@
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Scanning;
@@ -29,7 +30,8 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             MockFileSystemService(),
             MockScriptOrchestrationService(),
             MockDirectoryContextProvider(),
-            MockDenyActionHandlerFactory());
+            MockDenyActionHandlerFactory(),
+            new ImageProcessor());
     }
 
     private DirectoryProcessorToStagingService GetDirectoryProcessorService(IFileSystemService fileSystemService)
@@ -48,7 +50,8 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             fileSystemService,
             MockScriptOrchestrationService(),
             MockDirectoryContextProvider(),
-            MockDenyActionHandlerFactory());
+            MockDenyActionHandlerFactory(),
+            new ImageProcessor());
     }
 
     private async Task CreateStagingLibraryInDb()

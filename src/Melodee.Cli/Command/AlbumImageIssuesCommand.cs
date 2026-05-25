@@ -5,6 +5,7 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Plugins.Validation;
 using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
@@ -24,12 +25,13 @@ public class AlbumImageIssuesCommand : CommandBase<AlbumImageIssuesSettings>
     protected override async Task<int> ExecuteAsync(CommandContext context, AlbumImageIssuesSettings settings, CancellationToken cancellationToken)
     {
         using var scope = CreateServiceProvider().CreateScope();
+        var imageProcessor = scope.ServiceProvider.GetRequiredService<IImageProcessor>();
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MelodeeDbContext>>();
         var configFactory = scope.ServiceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var configuration = await configFactory.GetConfigurationAsync(cancellationToken);
-        var imageValidator = new ImageValidator(configuration);
+        var imageValidator = new ImageValidator(imageProcessor, configuration);
 
         var albums = await dbContext.Albums
             .Include(a => a.Artist)

@@ -12,10 +12,10 @@
 @using Melodee.Common.Plugins.Validation
 @using Melodee.Common.Constants
 @using Melodee.Common.Utility
-@using SixLabors.ImageSharp
 @using FileInfo = System.IO.FileInfo
 @using ImageInfo = Melodee.Common.Models.ImageInfo
 @using FilterOperator = Melodee.Common.Filtering.FilterOperator
+@using Melodee.Common.Imaging
 
 @inject MainLayoutProxyService MainLayoutProxyService
 @inject ILogger Logger
@@ -30,6 +30,7 @@
 @inject NavigationManager NavigationManager
 @inject DefaultImages DefaultImages
 @inject DirectoryProcessorToStagingService DirectoryProcessorToStagingService
+@inject IImageProcessor ImageProcessor
 
 @attribute [Authorize(Roles = "Administrator,Editor")]
 
@@ -420,7 +421,7 @@
 
                 var httpClient = HttpClientFactory.CreateClient();
                 var configuration = await ConfigurationFactory.GetConfigurationAsync();
-                var imageValidator = new ImageValidator(configuration);
+                var imageValidator = new ImageValidator(ImageProcessor, configuration);
                 var maxResults = configuration.GetValue<short?>(SettingRegistry.SearchEngineDefaultPageSize) ?? configuration.GetValue<short>(SettingRegistry.DefaultsPageSize);
 
                 var albumsProcessed = 0;
@@ -459,20 +460,23 @@
                                         album.AlbumTitle(), imageSearchResult.MediaUrl);
                                     
                                     var newImageInfo = new FileInfo(albumImageFromSearchFileName);
-                                    var imageInfo = await Image.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
-                                    album.Images = new List<ImageInfo>
+                                    var imageInfo = await ImageProcessor.IdentifyAsync(albumImageFromSearchFileName).ConfigureAwait(false);
+                                    if (imageInfo != null)
                                     {
-                                        new()
+                                        album.Images = new List<ImageInfo>
                                         {
-                                            FileInfo = newImageInfo.ToFileSystemInfo(),
-                                            PictureIdentifier = PictureIdentifier.Front,
-                                            CrcHash = Crc32.Calculate(newImageInfo),
-                                            Width = imageInfo.Width,
-                                            Height = imageInfo.Height,
-                                            SortOrder = 1,
-                                            WasEmbeddedInSong = false
-                                        }
-                                    };
+                                            new()
+                                            {
+                                                FileInfo = newImageInfo.ToFileSystemInfo(),
+                                                PictureIdentifier = PictureIdentifier.Front,
+                                                CrcHash = Crc32.Calculate(newImageInfo),
+                                                Width = imageInfo.Width,
+                                                Height = imageInfo.Height,
+                                                SortOrder = 1,
+                                                WasEmbeddedInSong = false
+                                            }
+                                        };
+                                    }
 
                                     await MediaEditService.SaveMelodeeAlbum(album);
                                     count++;

@@ -2,6 +2,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.Validation;
@@ -29,12 +30,12 @@ public abstract class TestsBase
 
     protected ImageConvertor GetImageConvertor()
     {
-        return new ImageConvertor(NewPluginsConfiguration());
+        return new ImageConvertor(new ImageProcessor(), NewPluginsConfiguration());
     }
 
     protected IImageValidator GetImageValidator()
     {
-        return new ImageValidator(NewPluginsConfiguration());
+        return new ImageValidator(new ImageProcessor(), NewPluginsConfiguration());
     }
 
     protected IAlbumValidator GetAlbumValidator()

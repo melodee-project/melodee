@@ -1,5 +1,6 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Services.Caching;
@@ -13,7 +14,8 @@ public class ImageConversionService(
     ILogger logger,
     ICacheManager cacheManager,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    IMelodeeConfigurationFactory configurationFactory
+    IMelodeeConfigurationFactory configurationFactory,
+    IImageProcessor imageProcessor
 )
     : ServiceBase(logger, cacheManager, contextFactory)
 {
@@ -31,7 +33,7 @@ public class ImageConversionService(
                 };
             }
 
-            var imageConvertor = new ImageConvertor(configuration);
+            var imageConvertor = new ImageConvertor(imageProcessor, configuration);
             var convertResult = await imageConvertor.ProcessFileAsync(imageFileInfo.ToDirectorySystemInfo(),
                 imageFileInfo.ToFileSystemInfo(), cancellationToken);
             return new MelodeeModels.OperationResult<bool>

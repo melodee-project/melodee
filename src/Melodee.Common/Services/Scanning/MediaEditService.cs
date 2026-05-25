@@ -3,6 +3,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Conversion.Image;
@@ -18,7 +19,6 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
-using SixLabors.ImageSharp;
 using Crc32 = Melodee.Common.Utility.Crc32;
 using ImageInfo = Melodee.Common.Models.ImageInfo;
 
@@ -34,7 +34,8 @@ public sealed class MediaEditService(
     IMelodeeConfigurationFactory configurationFactory,
     AlbumDiscoveryService albumDiscoveryService,
     ISerializer serializer,
-    IHttpClientFactory httpClientFactory) : ServiceBase(logger, cacheManager, contextFactory)
+    IHttpClientFactory httpClientFactory,
+    IImageProcessor imageProcessor) : ServiceBase(logger, cacheManager, contextFactory)
 {
     public const int SortOrderMediaMultiplier = 10000;
 
@@ -42,17 +43,17 @@ public sealed class MediaEditService(
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
 
     private ISongPlugin _editSongPlugin = new NullSongPlugin();
-    private ImageConvertor _imageConvertor = new(new MelodeeConfiguration([]));
-    private IImageValidator _imageValidator = new ImageValidator(new MelodeeConfiguration([]));
+    private ImageConvertor _imageConvertor = null!;
+    private IImageValidator _imageValidator = null!;
     private bool _initialized;
 
     public async Task InitializeAsync(IMelodeeConfiguration? configuration = null, CancellationToken token = default)
     {
         _configuration = configuration ?? await configurationFactory.GetConfigurationAsync(token).ConfigureAwait(false);
         _albumValidator = new AlbumValidator(_configuration);
-        _imageValidator = new ImageValidator(_configuration);
-        _imageConvertor = new ImageConvertor(_configuration);
-        _editSongPlugin = new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer), _imageConvertor,
+        _imageValidator = new ImageValidator(imageProcessor, _configuration);
+        _imageConvertor = new ImageConvertor(imageProcessor, _configuration);
+        _editSongPlugin = new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer), imageProcessor, _imageConvertor,
             _imageValidator, _configuration);
 
         await albumDiscoveryService.InitializeAsync(configuration, token).ConfigureAwait(false);
@@ -110,7 +111,7 @@ public sealed class MediaEditService(
                         }
                     }
 
-                    var imageConvertor = new ImageConvertor(_configuration);
+                    var imageConvertor = new ImageConvertor(imageProcessor, _configuration);
                     var numberOfExistingFrontImages =
                         album.Images?.Count(x => x.PictureIdentifier == PictureIdentifier.Front) ?? 0;
                     var tempFilename = Path.Combine(album.Directory.FullName(),
@@ -132,15 +133,15 @@ public sealed class MediaEditService(
                         albumImages.RemoveAll(x => x == existingCoverImage);
                     }
 
-                    var imageInfo = Image.Load(imageBytes);
+                    var imageDimensions = imageProcessor.Identify(imageBytes);
                     albumImages.Add(new ImageInfo
                     {
                         CrcHash = Crc32.Calculate(imageFileInfo.ToFileInfo(directoryInfo)),
                         FileInfo = imageFileInfo,
-                        Height = imageInfo.Height,
+                        Height = imageDimensions?.Height ?? 0,
                         PictureIdentifier = PictureIdentifier.Front,
                         SortOrder = deleteAllCoverImages ? 1 : albumImages.Max(x => x.SortOrder) + 1,
-                        Width = imageInfo.Width
+                        Width = imageDimensions?.Width ?? 0
                     });
                     album.Images = albumImages.ToArray();
                 }

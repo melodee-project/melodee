@@ -1,10 +1,10 @@
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Validation;
 using Melodee.Common.Utility;
-using SixLabors.ImageSharp;
 using ImageInfo = Melodee.Common.Models.ImageInfo;
 
 namespace Melodee.Common.Plugins.Extensions;
@@ -12,6 +12,7 @@ namespace Melodee.Common.Plugins.Extensions;
 public static class FileSystemDirectoryInfoExtensions
 {
     public static async Task<ImageInfo[]> ImagesForTypeAsync(this FileSystemDirectoryInfo directory,
+        IImageProcessor imageProcessor,
         int maxNumberOfImagesAllowed, PictureIdentifier[] forPictureIdentifiers, IImageValidator imageValidator,
         CancellationToken cancellationToken = default)
     {
@@ -51,7 +52,7 @@ public static class FileSystemDirectoryInfoExtensions
 
                 if (forPictureIdentifiers.Contains(pictureIdentifier))
                 {
-                    var imageInfo = await Image.LoadAsync(fileInfo.FullName, cancellationToken);
+                    var imageDimensions = await imageProcessor.IdentifyAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
                     var fileInfoFileSystemInfo = fileInfo.ToFileSystemInfo();
                     imageInfos.Add(new ImageInfo
                     {
@@ -65,8 +66,8 @@ public static class FileSystemDirectoryInfoExtensions
                         },
                         OriginalFilename = fileInfo.Name,
                         PictureIdentifier = pictureIdentifier,
-                        Width = imageInfo.Width,
-                        Height = imageInfo.Height,
+                        Width = imageDimensions?.Width ?? 0,
+                        Height = imageDimensions?.Height ?? 0,
                         SortOrder = index
                     });
                     index++;

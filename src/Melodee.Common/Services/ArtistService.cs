@@ -9,6 +9,7 @@ using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
+using Melodee.Common.Imaging;
 using Melodee.Common.MessageBus.Events;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
@@ -33,6 +34,7 @@ public class ArtistService(
     IDbContextFactory<MelodeeDbContext> contextFactory,
     ISerializer serializer,
     IHttpClientFactory httpClientFactory,
+    IImageProcessor imageProcessor,
     AlbumService albumService,
     IBus bus,
     IFileSystemService fileSystemService)
@@ -530,10 +532,16 @@ public class ArtistService(
         await using (var scopedContext =
                      await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
+            var artists = await scopedContext
+                .Artists.Include(x => x.Library)
+                .Where(x => artistIds.Contains(x.Id))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var foundIds = artists.Select(a => a.Id).ToHashSet();
             foreach (var artistId in artistIds)
             {
-                var artist = await GetAsync(artistId, cancellationToken).ConfigureAwait(false);
-                if (!artist.IsSuccess)
+                if (!foundIds.Contains(artistId))
                 {
                     return new MelodeeModels.OperationResult<bool>("Unknown artist.")
                     {
@@ -542,13 +550,14 @@ public class ArtistService(
                 }
             }
 
-            foreach (var artistId in artistIds)
-            {
-                var artist = await scopedContext
-                    .Artists.Include(x => x.Library)
-                    .FirstAsync(x => x.Id == artistId, cancellationToken)
-                    .ConfigureAwait(false);
+            var contributorIds = artists.Select(a => a.Id).ToList();
+            var allContributors = await scopedContext.Contributors
+                .Where(x => x.ArtistId.HasValue && contributorIds.Contains(x.ArtistId.Value))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
+            foreach (var artist in artists)
+            {
                 if (deleteFiles)
                 {
                     var artistDirectory = Path.Combine(artist.Library.Path, artist.Directory);
@@ -558,14 +567,10 @@ public class ArtistService(
                     }
                 }
 
-                var artistContributors = await scopedContext.Contributors.Where(x => x.ArtistId == artistId)
-                    .ToListAsync(cancellationToken).ConfigureAwait(false);
-                if (artistContributors.Count > 0)
+                var artistContributors = allContributors.Where(x => x.ArtistId == artist.Id);
+                foreach (var contributor in artistContributors)
                 {
-                    foreach (var artistContributor in artistContributors)
-                    {
-                        scopedContext.Contributors.Remove(artistContributor);
-                    }
+                    scopedContext.Contributors.Remove(contributor);
                 }
 
                 scopedContext.Artists.Remove(artist);
@@ -755,7 +760,7 @@ public class ArtistService(
         CancellationToken cancellationToken = default)
     {
         var configuration = await configurationFactory.GetConfigurationAsync(cancellationToken);
-        var imageConvertor = new ImageConvertor(configuration);
+        var imageConvertor = new ImageConvertor(imageProcessor, configuration);
         var artistDirectory = artist.ToFileSystemDirectoryInfo();
         var artistImages = artistDirectory.FileInfosForExtension("jpg", false).ToArray();
         if (deleteAllImages && artistImages.Length != 0)
@@ -1055,7 +1060,7 @@ public class ArtistService(
                                             cancellationToken).ConfigureAwait(false);
                                         if (album != null)
                                         {
-                                            await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, album,
+                                            await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, imageProcessor, album,
                                                 existingAlbumDirectory, cancellationToken).ConfigureAwait(false);
                                         }
                                     }
@@ -1101,7 +1106,7 @@ public class ArtistService(
                                     cancellationToken).ConfigureAwait(false);
                                 if (album != null)
                                 {
-                                    await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, album,
+                                    await ProcessExistingDirectoryMoveMergeAsync(configuration, serializer, imageProcessor, album,
                                         albumToMergeDirectory2, cancellationToken).ConfigureAwait(false);
                                 }
                             }
@@ -2298,7 +2303,7 @@ public class ArtistService(
 
                 if (targetSize > 0)
                 {
-                    imageBytes = ImageConvertor.ResizeImageIfNeeded(imageBytes, targetSize, targetSize, false);
+                    imageBytes = imageProcessor.ResizeImageIfNeeded(imageBytes, targetSize, targetSize, false);
                     eTag = HashHelper.CreateSha256(eTag + targetSize);
                 }
                 resizeStopwatch.Stop();

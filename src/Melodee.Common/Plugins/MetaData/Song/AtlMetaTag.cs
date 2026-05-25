@@ -5,6 +5,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Conversion.Image;
@@ -17,7 +18,6 @@ using Melodee.Common.Utility;
 using Serilog;
 using Serilog.Events;
 using SerilogTimings;
-using SixLabors.ImageSharp;
 using ImageInfo = Melodee.Common.Models.ImageInfo;
 
 namespace Melodee.Common.Plugins.MetaData.Song;
@@ -28,6 +28,7 @@ namespace Melodee.Common.Plugins.MetaData.Song;
 /// </summary>
 public sealed class AtlMetaTag(
     IMetaTagsProcessorPlugin metaTagsProcessorPlugin,
+    IImageProcessor imageProcessor,
     ImageConvertor imageConverter,
     IImageValidator imageValidator,
     IMelodeeConfiguration configuration) : MetaDataBase(configuration),
@@ -354,7 +355,7 @@ public sealed class AtlMetaTag(
                                     continue;
                                 }
 
-                                var imageInfo = Image.Load(embeddedPicture.PictureData);
+                                var embeddedPictureDimensions = imageProcessor.Identify(embeddedPicture.PictureData);
                                 var imageCrcHash = Crc32.Calculate(embeddedPicture.PictureData);
                                 if (directoryInfo.GetFileForCrcHash("jpg", imageCrcHash) == null)
                                 {
@@ -365,9 +366,9 @@ public sealed class AtlMetaTag(
                                         $"{ImageInfo.ImageFilePrefix}{(pictureIndex + 1).ToStringPadLeft(Common.Configuration.MelodeeConfiguration.ImageNameNumberPadding)}-{embeddedPicture.PicType.ToString()}.jpg");
                                     if (File.Exists(newImageFileName))
                                     {
-                                        var embeddedPictureDataInfo = Image.Identify(embeddedPicture.PictureData);
+                                        var embeddedPictureDataInfo = imageProcessor.Identify(embeddedPicture.PictureData);
                                         var exitingImageInfo =
-                                            await Image.IdentifyAsync(newImageFileName, cancellationToken);
+                                            await imageProcessor.IdentifyAsync(newImageFileName, cancellationToken).ConfigureAwait(false);
                                         doSaveEmbeddedImage = embeddedPictureDataInfo?.Width > exitingImageInfo?.Width;
                                     }
 
@@ -389,8 +390,8 @@ public sealed class AtlMetaTag(
                                             CrcHash = imageCrcHash,
                                             PictureIdentifier = pictureIdentifier,
                                             FileInfo = new FileInfo(newImageFileName).ToFileSystemInfo(),
-                                            Width = imageInfo.Width,
-                                            Height = imageInfo.Height,
+                                            Width = embeddedPictureDimensions?.Width ?? 0,
+                                            Height = embeddedPictureDimensions?.Height ?? 0,
                                             SortOrder = embeddedPicture.Position,
                                             WasEmbeddedInSong = true
                                         });

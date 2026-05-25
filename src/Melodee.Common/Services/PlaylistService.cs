@@ -6,10 +6,10 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
 using Melodee.Common.Models.Extensions;
-using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Utility;
@@ -27,7 +27,8 @@ public class PlaylistService(
     ISerializer serializer,
     IMelodeeConfigurationFactory configurationFactory,
     IDbContextFactory<MelodeeDbContext> contextFactory,
-    LibraryService libraryService)
+    LibraryService libraryService,
+    IImageProcessor imageProcessor)
     : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:playlist:apikey:{0}";
@@ -691,7 +692,7 @@ public class PlaylistService(
         var playlistImageFilename = playlist.ToImageFileName(playlistLibrary.Data.Path);
 
         // Convert to GIF format to support animations
-        var gifImageBytes = await ImageConvertor.ConvertToGifFormat(imageBytes, cancellationToken).ConfigureAwait(false);
+        var gifImageBytes = await imageProcessor.ConvertToGifAsync(imageBytes, cancellationToken).ConfigureAwait(false);
         await File.WriteAllBytesAsync(playlistImageFilename, gifImageBytes, cancellationToken).ConfigureAwait(false);
 
         playlist.LastUpdatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow);

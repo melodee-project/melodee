@@ -12,7 +12,6 @@ using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.MetaData.Directory;
 using Melodee.Common.Plugins.Validation;
 using Melodee.Common.Utility;
-using Image = SixLabors.ImageSharp.Image;
 
 namespace Melodee.Common.Models.Extensions;
 
@@ -687,7 +686,7 @@ public static class AlbumExtensions
     }
 
     public static async Task<IEnumerable<ImageInfo>> FindImages(this Album album,
-        IAlbumNamesInDirectoryPlugin albumNamesInDirectoryPlugin, int duplicateThreshold, ImageConvertor imageConvertor,
+        IImageProcessor imageProcessor, IAlbumNamesInDirectoryPlugin albumNamesInDirectoryPlugin, int duplicateThreshold, ImageConvertor imageConvertor,
         IImageValidator imageValidator, bool doDeleteInvalid, CancellationToken cancellationToken = default)
     {
         var imageInfos = new List<ImageInfo>();
@@ -747,7 +746,7 @@ public static class AlbumExtensions
                     pictureIdentifier = PictureIdentifier.SecondaryFront;
                 }
 
-                var imageInfo = await Image.LoadAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
+                var imageDimensions = await imageProcessor.IdentifyAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
                 var fileInfoFileSystemInfo = fileInfo.ToFileSystemInfo();
 
                 var crc32 = Crc32.Calculate(fileInfo);
@@ -772,9 +771,9 @@ public static class AlbumExtensions
                     DirectoryInfo = isSameDirectory ? null : fileFileSystemDirectoryInfo,
                     OriginalFilename = fileInfo.Name,
                     PictureIdentifier = pictureIdentifier,
-                    Width = imageInfo.Width,
-                    Height = imageInfo.Height,
-                    SortOrder = index + (int)pictureIdentifier * 1000 + imageInfo.Width + imageInfo.Height
+                    Width = imageDimensions?.Width ?? 0,
+                    Height = imageDimensions?.Height ?? 0,
+                    SortOrder = index + (int)pictureIdentifier * 1000 + (imageDimensions?.Width ?? 0) + (imageDimensions?.Height ?? 0)
                 });
                 index++;
             }
@@ -826,7 +825,7 @@ public static class AlbumExtensions
                 if (imageFullname != null)
                 {
                     var imageBytes = await File.ReadAllBytesAsync(imageFullname, cancellationToken).ConfigureAwait(false);
-                    if (seenImageBytes.Any(x => ImageHasher.Similarity(x, imageBytes) > duplicateThreshold))
+                    if (seenImageBytes.Any(x => imageProcessor.Similarity(x, imageBytes) > duplicateThreshold))
                     {
                         Trace.WriteLine(
                             $"Album find images is skipping duplicate image [{imageInfo.FileInfo?.Name}] with crc32 [{imageInfo.CrcHash}]");
@@ -852,6 +851,7 @@ public static class AlbumExtensions
     ///     an album directory in the 'artist' directory.
     /// </summary>
     public static async Task<IEnumerable<ImageInfo>> FindArtistImages(this Album album,
+        IImageProcessor imageProcessor,
         ImageConvertor imageConvertor,
         IImageValidator imageValidator,
         bool doDeleteOriginal,
@@ -936,7 +936,7 @@ public static class AlbumExtensions
                     pictureIdentifier = PictureIdentifier.BandSecondary;
                 }
 
-                var imageInfo = await Image.LoadAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
+                var imageDimensions = await imageProcessor.IdentifyAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
                 var fileInfoFileSystemInfo = fileInfo.ToFileSystemInfo();
 
                 var crc32 = Crc32.Calculate(fileInfo);
@@ -958,8 +958,8 @@ public static class AlbumExtensions
                     },
                     OriginalFilename = fileInfo.Name,
                     PictureIdentifier = pictureIdentifier,
-                    Width = imageInfo.Width,
-                    Height = imageInfo.Height,
+                    Width = imageDimensions?.Width ?? 0,
+                    Height = imageDimensions?.Height ?? 0,
                     SortOrder = index
                 });
                 index++;

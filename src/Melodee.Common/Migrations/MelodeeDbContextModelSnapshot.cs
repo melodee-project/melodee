@@ -18,7 +18,7 @@ namespace Melodee.Common.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.2")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -51,7 +51,8 @@ namespace Melodee.Common.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal>("CalculatedRating")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<string>("Comment")
                         .HasMaxLength(4000)
@@ -214,7 +215,8 @@ namespace Melodee.Common.Migrations
                         .HasColumnType("character varying(62000)");
 
                     b.Property<decimal>("CalculatedRating")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -414,7 +416,8 @@ namespace Melodee.Common.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("CalculatedRating")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<string>("Comment")
                         .HasMaxLength(1000)
@@ -603,7 +606,8 @@ namespace Melodee.Common.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal?>("LinkConfidence")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<string>("LinkNotes")
                         .HasMaxLength(1000)
@@ -3313,7 +3317,7 @@ namespace Melodee.Common.Migrations
                             Id = 905,
                             ApiKey = new Guid("798d3376-ff64-b590-f204-c46bef35339a"),
                             Category = 9,
-                            Comment = "Storage path to hold MusicBrainz downloaded files and SQLite db.",
+                            Comment = "Storage path to hold MusicBrainz downloaded files and database.",
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(0L),
                             IsLocked = false,
                             Key = "searchEngine.musicbrainz.storagePath",
@@ -3337,7 +3341,7 @@ namespace Melodee.Common.Migrations
                             Id = 907,
                             ApiKey = new Guid("fb35de56-6659-1268-9f28-97e0be7d870c"),
                             Category = 9,
-                            Comment = "Number of records to import from MusicBrainz downloaded db dump before commiting to local SQLite database.",
+                            Comment = "Number of records to import from MusicBrainz downloaded db dump before committing to local database.",
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(0L),
                             IsLocked = false,
                             Key = "searchEngine.musicbrainz.importBatchSize",
@@ -4704,7 +4708,8 @@ namespace Melodee.Common.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal>("CalculatedRating")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<int?>("ChannelCount")
                         .HasColumnType("integer");

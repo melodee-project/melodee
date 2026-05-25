@@ -1,6 +1,7 @@
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Scanning;
@@ -390,7 +391,8 @@ public class MediaEditServiceTests : ServiceTestBase
             MockConfigurationFactory(),
             GetTestAlbumDiscoveryService(),
             mockSerializer.Object,
-            mockHttpClientFactory.Object);
+            mockHttpClientFactory.Object,
+            new ImageProcessor());
     }
 
     private Album CreateTestAlbum()

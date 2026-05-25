@@ -2,6 +2,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Services;
 using Microsoft.EntityFrameworkCore;
@@ -1717,6 +1718,7 @@ public sealed class LibraryServiceTests : ServiceTestBase
             MockFactory(),
             configFactory,
             Serializer,
+            new ImageProcessor(),
             GetMelodeeMetadataMaker()
         );
     }

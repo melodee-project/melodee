@@ -3,6 +3,7 @@ using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.MessageBus.Events;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Collection;
@@ -57,7 +58,8 @@ public class UserServiceTests : ServiceTestBase
             GetPodcastService(),
             actualBus,
             MockPasswordHashService(),
-            MockSecretProtector());
+            MockSecretProtector(),
+            new ImageProcessor());
     }
 
     private UserAuthenticationService CreateUserAuthenticationService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)

@@ -4,6 +4,7 @@ using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Models.SpecialArtists;
@@ -17,7 +18,6 @@ using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.SearchEngines;
 using Melodee.Common.Utility;
 using Serilog;
-using SixLabors.ImageSharp;
 using ImageInfo = Melodee.Common.Models.ImageInfo;
 
 namespace Melodee.Common.Metadata;
@@ -29,7 +29,8 @@ public class MelodeeMetadataMaker(
     ArtistSearchEngineService artistSearchEngineService,
     AlbumImageSearchEngineService albumImageSearchEngineService,
     IHttpClientFactory httpClientFactory,
-    MediaEditService mediaEditService)
+    MediaEditService mediaEditService,
+    IImageProcessor imageProcessor)
 {
     /// <summary>
     ///     For a given directory generate a Melodee Metadata file (melodee.json). Does not modify files in place.
@@ -73,9 +74,9 @@ public class MelodeeMetadataMaker(
         var configElapsedMs = Stopwatch.GetElapsedTime(configStartTicks).TotalMilliseconds;
 
         var albumValidator = new AlbumValidator(configuration);
-        var imageValidator = new ImageValidator(configuration);
-        var imageConvertor = new ImageConvertor(configuration);
-        var songPlugin = new AtlMetaTag(new MetaTagsProcessor(configuration, serializer), imageConvertor, imageValidator, configuration);
+        var imageValidator = new ImageValidator(imageProcessor, configuration);
+        var imageConvertor = new ImageConvertor(imageProcessor, configuration);
+        var songPlugin = new AtlMetaTag(new MetaTagsProcessor(configuration, serializer), imageProcessor, imageConvertor, imageValidator, configuration);
         var mp3Files = new Mp3Files([songPlugin], albumValidator, serializer, logger, configuration);
 
         var processStartTicks = Stopwatch.GetTimestamp();
@@ -148,10 +149,10 @@ public class MelodeeMetadataMaker(
                     continue;
                 }
 
-                var imageInfo = await Image.LoadAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
+                var imageInfo = await imageProcessor.IdentifyAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false);
                 var crc32 = Crc32.Calculate(fileInfo);
 
-                if (albumImages.Any(x => x.IsCrcHashMatch(crc32)))
+                if (imageInfo == null || albumImages.Any(x => x.IsCrcHashMatch(crc32)))
                 {
                     continue;
                 }
@@ -182,7 +183,7 @@ public class MelodeeMetadataMaker(
         else
         {
             var foundAlbumImages =
-                (await album.FindImages(songPlugin, duplicateThreshold, imageConvertor, imageValidator,
+                (await album.FindImages(imageProcessor, songPlugin, duplicateThreshold, imageConvertor, imageValidator,
                         configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal), cancellationToken)
                     .ConfigureAwait(false)).ToArray();
             if (foundAlbumImages.Length != 0)
@@ -355,23 +356,26 @@ public class MelodeeMetadataMaker(
                             cancellationToken).ConfigureAwait(false))
                     {
                         var newImageInfo = new FileInfo(albumImageFromSearchFileName);
-                        var imageInfo = await Image.IdentifyAsync(albumImageFromSearchFileName, cancellationToken)
+                        var imageInfo = await imageProcessor.IdentifyAsync(albumImageFromSearchFileName, cancellationToken)
                             .ConfigureAwait(false);
-                        album.Images = new List<ImageInfo>
+                        if (imageInfo != null)
                         {
-                            new()
+                            album.Images = new List<ImageInfo>
                             {
-                                FileInfo = newImageInfo.ToFileSystemInfo(),
-                                PictureIdentifier = PictureIdentifier.Front,
-                                CrcHash = Crc32.Calculate(newImageInfo),
-                                Width = imageInfo.Width,
-                                Height = imageInfo.Height,
-                                SortOrder = 1,
-                                WasEmbeddedInSong = false
-                            }
-                        };
-                        Log.Debug("[{Name}] Downloaded album image [{MediaUrl}]", nameof(MelodeeMetadataMaker),
-                            imageSearchResult.MediaUrl);
+                                new()
+                                {
+                                    FileInfo = newImageInfo.ToFileSystemInfo(),
+                                    PictureIdentifier = PictureIdentifier.Front,
+                                    CrcHash = Crc32.Calculate(newImageInfo),
+                                    Width = imageInfo.Width,
+                                    Height = imageInfo.Height,
+                                    SortOrder = 1,
+                                    WasEmbeddedInSong = false
+                                }
+                            };
+                            Log.Debug("[{Name}] Downloaded album image [{MediaUrl}]", nameof(MelodeeMetadataMaker),
+                                imageSearchResult.MediaUrl);
+                        }
                     }
                 }
                 else

@@ -95,7 +95,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 - Include maintainer and version information
 
 ```dockerfile
-LABEL org.opencontainers.image.source="https://github.com/owner/melodee"
+LABEL org.opencontainers.image.source="https://github.com/melodee-project/melodee"
 LABEL org.opencontainers.image.description="Melodee music server"
 LABEL org.opencontainers.image.version="1.0.0"
 ```

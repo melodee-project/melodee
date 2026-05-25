@@ -9,8 +9,8 @@ using Melodee.Common.Data.Models.Extensions;
 using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models.Collection;
-using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Services.Caching;
 using Melodee.Common.Services.Security;
 using Melodee.Common.Utility;
@@ -41,7 +41,8 @@ public sealed class UserProfileService(
     PodcastService podcastService,
     IBus bus,
     IPasswordHashService passwordHashService,
-    ISecretProtector secretProtector)
+    ISecretProtector secretProtector,
+    IImageProcessor imageProcessor)
 : ServiceBase(logger, cacheManager, contextFactory)
 {
     private const string CacheKeyDetailByApiKeyTemplate = "urn:user:apikey:{0}";
@@ -524,7 +525,7 @@ public sealed class UserProfileService(
             File.Delete(userAvatarFullname);
         }
 
-        imageBytes = await ImageConvertor.ConvertToGifFormat(imageBytes, cancellationToken).ConfigureAwait(false);
+        imageBytes = await imageProcessor.ConvertToGifAsync(imageBytes, cancellationToken).ConfigureAwait(false);
 
         await File.WriteAllBytesAsync(userAvatarFullname, imageBytes, cancellationToken).ConfigureAwait(false);
 

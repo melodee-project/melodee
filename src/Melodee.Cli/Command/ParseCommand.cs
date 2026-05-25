@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Melodee.Cli.CommandSettings;
 using Melodee.Common.Configuration;
+using Melodee.Common.Imaging;
 using Melodee.Common.Models.Extensions;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.MetaData.Directory;
@@ -23,12 +24,13 @@ public class ParseCommand : CommandBase<ParseSettings>
     {
         using (var scope = CreateServiceProvider().CreateScope())
         {
+            var imageProcessor = scope.ServiceProvider.GetRequiredService<IImageProcessor>();
             var configFactory = scope.ServiceProvider.GetRequiredService<IMelodeeConfigurationFactory>();
             var config = await configFactory.GetConfigurationAsync();
             var serializer = scope.ServiceProvider.GetRequiredService<ISerializer>();
 
-            var imageValidator = new ImageValidator(config);
-            var imageConvertor = new ImageConvertor(config);
+            var imageValidator = new ImageValidator(imageProcessor, config);
+            var imageConvertor = new ImageConvertor(imageProcessor, config);
             var albumValidator = new AlbumValidator(config);
 
             var fileInfo = new FileInfo(settings.Filename);
@@ -50,7 +52,7 @@ public class ParseCommand : CommandBase<ParseSettings>
             var cue = new CueSheet(
                 serializer,
                 [
-                    new AtlMetaTag(new MetaTagsProcessor(config, serializer), imageConvertor, imageValidator, config)
+                    new AtlMetaTag(new MetaTagsProcessor(config, serializer), imageProcessor, imageConvertor, imageValidator, config)
                 ], albumValidator, config);
             if (cue.DoesHandleFile(fileInfo.Directory.ToDirectorySystemInfo(), fileInfo.ToFileSystemInfo()))
             {
@@ -99,7 +101,7 @@ public class ParseCommand : CommandBase<ParseSettings>
 
             var sfv = new SimpleFileVerification(serializer,
             [
-                new AtlMetaTag(new MetaTagsProcessor(config, serializer), imageConvertor, imageValidator, config)
+                new AtlMetaTag(new MetaTagsProcessor(config, serializer), imageProcessor, imageConvertor, imageValidator, config)
             ], new AlbumValidator(config), config);
             if (sfv.DoesHandleFile(fileInfo.Directory.ToDirectorySystemInfo(), fileInfo.ToFileSystemInfo()))
             {
@@ -129,7 +131,7 @@ public class ParseCommand : CommandBase<ParseSettings>
 
             var m3u = new M3UPlaylist(serializer,
             [
-                new AtlMetaTag(new MetaTagsProcessor(config, serializer), imageConvertor, imageValidator, config)
+                new AtlMetaTag(new MetaTagsProcessor(config, serializer), imageProcessor, imageConvertor, imageValidator, config)
             ], albumValidator, config);
             if (m3u.DoesHandleFile(fileInfo.Directory.ToDirectorySystemInfo(), fileInfo.ToFileSystemInfo()))
             {

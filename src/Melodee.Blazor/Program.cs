@@ -8,6 +8,7 @@ using Blazored.SessionStorage;
 using DecentDB.EntityFrameworkCore;
 using Melodee.Blazor.Components;
 using Melodee.Blazor.Constants;
+using Melodee.Blazor.Extensions;
 using Melodee.Blazor.Filters;
 using Melodee.Blazor.Hubs;
 using Melodee.Blazor.Middleware;
@@ -15,8 +16,7 @@ using Melodee.Blazor.Services;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
-using Melodee.Common.Enums;
-using Melodee.Common.Extensions;
+using Melodee.Common.Imaging;
 using Melodee.Common.Jobs;
 using Melodee.Common.MessageBus.EventHandlers;
 using Melodee.Common.Metadata;
@@ -310,6 +310,7 @@ builder.Services.AddAuthentication(options =>
         };
     });
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 builder.Services.AddScoped<IThemeClientService, ThemeClientService>();
@@ -573,6 +574,7 @@ builder.Services
     .AddScoped<ISafeDeleteService, SafeDeleteService>()
     .AddScoped<DenyActionHandlerFactory>()
     .AddScoped<IScriptedDirectoryProcessor, ScriptedDirectoryProcessor>()
+    .AddSingleton<IImageProcessor, ImageProcessor>()
     .AddScoped<ImageConversionService>()
     .AddScoped<OpenSubsonicApiService>()
     .AddScoped<AlbumImageSearchEngineService>()
@@ -609,6 +611,7 @@ builder.Services
     .AddScoped<PartyPlaybackService>()
     .AddScoped<IPartyNotificationService, PartyNotificationService>()
     .AddScoped<PartySessionEndpointRegistryService>()
+    .AddScoped<PartyModeService>()
     .AddScoped<Melodee.Common.Services.Setup.ISetupCheckService, Melodee.Common.Services.Setup.SetupCheckService>()
     .AddScoped<OnboardingStateService>()
     .AddScoped<ChecklistService>();
@@ -766,201 +769,79 @@ if (!isQuartzDisabled)
     var melodeeConfigurationFactory = app.Services.GetRequiredService<IMelodeeConfigurationFactory>();
     var melodeeConfiguration = await melodeeConfigurationFactory.GetConfigurationAsync();
 
-    // Register job history listener to track all job executions
     var scopeFactory = app.Services.GetRequiredService<IServiceScopeFactory>();
     quartzScheduler.ListenerManager.AddJobListener(
         new JobHistoryListener(scopeFactory, Log.Logger),
         GroupMatcher<JobKey>.AnyGroup());
 
-    var artistHousekeepingCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsArtistHousekeepingCronExpression);
-    if (artistHousekeepingCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<ArtistHousekeepingJob>()
-                .WithIdentity(JobKeyRegistry.ArtistHousekeepingJobJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("ArtistHousekeepingJobJobKey-trigger")
-                .WithCronSchedule(artistHousekeepingCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<ArtistHousekeepingJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsArtistHousekeepingCronExpression,
+        JobKeyRegistry.ArtistHousekeepingJobJobKey);
 
-    var artistSearchEngineHousekeepingCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsArtistSearchEngineHousekeepingCronExpression);
-    if (artistSearchEngineHousekeepingCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<ArtistSearchEngineRepositoryHousekeepingJob>()
-                .WithIdentity(JobKeyRegistry.ArtistSearchEngineHousekeepingJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("ArtistSearchEngineHousekeepingJob-trigger")
-                .WithCronSchedule(artistSearchEngineHousekeepingCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<ArtistSearchEngineRepositoryHousekeepingJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsArtistSearchEngineHousekeepingCronExpression,
+        JobKeyRegistry.ArtistSearchEngineHousekeepingJobKey);
 
-    var libraryInboundProcessJobKeyCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsLibraryProcessCronExpression);
-    if (libraryInboundProcessJobKeyCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<LibraryInboundProcessJob>()
-                .WithIdentity(JobKeyRegistry.LibraryInboundProcessJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("LibraryInboundProcessJob-trigger")
-                .UsingJobData(JobMapNameRegistry.ScanStatus, ScanStatus.Idle.ToString())
-                .UsingJobData(JobMapNameRegistry.Count, 0)
-                .WithCronSchedule(libraryInboundProcessJobKeyCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<LibraryInboundProcessJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsLibraryProcessCronExpression,
+        JobKeyRegistry.LibraryInboundProcessJobKey,
+        includeScanStatusJobData: true);
 
-    var libraryInsertCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsLibraryInsertCronExpression);
-    if (libraryInsertCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<LibraryInsertJob>()
-                .WithIdentity(JobKeyRegistry.LibraryProcessJobJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("LibraryProcessJob-trigger")
-                .UsingJobData(JobMapNameRegistry.ScanStatus, ScanStatus.Idle.ToString())
-                .UsingJobData(JobMapNameRegistry.Count, 0)
-                .WithCronSchedule(libraryInsertCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<LibraryInsertJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsLibraryInsertCronExpression,
+        JobKeyRegistry.LibraryProcessJobJobKey,
+        includeScanStatusJobData: true);
 
-    var musicBrainzUpdateDatabaseCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsMusicBrainzUpdateDatabaseCronExpression);
-    if (musicBrainzUpdateDatabaseCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<MusicBrainzUpdateDatabaseJob>()
-                .WithIdentity(JobKeyRegistry.MusicBrainzUpdateDatabaseJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("MusicBrainzUpdateDatabaseJob-trigger")
-                .WithCronSchedule(musicBrainzUpdateDatabaseCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<MusicBrainzUpdateDatabaseJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsMusicBrainzUpdateDatabaseCronExpression,
+        JobKeyRegistry.MusicBrainzUpdateDatabaseJobKey);
 
-    var nowPlayingCleanupCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsNowPlayingCleanupCronExpression);
-    if (nowPlayingCleanupCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<NowPlayingCleanupJob>()
-                .WithIdentity(JobKeyRegistry.NowPlayingCleanupJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("NowPlayingCleanupJob-trigger")
-                .WithCronSchedule(nowPlayingCleanupCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<NowPlayingCleanupJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsNowPlayingCleanupCronExpression,
+        JobKeyRegistry.NowPlayingCleanupJobKey);
 
-    var chartUpdateCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsChartUpdateCronExpression);
-    if (chartUpdateCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<ChartUpdateJob>()
-                .WithIdentity(JobKeyRegistry.ChartUpdateJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("ChartUpdateJob-trigger")
-                .WithCronSchedule(chartUpdateCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<ChartUpdateJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsChartUpdateCronExpression,
+        JobKeyRegistry.ChartUpdateJobKey);
 
-    var stagingAutoMoveCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsStagingAutoMoveCronExpression);
-    if (stagingAutoMoveCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<StagingAutoMoveJob>()
-                .WithIdentity(JobKeyRegistry.StagingAutoMoveJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("StagingAutoMoveJob-trigger")
-                .UsingJobData(JobMapNameRegistry.ScanStatus, ScanStatus.Idle.ToString())
-                .UsingJobData(JobMapNameRegistry.Count, 0)
-                .WithCronSchedule(stagingAutoMoveCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<StagingAutoMoveJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsStagingAutoMoveCronExpression,
+        JobKeyRegistry.StagingAutoMoveJobKey,
+        includeScanStatusJobData: true);
 
-    var stagingAlbumRevalidationCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsStagingAlbumRevalidationCronExpression);
-    if (stagingAlbumRevalidationCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<StagingAlbumRevalidationJob>()
-                .WithIdentity(JobKeyRegistry.StagingAlbumRevalidationJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("StagingAlbumRevalidationJob-trigger")
-                .UsingJobData(JobMapNameRegistry.ScanStatus, ScanStatus.Idle.ToString())
-                .UsingJobData(JobMapNameRegistry.Count, 0)
-                .WithCronSchedule(stagingAlbumRevalidationCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<StagingAlbumRevalidationJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsStagingAlbumRevalidationCronExpression,
+        JobKeyRegistry.StagingAlbumRevalidationJobKey,
+        includeScanStatusJobData: true);
 
-    var podcastRefreshCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsPodcastRefreshCronExpression);
-    if (podcastRefreshCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<PodcastRefreshJob>()
-                .WithIdentity(JobKeyRegistry.PodcastRefreshJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("PodcastRefreshJob-trigger")
-                .WithCronSchedule(podcastRefreshCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<PodcastRefreshJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsPodcastRefreshCronExpression,
+        JobKeyRegistry.PodcastRefreshJobKey);
 
-    var podcastDownloadCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsPodcastDownloadCronExpression);
-    if (podcastDownloadCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<PodcastDownloadJob>()
-                .WithIdentity(JobKeyRegistry.PodcastDownloadJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("PodcastDownloadJob-trigger")
-                .WithCronSchedule(podcastDownloadCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<PodcastDownloadJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsPodcastDownloadCronExpression,
+        JobKeyRegistry.PodcastDownloadJobKey);
 
-    var podcastCleanupCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsPodcastCleanupCronExpression);
-    if (podcastCleanupCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<PodcastCleanupJob>()
-                .WithIdentity(JobKeyRegistry.PodcastCleanupJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("PodcastCleanupJob-trigger")
-                .WithCronSchedule(podcastCleanupCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<PodcastCleanupJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsPodcastCleanupCronExpression,
+        JobKeyRegistry.PodcastCleanupJobKey);
 
-    var podcastRecoveryCronExpression = melodeeConfiguration.GetValue<string>(SettingRegistry.JobsPodcastRecoveryCronExpression);
-    if (podcastRecoveryCronExpression.Nullify() != null)
-    {
-        await quartzScheduler.ScheduleJob(
-            JobBuilder.Create<PodcastRecoveryJob>()
-                .WithIdentity(JobKeyRegistry.PodcastRecoveryJobKey)
-                .Build(),
-            TriggerBuilder.Create()
-                .WithIdentity("PodcastRecoveryJob-trigger")
-                .WithCronSchedule(podcastRecoveryCronExpression!)
-                .StartNow()
-                .Build());
-    }
+    await quartzScheduler.ScheduleJobIfConfigured<PodcastRecoveryJob>(
+        melodeeConfiguration,
+        SettingRegistry.JobsPodcastRecoveryCronExpression,
+        JobKeyRegistry.PodcastRecoveryJobKey);
 }
 
 #endregion
