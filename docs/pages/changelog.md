@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+## [2.1.2] - 2026-06-09
+
+### Changed
+
+- Upgraded `DecentDB.EntityFrameworkCore` and `DecentDB.EntityFrameworkCore.NodaTime` to `2.8.0`.
+
+### Fixed
+
+- Release editing no longer triggers EasyMDE's Font Awesome CDN stylesheet load,
+  preventing Content Security Policy violations in the browser console.
+- The Blazor shell now loads the EasyMDE script only once.
+- Admin dashboard doctor checks no longer emit Entity Framework warnings for
+  unordered row-limiting probes.
+
 ## [2.1.1] - 2026-05-25
 
 ### Changed

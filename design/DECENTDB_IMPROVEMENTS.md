@@ -1,15 +1,18 @@
 ## DecentDB EntityFramework Improvements for Melodee
 
 **Date**: 2026-03-21
-**Last updated**: 2026-05-25
-**Status**: Open items only
+**Last updated**: 2026-06-09
+**Status**: Open items and partial implementation notes
 
 ## Purpose
 
 This document is now an active implementation backlog for the remaining
 DecentDB and Melodee scale work. Historical fixes that have already landed were
 removed so coding agents can treat the table below as the source of truth for
-unfinished work.
+unfinished work. The current package baseline is
+`DecentDB.EntityFrameworkCore` `2.8.0` and
+`DecentDB.EntityFrameworkCore.NodaTime` `2.8.0`; real-file validation still
+needs to be rerun against that version.
 
 Melodee uses `DecentDB.EntityFrameworkCore` for two different workloads:
 
@@ -30,23 +33,24 @@ still become expensive at very large scale.
 | TODO | Implementation or documentation work is still required. |
 | TODO/VERIFY | The code path may exist, but real-data proof is still missing. |
 | TODO/CONDITIONAL | Implement after the dependency row proves the work is needed, or while already touching the same area. |
+| PARTIAL | Some implementation or instrumentation exists, but the acceptance target is not satisfied. |
 
-## Active TODO Table
+## Active Work Table
 
 | ID | Status | Priority | Owner | Area | Acceptance target |
 | --- | --- | --- | --- | --- | --- |
-| DDB-001 | TODO/VERIFY | High | Melodee | Real-file MusicBrainz rebuild | Run a clean monitored rebuild to completion and record final wall-clock, RSS, `VmHWM`, `.ddb`, `.wal`, and post-import probe timings. |
-| DDB-002 | TODO/VERIFY | High | Melodee / DecentDB | Exact `MusicBrainzIdRaw` lookup | Prove exact MBID lookup on a rebuilt database is request-safe and uses the indexed string path, or capture a focused repro for provider work. |
+| DDB-001 | TODO/VERIFY | High | Melodee | Real-file MusicBrainz rebuild | Run a clean monitored rebuild against DecentDB `2.8.0` to completion and record final wall-clock, RSS, `VmHWM`, `.ddb`, `.wal`, and post-import probe timings. |
+| DDB-002 | TODO/VERIFY | High | Melodee / DecentDB | Exact `MusicBrainzIdRaw` lookup | Prove exact MBID lookup on a rebuilt DecentDB `2.8.0` database is request-safe and uses the indexed string path, or capture a focused repro for provider work. |
 | DDB-003 | TODO/CONDITIONAL | High | DecentDB provider | Indexed string equality | If DDB-002 remains slow, isolate provider/data causes for equality on large indexed string columns and add provider regression coverage. |
 | DDB-004 | TODO | Medium | Melodee | Local artist cache search | Split local cache search into staged exact-match phases and remove wide mixed `OR` plus substring lookup from the normal fast path. |
 | DDB-005 | TODO | Medium | Melodee | Local cache listing | Avoid mandatory `CountAsync()` and full table materialization before pagination for normal local-cache list views. |
 | DDB-006 | TODO | Low | Melodee | Import completion counts | Prefer counts already known from import/materialization steps over end-of-job large-table `CountAsync()` probes where possible. |
-| DDB-007 | TODO | Medium | Melodee | MusicBrainz query perf probes | Commit an explicit probe for first-row existence, exact normalized name, exact alias, and exact MBID lookup. |
-| DDB-008 | TODO | Medium | Melodee | MusicBrainz import perf probes | Commit an import perf harness that captures phase timings, peak memory, and database file growth without including build time. |
+| DDB-007 | TODO | Medium | Melodee | MusicBrainz query perf probes | Commit an explicit probe for ordered first-row existence, exact normalized name, exact alias, and exact MBID lookup. |
+| DDB-008 | PARTIAL | Medium | Melodee | MusicBrainz import perf probes | Extend the existing synthetic benchmarks and opt-in perf tests with a real-file mode that captures phase timings, peak memory, and database file growth without including build time. |
 | DDB-009 | TODO | Medium | DecentDB provider / Melodee docs | Large-text search strategy | Decide whether substring-heavy workloads need provider support or schema-level guidance that keeps them off large request paths. |
-| DDB-010 | TODO | Medium | DecentDB provider / Melodee | Large-file diagnostics | Add practical SQL, timing, and plan diagnostics so slow large-file query shapes are visible during app-level probes. |
+| DDB-010 | PARTIAL | Medium | DecentDB provider / Melodee | Large-file diagnostics | Extend the existing phase and WAL timing logs with practical SQL, timing, and plan diagnostics so slow large-file query shapes are visible during app-level probes. |
 
-## Historical Measurements That Still Drive The TODOs
+## Historical Measurements That Still Drive The Work
 
 The following measurements came from a focused probe against a real
 MusicBrainz DecentDB file of roughly `2.31 GB`. They remain useful because they
@@ -55,7 +59,7 @@ explain why the open items exist.
 | Query shape | Prior timing | Current instruction |
 | --- | ---: | --- |
 | `Database.CanConnectAsync()` | ~3-13 ms | Safe connectivity probe. |
-| First-row projection, for example `Select(x => x.Id).FirstOrDefaultAsync()` | ~7-15 ms | Preferred existence pattern for large request paths. |
+| Ordered first-row projection, for example `OrderBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync()` | ~7-15 ms | Preferred existence pattern for large request paths. |
 | `Artists.AnyAsync()` / `Artists.Take(1).CountAsync()` | ~13 s | Keep off request paths and avoid in large-table probes. |
 | Exact normalized-name MusicBrainz artist lookup | ~13-40 ms | Keep as the primary large-file search path. |
 | `AlternateNames.Contains(...)` substring lookup | ~15 s | Do not use blob substring scans on the large request path. |
@@ -69,6 +73,8 @@ explain why the open items exist.
 Run the MusicBrainz import against the real dump to completion and record final
 numbers. The last known clean run was intentionally stopped before completion,
 so the existing partial data is not enough to close the DecentDB work.
+
+Run the next proof against DecentDB `2.8.0`.
 
 Relevant entry points:
 
@@ -117,7 +123,7 @@ Implementation guide:
 3. Verify that `MusicBrainzIdRaw` values are canonical strings and round-trip
    through the provider without binary or formatting artifacts.
 4. Time direct equality lookup:
-   `context.Artists.Where(a => a.MusicBrainzIdRaw == mbid).Take(1)`.
+   `context.Artists.Where(a => a.MusicBrainzIdRaw == mbid).OrderBy(a => a.Id).Take(1)`.
 5. Time repository lookup through `SearchArtist(...)` when only an MBID is
    supplied.
 6. Time repository lookup when both exact name and MBID are supplied.
@@ -264,7 +270,7 @@ without rebuilding ad hoc scripts each time.
 Probe coverage:
 
 - database open and `CanConnectAsync()`
-- first-row projection existence check
+- ordered first-row projection existence check
 - exact normalized-name lookup
 - exact alias lookup
 - exact `MusicBrainzIdRaw` lookup
@@ -287,10 +293,21 @@ Acceptance target:
 
 ## DDB-008: MusicBrainz Import Perf Probe
 
-**Status**: TODO
+**Status**: PARTIAL
 
-Add a committed import perf harness that separates import work from build time
-and records the data needed to catch regressions in large MusicBrainz imports.
+Extend the committed import perf harnesses so they separate import work from
+build time and record the data needed to catch regressions in large MusicBrainz
+imports.
+
+Current code state:
+
+- `benchmarks/Melodee.Benchmarks/MusicBrainzImportBenchmarks.cs` provides
+  BenchmarkDotNet coverage for synthetic MusicBrainz import data.
+- `tests/Melodee.Tests.Common/Plugins/SearchEngine/MusicBrainz/MusicBrainzImportBenchmark.cs`
+  provides opt-in synthetic perf tests behind `MELODEE_RUN_PERF_TESTS=true`.
+- The current harnesses do not yet provide real-file import mode, OS-level RSS
+  or `VmHWM`, periodic `.ddb` and `.wal` growth samples, or final counts from
+  known import counters.
 
 Probe coverage:
 
@@ -308,8 +325,8 @@ Implementation guide:
 1. Run from compiled `Release` output.
 2. Emit periodic metric samples to JSON or CSV.
 3. Support cancellation without corrupting the metric file.
-4. Keep the probe manual or opt-in unless a small synthetic mode is added for
-   regular CI.
+4. Keep the real-file probe manual or opt-in; retain synthetic coverage for
+   regular CI or local smoke checks.
 
 Acceptance target:
 
@@ -341,10 +358,19 @@ Acceptance target:
 
 ## DDB-010: Large-File Diagnostics
 
-**Status**: TODO
+**Status**: PARTIAL
 
 Large-file plan problems should be visible before they turn into production
 latency surprises.
+
+Current code state:
+
+- `DecentDBMusicBrainzRepository` logs phase timing for MusicBrainz artist
+  searches.
+- `MusicBrainzUpdateDatabaseJob` logs WAL size before and after the DecentDB
+  checkpoint step.
+- The current diagnostics do not yet expose opt-in sanitized SQL, row counts,
+  plan/index details, or a unified slow-query report for DDB-007 and DDB-008.
 
 Implementation guide:
 
@@ -363,7 +389,7 @@ Acceptance target:
 
 ## Final Real-File Metrics
 
-Fill this table after DDB-001 and DDB-002 are run.
+Fill this table after DDB-001 and DDB-002 are run against DecentDB `2.8.0`.
 
 | Metric | Value | Notes |
 | --- | --- | --- |

@@ -538,10 +538,12 @@ public sealed class DoctorService(
 
             _ = await db.Artists
                 .AsNoTracking()
+                .OrderBy(x => x.Id)
                 .Select(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken);
             _ = await db.Albums
                 .AsNoTracking()
+                .OrderBy(x => x.Id)
                 .Select(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -561,6 +563,7 @@ public sealed class DoctorService(
             await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
             var firstArtistId = await db.Artists
                 .AsNoTracking()
+                .OrderBy(x => x.Id)
                 .Select(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -1602,8 +1605,8 @@ public sealed class DoctorService(
 
             await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-            // Simple query to measure latency
-            _ = await db.Settings.Take(1).CountAsync(cancellationToken);
+            // Simple existence query to measure latency.
+            _ = await db.Settings.AsNoTracking().AnyAsync(cancellationToken);
 
             queryStart.Stop();
             var latencyMs = queryStart.Elapsed.TotalMilliseconds;

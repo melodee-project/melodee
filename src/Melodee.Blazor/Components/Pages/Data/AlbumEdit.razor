@@ -133,7 +133,7 @@
                                 <RadzenLabel Text="@L("Label.Description")" Component="Description"/>
                             </RadzenColumn>
                             <RadzenColumn Size="12" SizeMD="10">
-                                <MarkdownEditor UploadImage="false" Value="@_album.Description"/>
+                                <MarkdownEditor UploadImage="false" AutoDownloadFontAwesome="false" Value="@_album.Description"/>
                             </RadzenColumn>
                         </RadzenRow>
                         <RadzenRow AlignItems="AlignItems.Center" RowGap="0.25rem">
@@ -209,7 +209,7 @@
                                 <RadzenLabel Text="@L("Label.Notes")" Component="Notes"/>
                             </RadzenColumn>
                             <RadzenColumn Size="12" SizeMD="10">
-                                <MarkdownEditor UploadImage="false" Value="@_album.Notes"/>
+                                <MarkdownEditor UploadImage="false" AutoDownloadFontAwesome="false" Value="@_album.Notes"/>
                             </RadzenColumn>
                         </RadzenRow>
                         <RadzenRow AlignItems="AlignItems.Center" RowGap="0.25rem">
@@ -402,5 +402,4 @@
     }
 
 }
-
 
