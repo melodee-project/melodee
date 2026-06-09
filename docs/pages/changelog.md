@@ -25,9 +25,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.2] - 2026-06-09
 
+### Added
+
+- Added DecentDB MusicBrainz import and query probes for real-file performance diagnostics,
+  including JSON phase timings, row counts, memory samples, WAL growth, SQL shape, and
+  cold/warm lookup timings.
+- Added internal DecentDB search strategy and provider enhancement notes covering ADO.NET
+  maintenance APIs, WAL visibility, query diagnostics, large indexed string equality, and
+  large-text search guidance.
+
 ### Changed
 
-- Upgraded `DecentDB.EntityFrameworkCore` and `DecentDB.EntityFrameworkCore.NodaTime` to `2.8.0`.
+- Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
+  `DecentDB.EntityFrameworkCore.NodaTime` to `2.9.0`.
+- MusicBrainz DecentDB imports now return materialized row counts and keep final full-table
+  verification counts opt-in, avoiding redundant full-table counts during normal imports.
+- Local artist cache lookups now use staged exact identifier, normalized name, and normalized
+  alias queries, with database-side paging for artist list requests.
+- Local artist aliases now use a normalized lookup table that is backfilled on startup for
+  existing cache data and synchronized when cached artists change.
 
 ### Fixed
 
@@ -36,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Blazor shell now loads the EasyMDE script only once.
 - Admin dashboard doctor checks no longer emit Entity Framework warnings for
   unordered row-limiting probes.
+- Exact MusicBrainz ID lookups now apply deterministic ordering before row limiting.
+- DecentDB improvement tracking now separates completed Melodee changes from provider
+  enhancement candidates.
+- MusicBrainz database imports now checkpoint through the DecentDB `2.9.0`
+  `DecentDBMaintenance.CheckpointAsync(...)` API instead of an external process.
 
 ## [2.1.1] - 2026-05-25
 
@@ -82,16 +103,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Replaced `SixLabors.ImageSharp` with `SkiaSharp`** for all image processing operations. A new `IImageProcessor` abstraction centralizes decode, encode, resize, format identification, and average-hash computation. `ImageHasher`, `ImageConvertor`, and `ImageValidator` now receive `IImageProcessor` via dependency injection rather than using static library calls. All services, Blazor components, CLI commands, and test constructors were updated consistently. SkiaSharp native assets are included conditionally (`SkiaSharp.NativeAssets.Linux` on Linux) so builds work across platforms without extra runtime dependencies.
+- **Replaced `SixLabors.ImageSharp` with `SkiaSharp`** for all image processing operations.
+  A new `IImageProcessor` abstraction centralizes decode, encode, resize, format
+  identification, and average-hash computation. `ImageHasher`, `ImageConvertor`, and
+  `ImageValidator` now receive `IImageProcessor` via dependency injection rather than
+  using static library calls. All services, Blazor components, CLI commands, and test
+  constructors were updated consistently. SkiaSharp native assets are included
+  conditionally (`SkiaSharp.NativeAssets.Linux` on Linux) so builds work across
+  platforms without extra runtime dependencies.
 - Set min-width on album detail action column for layout stability
 - Remove unnecessary EnsureArtistAliasTableAsync call in MusicBrainz repository
 - Dashboard data loading moved from `OnInitializedAsync` to `OnAfterRenderAsync` so skeleton placeholders render immediately instead of blocking the initial page render.
 - Bulk delete operations in `SongService`, `AlbumService`, and `ArtistService` now batch-load entities in a single query instead of executing N+1 queries per item, significantly improving performance for large deletions.
 - Quartz job scheduling extracted into `QuartzSchedulerExtensions.ScheduleJobIfConfigured<TJob>` helper method, reducing `Program.cs` from 1,046 to ~860 lines and eliminating ~150 lines of repetitive scheduling code.
-- **Squashed 55 EF Core migrations into a single `InitialBaseline` migration.** The migration history (107 files spanning Feb 2025 – Jan 2026) has been consolidated into one baseline file that generates the complete current schema. This reduces repository size, speeds up CI builds, and eliminates fragile migration chains. Existing databases that have already applied the latest migration are unaffected; new setups will apply only the single baseline.
+- **Squashed 55 EF Core migrations into a single `InitialBaseline` migration.** The
+  migration history (107 files spanning Feb 2025 – Jan 2026) has been consolidated into
+  one baseline file that generates the complete current schema. This reduces repository
+  size, speeds up CI builds, and eliminates fragile migration chains. Existing databases
+  that have already applied the latest migration are unaffected; new setups will apply
+  only the single baseline.
 - Added `.kilo/` project configuration with slash commands (`/build`, `/test`, `/test-mql`, `/lint`, `/migrate`, `/coverage`) and a project-aware `melodee-developer` agent for consistent developer workflows.
 - Dropped JavaScript/TypeScript from CodeQL analysis — the repository contains only minimal JS files (jQuery, lunr.js in docs site), and scanning them wasted ~5–10 minutes per CI run with no security value.
-- **Refactored `PartyModeService` to call domain services directly instead of making HTTP requests to the same application.** Replaced `HttpClient` with `PartySessionService`, `PartyQueueService`, `PartyPlaybackService`, and `PartySessionEndpointRegistryService` via dependency injection. User identity resolved through `IAuthService.CurrentUser` rather than cookie auth. Eliminates ~20 HTTP round-trips per user interaction (create, join, leave, queue, playback, endpoints) in party mode Blazor components.
+- **Refactored `PartyModeService` to call domain services directly instead of making HTTP
+  requests to the same application.** Replaced `HttpClient` with `PartySessionService`,
+  `PartyQueueService`, `PartyPlaybackService`, and `PartySessionEndpointRegistryService`
+  via dependency injection. User identity resolved through `IAuthService.CurrentUser`
+  rather than cookie auth. Eliminates ~20 HTTP round-trips per user interaction (create,
+  join, leave, queue, playback, endpoints) in party mode Blazor components.
 
 ### Security
 

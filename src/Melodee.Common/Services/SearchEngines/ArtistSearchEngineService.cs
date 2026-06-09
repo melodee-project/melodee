@@ -30,7 +30,6 @@ using Serilog.Events;
 using SerilogTimings;
 using Album = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Album;
 using Artist = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Artist;
-using StringExtensions = Melodee.Common.Extensions.StringExtensions;
 
 namespace Melodee.Common.Services.SearchEngines;
 
@@ -59,6 +58,8 @@ public class ArtistSearchEngineService(
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase,
         TimeSpan.FromMilliseconds(100));
     private const int ArtistSearchPersistenceMaxAttempts = 3;
+    private const int LocalArtistCandidateLimit = 25;
+    private const int LocalArtistAliasBackfillBatchSize = 500;
 
     /// <summary>
     /// MusicBrainz rate limit: 1 request per second.
@@ -88,6 +89,7 @@ public class ArtistSearchEngineService(
         {
             await scopedContext.Database.EnsureCreatedAsync(cancellationToken);
             await EnsureHousekeepingIndexesAsync(scopedContext, cancellationToken).ConfigureAwait(false);
+            await EnsureLocalArtistAliasLookupAsync(scopedContext, cancellationToken).ConfigureAwait(false);
         }
 
         _initialized = true;
@@ -108,6 +110,100 @@ public class ArtistSearchEngineService(
             ON "Artists" ("IsLocked", "LastRefreshed")
             """,
             cancellationToken);
+    }
+
+    private static async Task EnsureLocalArtistAliasLookupAsync(
+        ArtistSearchEngineServiceDbContext context,
+        CancellationToken cancellationToken)
+    {
+        if (!context.Database.IsRelational())
+        {
+            return;
+        }
+
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "ArtistAliases" (
+                "Id" INTEGER NOT NULL PRIMARY KEY,
+                "ArtistId" INTEGER NOT NULL,
+                "NameNormalized" TEXT NOT NULL,
+                FOREIGN KEY ("ArtistId") REFERENCES "Artists" ("Id") ON DELETE CASCADE
+            )
+            """,
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE INDEX IF NOT EXISTS "IX_ArtistAliases_NameNormalized"
+            ON "ArtistAliases" ("NameNormalized")
+            """,
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ArtistAliases_ArtistId_NameNormalized"
+            ON "ArtistAliases" ("ArtistId", "NameNormalized")
+            """,
+            cancellationToken);
+
+        await BackfillLocalArtistAliasLookupAsync(context, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task BackfillLocalArtistAliasLookupAsync(
+        ArtistSearchEngineServiceDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var firstAliasId = await context.ArtistAliases
+            .AsNoTracking()
+            .OrderBy(x => x.Id)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (firstAliasId.HasValue)
+        {
+            return;
+        }
+
+        var pendingAliases = new List<ArtistAlias>(LocalArtistAliasBackfillBatchSize);
+        var artistsWithAliases = context.Artists
+            .AsNoTracking()
+            .Where(x => x.AlternateNames != null && x.AlternateNames != string.Empty)
+            .OrderBy(x => x.Id)
+            .Select(x => new
+            {
+                x.Id,
+                x.NameNormalized,
+                x.AlternateNames
+            });
+
+        await foreach (var artist in artistsWithAliases.AsAsyncEnumerable()
+                           .WithCancellation(cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            foreach (var alias in GetNormalizedLocalArtistAliases(artist.AlternateNames, artist.NameNormalized))
+            {
+                pendingAliases.Add(new ArtistAlias
+                {
+                    ArtistId = artist.Id,
+                    NameNormalized = alias
+                });
+            }
+
+            if (pendingAliases.Count < LocalArtistAliasBackfillBatchSize)
+            {
+                continue;
+            }
+
+            context.ArtistAliases.AddRange(pendingAliases);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            pendingAliases.Clear();
+        }
+
+        if (pendingAliases.Count == 0)
+        {
+            return;
+        }
+
+        context.ArtistAliases.AddRange(pendingAliases);
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void OnConfigurationChanged(object? sender, EventArgs e) => _ = OnConfigurationChangedAsync(sender, e);
@@ -301,7 +397,17 @@ public class ArtistSearchEngineService(
             await ArtistSearchPersistenceSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                var artistsRequiringAliasSync = GetArtistsRequiringAliasSync(scopedContext);
+                await SyncLocalArtistAliasesAsync(scopedContext, artistsRequiringAliasSync, cancellationToken)
+                    .ConfigureAwait(false);
                 await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await SyncLocalArtistAliasesAsync(scopedContext, artistsRequiringAliasSync, cancellationToken)
+                    .ConfigureAwait(false);
+                if (scopedContext.ChangeTracker.HasChanges())
+                {
+                    await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
+
                 return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException && IsDecentDbCorruption(ex))
@@ -352,7 +458,7 @@ public class ArtistSearchEngineService(
         PagedRequest pagedRequest,
         CancellationToken cancellationToken = default)
     {
-        int totalCount;
+        var totalCount = 0;
         Artist[] artists = [];
 
         using (Operation.At(LogEventLevel.Debug)
@@ -361,117 +467,16 @@ public class ArtistSearchEngineService(
             await using (var scopedContext = await artistSearchEngineServiceDbContextFactory
                              .CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
             {
-                // Build the base query with filters
-                var query = scopedContext.Artists.AsNoTracking();
+                var query = ApplyArtistListFilters(scopedContext.Artists.AsNoTracking(), pagedRequest);
 
-                // Apply filters from PagedRequest.FilterBy if any
-                if (pagedRequest.FilterBy?.Length > 0)
+                if (pagedRequest.IsTotalCountOnlyRequest)
                 {
-                    foreach (var filter in pagedRequest.FilterBy)
-                    {
-                        var filterValue = filter.Value?.ToString() ?? string.Empty;
-                        var filterValueLower = filterValue.ToLowerInvariant();
-
-                        // Apply filters based on property name and operator
-                        query = filter.PropertyName.ToLower() switch
-                        {
-                            "name" => filter.OperatorValue.ToUpper() switch
-                            {
-                                "LIKE" => ApplyLikeFilter(query, x => x.Name, filter.Operator, filterValueLower),
-                                "=" => query.Where(x => x.Name == filterValue),
-                                "!=" => query.Where(x => x.Name != filterValue),
-                                _ => query
-                            },
-                            "namenormalized" => filter.OperatorValue.ToUpper() switch
-                            {
-                                "LIKE" => ApplyLikeFilter(query, x => x.NameNormalized, filter.Operator,
-                                    filterValueLower),
-                                "=" => query.Where(x => x.NameNormalized == filterValue),
-                                "!=" => query.Where(x => x.NameNormalized != filterValue),
-                                _ => query
-                            },
-                            "sortname" => filter.OperatorValue.ToUpper() switch
-                            {
-                                "LIKE" => ApplyLikeFilter(query, x => x.SortName, filter.Operator, filterValueLower),
-                                "=" => query.Where(x => x.SortName == filterValue),
-                                "!=" => query.Where(x => x.SortName != filterValue),
-                                _ => query
-                            },
-                            "musicbrainzid" => filter.OperatorValue.ToUpper() switch
-                            {
-                                "=" => query.Where(x => x.MusicBrainzId.ToString() == filterValue),
-                                "!=" => query.Where(x => x.MusicBrainzId.ToString() != filterValue),
-                                _ => query
-                            },
-                            "spotifyid" => filter.OperatorValue.ToUpper() switch
-                            {
-                                "=" => query.Where(x => x.SpotifyId == filterValue),
-                                "!=" => query.Where(x => x.SpotifyId != filterValue),
-                                "LIKE" => ApplyLikeFilter(query, x => x.SpotifyId!, filter.Operator, filterValueLower),
-                                _ => query
-                            },
-                            _ => query
-                        };
-                    }
+                    totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
                 }
-
-                // Get total count
-                totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
-
-                if (!pagedRequest.IsTotalCountOnlyRequest)
+                else
                 {
-                    // Apply ordering
-                    if (pagedRequest.OrderBy?.Count > 0)
-                    {
-                        var firstOrderBy = pagedRequest.OrderBy.First();
-                        var isDescending = firstOrderBy.Value.ToUpper() == "DESC";
-
-                        query = firstOrderBy.Key.ToLower() switch
-                        {
-                            "id" => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
-                            "name" => isDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
-                            "namenormalized" => isDescending
-                                ? query.OrderByDescending(x => x.NameNormalized)
-                                : query.OrderBy(x => x.NameNormalized),
-                            "sortname" => isDescending
-                                ? query.OrderByDescending(x => x.SortName)
-                                : query.OrderBy(x => x.SortName),
-                            _ => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
-                        };
-
-                        // Apply additional ordering if present
-                        foreach (var orderBy in pagedRequest.OrderBy.Skip(1))
-                        {
-                            var isDesc = orderBy.Value.ToUpper() == "DESC";
-                            var orderedQuery = (IOrderedQueryable<Artist>)query;
-
-                            query = orderBy.Key.ToLower() switch
-                            {
-                                "id" => isDesc
-                                    ? orderedQuery.ThenByDescending(x => x.Id)
-                                    : orderedQuery.ThenBy(x => x.Id),
-                                "name" => isDesc
-                                    ? orderedQuery.ThenByDescending(x => x.Name)
-                                    : orderedQuery.ThenBy(x => x.Name),
-                                "namenormalized" => isDesc
-                                    ? orderedQuery.ThenByDescending(x => x.NameNormalized)
-                                    : orderedQuery.ThenBy(x => x.NameNormalized),
-                                "sortname" => isDesc
-                                    ? orderedQuery.ThenByDescending(x => x.SortName)
-                                    : orderedQuery.ThenBy(x => x.SortName),
-                                _ => orderedQuery
-                            };
-                        }
-                    }
-                    else
-                    {
-                        query = query.OrderBy(x => x.Id);
-                    }
-
-                    // Keep DecentDB from evaluating a correlated album-count subquery per artist row.
-                    // Also avoid EF-generated LIMIT/OFFSET parameters because DecentDB rejects skipped
-                    // parameter numbering when this projection has no WHERE parameters.
-                    artists = (await query
+                    var pageProbeSize = pagedRequest.TakeValue + 1;
+                    var page = await ApplyArtistListOrdering(query, pagedRequest)
                         .Select(x => new Artist
                         {
                             Id = x.Id,
@@ -489,11 +494,16 @@ public class ArtistSearchEngineService(
                             IsLocked = x.IsLocked,
                             LastRefreshed = x.LastRefreshed
                         })
-                        .ToArrayAsync(cancellationToken)
-                        .ConfigureAwait(false))
                         .Skip(pagedRequest.SkipValue)
-                        .Take(pagedRequest.TakeValue)
-                        .ToArray();
+                        .Take(pageProbeSize)
+                        .ToArrayAsync(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    var hasMoreRows = page.Length > pagedRequest.TakeValue;
+                    artists = page.Take(pagedRequest.TakeValue).ToArray();
+                    totalCount = artists.Length == 0 && pagedRequest.SkipValue == 0
+                        ? 0
+                        : pagedRequest.SkipValue + artists.Length + (hasMoreRows ? 1 : 0);
 
                     var artistIds = artists.Select(x => x.Id).ToArray();
                     if (artistIds.Length > 0)
@@ -956,43 +966,8 @@ public class ArtistSearchEngineService(
                 await using (var scopedContext = await artistSearchEngineServiceDbContextFactory
                                  .CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    var firstTag = $"{normalizedQuery.NameNormalized}{StringExtensions.TagsSeparator}";
-                    var inTag =
-                        $"{StringExtensions.TagsSeparator}{normalizedQuery.NameNormalized}{StringExtensions.TagsSeparator}";
-                    var outerTag = $"{StringExtensions.TagsSeparator}{normalizedQuery.NameNormalized}";
-                    var artists = await scopedContext
-                        .Artists.Include(x => x.Albums)
-                        .Where(x => x.NameNormalized == normalizedQuery.NameNormalized ||
-                                    (x.MusicBrainzId != null && normalizedQuery.MusicBrainzId != null &&
-                                     x.MusicBrainzId == normalizedQuery.MusicBrainzIdValue) ||
-                                    (x.AlternateNames != null && (x.AlternateNames.Contains(firstTag) ||
-                                                                  x.AlternateNames.Contains(inTag) ||
-                                                                  x.AlternateNames.Contains(outerTag))) ||
-                                    (x.SpotifyId != null && normalizedQuery.SpotifyId != null && x.SpotifyId == normalizedQuery.SpotifyId))
-                        .ToArrayAsync(cancellationToken)
+                    var artist = await FindLocalArtistForQueryAsync(scopedContext, normalizedQuery, cancellationToken)
                         .ConfigureAwait(false);
-
-                    if (artists.Length > 0 && normalizedQuery.AlbumKeyValues?.Length > 0)
-                    {
-                        foreach (var ar in artists)
-                        {
-                            // If any album is given then rank artist if any album matches
-                            foreach (var album in ar.Albums)
-                            {
-                                foreach (var albumKey in normalizedQuery.AlbumKeyValues)
-                                {
-                                    var isAlbumMatch = album.Year.ToString() == albumKey.Key &&
-                                                       album.NameNormalized == albumKey.Value;
-                                    if (isAlbumMatch)
-                                    {
-                                        ar.Rank++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    var artist = artists.OrderByDescending(x => x.Rank).FirstOrDefault();
 
                     if (artist != null)
                     {
@@ -1091,22 +1066,7 @@ public class ArtistSearchEngineService(
                         }
                         if (newArtist != null)
                         {
-                            var nameNormalized = newArtist.Name.ToNormalizedString() ?? newArtist.Name;
-
-                            artist = await scopedContext
-                                .Artists
-                                .Where(x => x.NameNormalized == nameNormalized ||
-                                            (x.AlternateNames != null && (x.AlternateNames.Contains(firstTag) ||
-                                                                          x.AlternateNames.Contains(inTag) ||
-                                                                          x.AlternateNames.Contains(outerTag))) ||
-                                            (x.AmgId != null && x.AmgId == newArtist.AmgId) ||
-                                            (x.DiscogsId != null && x.DiscogsId == newArtist.DiscogsId) ||
-                                            (x.ItunesId != null && x.ItunesId == newArtist.ItunesId) ||
-                                            (x.LastFmId != null && x.LastFmId == newArtist.LastFmId) ||
-                                            (x.MusicBrainzId != null && x.MusicBrainzId == newArtist.MusicBrainzId) ||
-                                            (x.SpotifyId != null && x.SpotifyId == newArtist.SpotifyId) ||
-                                            (x.WikiDataId != null && x.WikiDataId == newArtist.WikiDataId))
-                                .FirstOrDefaultAsync(cancellationToken)
+                            artist = await FindLocalArtistForProviderResultAsync(scopedContext, newArtist, cancellationToken)
                                 .ConfigureAwait(false);
 
                             if (artist != null)
@@ -1651,6 +1611,464 @@ public class ArtistSearchEngineService(
         var message = ex.InnerException?.Message ?? ex.Message;
         return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) &&
                message.Contains("Albums", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Artist[] GetArtistsRequiringAliasSync(ArtistSearchEngineServiceDbContext context)
+    {
+        return context.ChangeTracker
+            .Entries<Artist>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified)
+            .Select(x => x.Entity)
+            .Distinct()
+            .ToArray();
+    }
+
+    private static async Task SyncLocalArtistAliasesAsync(
+        ArtistSearchEngineServiceDbContext context,
+        Artist[] artists,
+        CancellationToken cancellationToken)
+    {
+        foreach (var artist in artists.Where(x => x.Id > 0).DistinctBy(x => x.Id))
+        {
+            var normalizedAliases = GetNormalizedLocalArtistAliases(artist);
+            var existingAliases = await context.ArtistAliases
+                .Where(x => x.ArtistId == artist.Id)
+                .ToArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var existingAlias in existingAliases
+                         .Where(x => !normalizedAliases.Contains(x.NameNormalized, StringComparer.OrdinalIgnoreCase)))
+            {
+                context.ArtistAliases.Remove(existingAlias);
+            }
+
+            var existingAliasValues = existingAliases
+                .Select(x => x.NameNormalized)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var alias in normalizedAliases.Where(x => !existingAliasValues.Contains(x)))
+            {
+                context.ArtistAliases.Add(new ArtistAlias
+                {
+                    ArtistId = artist.Id,
+                    NameNormalized = alias
+                });
+            }
+        }
+    }
+
+    private static string[] GetNormalizedLocalArtistAliases(Artist artist)
+    {
+        return GetNormalizedLocalArtistAliases(artist.AlternateNames, artist.NameNormalized);
+    }
+
+    private static string[] GetNormalizedLocalArtistAliases(string? alternateNames, string? primaryNameNormalized)
+    {
+        return (alternateNames.ToTags() ?? [])
+            .Select(x => x.ToNormalizedString() ?? x)
+            .Where(x => x.Nullify() is not null &&
+                        !string.Equals(x, primaryNameNormalized, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IQueryable<Artist> ApplyArtistListFilters(IQueryable<Artist> query, PagedRequest pagedRequest)
+    {
+        if (pagedRequest.FilterBy?.Length > 0)
+        {
+            foreach (var filter in pagedRequest.FilterBy)
+            {
+                var filterValue = filter.Value?.ToString() ?? string.Empty;
+                var filterValueLower = filterValue.ToLowerInvariant();
+
+                query = filter.PropertyName.ToLowerInvariant() switch
+                {
+                    "name" => filter.OperatorValue.ToUpperInvariant() switch
+                    {
+                        "LIKE" => ApplyLikeFilter(query, x => x.Name, filter.Operator, filterValueLower),
+                        "=" => query.Where(x => x.Name == filterValue),
+                        "!=" => query.Where(x => x.Name != filterValue),
+                        _ => query
+                    },
+                    "namenormalized" => filter.OperatorValue.ToUpperInvariant() switch
+                    {
+                        "LIKE" => ApplyLikeFilter(query, x => x.NameNormalized, filter.Operator, filterValueLower),
+                        "=" => query.Where(x => x.NameNormalized == filterValue),
+                        "!=" => query.Where(x => x.NameNormalized != filterValue),
+                        _ => query
+                    },
+                    "sortname" => filter.OperatorValue.ToUpperInvariant() switch
+                    {
+                        "LIKE" => ApplyLikeFilter(query, x => x.SortName, filter.Operator, filterValueLower),
+                        "=" => query.Where(x => x.SortName == filterValue),
+                        "!=" => query.Where(x => x.SortName != filterValue),
+                        _ => query
+                    },
+                    "musicbrainzid" => filter.OperatorValue.ToUpperInvariant() switch
+                    {
+                        "=" => query.Where(x => x.MusicBrainzId.ToString() == filterValue),
+                        "!=" => query.Where(x => x.MusicBrainzId.ToString() != filterValue),
+                        _ => query
+                    },
+                    "spotifyid" => filter.OperatorValue.ToUpperInvariant() switch
+                    {
+                        "=" => query.Where(x => x.SpotifyId == filterValue),
+                        "!=" => query.Where(x => x.SpotifyId != filterValue),
+                        "LIKE" => ApplyLikeFilter(query, x => x.SpotifyId!, filter.Operator, filterValueLower),
+                        _ => query
+                    },
+                    _ => query
+                };
+            }
+        }
+
+        return query;
+    }
+
+    private static IOrderedQueryable<Artist> ApplyArtistListOrdering(IQueryable<Artist> query, PagedRequest pagedRequest)
+    {
+        if (pagedRequest.OrderBy?.Count > 0)
+        {
+            var firstOrderBy = pagedRequest.OrderBy.First();
+            var isDescending = firstOrderBy.Value.ToUpperInvariant() == PagedRequest.OrderDescDirection;
+
+            var orderedQuery = firstOrderBy.Key.ToLowerInvariant() switch
+            {
+                "id" => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
+                "name" => isDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
+                "namenormalized" => isDescending
+                    ? query.OrderByDescending(x => x.NameNormalized)
+                    : query.OrderBy(x => x.NameNormalized),
+                "sortname" => isDescending
+                    ? query.OrderByDescending(x => x.SortName)
+                    : query.OrderBy(x => x.SortName),
+                _ => isDescending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+            };
+
+            foreach (var orderBy in pagedRequest.OrderBy.Skip(1))
+            {
+                var isDesc = orderBy.Value.ToUpperInvariant() == PagedRequest.OrderDescDirection;
+
+                orderedQuery = orderBy.Key.ToLowerInvariant() switch
+                {
+                    "id" => isDesc
+                        ? orderedQuery.ThenByDescending(x => x.Id)
+                        : orderedQuery.ThenBy(x => x.Id),
+                    "name" => isDesc
+                        ? orderedQuery.ThenByDescending(x => x.Name)
+                        : orderedQuery.ThenBy(x => x.Name),
+                    "namenormalized" => isDesc
+                        ? orderedQuery.ThenByDescending(x => x.NameNormalized)
+                        : orderedQuery.ThenBy(x => x.NameNormalized),
+                    "sortname" => isDesc
+                        ? orderedQuery.ThenByDescending(x => x.SortName)
+                        : orderedQuery.ThenBy(x => x.SortName),
+                    _ => orderedQuery
+                };
+            }
+
+            return orderedQuery;
+        }
+
+        return query.OrderBy(x => x.Id);
+    }
+
+    private static async Task<Artist?> FindLocalArtistForQueryAsync(
+        ArtistSearchEngineServiceDbContext context,
+        ArtistQuery query,
+        CancellationToken cancellationToken)
+    {
+        if (query.MusicBrainzIdValue is { } musicBrainzId)
+        {
+            var artist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.MusicBrainzId == musicBrainzId),
+                    query,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (artist is not null)
+            {
+                return artist;
+            }
+        }
+
+        var spotifyId = query.SpotifyId.Nullify();
+        if (spotifyId is not null)
+        {
+            var artist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.SpotifyId == spotifyId),
+                    query,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (artist is not null)
+            {
+                return artist;
+            }
+        }
+
+        var nameNormalized = query.NameNormalized.Nullify();
+        if (nameNormalized is null)
+        {
+            return null;
+        }
+
+        var artistByName = await FindBestLocalArtistAsync(
+                context,
+                context.Artists.Where(x => x.NameNormalized == nameNormalized),
+                query,
+                LocalArtistCandidateLimit,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (artistByName is not null)
+        {
+            return artistByName;
+        }
+
+        var aliasArtistIds = await context.ArtistAliases
+            .AsNoTracking()
+            .Where(alias => alias.NameNormalized == nameNormalized)
+            .OrderBy(alias => alias.ArtistId)
+            .Select(alias => alias.ArtistId)
+            .Take(LocalArtistCandidateLimit)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (aliasArtistIds.Length == 0)
+        {
+            return null;
+        }
+
+        return await FindBestLocalArtistAsync(
+                context,
+                context.Artists.Where(x => aliasArtistIds.Contains(x.Id)),
+                query,
+                LocalArtistCandidateLimit,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<Artist?> FindLocalArtistForProviderResultAsync(
+        ArtistSearchEngineServiceDbContext context,
+        ArtistSearchResult artist,
+        CancellationToken cancellationToken)
+    {
+        if (artist.MusicBrainzId is { } musicBrainzId)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.MusicBrainzId == musicBrainzId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var spotifyId = artist.SpotifyId.Nullify();
+        if (spotifyId is not null)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.SpotifyId == spotifyId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var itunesId = artist.ItunesId.Nullify();
+        if (itunesId is not null)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.ItunesId == itunesId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var amgId = artist.AmgId.Nullify();
+        if (amgId is not null)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.AmgId == amgId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var discogsId = artist.DiscogsId.Nullify();
+        if (discogsId is not null)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.DiscogsId == discogsId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var lastFmId = artist.LastFmId.Nullify();
+        if (lastFmId is not null)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.LastFmId == lastFmId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var wikiDataId = artist.WikiDataId.Nullify();
+        if (wikiDataId is not null)
+        {
+            var localArtist = await FindBestLocalArtistAsync(
+                    context,
+                    context.Artists.Where(x => x.WikiDataId == wikiDataId),
+                    albumRankingQuery: null,
+                    limit: 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (localArtist is not null)
+            {
+                return localArtist;
+            }
+        }
+
+        var nameNormalized = (artist.Name.ToNormalizedString() ?? artist.Name).Nullify();
+        if (nameNormalized is null)
+        {
+            return null;
+        }
+
+        var localArtistByName = await FindBestLocalArtistAsync(
+                context,
+                context.Artists.Where(x => x.NameNormalized == nameNormalized),
+                albumRankingQuery: null,
+                LocalArtistCandidateLimit,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (localArtistByName is not null)
+        {
+            return localArtistByName;
+        }
+
+        var aliasTerms = artist.AlternateNames is { Length: > 0 }
+            ? artist.AlternateNames
+                .Select(alias => alias.ToNormalizedString()?.Nullify())
+                .Append(nameNormalized)
+                .OfType<string>()
+                .Distinct(StringComparer.Ordinal)
+                .Take(LocalArtistCandidateLimit)
+                .ToArray()
+            : [nameNormalized];
+
+        var aliasArtistIds = await context.ArtistAliases
+            .AsNoTracking()
+            .Where(alias => aliasTerms.Contains(alias.NameNormalized))
+            .OrderBy(alias => alias.ArtistId)
+            .Select(alias => alias.ArtistId)
+            .Take(LocalArtistCandidateLimit)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (aliasArtistIds.Length == 0)
+        {
+            return null;
+        }
+
+        return await FindBestLocalArtistAsync(
+                context,
+                context.Artists.Where(x => aliasArtistIds.Contains(x.Id)),
+                albumRankingQuery: null,
+                LocalArtistCandidateLimit,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<Artist?> FindBestLocalArtistAsync(
+        ArtistSearchEngineServiceDbContext context,
+        IQueryable<Artist> candidateQuery,
+        ArtistQuery? albumRankingQuery,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var candidateIds = await candidateQuery
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (candidateIds.Length == 0)
+        {
+            return null;
+        }
+
+        var artists = await context.Artists
+            .Include(x => x.Albums)
+            .Where(x => candidateIds.Contains(x.Id))
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        RankLocalArtistsByAlbumEvidence(artists, albumRankingQuery);
+
+        return artists
+            .OrderByDescending(x => x.Rank)
+            .ThenBy(x => x.SortName)
+            .ThenBy(x => x.Id)
+            .FirstOrDefault();
+    }
+
+    private static void RankLocalArtistsByAlbumEvidence(Artist[] artists, ArtistQuery? query)
+    {
+        if (artists.Length == 0 || query?.AlbumKeyValues is not { Length: > 0 })
+        {
+            return;
+        }
+
+        foreach (var artist in artists)
+        {
+            foreach (var album in artist.Albums)
+            {
+                foreach (var albumKey in query.AlbumKeyValues)
+                {
+                    var isAlbumMatch = album.Year.ToString(CultureInfo.InvariantCulture) == albumKey.Key &&
+                                       album.NameNormalized == albumKey.Value;
+                    if (isAlbumMatch)
+                    {
+                        artist.Rank++;
+                    }
+                }
+            }
+        }
     }
 
     private static IQueryable<Artist> ApplyLikeFilter(

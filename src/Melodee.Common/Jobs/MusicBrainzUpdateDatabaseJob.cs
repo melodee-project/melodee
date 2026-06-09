@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using DecentDB.AdoNet;
 using ICSharpCode.SharpZipLib.BZip2;
 using ICSharpCode.SharpZipLib.Tar;
 using Melodee.Common.Configuration;
@@ -90,7 +91,16 @@ public class MusicBrainzUpdateDatabaseJob(
     private const int ImportStageScale = 1000;
     private const string ImportingDatabaseSuffix = ".importing";
     private const string BackupDatabaseSuffix = ".backup";
-    private const string DecentDbCliPathEnvironmentVariable = "DECENTDB_CLI_PATH";
+
+    private static readonly string[] DatabaseArtifactSuffixes =
+    [
+        string.Empty,
+        ".wal",
+        "-wal",
+        ".shm",
+        "-shm",
+        ".coord"
+    ];
 
     private static readonly string[] RequiredArchiveEntries =
     [
@@ -915,7 +925,7 @@ public class MusicBrainzUpdateDatabaseJob(
 
     private static void DeleteDatabaseArtifacts(string dbPath)
     {
-        foreach (var path in new[] { dbPath, $"{dbPath}.wal", $"{dbPath}.shm" })
+        foreach (var path in DatabaseArtifactSuffixes.Select(suffix => $"{dbPath}{suffix}"))
         {
             if (File.Exists(path))
             {
@@ -926,7 +936,7 @@ public class MusicBrainzUpdateDatabaseJob(
 
     private static void MoveDatabaseArtifacts(string sourceDbPath, string destinationDbPath, bool overwrite)
     {
-        foreach (var suffix in new[] { string.Empty, ".wal", ".shm" })
+        foreach (var suffix in DatabaseArtifactSuffixes)
         {
             var sourcePath = $"{sourceDbPath}{suffix}";
             if (!File.Exists(sourcePath))
@@ -946,82 +956,27 @@ public class MusicBrainzUpdateDatabaseJob(
 
     private async Task CheckpointImportedDatabaseAsync(string databasePath, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (!File.Exists(databasePath))
         {
             throw new FileNotFoundException("Cannot checkpoint imported DecentDB database because the database file does not exist.", databasePath);
         }
 
-        var walPath = $"{databasePath}.wal";
-        var walBytesBefore = File.Exists(walPath) ? new FileInfo(walPath).Length : 0;
-        var executablePath = ResolveDecentDbExecutablePath();
+        var walStatusBefore = DecentDBMaintenance.GetWalStatus(databasePath);
 
-        if (!File.Exists(executablePath))
-        {
-            Logger.Warning("[{JobName}] DecentDB CLI tool not found at '{ExecutablePath}'. Skipping WAL checkpoint. The import will still function correctly, but the WAL file may remain until the database is next opened by a process that supports checkpointing.", nameof(MusicBrainzUpdateDatabaseJob), executablePath);
-            return;
-        }
-
-        var processInfo = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-        processInfo.ArgumentList.Add("checkpoint");
-        processInfo.ArgumentList.Add("--db");
-        processInfo.ArgumentList.Add(databasePath);
-
-        Logger.Information("[{JobName}] Running DecentDB checkpoint for imported database. WAL before checkpoint: {WalSize}",
+        Logger.Information("[{JobName}] Running DecentDB checkpoint through ADO.NET binding. WAL before checkpoint: {WalSize}",
             nameof(MusicBrainzUpdateDatabaseJob),
-            FormatBytes(walBytesBefore));
+            FormatBytes(walStatusBefore.TotalWalBytes));
 
-        var checkpointStartTicks = Stopwatch.GetTimestamp();
-        using var process = Process.Start(processInfo)
-                            ?? throw new InvalidOperationException($"Failed to start DecentDB checkpoint executable [{executablePath}].");
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            TryTerminateProcess(process);
-            throw;
-        }
-
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(
-                $"DecentDB checkpoint failed with exit code {process.ExitCode}. " +
-                $"stdout=[{TruncateProcessOutput(stdout)}] stderr=[{TruncateProcessOutput(stderr)}]");
-        }
-
-        var walBytesAfter = File.Exists(walPath) ? new FileInfo(walPath).Length : 0;
+        var checkpointResult = await DecentDBMaintenance
+            .CheckpointAsync(databasePath, cancellationToken)
+            .ConfigureAwait(false);
         Logger.Information(
             "[{JobName}] DecentDB checkpoint complete in {Elapsed:F1}s. WAL after checkpoint: {WalSize}",
             nameof(MusicBrainzUpdateDatabaseJob),
-            Stopwatch.GetElapsedTime(checkpointStartTicks).TotalSeconds,
-            FormatBytes(walBytesAfter));
-    }
-
-    private static string ResolveDecentDbExecutablePath()
-    {
-        var configuredPath = Environment.GetEnvironmentVariable(DecentDbCliPathEnvironmentVariable);
-        return string.IsNullOrWhiteSpace(configuredPath)
-            ? "decentdb"
-            : configuredPath;
-    }
-
-    private static string TruncateProcessOutput(string output)
-    {
-        output = output.Trim();
-        return output.Length <= 1000 ? output : string.Concat(output.AsSpan(0, 1000), "...");
+            checkpointResult.Duration.TotalSeconds,
+            FormatBytes(checkpointResult.After.TotalWalBytes));
     }
 
     private static bool HasAllRequiredExtractedFiles(string mbDumpDirectory)
@@ -1177,7 +1132,7 @@ public class MusicBrainzUpdateDatabaseJob(
         }
 
         var expectedImportPath = GetImportDatabaseFilePath(dbPath);
-        return File.Exists(expectedImportPath) || File.Exists($"{expectedImportPath}.wal") || File.Exists($"{expectedImportPath}.shm")
+        return DatabaseArtifactSuffixes.Any(suffix => File.Exists($"{expectedImportPath}{suffix}"))
             ? expectedImportPath
             : null;
     }

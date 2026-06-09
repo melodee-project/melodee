@@ -8,7 +8,7 @@ namespace Melodee.Benchmarks;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
         if (args.Length == 0)
         {
@@ -21,18 +21,37 @@ public class Program
             Console.WriteLine("  cache        - Cache performance benchmarks");
             Console.WriteLine("  collection   - Collection operation benchmarks");
             Console.WriteLine("  musicbrainz  - MusicBrainz import performance benchmarks");
+            Console.WriteLine("  musicbrainz-query-probe  - Manual DecentDB MusicBrainz query probe");
+            Console.WriteLine("  musicbrainz-import-probe - Manual DecentDB MusicBrainz import probe");
             Console.WriteLine("  all          - Run all benchmarks");
             Console.WriteLine();
             Console.WriteLine("Usage: dotnet run -c Release --project benchmarks/Melodee.Benchmarks [category] [-- BenchmarkDotNet args]");
             Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks streaming");
             Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks all -- --exporters json,github,csv --artifacts benchmarks/artifacts");
-            return;
+            Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks musicbrainz-query-probe -- --db /path/musicbrainz.ddb --output query-probe.json");
+            Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks musicbrainz-import-probe -- --storage /path/musicbrainz --db /tmp/musicbrainz.ddb --output import-probe.json --clean");
+            return 0;
         }
 
         var category = args[0].ToLower();
 
         // Parse BenchmarkDotNet arguments (everything after the first argument)
         var benchmarkArgs = args.Skip(1).ToArray();
+        if (benchmarkArgs.Length > 0 && benchmarkArgs[0] == "--")
+        {
+            benchmarkArgs = benchmarkArgs.Skip(1).ToArray();
+        }
+
+        if (category == "musicbrainz-query-probe")
+        {
+            return await MusicBrainzQueryProbe.RunAsync(benchmarkArgs);
+        }
+
+        if (category == "musicbrainz-import-probe")
+        {
+            return await MusicBrainzImportProbe.RunAsync(benchmarkArgs);
+        }
+
         var config = CreateConfig(benchmarkArgs);
 
         switch (category)
@@ -61,9 +80,11 @@ public class Program
                 break;
             default:
                 Console.WriteLine($"Unknown benchmark category: {category}");
-                Console.WriteLine("Available categories: streaming, database, cache, collection, musicbrainz, all");
+                Console.WriteLine("Available categories: streaming, database, cache, collection, musicbrainz, musicbrainz-query-probe, musicbrainz-import-probe, all");
                 break;
         }
+
+        return 0;
     }
 
     private static IConfig CreateConfig(string[] args)

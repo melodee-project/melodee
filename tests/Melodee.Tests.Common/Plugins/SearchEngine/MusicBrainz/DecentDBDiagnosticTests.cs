@@ -1,6 +1,7 @@
 using System.Data.Common;
 using FluentAssertions;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
+using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized;
 using Microsoft.EntityFrameworkCore;
 
 namespace Melodee.Tests.Common.Plugins.SearchEngine.MusicBrainz;
@@ -116,6 +117,47 @@ public class DecentDBDiagnosticTests : IDisposable
 
         var count = await context.ArtistsStaging.CountAsync();
         count.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task IndexedStringEquality_OnMusicBrainzIdRaw_RoundTripsCanonicalString()
+    {
+        var dbOptions = new DbContextOptionsBuilder<MusicBrainzDbContext>()
+            .UseDecentDB($"Data Source={_dbFile}")
+            .Options;
+
+        var targetId = Guid.Parse("395cc503-63b5-4a0b-a20a-604e3fcacea2").ToString();
+
+        await using (var context = new MusicBrainzDbContext(dbOptions))
+        {
+            await context.Database.EnsureCreatedAsync();
+            for (var i = 0; i < 250; i++)
+            {
+                context.Artists.Add(new Artist
+                {
+                    MusicBrainzArtistId = i + 1,
+                    MusicBrainzIdRaw = i == 127 ? targetId : Guid.NewGuid().ToString(),
+                    Name = $"Artist {i}",
+                    NameNormalized = $"artist {i}",
+                    SortName = $"Artist {i}",
+                    AlternateNames = string.Empty
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = new MusicBrainzDbContext(dbOptions))
+        {
+            var result = await context.Artists
+                .AsNoTracking()
+                .Where(a => a.MusicBrainzIdRaw == targetId)
+                .OrderBy(a => a.Id)
+                .Select(a => a.MusicBrainzIdRaw)
+                .SingleAsync();
+
+            result.Should().Be(targetId);
+        }
     }
 
     private static void AddParameter(DbCommand command, string name, object value)
