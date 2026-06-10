@@ -1,6 +1,6 @@
 ## DecentDB Large-Text Search Strategy
 
-**Date**: 2026-06-09
+**Date**: 2026-06-10
 **Status**: Needed and adopted for Melodee DecentDB-backed request paths
 
 ## Decision
@@ -30,10 +30,13 @@ text are not viable on large request paths. The MusicBrainz search path follows
 the safer schema shape by using normalized artist names and the `ArtistAlias`
 lookup table instead of scanning an `AlternateNames` string.
 
-The latest recorded real-file equality timings are still too slow for hot
-request paths and remain tracked as DecentDB provider follow-up in DDB-002 and
-DDB-003. This strategy document defines the Melodee query shape that should be
-preserved while the provider-level indexed equality work is investigated.
+The latest DecentDB `2.10.0` real-file equality timings are still too slow for
+hot request paths on the large `Artist` table. DDB-002 and DDB-003 consumed the
+published planner/provider fixes, and DecentDB `EXPLAIN` now reports
+`IndexSeek`, but checkpointed warm `Artist.NameNormalized` and
+`Artist.MusicBrainzIdRaw` lookups still take multiple seconds. This strategy
+document defines the Melodee query shape that should be preserved while the
+remaining DecentDB runtime/storage follow-up is resolved.
 
 ## Query Rules
 
@@ -59,9 +62,9 @@ dotnet run -c Release --project benchmarks/Melodee.Benchmarks \
   --output /tmp/musicbrainz-query-probe.json
 ```
 
-The report includes cold and warm timings, row counts, generated SQL when the
-provider exposes it, configured index metadata, and the sample values used for
-the exact-name, exact-alias, and exact-MBID probes.
+The report includes cold and warm timings, row counts, generated SQL, DecentDB
+`EXPLAIN` output for the fixed probe shapes, configured index metadata, and the
+sample values used for the exact-name, exact-alias, and exact-MBID probes.
 
 Use the real-file import probe when validating import-scale behavior:
 
