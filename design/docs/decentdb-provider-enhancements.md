@@ -1,20 +1,20 @@
 ## DecentDB Provider Enhancement Candidates
 
-**Date**: 2026-06-10
-**Status**: Updated after DecentDB 2.10.0 validation; provider follow-up still
+**Date**: 2026-06-12
+**Status**: Updated after DecentDB 2.11.0 validation; provider follow-up still
 needed for large `Artist` table indexed equality execution
 
 ## Context
 
-Melodee now references `DecentDB.AdoNet` `2.10.0`,
-`DecentDB.EntityFrameworkCore` `2.10.0`, and
-`DecentDB.EntityFrameworkCore.NodaTime` `2.10.0`. The large real-file import and
+Melodee now references `DecentDB.AdoNet` `2.11.0`,
+`DecentDB.EntityFrameworkCore` `2.11.0`, and
+`DecentDB.EntityFrameworkCore.NodaTime` `2.11.0`. The large real-file import and
 query timings in `design/DECENTDB_IMPROVEMENTS.md` were rerun against
-DecentDB `2.10.0` on 2026-06-10.
+DecentDB `2.11.0` on 2026-06-12.
 
-DecentDB `2.10.0` includes the post-`2.9.0` fixes for Melodee's original
-provider-follow-up items: ordered indexed string equality remains on the native
-executor fast path, EF Core has regression coverage for Melodee's
+The current DecentDB packages include the post-`2.9.0` fixes for Melodee's
+original provider-follow-up items: ordered indexed string equality remains on
+the native executor fast path, EF Core has regression coverage for Melodee's
 `Where(...).OrderBy(...).Take(...)` query shape, and the ADO.NET bindings
 expose native index rebuild helpers. The real-file validation still did not
 satisfy DDB-002 or DDB-003 because checkpointed `Artist` table indexed equality
@@ -46,7 +46,7 @@ ad hoc scripts.
 ## Enhancement List
 
 Items marked published below are available to Melodee through the DecentDB
-`2.10.0` .NET bindings. The remaining item is runtime/storage performance for
+`2.11.0` .NET bindings. The remaining item is runtime/storage performance for
 large checkpointed `Artist` table indexed equality, not EF translation.
 
 ### Native .NET Checkpoint And Maintenance APIs
@@ -78,10 +78,10 @@ make DDB-002 or DDB-003 complete by themselves.
 
 Current observation:
 
-- The DecentDB `2.10.0` real-file import finished with the main `.ddb` file at
-  `8 KB` and the WAL at roughly `5.1 GB`.
+- The DecentDB `2.11.0` real-file import finished with the main `.ddb` file at
+  `8 KB` and the WAL at roughly `5.0 GiB`.
 - Native ADO.NET checkpoint reduced the WAL to `32 B` and grew the main `.ddb`
-  file to roughly `2.4 GB`, but the checkpoint took about `557 s`.
+  file to roughly `2.4 GiB`, but the checkpoint took about `561 s`.
 
 Requested enhancement:
 
@@ -92,15 +92,18 @@ Requested enhancement:
 
 ### Indexed String Equality Performance
 
-Current observation from the DecentDB `2.10.0` rebuilt and checkpointed
+Current observation from the DecentDB `2.11.0` rebuilt and checkpointed
 MusicBrainz file:
 
-- `Artist.NameNormalized == value` warm lookup: about `3.5 s`.
-- `Artist.MusicBrainzIdRaw == value` warm lookup: about `3.6 s`.
-- `ArtistAlias.NameNormalized == value` warm lookup: about `260 ms`.
+- `Artist.NameNormalized == value` warm lookup: about `3.4 s`.
+- `Artist.MusicBrainzIdRaw == value` warm lookup: about `3.4 s`.
+- `ArtistAlias.NameNormalized == value` warm lookup: about `257 ms`.
 - The affected columns have EF model indexes, generated SQL is captured by the
   query probe, and DecentDB `EXPLAIN` reports `IndexSeek` for all three
   equality shapes.
+- A raw ADO.NET probe without `ORDER BY` still shows large `Artist` table
+  indexed equality around `3.3 s`, so the remaining issue is not Melodee's EF
+  query shape or ordering.
 
 Requested enhancement:
 

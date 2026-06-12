@@ -1,6 +1,6 @@
 ## DecentDB Large-Text Search Strategy
 
-**Date**: 2026-06-10
+**Date**: 2026-06-12
 **Status**: Needed and adopted for Melodee DecentDB-backed request paths
 
 ## Decision
@@ -30,11 +30,12 @@ text are not viable on large request paths. The MusicBrainz search path follows
 the safer schema shape by using normalized artist names and the `ArtistAlias`
 lookup table instead of scanning an `AlternateNames` string.
 
-The latest DecentDB `2.10.0` real-file equality timings are still too slow for
+The latest DecentDB `2.11.0` real-file equality timings are still too slow for
 hot request paths on the large `Artist` table. DDB-002 and DDB-003 consumed the
 published planner/provider fixes, and DecentDB `EXPLAIN` now reports
 `IndexSeek`, but checkpointed warm `Artist.NameNormalized` and
-`Artist.MusicBrainzIdRaw` lookups still take multiple seconds. This strategy
+`Artist.MusicBrainzIdRaw` lookups still take multiple seconds. A raw ADO.NET
+probe without `ORDER BY` shows the same multi-second behavior, so this strategy
 document defines the Melodee query shape that should be preserved while the
 remaining DecentDB runtime/storage follow-up is resolved.
 
