@@ -37,8 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
-  `DecentDB.EntityFrameworkCore.NodaTime` to `2.11.0`.
-- Recorded DecentDB `2.11.0` real-file MusicBrainz validation. The package
+  `DecentDB.EntityFrameworkCore.NodaTime` to `2.12.0`.
+- Recorded DecentDB `2.12.0` real-file MusicBrainz validation. The package
   provides indexed equality `EXPLAIN` plans for the tested query shapes, but
   DDB-002 and DDB-003 remain provider follow-up because checkpointed large
   `Artist` table equality lookups are still multi-second.
@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exact MusicBrainz ID lookups now apply deterministic ordering before row limiting.
 - DecentDB improvement tracking now separates completed Melodee changes from provider
   enhancement candidates.
-- DecentDB improvement tracking now distinguishes the DecentDB `2.11.0`
+- DecentDB improvement tracking now distinguishes the DecentDB `2.12.0`
   planner/provider fix from the remaining large-file runtime/storage follow-up.
 - MusicBrainz database imports now checkpoint through the DecentDB
   `DecentDBMaintenance.CheckpointAsync(...)` API instead of an external process.
