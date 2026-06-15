@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
+  `DecentDB.EntityFrameworkCore.NodaTime` to `2.13.1`.
+
+### Fixed
+
+- Validated DecentDB `2.13.1` NuGet packages against the checkpointed real
+  MusicBrainz query probe, completing DDB-002 and DDB-003 with `IndexSeek`
+  plans and sub-millisecond warm indexed equality timings.
+
 ## [2.1.2] - 2026-06-10
 
 ### Added
@@ -37,11 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
-  `DecentDB.EntityFrameworkCore.NodaTime` to `2.12.0`.
-- Recorded DecentDB `2.12.0` real-file MusicBrainz validation. The package
+  `DecentDB.EntityFrameworkCore.NodaTime` to `2.13.0`.
+- Recorded DecentDB `2.13.0` real-file MusicBrainz validation. The package
   provides indexed equality `EXPLAIN` plans for the tested query shapes, but
   DDB-002 and DDB-003 remain provider follow-up because checkpointed large
-  `Artist` table equality lookups are still multi-second.
+  `Artist` table equality probes still time out.
+- Validated a local DecentDB worktree fix for DDB-002 and DDB-003 through
+  direct local binding binaries; the items remain pending until a published
+  DecentDB NuGet package reproduces the real-file probe results.
 - MusicBrainz DecentDB imports now return materialized row counts and keep final full-table
   verification counts opt-in, avoiding redundant full-table counts during normal imports.
 - Local artist cache lookups now use staged exact identifier, normalized name, and normalized
@@ -59,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exact MusicBrainz ID lookups now apply deterministic ordering before row limiting.
 - DecentDB improvement tracking now separates completed Melodee changes from provider
   enhancement candidates.
-- DecentDB improvement tracking now distinguishes the DecentDB `2.12.0`
+- DecentDB improvement tracking now distinguishes the DecentDB `2.13.0`
   planner/provider fix from the remaining large-file runtime/storage follow-up.
 - MusicBrainz database imports now checkpoint through the DecentDB
   `DecentDBMaintenance.CheckpointAsync(...)` API instead of an external process.

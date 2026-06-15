@@ -1,5 +1,11 @@
 ## DecentDB Indexed Equality Performance Issue Handoff Prompt
 
+**Status**: Historical handoff prompt. The DecentDB local worktree fix was
+validated on 2026-06-15 by wiring Melodee directly to
+`/home/steven/src/github/decentdb/bindings/dotnet`, and DecentDB `2.13.1`
+NuGet package validation reproduced the fix. See
+`design/DECENTDB_IMPROVEMENTS.md` for the current `DONE` status.
+
 Use this prompt for a DecentDB coding agent working in the local DecentDB
 repository at `/home/steven/src/github/decentdb`.
 
@@ -8,11 +14,11 @@ repository at `/home/steven/src/github/decentdb`.
 Melodee has tried to resolve DDB-002 and DDB-003 across multiple DecentDB
 package releases. The current Melodee package baseline is:
 
-- `DecentDB.AdoNet` `2.12.0`
-- `DecentDB.EntityFrameworkCore` `2.12.0`
-- `DecentDB.EntityFrameworkCore.NodaTime` `2.12.0`
+- `DecentDB.AdoNet` `2.13.0`
+- `DecentDB.EntityFrameworkCore` `2.13.0`
+- `DecentDB.EntityFrameworkCore.NodaTime` `2.13.0`
 
-The `2.12.0` package still does not satisfy Melodee's real-file acceptance
+The `2.13.0` package still does not satisfy Melodee's real-file acceptance
 target for DDB-002 or DDB-003.
 
 The important distinction is that DecentDB now chooses the expected query
@@ -20,8 +26,9 @@ plans, but the real execution remains far too slow:
 
 - `Artist.NameNormalized == value` reports `IndexSeek`.
 - `Artist.MusicBrainzIdRaw == value` reports `IndexSeek`.
-- Checkpointed execution against the real MusicBrainz-sized `Artist` table is
-  still about `9` to `10` seconds.
+- Checkpointed execution against the real MusicBrainz-sized `Artist` table
+  still does not complete in a request-safe window; targeted `2.13.0` probes
+  timed out after `180 s`.
 
 This means the remaining problem is likely below EF Core translation and below
 simple planner index selection. The issue appears to be in DecentDB runtime,
@@ -54,7 +61,7 @@ multi-second indexed equality execution path inside the database engine.
 
 ## Current Melodee Evidence
 
-The latest Melodee validation used DecentDB `2.12.0` on 2026-06-13.
+The latest Melodee validation used DecentDB `2.13.0` on 2026-06-15.
 
 The existing production MusicBrainz database could not be reused because it was
 an older unsupported DecentDB file format. Validation therefore used a fresh
@@ -63,26 +70,26 @@ real-file rebuild from the MusicBrainz dump.
 Artifacts from the Melodee validation run:
 
 - Import probe:
-  `.tmp/decentdb-2.12-validation/musicbrainz-import-probe.json`
-- WAL-backed query probe:
-  `.tmp/decentdb-2.12-validation/musicbrainz-query-probe-wal-backed.json`
-- Checkpointed query probe:
-  `.tmp/decentdb-2.12-validation/musicbrainz-query-probe-checkpointed.json`
+  `.tmp/decentdb-2.13-validation/musicbrainz-import-probe.json`
+- ADO.NET plan capture:
+  `.tmp/decentdb-2.13-validation/musicbrainz-explain-plans.txt`
+- Checkpointed targeted query probes were attempted, but timed out before a
+  JSON report was written.
 
 Import and checkpoint results:
 
 | Metric | Value |
 | --- | ---: |
-| Import duration in minutes | `48.72 min` |
-| Import duration in seconds | `2,922.97 s` |
+| Import duration in minutes | `46.62 min` |
+| Import duration in seconds | `2,797.22 s` |
 | Artists | `2,887,383` |
 | Artist aliases | `492,790` |
 | Artist relations | `834,044` |
 | Albums | `3,705,849` |
-| Peak working set | `22.70 GiB` |
+| Peak working set | `20.33 GiB` |
 | Post-import main `.ddb` before checkpoint | `8 KB` |
 | Post-import `.wal` before checkpoint | `5.0 GiB` |
-| Native checkpoint duration | `573.60 s` |
+| Native checkpoint duration | `635.93 s` |
 | Post-checkpoint main `.ddb` | `2.4 GiB` |
 | Post-checkpoint `.wal` | `32 B` |
 
@@ -94,39 +101,34 @@ await DecentDBMaintenance.CheckpointAsync(databasePath, cancellationToken);
 
 No DecentDB CLI was used for the Melodee validation.
 
-## Current Failing Timings
+## Current Failing Validation
 
-WAL-backed `2.12.0` warm query timings:
+DecentDB `2.13.0` still reports the expected index plans:
 
-| Query shape | Warm timing | Plan |
+| Query shape | Plan capture | Plan |
 | --- | ---: | --- |
-| `Database.CanConnectAsync()` | `52.15 ms` | Not applicable |
-| Ordered first-row projection | `7,869.50 ms` | `OrderedRowIdScan(table=Artist, column=Id)` |
-| Exact normalized-name lookup | `16,907.93 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
-| Exact alias lookup | `7,210.72 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)` |
-| Exact `MusicBrainzIdRaw` lookup | `22,463.17 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
+| Exact normalized-name lookup | `17.28 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
+| Exact alias lookup | `0.27 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)` |
+| Exact `MusicBrainzIdRaw` lookup | `0.16 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
 
-Checkpointed `2.12.0` warm query timings:
+The actual checkpointed execution still fails:
 
-| Query shape | Warm timing | Plan |
-| --- | ---: | --- |
-| `Database.CanConnectAsync()` | `52.68 ms` | Not applicable |
-| Ordered first-row projection | `2,918.39 ms` | `OrderedRowIdScan(table=Artist, column=Id)` |
-| Exact normalized-name lookup | `10,293.83 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
-| Exact alias lookup | `855.80 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)` |
-| Exact `MusicBrainzIdRaw` lookup | `9,398.26 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
+| Targeted probe | Result |
+| --- | --- |
+| Explicit `MusicBrainzIdRaw` sample, with name and alias supplied | Timed out after `180 s`. |
+| Explicit normalized-name sample, with alias supplied | Timed out after `180 s`. |
 
 The checkpointed values are the relevant acceptance case for Melodee because
 the MusicBrainz update job checkpoints the imported database before promoting
 it.
 
-These timings are not acceptable. An indexed equality lookup on one row, or a
-very small candidate set, should not take seconds after the file is
-checkpointed and reopened.
+These timeouts are not acceptable. An indexed equality lookup on one row, or a
+very small candidate set, should not exceed a `180 s` validation timeout after
+the file is checkpointed and reopened.
 
 ## Important Sample Values
 
-The `2.12.0` query probe used this sample:
+The `2.13.0` query probe used this sample:
 
 ```text
 FirstArtistId: 1
@@ -227,9 +229,9 @@ Limit(limit=1, offset=none)
 ```
 
 The `EXPLAIN` helper itself is fast. The expensive part is query execution.
-For example, in the checkpointed `2.12.0` probe, the plan capture time was
-about `0.22 ms` for the exact `MusicBrainzIdRaw` plan, but the actual EF query
-execution was about `9,398 ms`.
+For example, in the checkpointed `2.13.0` probe, the plan capture time was
+about `0.16 ms` for the exact `MusicBrainzIdRaw` plan, but the actual targeted
+query probe timed out after `180 s`.
 
 ## Historical Attempts And Why They Were Not Enough
 
@@ -263,6 +265,13 @@ large `Artist` equality paths:
 | Exact normalized-name lookup | `10,293.83 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
 | Exact alias lookup | `855.80 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)` |
 | Exact `MusicBrainzIdRaw` lookup | `9,398.26 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
+
+DecentDB `2.13.0` still does not meet the target:
+
+| Query shape | Checkpointed execution result | Plan |
+| --- | --- | --- |
+| Exact normalized-name lookup | Timed out after `180 s` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
+| Exact `MusicBrainzIdRaw` lookup | Timed out after `180 s` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
 
 The previous fixes were therefore insufficient. Selecting `IndexSeek` is
 necessary, but it is not enough.

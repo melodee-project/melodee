@@ -1,8 +1,8 @@
 ## DecentDB EntityFramework Improvements for Melodee
 
 **Date**: 2026-03-21
-**Last updated**: 2026-06-13
-**Status**: Melodee work implemented; DecentDB provider follow-up remains after 2.12.0 validation
+**Last updated**: 2026-06-15
+**Status**: Complete; DecentDB `2.13.1` package validation resolved DDB-002 and DDB-003
 
 ## Purpose
 
@@ -10,9 +10,10 @@ This document is now an active implementation backlog for the remaining
 DecentDB and Melodee scale work. Historical fixes that have already landed were
 removed so coding agents can treat the table below as the source of truth for
 remaining validation and provider follow-up. The current package baseline is
-`DecentDB.AdoNet` `2.12.0`, `DecentDB.EntityFrameworkCore` `2.12.0`, and
-`DecentDB.EntityFrameworkCore.NodaTime` `2.12.0`. The real-file measurements
-below remain labeled with the DecentDB version that produced them.
+`DecentDB.AdoNet` `2.13.1`, `DecentDB.EntityFrameworkCore` `2.13.1`, and
+`DecentDB.EntityFrameworkCore.NodaTime` `2.13.1`. The real-file measurements
+below remain labeled with the DecentDB version or local worktree that produced
+them.
 
 Melodee uses `DecentDB.EntityFrameworkCore` for two different workloads:
 
@@ -43,8 +44,8 @@ still become expensive at very large scale.
 | ID | Status | Priority | Owner | Area | Acceptance target |
 | --- | --- | --- | --- | --- | --- |
 | DDB-001 | DONE | High | Melodee | Real-file MusicBrainz rebuild | Clean monitored rebuild completed against DecentDB `2.8.0`; final wall-clock, memory, `.ddb`, `.wal`, and post-import probe timings are recorded below. |
-| DDB-002 | PROVIDER-FOLLOWUP | High | Melodee / DecentDB | Exact `MusicBrainzIdRaw` lookup | DecentDB `2.12.0` is consumed, and EF probes reach `IndexSeek`, but checkpointed real-file warm MBID lookup is still about `9.4 s`, so the acceptance target is not met. |
-| DDB-003 | PROVIDER-FOLLOWUP | High | DecentDB provider | Indexed string equality | DecentDB `2.12.0` planner/provider fixes are consumed, but checkpointed real-file `Artist` indexed string equality remains multi-second despite captured `IndexSeek` plans. |
+| DDB-002 | DONE | High | Melodee / DecentDB | Exact `MusicBrainzIdRaw` lookup | DecentDB `2.13.1` NuGet package validation reproduced the checkpointed real-file MBID fix: cold measured query `11.04 ms`, warm `0.56 ms`, both with `IndexSeek`. |
+| DDB-003 | DONE | High | DecentDB provider | Indexed string equality | DecentDB `2.13.1` NuGet package validation reproduced checkpointed real-file indexed string equality: cold `Artist.NameNormalized` first-use hydration `9,996 ms`, warm `0.66 ms`; alias cold `780 ms`, warm `0.80 ms`; all with `IndexSeek`. |
 | DDB-004 | DONE | Medium | Melodee | Local artist cache search | Local cache search now uses staged exact provider-ID, normalized-name, and normalized-alias phases; normal lookup no longer uses mixed `OR` or substring alias matching. |
 | DDB-005 | DONE | Medium | Melodee | Local cache listing | Normal page requests now page in the database and avoid mandatory full count and full materialization; count-only requests still return exact counts. |
 | DDB-006 | DONE | Low | Melodee | Import completion counts | Streaming import now returns materialization counts; normal completion logging no longer performs final full-table `CountAsync()` probes. |
@@ -53,12 +54,13 @@ still become expensive at very large scale.
 | DDB-009 | DONE | Medium | DecentDB provider / Melodee docs | Large-text search strategy | Melodee strategy is documented in `design/docs/decentdb-large-text-search-strategy.md`; provider candidates are listed separately. |
 | DDB-010 | DONE | Medium | DecentDB provider / Melodee | Large-file diagnostics | Manual probes now expose practical app-level SQL, timing, row-count, index, memory, and file-growth diagnostics. |
 
-## DecentDB 2.12.0 Binding Update
+## DecentDB 2.13.0 Binding Update
 
-Melodee now consumes the DecentDB `2.12.0` .NET packages. The MusicBrainz
-import checkpoint path uses `DecentDBMaintenance.CheckpointAsync(...)`, so
-Melodee no longer opens the database manually for this maintenance step and
-does not invoke an external DecentDB process anywhere in the repository.
+Melodee consumed the DecentDB `2.13.0` .NET packages during the historical
+validation run. The MusicBrainz import checkpoint path uses
+`DecentDBMaintenance.CheckpointAsync(...)`, so Melodee no longer opens the
+database manually for this maintenance step and does not invoke an external
+DecentDB process anywhere in the repository.
 
 The current binding baseline covers the Melodee-requested .NET maintenance,
 diagnostic, and planner surface:
@@ -71,6 +73,114 @@ diagnostic, and planner surface:
 - provider regression coverage for indexed string equality translation
 - native ordered indexed equality projection support for provider-generated
   `ORDER BY`, `LIMIT`, and `OFFSET` query shapes
+
+## DecentDB Local Worktree Validation
+
+Melodee was temporarily switched to direct local DecentDB binding binaries from
+`/home/steven/src/github/decentdb/bindings/dotnet` while the DecentDB engine was
+fixed in-place. The local native library hash used by Melodee was:
+
+```text
+3d91afb34ed0d13d82095b61c8b535072f66770d96c69fc91c9b4f6d571ce9db
+```
+
+The direct ADO.NET probe against
+`.tmp/decentdb-2.13-validation/musicbrainz.ddb` proved the rejected
+open-time-hydration behavior was gone:
+
+| Direct probe step | Time |
+| --- | ---: |
+| `DecentDBConnection.Open()` | `1.83 ms` |
+| First `Artist.NameNormalized` indexed equality | `9.19 s` |
+| Same `Artist.NameNormalized` prepared parameterized equality | `3.87 ms` |
+| First `Artist.MusicBrainzIdRaw` indexed equality | `8.65 s` |
+| Same `Artist.MusicBrainzIdRaw` prepared parameterized equality | `0.32 ms` |
+
+The committed Melodee `musicbrainz-query-probe` then completed against the same
+checkpointed real MusicBrainz file and wrote:
+`.tmp/decentdb-local-validation/musicbrainz-query-probe-targeted.json`.
+
+| Query | Cold | Warm | Plan |
+| --- | ---: | ---: | --- |
+| `Artist.NameNormalized == value` | `9,120 ms` | `0.65 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
+| `ArtistAlias.NameNormalized == value` | `694 ms` | `0.75 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)` |
+| `Artist.MusicBrainzIdRaw == value` | `3.10 ms` | `0.55 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
+
+This validated the DecentDB worktree fix for DDB-002 and DDB-003 before package
+publication. The DecentDB `2.13.1` package validation below reproduced these
+results without local binary references and completed both items.
+
+## DecentDB 2.13.1 NuGet Package Validation
+
+Melodee was switched back from direct local DecentDB binding references to the
+published `2.13.1` NuGet packages on 2026-06-15. The Release solution was
+cleaned, restored, and rebuilt against package references, and
+`project.assets.json` resolved:
+
+- `DecentDB.AdoNet` `2.13.1`
+- `DecentDB.EntityFrameworkCore` `2.13.1`
+- `DecentDB.EntityFrameworkCore.NodaTime` `2.13.1`
+
+The same checkpointed real MusicBrainz file was validated with:
+`.tmp/decentdb-2.13.1-validation/musicbrainz-query-probe-targeted.json`.
+
+| Query | Cold | Warm | Plan |
+| --- | ---: | ---: | --- |
+| `Artist.NameNormalized == value` | `9,996 ms` | `0.66 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)` |
+| `ArtistAlias.NameNormalized == value` | `780 ms` | `0.80 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)` |
+| `Artist.MusicBrainzIdRaw == value` | `11.04 ms` | `0.56 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` |
+
+This completes DDB-002 and DDB-003. The first cold query for a deferred B-tree
+index still pays bounded first-use hydration cost, but warm and repeated
+short-lived connection paths are request-safe and use the expected indexes.
+
+## DecentDB 2.13.0 Real-File Validation
+
+The DecentDB `2.13.0` package was validated on 2026-06-15 with the committed
+Melodee probes against the real MusicBrainz dump. Melodee restored, cleaned,
+and rebuilt against the published packages without code changes beyond the
+central package version update. Validation used a fresh real-file rebuild so
+any DecentDB file or index layout changes could participate.
+
+Validation artifacts:
+
+- Import probe:
+  `.tmp/decentdb-2.13-validation/musicbrainz-import-probe.json`
+- ADO.NET plan capture:
+  `.tmp/decentdb-2.13-validation/musicbrainz-explain-plans.txt`
+- Checkpointed query probes were attempted with explicit sample values, but
+  both targeted runs timed out before a JSON report was written.
+
+Real-file import and maintenance results:
+
+| Metric | Value | Notes |
+| --- | ---: | --- |
+| Import duration | `46.62 min` | `2,797.22 s`; build time excluded. |
+| Imported artists / aliases / relations / albums | `2,887,383` / `492,790` / `834,044` / `3,705,849` | Counts reported by the streaming importer summary. |
+| Peak working set | `20.33 GiB` | From the import probe process `PeakWorkingSetBytes`. |
+| Post-import `.ddb` / `.wal` before checkpoint | `8 KB` / `5.0 GiB` | Import probe leaves the WAL uncheckpointed. |
+| Native checkpoint duration | `635.93 s` | Run through DecentDB `2.13.0` ADO.NET `DecentDBMaintenance.CheckpointAsync(...)`. |
+| Post-checkpoint `.ddb` / `.wal` | `2.4 GiB` / `32 B` | Checkpoint completed without DecentDB CLI usage. |
+
+ADO.NET `EXPLAIN` plan results:
+
+| Query shape | Plan capture | Plan |
+| --- | ---: | --- |
+| Exact normalized-name lookup | `17.28 ms` | `IndexSeek(table=Artist, index=IX_Artist_NameNormalized)`. |
+| Exact alias lookup | `0.27 ms` | `IndexSeek(table=ArtistAlias, index=IX_ArtistAlias_NameNormalized)`. |
+| Exact `MusicBrainzIdRaw` lookup | `0.16 ms` | `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)`. |
+
+Checkpointed execution validation:
+
+| Targeted probe | Result |
+| --- | --- |
+| Explicit `MusicBrainzIdRaw` sample, with name and alias supplied | Timed out after `180 s` before the probe could write a report. |
+| Explicit normalized-name sample, with alias supplied | Timed out after `180 s` before the probe could write a report. |
+
+At the DecentDB `2.13.0` package baseline, DDB-002 and DDB-003 therefore
+remained `PROVIDER-FOLLOWUP`. A later local DecentDB worktree fix is documented
+above, and DecentDB `2.13.1` package validation completed the items. No Melodee
+CLI fallback or ad hoc DecentDB process invocation should be added.
 
 ## DecentDB 2.12.0 Real-File Validation
 
@@ -224,12 +334,12 @@ explain why the open items exist.
 | Query shape | Prior timing | Current instruction |
 | --- | ---: | --- |
 | `Database.CanConnectAsync()` | ~3-13 ms | Safe connectivity probe. |
-| Ordered first-row projection, for example `OrderBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync()` | ~7-15 ms | DecentDB `2.12.0` checkpointed real-file validation shows this row-id scan shape around `2.9 s`; keep off hot paths until the provider/runtime has a bounded row-id/limit fast path. |
+| Ordered first-row projection, for example `OrderBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync()` | ~7-15 ms | DecentDB `2.13.1` still measured this around `2.9 s` in the checkpointed probe; keep off hot paths until a bounded row-id/limit fast path is validated. |
 | `Artists.AnyAsync()` / `Artists.Take(1).CountAsync()` | ~13 s | Keep off request paths and avoid in large-table probes. |
-| Exact normalized-name MusicBrainz artist lookup | ~13-40 ms | Intended primary large-file search path, but DecentDB `2.12.0` checkpointed validation still leaves DDB-003 open at about `10.3 s` warm. |
+| Exact normalized-name MusicBrainz artist lookup | ~13-40 ms | Intended primary large-file search path. DecentDB `2.13.1` validates this as complete for warm request-path use. |
 | `AlternateNames.Contains(...)` substring lookup | ~15 s | Do not use blob substring scans on the large request path. |
 | Tokenized `Contains(...)` fallback | ~22 s | Do not reintroduce as an automatic large-file fallback. |
-| Exact `MusicBrainzIdRaw` lookup | ~34 s | DDB-002 and DDB-003 must explain or fix this. |
+| Exact `MusicBrainzIdRaw` lookup | ~34 s | DecentDB `2.13.1` validates this as complete for warm request-path use. |
 
 ## DDB-001: Clean Monitored Real-File Rebuild
 
@@ -265,15 +375,20 @@ Acceptance target:
 
 ## DDB-002: Exact MusicBrainzIdRaw Lookup Validation
 
-**Status**: PROVIDER-FOLLOWUP
+**Status**: DONE
 
 Exact MBID lookup should be one of the fastest MusicBrainz paths because it is
 an equality search on an indexed column. The prior probe showed roughly
-`34s`, which is not acceptable for request-path use. DecentDB `2.12.0`
-captures `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` for the
-EF-generated query shape and the ADO.NET `EXPLAIN` SQL recorded by the probe.
-The checkpointed EF warm lookup still takes about `9.4 s`, so this is not
-fully resolved.
+`34s`, which is not acceptable for request-path use. DecentDB `2.13.0`
+captures `IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)` through
+ADO.NET `EXPLAIN`, but the checkpointed targeted MBID probe timed out after
+`180 s`.
+
+The DecentDB local worktree fix validated this path before package publication,
+and DecentDB `2.13.1` NuGet package validation reproduced the result without
+local binary references. The committed Melodee query probe measured the
+checkpointed MBID query at `11.04 ms` cold and `0.56 ms` warm, both with
+`IndexSeek(table=Artist, index=IX_Artist_MusicBrainzIdRaw)`.
 
 Relevant code:
 
@@ -293,21 +408,19 @@ Validation guide:
    supplied.
 6. Time repository lookup when both exact name and MBID are supplied.
 7. Compare cold and warm timings to exact normalized-name lookup.
-8. If a future package still shows slow checkpointed/reopened-file timings
-   while `EXPLAIN` reports `IndexSeek`, track the issue as DecentDB
-   runtime/storage cost for indexed row lookup on large checkpointed tables.
+8. Re-run the targeted query probe after future DecentDB package updates to
+   catch regressions in checkpointed indexed equality.
 
 Acceptance target:
 
 - Warm MBID lookup is in the same broad request-safe class as exact
   normalized-name lookup.
 - Stored values are readable canonical strings.
-- If timing remains slow, DDB-003 receives a reproducible provider/data issue
-  with the query, schema, sample value, row count, timings, and generated SQL.
+- DecentDB `2.13.1` reproduces the local worktree result.
 
 ## DDB-003: Indexed String Equality Provider Follow-Up
 
-**Status**: PROVIDER-FOLLOWUP
+**Status**: DONE
 
 DDB-002 proved that rebuilt-file indexed string equality was still slow enough
 to keep off Melodee request paths under the DecentDB `2.8.0` baseline. Exact
@@ -326,20 +439,29 @@ document:
   `Where(...).OrderBy(...).Take(1)`
 - ADO.NET has binding-native index rebuild helpers for maintenance workflows
 
-The `2.12.0` real-file validation proves those planner fixes are still present,
-but the runtime target is still not satisfied for the checkpointed large
-`Artist` table. Warm `Artist.NameNormalized == value` takes about `10.3 s`, and
-warm `Artist.MusicBrainzIdRaw == value` takes about `9.4 s`, even though both
-plans show `IndexSeek`.
+The `2.13.0` real-file validation proves those planner fixes are still present
+through ADO.NET `EXPLAIN`, but the runtime target was still not satisfied for
+the checkpointed large `Artist` table. Targeted checkpointed probes for both
+`Artist.NameNormalized == value` and `Artist.MusicBrainzIdRaw == value` timed
+out after `180 s`, even though both plans show `IndexSeek`.
+
+The DecentDB local worktree fix validated the runtime path before package
+publication, and DecentDB `2.13.1` NuGet package validation reproduced the
+fix without local binary references. The checkpointed real-file probe measured
+`Artist.NameNormalized` at `9,996 ms` cold first-use hydration and `0.66 ms`
+warm, `ArtistAlias` at `780 ms` cold and `0.80 ms` warm, and
+`Artist.MusicBrainzIdRaw` at `11.04 ms` cold and `0.56 ms` warm. All three
+plans use `IndexSeek`.
 
 Provider enhancement candidates are tracked in
 `design/docs/decentdb-provider-enhancements.md`.
 
 Release validation guide:
 
-1. Keep the `2.12.0` query probe artifacts attached to any follow-up issue.
-2. Reproduce the remaining issue below EF Core, using the captured SQL and
-   `EXPLAIN` plans.
+1. Keep the `2.13.0` import, plan, timeout, local-worktree, and `2.13.1`
+   package-validation artifacts attached to any future regression issue.
+2. Rerun the same targeted checkpointed query probe after future DecentDB
+   package updates.
 3. Check indexed row lookup/materialization cost for checkpointed large tables,
    not only planner index selection.
 4. Re-run `musicbrainz-query-probe` after the next provider/runtime fix.
@@ -364,9 +486,9 @@ enhancement candidates:
   index rebuild helpers published in DecentDB `2.10.0`
 - opt-in query plan and index usage diagnostics through ADO.NET, published in
   DecentDB `2.9.0`
-- real-file DecentDB `2.12.0` validation shows `IndexSeek` plans but
-  multi-second `Artist` table indexed equality execution, so runtime/storage
-  follow-up remains
+- real-file DecentDB `2.13.0` validation showed `IndexSeek` plans but
+  checkpointed targeted probes timed out after `180 s`; DecentDB `2.13.1`
+  package validation completes the runtime path
 - documented large-text or full-text search strategy
 - clearer unsupported file-format diagnostics published in DecentDB `2.9.0`;
   explicit upgrade guidance remains a provider documentation candidate
@@ -627,11 +749,8 @@ This table records the completed DDB-001 and DDB-002 run against DecentDB `2.8.0
 
 Melodee does not need to abandon `DecentDB.EntityFrameworkCore` for the large
 MusicBrainz file. The Melodee-side query-shape, import-count, local-cache, and
-diagnostic work is implemented. DecentDB `2.12.0` provides the binding-native
+diagnostic work is implemented. DecentDB `2.13.1` provides the binding-native
 checkpoint, WAL-status, query-plan, compatibility diagnostic, ordered indexed
-equality, and index rebuild helpers requested by Melodee, and Melodee consumes
-the maintenance helper for MusicBrainz imports. The remaining gap is no longer
-index selection: checkpointed real-file `Artist` indexed equality uses
-`IndexSeek` but still executes in multiple seconds. DDB-002 and DDB-003 should
-stay open until a DecentDB provider/runtime/storage fix makes those equality
-lookups request-safe on the real MusicBrainz file.
+equality, index rebuild helpers, and checkpointed deferred-index runtime fix
+requested by Melodee. Melodee consumes the package references directly and the
+checkpointed real-file query probe validates DDB-002 and DDB-003 as complete.

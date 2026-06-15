@@ -1,28 +1,34 @@
 ## DecentDB Provider Enhancement Candidates
 
-**Date**: 2026-06-13
-**Status**: Updated after DecentDB 2.12.0 validation; provider follow-up still
-needed for large `Artist` table indexed equality execution
+**Date**: 2026-06-15
+**Status**: Updated after DecentDB 2.13.1 validation; DDB-002 and DDB-003
+completed
 
 ## Context
 
-Melodee now references `DecentDB.AdoNet` `2.12.0`,
-`DecentDB.EntityFrameworkCore` `2.12.0`, and
-`DecentDB.EntityFrameworkCore.NodaTime` `2.12.0`. The large real-file import and
-query timings in `design/DECENTDB_IMPROVEMENTS.md` were rerun against
-DecentDB `2.12.0` on 2026-06-13.
+Melodee now references `DecentDB.AdoNet` `2.13.1`,
+`DecentDB.EntityFrameworkCore` `2.13.1`, and
+`DecentDB.EntityFrameworkCore.NodaTime` `2.13.1`. The large real-file import
+and query timings in `design/DECENTDB_IMPROVEMENTS.md` were rerun against
+DecentDB `2.13.0` and then revalidated against DecentDB `2.13.1` on
+2026-06-15.
 
 The current DecentDB packages include the post-`2.9.0` fixes for Melodee's
 original provider-follow-up items: ordered indexed string equality remains on
 the native executor fast path, EF Core has regression coverage for Melodee's
 `Where(...).OrderBy(...).Take(...)` query shape, and the ADO.NET bindings
-expose native index rebuild helpers. The real-file validation still did not
-satisfy DDB-002 or DDB-003 because checkpointed `Artist` table indexed equality
-remains multi-second even with captured `IndexSeek` plans.
+expose native index rebuild helpers. The published `2.13.0` package still did
+not satisfy DDB-002 or DDB-003 because checkpointed `Artist` table indexed
+equality timed out even with captured `IndexSeek` plans.
 
-This document is still needed because `design/DECENTDB_IMPROVEMENTS.md` uses it
-as the release-validation detail for DDB-002 and DDB-003. The Melodee side now
-has repeatable manual probes:
+The DecentDB `2.13.1` package removes open-time eager all-index hydration and
+adds a bounded process cache for deferred runtime B-tree indexes plus paged row
+locators. Melodee validation against the real checkpointed MusicBrainz file now
+shows warm `Artist.NameNormalized`, `ArtistAlias.NameNormalized`, and
+`Artist.MusicBrainzIdRaw` equality paths under `1 ms` with `IndexSeek`.
+
+This document is still needed as provider context for future DecentDB package
+regression checks. The Melodee side now has repeatable manual probes:
 
 ```bash
 dotnet run -c Release --project benchmarks/Melodee.Benchmarks \
@@ -46,8 +52,7 @@ ad hoc scripts.
 ## Enhancement List
 
 Items marked published below are available to Melodee through the DecentDB
-`2.12.0` .NET bindings. The remaining item is runtime/storage performance for
-large checkpointed `Artist` table indexed equality, not EF translation.
+`2.13.1` .NET bindings.
 
 ### Native .NET Checkpoint And Maintenance APIs
 
@@ -78,10 +83,10 @@ make DDB-002 or DDB-003 complete by themselves.
 
 Current observation:
 
-- The DecentDB `2.12.0` real-file import finished with the main `.ddb` file at
+- The DecentDB `2.13.0` real-file import finished with the main `.ddb` file at
   `8 KB` and the WAL at roughly `5.0 GiB`.
 - Native ADO.NET checkpoint reduced the WAL to `32 B` and grew the main `.ddb`
-  file to roughly `2.4 GiB`, but the checkpoint took about `574 s`.
+  file to roughly `2.4 GiB`, but the checkpoint took about `636 s`.
 
 Requested enhancement:
 
@@ -92,18 +97,26 @@ Requested enhancement:
 
 ### Indexed String Equality Performance
 
-Current observation from the DecentDB `2.12.0` rebuilt and checkpointed
-MusicBrainz file:
+Current observation from the published DecentDB `2.13.0` rebuilt and
+checkpointed MusicBrainz file:
 
-- `Artist.NameNormalized == value` warm lookup: about `10.3 s`.
-- `Artist.MusicBrainzIdRaw == value` warm lookup: about `9.4 s`.
-- `ArtistAlias.NameNormalized == value` warm lookup: about `856 ms`.
+- `Artist.NameNormalized == value` targeted probe: timed out after `180 s`.
+- `Artist.MusicBrainzIdRaw == value` targeted probe: timed out after `180 s`.
 - The affected columns have EF model indexes, generated SQL is captured by the
-  query probe, and DecentDB `EXPLAIN` reports `IndexSeek` for all three
+  query probe, and DecentDB `EXPLAIN` reports `IndexSeek` for the tested
   equality shapes.
-- The remaining issue is not index selection: the probe captures `IndexSeek`
-  plans while execution remains multi-second on the checkpointed large
-  `Artist` table.
+- The remaining package issue is not index selection: the probe captures
+  `IndexSeek` plans while execution does not complete in a request-safe window
+  on the checkpointed large `Artist` table.
+
+DecentDB `2.13.1` package observation:
+
+- `Database.CanConnectAsync()`: `16.57 ms` cold.
+- `Artist.NameNormalized`: `9,996 ms` cold first-use hydration and `0.66 ms`
+  warm.
+- `ArtistAlias.NameNormalized`: `780 ms` cold and `0.80 ms` warm.
+- `Artist.MusicBrainzIdRaw`: `11.04 ms` cold and `0.56 ms` warm.
+- All three indexed equality plans use `IndexSeek`.
 
 Requested enhancement:
 
@@ -113,9 +126,10 @@ Requested enhancement:
   `ORDER BY`, `LIMIT`, and `OFFSET` clauses for indexed equality projections,
   and EF Core regression coverage executes Melodee's
   `Where(...).OrderBy(...).Take(1)` shape.
-- Remaining follow-up: reduce checkpointed large-table indexed equality
-  execution time after `IndexSeek` has already been selected. This should be
-  investigated below EF Core as runtime/storage/index payload lookup cost.
+- Published in DecentDB `2.13.1`: DecentDB keeps deferred-table open lazy,
+  hydrates only the requested secondary index on first use, and reuses that
+  runtime index plus paged row locators across short-lived connections in the
+  same process.
 
 ### Query Plan And Index Diagnostics
 
