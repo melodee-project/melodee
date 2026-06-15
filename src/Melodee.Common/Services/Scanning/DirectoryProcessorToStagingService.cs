@@ -156,7 +156,7 @@ public sealed class DirectoryProcessorToStagingService(
         [
             new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer), imageProcessor, _imageConvertor, _imageValidator,
                 _configuration),
-            new IdSharpMetaTag(new MetaTagsProcessor(_configuration, serializer), _configuration)
+            new NativeId3MetaTag(new MetaTagsProcessor(_configuration, serializer), _configuration)
         ];
         _albumNamesInDirectoryPlugin = new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer),
             imageProcessor, _imageConvertor, _imageValidator, _configuration);

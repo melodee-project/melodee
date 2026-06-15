@@ -32,8 +32,6 @@
     <PackageReference Include="Hqub.Last.fm" />
     <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="IdGen" />
-    <PackageReference Include="IdSharp.Common" />
-    <PackageReference Include="IdSharp.Tagging" />
     <PackageReference Include="JetBrains.Annotations" />
     <PackageReference Include="Jint" />
     <PackageReference Include="K4os.Hash.xxHash" />

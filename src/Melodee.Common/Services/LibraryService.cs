@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Linq.Dynamic.Core;
 using System.Linq.Expressions;
 using Ardalis.GuardClauses;
-using IdSharp.Common.Utils;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -595,7 +594,7 @@ public class LibraryService : ServiceBase
                             if (image.FileInfo != null)
                             {
                                 if (existingArtistImagesCrc32S.Contains(
-                                        CRC32.Calculate(image.FileInfo.ToFileInfo(libraryArtistDirectoryInfo))))
+                                        Crc32.Calculate(image.FileInfo.ToFileInfo(libraryArtistDirectoryInfo))))
                                 {
                                     var fileToDeleteFullName = Path.Combine(libraryArtistDirectoryInfo.FullName(),
                                         image.FileInfo.Name);

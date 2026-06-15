@@ -1,9 +1,5 @@
 <Project>
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
-    <!-- Suppress NU1902 for SixLabors.ImageSharp (v3.1.10) which is a transitive dependency of IdSharp.Tagging.
-         Melodee no longer directly references or uses ImageSharp; all image processing is done via SkiaSharp.
-         This warning cannot be resolved without upgrading or replacing IdSharp.Tagging. -->
-    <NoWarn>$(NoWarn);NU1902</NoWarn>
   </PropertyGroup>
 </Project>

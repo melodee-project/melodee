@@ -13,7 +13,7 @@ Melodee 2.1.0 is here! This release focuses on performance, developer experience
 ## What's New in 2.1.0
 
 ### SkiaSharp Image Processing
-All image processing has migrated from `SixLabors.ImageSharp` to `SkiaSharp`, replacing the legacy library with a more performant and actively maintained alternative.
+All image processing has migrated to `SkiaSharp`, replacing the legacy library with a more performant and actively maintained alternative.
 
 - New `IImageProcessor` abstraction for decode, encode, resize, format detection, and hash generation
 - Clean dependency injection throughout services, Blazor components, CLI commands, and tests

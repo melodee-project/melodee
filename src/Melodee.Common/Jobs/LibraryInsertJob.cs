@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using IdSharp.Common.Utils;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -556,7 +555,7 @@ public class LibraryInsertJob(
                                 break;
                             }
 
-                            var mediaFileHash = CRC32.Calculate(mediaFile);
+                            var mediaFileHash = Crc32.Calculate(mediaFile);
                             var songTitle = song.Title()?.CleanStringAsIs() ??
                                             throw new Exception("Song title is required.");
                             var s = new dbModels.Song
