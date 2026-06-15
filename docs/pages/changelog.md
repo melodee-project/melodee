@@ -1,3 +1,5 @@
+## [Unreleased]
+
 ---
 title: Changelog
 permalink: /changelog/
@@ -21,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [2.1.3] - 2026-06-15
 
 ### Added
 
@@ -44,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validated DecentDB `2.13.1` NuGet packages against the checkpointed real
   MusicBrainz query probe, completing DDB-002 and DDB-003 with `IndexSeek`
   plans and sub-millisecond warm indexed equality timings.
+- MusicBrainz DecentDB startup warm-up no longer runs the alias-by-artist
+  bounded query shape that DecentDB `2.13.1` rejects with a missing-parameter
+  error.
 
 ## [2.1.2] - 2026-06-10
 

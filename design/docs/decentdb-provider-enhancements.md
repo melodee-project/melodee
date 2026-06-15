@@ -80,7 +80,6 @@ The warmed query shapes intentionally match request-safe repository behavior:
 - exact `Artist.NameNormalized` equality
 - exact `Artist.MusicBrainzIdRaw` equality
 - exact `ArtistAlias.NameNormalized` equality
-- bounded aliases by `MusicBrainzArtistId`
 - bounded albums by `MusicBrainzArtistId`
 
 The broad `ordered-first-row-existence` measurement remains available for

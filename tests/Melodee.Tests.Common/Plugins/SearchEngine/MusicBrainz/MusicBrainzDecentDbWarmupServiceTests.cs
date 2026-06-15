@@ -24,11 +24,10 @@ public class MusicBrainzDecentDbWarmupServiceTests : ServiceTestBase
 
             result.Succeeded.Should().BeTrue(result.Message);
             result.Skipped.Should().BeFalse();
-            result.WarmedQueryCount.Should().BeGreaterThanOrEqualTo(5);
+            result.WarmedQueryCount.Should().BeGreaterThanOrEqualTo(4);
             result.Measurements.Select(measurement => measurement.Name).Should().Contain([
                 "exact-normalized-name",
                 "exact-musicbrainz-id-raw",
-                "aliases-by-artist-id",
                 "exact-normalized-alias",
                 "albums-by-artist-id"
             ]);

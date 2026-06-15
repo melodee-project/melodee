@@ -79,18 +79,6 @@ public sealed class MusicBrainzDecentDbWarmupService(
                         .ConfigureAwait(false)).Length)
                 .ConfigureAwait(false);
 
-            await MeasureAsync(
-                    measurements,
-                    "aliases-by-artist-id",
-                    async () => (await context.ArtistAliases
-                        .AsNoTracking()
-                        .Where(alias => alias.MusicBrainzArtistId == sample.MusicBrainzArtistId)
-                        .Select(alias => alias.NameNormalized)
-                        .Take(25)
-                        .ToArrayAsync(cancellationToken)
-                        .ConfigureAwait(false)).Length)
-                .ConfigureAwait(false);
-
             if (!string.IsNullOrWhiteSpace(sample.AliasNormalized))
             {
                 await MeasureAsync(

@@ -150,8 +150,9 @@ completed the application-side follow-up items:
 - `MusicBrainzUpdateDatabaseJob` runs the same warm-up against the newly
   promoted checkpointed database before the search engine is re-enabled.
 - The warm-up targets the same bounded indexed shapes used by request paths:
-  exact normalized artist name, exact raw MusicBrainz ID, alias lookup by name,
-  alias lookup by artist ID, and albums by artist ID.
+  exact normalized artist name, exact raw MusicBrainz ID, exact alias lookup by
+  name, and albums by artist ID. The sample-selection step also reads one alias
+  for the selected artist.
 - The broad first-row existence probe is no longer part of normal
   `musicbrainz-query-probe` output; use `--include-row-existence` only for
   explicit investigation.
