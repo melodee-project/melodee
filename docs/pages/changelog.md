@@ -1,5 +1,3 @@
-## [Unreleased]
-
 ---
 title: Changelog
 permalink: /changelog/
@@ -22,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** — Vulnerability patches and security hardening.
 
 ---
+
+## [Unreleased]
 
 ## [2.1.3] - 2026-06-15
 
