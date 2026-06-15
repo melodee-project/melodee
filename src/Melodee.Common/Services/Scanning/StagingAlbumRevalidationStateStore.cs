@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using DecentDB.EntityFrameworkCore;
 using Melodee.Common.Extensions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;

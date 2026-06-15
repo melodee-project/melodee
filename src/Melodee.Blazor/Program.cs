@@ -166,6 +166,8 @@ if (!skipDbRegistration)
     {
         options.UseDecentDB(builder.Configuration.GetConnectionString("MusicBrainzConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
     });
+
+    builder.Services.AddHostedService<MusicBrainzDecentDbWarmupHostedService>();
 }
 
 builder.Services.AddApiVersioning(options =>
@@ -536,6 +538,7 @@ builder.Services
     .AddSingleton<StreamingLimiter>()
     .AddSingleton<EtagRepository>()
     .AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>()
+    .AddScoped<MusicBrainzDecentDbWarmupService>()
     .AddScoped<SettingService>()
     .AddScoped<ArtistService>()
     .AddScoped<IBaseUrlService, BaseUrlService>()

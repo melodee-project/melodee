@@ -1,4 +1,3 @@
-using DecentDB.EntityFrameworkCore;
 using FluentAssertions;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using MusicBrainzAlbum = Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data.Models.Materialized.Album;

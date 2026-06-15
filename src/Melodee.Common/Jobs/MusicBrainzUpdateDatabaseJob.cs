@@ -80,7 +80,8 @@ public class MusicBrainzUpdateDatabaseJob(
     SettingService settingService,
     IHttpClientFactory httpClientFactory,
     IDbContextFactory<MusicBrainzDbContext> dbContextFactory,
-    IMusicBrainzRepository repository) : JobBase(logger, configurationFactory)
+    IMusicBrainzRepository repository,
+    MusicBrainzDecentDbWarmupService warmupService) : JobBase(logger, configurationFactory)
 {
     private const string StageInitialize = "Initialize";
     private const string StageDownloadMbDump = "Download mbdump.tar.bz2";
@@ -537,6 +538,17 @@ public class MusicBrainzUpdateDatabaseJob(
                 progress?.UpdateProgress("Promoting imported database...");
                 DeleteDatabaseArtifacts(dbName);
                 MoveDatabaseArtifacts(importDbName, dbName, overwrite: true);
+
+                progress?.UpdateProgress("Warming MusicBrainz DecentDB indexes...");
+                var warmupResult = await warmupService.WarmHotIndexesAsync(dbName, context.CancellationToken)
+                    .ConfigureAwait(false);
+                if (!warmupResult.Succeeded && !warmupResult.Skipped)
+                {
+                    Logger.Warning(
+                        "[{JobName}] MusicBrainz DecentDB warm-up did not complete after promotion: {Message}",
+                        nameof(MusicBrainzUpdateDatabaseJob),
+                        warmupResult.Message);
+                }
 
                 if (tempDbName != null)
                 {

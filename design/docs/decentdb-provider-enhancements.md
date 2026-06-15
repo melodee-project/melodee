@@ -46,8 +46,46 @@ dotnet run -c Release --project benchmarks/Melodee.Benchmarks \
   --output /tmp/musicbrainz-query-probe.json
 ```
 
+## Melodee Package-Upgrade Validation Gate
+
+Use the new internal runbook and helper for package-upgrade checks:
+
+- `design/docs/decentdb-package-upgrade-validation-runbook.md`
+- `scripts/run-decentdb-package-upgrade-gate.sh`
+
+The helper performs:
+
+- optional fresh import probe capture (from staging data)
+- checkpointed query probe capture against an existing `.ddb`
+- DDB-002/DDB-003 warm-query gate checks for `IndexSeek` + request-safe timings
+- optional explicit sample reuse (`--name`, `--alias`, `--mbid`) so package
+  validation can avoid broad sampling work
+- consistent output layout for attachment to future provider regressions
+
+This is a Melodee-only gating helper; it does not alter production workloads
+or depend on DecentDB CLI usage.
+
 These probes give reproducible inputs for provider issues without requiring
 ad hoc scripts.
+
+## Melodee Warm-Up And Request-Path Guardrails
+
+Melodee now warms the large MusicBrainz DecentDB indexes through native .NET
+queries after Blazor startup and after a successful MusicBrainz database
+promotion. The warm-up is opportunistic and non-fatal; if it cannot complete,
+search remains available and the same indexes warm on demand.
+
+The warmed query shapes intentionally match request-safe repository behavior:
+
+- exact `Artist.NameNormalized` equality
+- exact `Artist.MusicBrainzIdRaw` equality
+- exact `ArtistAlias.NameNormalized` equality
+- bounded aliases by `MusicBrainzArtistId`
+- bounded albums by `MusicBrainzArtistId`
+
+The broad `ordered-first-row-existence` measurement remains available for
+investigation with `musicbrainz-query-probe --include-row-existence`, but it is
+not part of normal package gate acceptance.
 
 ## Enhancement List
 

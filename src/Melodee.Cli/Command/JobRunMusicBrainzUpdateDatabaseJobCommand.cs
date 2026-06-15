@@ -23,7 +23,8 @@ public class JobRunMusicBrainzUpdateDatabaseJobCommand : CommandBase<JobSettings
                 scope.ServiceProvider.GetRequiredService<SettingService>(),
                 scope.ServiceProvider.GetRequiredService<IHttpClientFactory>(),
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>(),
-                scope.ServiceProvider.GetRequiredService<IMusicBrainzRepository>()
+                scope.ServiceProvider.GetRequiredService<IMusicBrainzRepository>(),
+                scope.ServiceProvider.GetRequiredService<MusicBrainzDecentDbWarmupService>()
             );
             await job.Execute(new MelodeeJobExecutionContext(cancellationToken));
             return 1;

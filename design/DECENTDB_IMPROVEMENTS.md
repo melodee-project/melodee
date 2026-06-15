@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-21
 **Last updated**: 2026-06-15
-**Status**: Complete; DecentDB `2.13.1` package validation resolved DDB-002 and DDB-003
+**Status**: Complete; DecentDB `2.13.1` package validation resolved DDB-002 and DDB-003, and Melodee follow-up hardening is implemented
 
 ## Purpose
 
@@ -53,6 +53,11 @@ still become expensive at very large scale.
 | DDB-008 | DONE | Medium | Melodee | MusicBrainz import perf probes | `musicbrainz-import-probe` emits JSON phase timings, memory samples, database/WAL growth, CPU time, and importer-reported row counts. |
 | DDB-009 | DONE | Medium | DecentDB provider / Melodee docs | Large-text search strategy | Melodee strategy is documented in `design/docs/decentdb-large-text-search-strategy.md`; provider candidates are listed separately. |
 | DDB-010 | DONE | Medium | DecentDB provider / Melodee | Large-file diagnostics | Manual probes now expose practical app-level SQL, timing, row-count, index, memory, and file-growth diagnostics. |
+| DDB-011 | DONE | Medium | Melodee | MusicBrainz DecentDB warm-up | `MusicBrainzDecentDbWarmupService` warms request-path indexes after Blazor startup and after a successful MusicBrainz database promotion. |
+| DDB-012 | DONE | Medium | Melodee | Avoid broad row-existence probes | Normal query validation excludes the broad `ordered-first-row-existence` measurement by default; it is now available only through `--include-row-existence`. |
+| DDB-013 | DONE | Medium | Melodee | Package-upgrade validation gate | `scripts/run-decentdb-package-upgrade-gate.sh` and `design/docs/decentdb-package-upgrade-validation-runbook.md` provide a repeatable DDB-002/DDB-003 validation path. |
+| DDB-014 | DONE | Low | Melodee | Checkpoint and WAL operating guidance | MusicBrainz imports checkpoint with native .NET bindings before promotion, and the package-upgrade runbook documents checkpoint/WAL acceptance notes. |
+| DDB-015 | DONE | Low | Melodee docs | Future fuzzy/full-text guidance | Exact-match and lookup-table request paths remain the accepted strategy; fuzzy/full-text search is documented as explicit future non-hot-path work. |
 
 ## DecentDB 2.13.0 Binding Update
 
@@ -133,6 +138,26 @@ The same checkpointed real MusicBrainz file was validated with:
 This completes DDB-002 and DDB-003. The first cold query for a deferred B-tree
 index still pays bounded first-use hydration cost, but warm and repeated
 short-lived connection paths are request-safe and use the expected indexes.
+
+## Melodee Follow-Up Hardening
+
+After DecentDB `2.13.1` resolved the remaining provider behavior, Melodee
+completed the application-side follow-up items:
+
+- Blazor startup now runs an opportunistic background
+  `MusicBrainzDecentDbWarmupService` pass against the configured MusicBrainz
+  database.
+- `MusicBrainzUpdateDatabaseJob` runs the same warm-up against the newly
+  promoted checkpointed database before the search engine is re-enabled.
+- The warm-up targets the same bounded indexed shapes used by request paths:
+  exact normalized artist name, exact raw MusicBrainz ID, alias lookup by name,
+  alias lookup by artist ID, and albums by artist ID.
+- The broad first-row existence probe is no longer part of normal
+  `musicbrainz-query-probe` output; use `--include-row-existence` only for
+  explicit investigation.
+- `scripts/run-decentdb-package-upgrade-gate.sh` can run package-upgrade gates
+  with explicit sample values from prior probe output and does not use the
+  DecentDB CLI.
 
 ## DecentDB 2.13.0 Real-File Validation
 

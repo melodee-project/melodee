@@ -45,6 +45,7 @@ internal static class MusicBrainzQueryProbe
             .ConfigureAwait(false);
         var sample = QueryProbeSample.FromValues(sampleValues);
         var indexes = GetIndexDiagnostics(sampleContext);
+        var includeRowExistenceProbe = options.GetBool("include-row-existence");
 
         var measurements = new List<QueryProbeMeasurement>();
         foreach (var pass in new[] { "cold", "warm" })
@@ -52,25 +53,28 @@ internal static class MusicBrainzQueryProbe
             await using var context = CreateContext(databasePath);
             measurements.Add(await MeasureCanConnectAsync(context, pass, cancellationToken)
                 .ConfigureAwait(false));
-            measurements.Add(await MeasureQueryAsync(
-                    context,
-                    pass,
-                    "ordered-first-row-existence",
-                    sampleValues.FirstArtistId.ToString(),
-                    context.Artists
-                        .AsNoTracking()
-                        .OrderBy(a => a.Id)
-                        .Select(a => a.Id)
-                        .Take(1),
-                    databasePath,
-                    """
-                    SELECT "Id"
-                    FROM "Artist"
-                    ORDER BY "Id"
-                    LIMIT 1
-                    """,
-                    cancellationToken)
-                .ConfigureAwait(false));
+            if (includeRowExistenceProbe)
+            {
+                measurements.Add(await MeasureQueryAsync(
+                        context,
+                        pass,
+                        "ordered-first-row-existence",
+                        sampleValues.FirstArtistId.ToString(),
+                        context.Artists
+                            .AsNoTracking()
+                            .OrderBy(a => a.Id)
+                            .Select(a => a.Id)
+                            .Take(1),
+                        databasePath,
+                        """
+                        SELECT "Id"
+                        FROM "Artist"
+                        ORDER BY "Id"
+                        LIMIT 1
+                        """,
+                        cancellationToken)
+                    .ConfigureAwait(false));
+            }
             measurements.Add(await MeasureQueryAsync(
                     context,
                     pass,

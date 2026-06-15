@@ -68,6 +68,21 @@ dotnet run -c Release --project benchmarks/Melodee.Benchmarks \
 The report includes cold and warm timings, row counts, generated SQL, DecentDB
 `EXPLAIN` output for the fixed probe shapes, configured index metadata, and the
 sample values used for the exact-name, exact-alias, and exact-MBID probes.
+The broad `ordered-first-row-existence` measurement is excluded by default; use
+`--include-row-existence` only when investigating broad table access outside
+normal request-path validation.
+
+Use the package-upgrade gate when validating a new DecentDB NuGet version:
+
+```bash
+./scripts/run-decentdb-package-upgrade-gate.sh \
+  --db /path/to/musicbrainz.ddb \
+  --label 2.13.1 \
+  --output-dir .tmp/decentdb-upgrade \
+  --name "$MUSICBRAINZ_SAMPLE_NAME" \
+  --alias "$MUSICBRAINZ_SAMPLE_ALIAS" \
+  --mbid "$MUSICBRAINZ_SAMPLE_MBID"
+```
 
 Use the real-file import probe when validating import-scale behavior:
 

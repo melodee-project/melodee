@@ -8,7 +8,6 @@ using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Services.SearchEngines;
-using Melodee.Tests.Common;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Album = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Album;

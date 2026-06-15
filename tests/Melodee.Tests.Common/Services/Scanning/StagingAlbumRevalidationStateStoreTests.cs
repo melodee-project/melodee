@@ -1,8 +1,6 @@
 using FluentAssertions;
 using Melodee.Common.Enums;
-using Melodee.Common.Extensions;
 using Melodee.Common.Models;
-using Melodee.Common.Models.Extensions;
 using Melodee.Common.Services.Scanning;
 using Serilog;
 

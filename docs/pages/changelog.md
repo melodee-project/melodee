@@ -23,10 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added MusicBrainz DecentDB index warm-up after Blazor startup and after
+  successful MusicBrainz database promotion, using native .NET queries against
+  the request-path indexed lookup shapes.
+- Added an internal DecentDB package-upgrade validation gate and runbook for
+  repeatable DDB-002/DDB-003 checks against checkpointed MusicBrainz data.
+
 ### Changed
 
 - Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
   `DecentDB.EntityFrameworkCore.NodaTime` to `2.13.1`.
+- MusicBrainz query probes now keep the broad ordered first-row existence
+  measurement opt-in via `--include-row-existence` so default validation stays
+  focused on request-safe indexed lookups.
 
 ### Fixed
 

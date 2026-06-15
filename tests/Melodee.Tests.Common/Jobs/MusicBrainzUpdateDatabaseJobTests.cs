@@ -30,6 +30,7 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
             var configurationFactory = CreateConfigurationFactory(storagePath);
             var settingService = new SettingService(Logger, CacheManager, configurationFactory, MockFactory());
             var musicBrainzDbContextFactory = CreateMusicBrainzDbContextFactory(databasePath);
+            var warmupService = new MusicBrainzDecentDbWarmupService(Logger, musicBrainzDbContextFactory);
             var repositoryMock = new Mock<IMusicBrainzRepository>();
             MusicBrainzImportRequest? capturedRequest = null;
             repositoryMock.Setup(repository => repository.ImportData(
@@ -48,7 +49,8 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 settingService,
                 CreateHttpClientFactory(latestVersion),
                 musicBrainzDbContextFactory,
-                repositoryMock.Object);
+                repositoryMock.Object,
+                warmupService);
             var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
             File.Exists(databasePath).Should().BeTrue();
@@ -110,6 +112,7 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
             var configurationFactory = CreateConfigurationFactory(storagePath);
             var settingService = new SettingService(Logger, CacheManager, configurationFactory, MockFactory());
             var musicBrainzDbContextFactory = CreateMusicBrainzDbContextFactory(databasePath);
+            var warmupService = new MusicBrainzDecentDbWarmupService(Logger, musicBrainzDbContextFactory);
             var repositoryMock = new Mock<IMusicBrainzRepository>();
             repositoryMock.Setup(repository => repository.ImportData(
                     It.IsAny<MusicBrainzImportRequest>(),
@@ -128,7 +131,8 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 settingService,
                 CreateHttpClientFactory(latestVersion),
                 musicBrainzDbContextFactory,
-                repositoryMock.Object);
+                repositoryMock.Object,
+                warmupService);
             var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
             await job.Execute(context);
@@ -181,6 +185,7 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
             var configurationFactory = CreateConfigurationFactory(storagePath);
             var settingService = new SettingService(Logger, CacheManager, configurationFactory, MockFactory());
             var musicBrainzDbContextFactory = CreateMusicBrainzDbContextFactory(databasePath);
+            var warmupService = new MusicBrainzDecentDbWarmupService(Logger, musicBrainzDbContextFactory);
             var repositoryMock = new Mock<IMusicBrainzRepository>();
             MusicBrainzImportRequest? capturedRequest = null;
             repositoryMock.Setup(repository => repository.ImportData(
@@ -203,7 +208,8 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 settingService,
                 CreateHttpClientFactory(latestVersion),
                 musicBrainzDbContextFactory,
-                repositoryMock.Object);
+                repositoryMock.Object,
+                warmupService);
             var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
             await job.Execute(context);

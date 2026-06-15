@@ -1,8 +1,8 @@
-using Melodee.Common.Models.SearchEngines;
-using Melodee.Common.Plugins.SearchEngine;
 using Melodee.Common.Configuration;
 using Melodee.Common.Data;
 using Melodee.Common.Models;
+using Melodee.Common.Models.SearchEngines;
+using Melodee.Common.Plugins.SearchEngine;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 using Melodee.Common.Plugins.SearchEngine.Spotify;
 using Melodee.Common.Serialization;

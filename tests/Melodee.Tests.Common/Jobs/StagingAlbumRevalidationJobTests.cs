@@ -6,10 +6,8 @@ using Melodee.Common.Enums;
 using Melodee.Common.Extensions;
 using Melodee.Common.Jobs;
 using Melodee.Common.Models;
-using Melodee.Common.Models.Extensions;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.SearchEngines;
-using Melodee.Tests.Common;
 using Melodee.Tests.Common.Services;
 using Moq;
 

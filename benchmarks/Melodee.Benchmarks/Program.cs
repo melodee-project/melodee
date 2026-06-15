@@ -28,7 +28,7 @@ public class Program
             Console.WriteLine("Usage: dotnet run -c Release --project benchmarks/Melodee.Benchmarks [category] [-- BenchmarkDotNet args]");
             Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks streaming");
             Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks all -- --exporters json,github,csv --artifacts benchmarks/artifacts");
-            Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks musicbrainz-query-probe -- --db /path/musicbrainz.ddb --output query-probe.json");
+            Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks musicbrainz-query-probe -- --db /path/musicbrainz.ddb --output query-probe.json [--include-row-existence]");
             Console.WriteLine("Example: dotnet run -c Release --project benchmarks/Melodee.Benchmarks musicbrainz-import-probe -- --storage /path/musicbrainz --db /tmp/musicbrainz.ddb --output import-probe.json --clean");
             return 0;
         }
