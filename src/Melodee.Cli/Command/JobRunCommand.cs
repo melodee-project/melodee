@@ -289,7 +289,8 @@ public class JobRunCommand : CommandBase<JobRunSettings>
                 sp.GetRequiredService<SettingService>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetRequiredService<IDbContextFactory<MusicBrainzDbContext>>(),
-                sp.GetRequiredService<IMusicBrainzRepository>());
+                sp.GetRequiredService<IMusicBrainzRepository>(),
+                sp.GetRequiredService<MusicBrainzDecentDbWarmupService>());
         }
 
         if (jobType == typeof(NowPlayingCleanupJob))

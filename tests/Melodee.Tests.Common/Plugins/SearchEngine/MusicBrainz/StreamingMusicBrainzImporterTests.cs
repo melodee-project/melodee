@@ -108,7 +108,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
         var progressMessages = new List<string>();
 
-        await importer.ImportAsync(
+        var summary = await importer.ImportAsync(
             context,
             _testDataPath,
             (phase, current, total, msg) => progressMessages.Add($"{phase}: {msg}"),
@@ -121,6 +121,10 @@ public class StreamingMusicBrainzImporterTests : IDisposable
         artistCount.Should().Be(stats.ArtistCount);
         aliasCount.Should().BeGreaterThan(0);
         albumCount.Should().BeGreaterThan(0);
+        summary.Artists.Should().Be(stats.ArtistCount);
+        summary.ArtistAliases.Should().Be(aliasCount);
+        summary.Albums.Should().Be(albumCount);
+        summary.HasMaterializedData.Should().BeTrue();
         progressMessages.Should().NotBeEmpty();
     }
 
@@ -244,7 +248,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
 
         var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
 
-        await importer.ImportAsync(
+        var summary = await importer.ImportAsync(
             context,
             Path.Combine(_testDataPath, "empty"),
             null,
@@ -252,6 +256,7 @@ public class StreamingMusicBrainzImporterTests : IDisposable
 
         var artistCount = await context.Artists.CountAsync();
         artistCount.Should().Be(0);
+        summary.HasMaterializedData.Should().BeFalse();
     }
 
     [Fact]

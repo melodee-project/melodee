@@ -11,6 +11,7 @@ using Melodee.Common.Services;
 using Melodee.Common.Services.Models;
 using Melodee.Common.Services.Scanning;
 using Melodee.Common.Services.SearchEngines;
+using Melodee.Common.Utility;
 using Quartz;
 using Serilog;
 
@@ -61,19 +62,55 @@ public class StagingAlbumRevalidationJob(
     AlbumDiscoveryService albumDiscoveryService,
     ArtistSearchEngineService artistSearchEngineService,
     ISerializer serializer,
-    IFileSystemService fileSystemService) : JobBase(logger, configurationFactory)
+    IFileSystemService fileSystemService,
+    IStagingAlbumRevalidationStateStore revalidationStateStore) : JobBase(logger, configurationFactory)
 {
     /// <summary>
     ///     This is raised when a Log event happens to return activity to caller.
     /// </summary>
     public event EventHandler<ProcessingEvent>? OnProcessingEvent;
 
+    /// <summary>
+    ///     Returns whether an album has enough useful artist information to spend a revalidation lookup on it.
+    /// </summary>
+    public static bool CanAttemptArtistRevalidation(Album album)
+    {
+        if (album.Artist.IsValid())
+        {
+            return true;
+        }
+
+        if (album.Artist.Name.Nullify() == null)
+        {
+            return false;
+        }
+
+        if (album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.ArtistNameHasUnwantedText))
+        {
+            return false;
+        }
+
+        return album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists) ||
+               album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasUnknownArtist);
+    }
+
     public override async Task Execute(IJobExecutionContext context)
     {
         var startTicks = Stopwatch.GetTimestamp();
+        var albumsProcessed = 0;
         var albumsRevalidated = 0;
         var albumsNowValid = 0;
+        var albumsRevalidationLookupsAttempted = 0;
+        var albumsRevalidationNoMatch = 0;
+        var albumsSkippedRevalidation = 0;
+        var albumsDeferredRevalidation = 0;
         var dataMap = context.JobDetail.JobDataMap;
+        var forceMode = SafeParser.ToBoolean(context.Get(MelodeeJobExecutionContext.ForceMode));
+        var sharedRunContext = context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.DirectoryRunContext)
+            ? context.MergedJobDataMap[MelodeeJobExecutionContext.DirectoryRunContext] as DirectoryRunContext
+            : null;
+        using var localRunContext = sharedRunContext is null ? new DirectoryRunContext() : null;
+        var activeRunContext = sharedRunContext ?? localRunContext!;
 
         try
         {
@@ -130,6 +167,12 @@ public class StagingAlbumRevalidationJob(
                 nameof(StagingAlbumRevalidationJob),
                 albumsNeedingRevalidation.Length);
 
+            await using var revalidationStateSession = await OpenRevalidationStateSessionAsync(
+                    stagingLibrary.Path,
+                    albumsNeedingRevalidation,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
+
             OnProcessingEvent?.Invoke(
                 this,
                 new ProcessingEvent(ProcessingEventType.Start,
@@ -147,74 +190,152 @@ public class StagingAlbumRevalidationJob(
 
                 try
                 {
-                    var searchRequest = album.Artist.ToArtistQuery([
-                        new KeyValue((album.AlbumYear() ?? 0).ToString(),
-                            album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
-                    ]);
-
-                    var artistSearchResult = await artistSearchEngineService.DoSearchAsync(
-                        searchRequest,
-                        1,
-                        context.CancellationToken).ConfigureAwait(false);
-
-                    if (artistSearchResult.IsSuccess && artistSearchResult.Data.Any())
+                    albumsProcessed++;
+                    var now = DateTimeOffset.UtcNow;
+                    var revalidationDecision = revalidationStateSession.GetDecision(album, now, forceMode);
+                    if (!revalidationDecision.IsDue)
                     {
-                        var artistFromSearch = artistSearchResult.Data.OrderByDescending(x => x.Rank).FirstOrDefault();
-                        if (artistFromSearch != null)
+                        albumsDeferredRevalidation++;
+                        activeRunContext.RecordAlbumDeferredRevalidation();
+                        Logger.Debug(
+                            "[{JobName}] Deferring album [{Album}] artist revalidation until [{NextAttemptAt}] after [{AttemptCount}] attempts",
+                            nameof(StagingAlbumRevalidationJob),
+                            album.AlbumTitle(),
+                            revalidationDecision.NextAttemptAt,
+                            revalidationDecision.AttemptCount);
+                        OnProcessingEvent?.Invoke(
+                            this,
+                            new ProcessingEvent(ProcessingEventType.Processing,
+                                nameof(StagingAlbumRevalidationJob),
+                                albumsNeedingRevalidation.Length,
+                                albumsProcessed,
+                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsRevalidationLookupsAttempted, albumsRevalidationNoMatch, albumsSkippedRevalidation, albumsDeferredRevalidation)));
+                        continue;
+                    }
+
+                    if (!CanAttemptArtistRevalidation(album))
+                    {
+                        albumsSkippedRevalidation++;
+                        activeRunContext.RecordAlbumSkippedRevalidation();
+                        revalidationStateSession.RecordAttempt(album, now, "ArtistDataNotSearchable");
+                        await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
+                        Logger.Debug(
+                            "[{JobName}] Skipping album [{Album}] revalidation because artist data is not searchable: [{Reasons}]",
+                            nameof(StagingAlbumRevalidationJob),
+                            album.AlbumTitle(),
+                            album.StatusReasons);
+                        OnProcessingEvent?.Invoke(
+                            this,
+                            new ProcessingEvent(ProcessingEventType.Processing,
+                                nameof(StagingAlbumRevalidationJob),
+                                albumsNeedingRevalidation.Length,
+                                albumsProcessed,
+                                ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsRevalidationLookupsAttempted, albumsRevalidationNoMatch, albumsSkippedRevalidation, albumsDeferredRevalidation)));
+                        continue;
+                    }
+
+                    var shouldRevalidateAlbum = album.Artist.IsValid();
+                    var artistLookupAttempted = false;
+
+                    if (!shouldRevalidateAlbum)
+                    {
+                        artistLookupAttempted = true;
+                        albumsRevalidationLookupsAttempted++;
+                        var searchRequest = album.Artist.ToArtistQuery([
+                            new KeyValue((album.AlbumYear() ?? 0).ToString(),
+                                album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
+                        ]);
+
+                        var artistSearchResult = await artistSearchEngineService.DoSearchAsync(
+                            searchRequest,
+                            1,
+                            activeRunContext,
+                            bypassNegativeCache: true,
+                            context.CancellationToken).ConfigureAwait(false);
+
+                        if (artistSearchResult.IsSuccess && artistSearchResult.Data.Any())
                         {
-                            album.Artist = album.Artist with
+                            var artistFromSearch = artistSearchResult.Data.OrderByDescending(x => x.Rank).FirstOrDefault();
+                            if (artistFromSearch != null)
                             {
-                                AmgId = album.Artist.AmgId ?? artistFromSearch.AmgId,
-                                ArtistDbId = album.Artist.ArtistDbId ?? artistFromSearch.Id,
-                                DiscogsId = album.Artist.DiscogsId ?? artistFromSearch.DiscogsId,
-                                ItunesId = album.Artist.ItunesId ?? artistFromSearch.ItunesId,
-                                LastFmId = album.Artist.LastFmId ?? artistFromSearch.LastFmId,
-                                MusicBrainzId = album.Artist.MusicBrainzId ?? artistFromSearch.MusicBrainzId,
-                                Name = album.Artist.Name.Nullify() ?? artistFromSearch.Name,
-                                NameNormalized = album.Artist.NameNormalized.Nullify() ??
-                                                artistFromSearch.Name.ToNormalizedString() ??
-                                                artistFromSearch.Name,
-                                OriginalName = artistFromSearch.Name != album.Artist.Name ? album.Artist.Name : null,
-                                SearchEngineResultUniqueId = album.Artist.SearchEngineResultUniqueId is null or < 1
-                                    ? artistFromSearch.UniqueId
-                                    : album.Artist.SearchEngineResultUniqueId,
-                                SortName = album.Artist.SortName.Nullify() ?? artistFromSearch.SortName,
-                                SpotifyId = album.Artist.SpotifyId ?? artistFromSearch.SpotifyId,
-                                WikiDataId = album.Artist.WikiDataId ?? artistFromSearch.WikiDataId
-                            };
-
-                            var validationResult = albumValidator.ValidateAlbum(album);
-                            album.ValidationMessages = validationResult.Data.Messages ?? [];
-                            album.Status = validationResult.Data.AlbumStatus;
-                            album.StatusReasons = validationResult.Data.AlbumStatusReasons;
-                            album.Modified = DateTimeOffset.UtcNow;
-
-                            var jsonPath = fileSystemService.CombinePath(album.Directory.FullName(), Album.JsonFileName);
-                            var serialized = serializer.Serialize(album);
-                            await fileSystemService.WriteAllBytesAsync(
-                                jsonPath,
-                                System.Text.Encoding.UTF8.GetBytes(serialized ?? string.Empty),
-                                context.CancellationToken).ConfigureAwait(false);
-
-                            albumsRevalidated++;
-
-                            if (album.Status == AlbumStatus.Ok)
-                            {
-                                albumsNowValid++;
-                                Logger.Information(
-                                    "[{JobName}] Album [{Album}] is now valid after artist revalidation",
-                                    nameof(StagingAlbumRevalidationJob),
-                                    album.AlbumTitle());
-                            }
-                            else
-                            {
-                                Logger.Debug(
-                                    "[{JobName}] Album [{Album}] artist found but still invalid: [{Reasons}]",
-                                    nameof(StagingAlbumRevalidationJob),
-                                    album.AlbumTitle(),
-                                    album.StatusReasons);
+                                album.Artist = album.Artist with
+                                {
+                                    AmgId = album.Artist.AmgId ?? artistFromSearch.AmgId,
+                                    ArtistDbId = album.Artist.ArtistDbId ?? artistFromSearch.Id,
+                                    DiscogsId = album.Artist.DiscogsId ?? artistFromSearch.DiscogsId,
+                                    ItunesId = album.Artist.ItunesId ?? artistFromSearch.ItunesId,
+                                    LastFmId = album.Artist.LastFmId ?? artistFromSearch.LastFmId,
+                                    MusicBrainzId = album.Artist.MusicBrainzId ?? artistFromSearch.MusicBrainzId,
+                                    Name = album.Artist.Name.Nullify() ?? artistFromSearch.Name,
+                                    NameNormalized = album.Artist.NameNormalized.Nullify() ??
+                                                    artistFromSearch.Name.ToNormalizedString() ??
+                                                    artistFromSearch.Name,
+                                    OriginalName = artistFromSearch.Name != album.Artist.Name ? album.Artist.Name : null,
+                                    SearchEngineResultUniqueId = album.Artist.SearchEngineResultUniqueId is null or < 1
+                                        ? artistFromSearch.UniqueId
+                                        : album.Artist.SearchEngineResultUniqueId,
+                                    SortName = album.Artist.SortName.Nullify() ?? artistFromSearch.SortName,
+                                    SpotifyId = album.Artist.SpotifyId ?? artistFromSearch.SpotifyId,
+                                    WikiDataId = album.Artist.WikiDataId ?? artistFromSearch.WikiDataId
+                                };
+                                shouldRevalidateAlbum = true;
                             }
                         }
+                    }
+
+                    if (shouldRevalidateAlbum)
+                    {
+                        var validationResult = albumValidator.ValidateAlbum(album);
+                        album.ValidationMessages = validationResult.Data.Messages ?? [];
+                        album.Status = validationResult.Data.AlbumStatus;
+                        album.StatusReasons = validationResult.Data.AlbumStatusReasons;
+                        album.Modified = now;
+
+                        var jsonPath = fileSystemService.CombinePath(album.Directory.FullName(), Album.JsonFileName);
+                        var serialized = serializer.Serialize(album);
+                        await fileSystemService.WriteAllBytesAsync(
+                            jsonPath,
+                            System.Text.Encoding.UTF8.GetBytes(serialized ?? string.Empty),
+                            context.CancellationToken).ConfigureAwait(false);
+
+                        albumsRevalidated++;
+
+                        if (album.Status == AlbumStatus.Ok || !NeedsArtistRevalidation(album))
+                        {
+                            revalidationStateSession.RecordSuccess(album);
+                        }
+                        else
+                        {
+                            revalidationStateSession.RecordAttempt(album, now, "StillInvalidAfterValidation");
+                        }
+                        await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
+
+                        if (album.Status == AlbumStatus.Ok)
+                        {
+                            albumsNowValid++;
+                            Logger.Information(
+                                "[{JobName}] Album [{Album}] is now valid after artist revalidation",
+                                nameof(StagingAlbumRevalidationJob),
+                                album.AlbumTitle());
+                        }
+                        else
+                        {
+                            Logger.Debug(
+                                "[{JobName}] Album [{Album}] revalidated but still invalid: [{Reasons}]",
+                                nameof(StagingAlbumRevalidationJob),
+                                album.AlbumTitle(),
+                                album.StatusReasons);
+                        }
+                    }
+                    else if (artistLookupAttempted)
+                    {
+                        albumsRevalidationNoMatch++;
+                        revalidationStateSession.RecordAttempt(album, now, "ArtistLookupNoMatch");
+                        await revalidationStateSession.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
+                        Logger.Debug(
+                            "[{JobName}] Album [{Album}] artist lookup found no match during revalidation",
+                            nameof(StagingAlbumRevalidationJob),
+                            album.AlbumTitle());
                     }
 
                     OnProcessingEvent?.Invoke(
@@ -222,8 +343,8 @@ public class StagingAlbumRevalidationJob(
                         new ProcessingEvent(ProcessingEventType.Processing,
                             nameof(StagingAlbumRevalidationJob),
                             albumsNeedingRevalidation.Length,
-                            albumsRevalidated,
-                            $"Revalidated [{albumsRevalidated}/{albumsNeedingRevalidation.Length}]"));
+                            albumsProcessed,
+                            ProgressMessage(albumsProcessed, albumsNeedingRevalidation.Length, albumsRevalidated, albumsRevalidationLookupsAttempted, albumsRevalidationNoMatch, albumsSkippedRevalidation, albumsDeferredRevalidation)));
                 }
                 catch (Exception ex)
                 {
@@ -241,7 +362,11 @@ public class StagingAlbumRevalidationJob(
 
             context.Result = new ScanStepResult(
                 AlbumsRevalidated: albumsRevalidated,
-                AlbumsNowValid: albumsNowValid);
+                AlbumsNowValid: albumsNowValid,
+                AlbumsRevalidationLookupsAttempted: albumsRevalidationLookupsAttempted,
+                AlbumsRevalidationNoMatch: albumsRevalidationNoMatch,
+                AlbumsSkippedRevalidation: albumsSkippedRevalidation,
+                AlbumsDeferredRevalidation: albumsDeferredRevalidation);
 
             OnProcessingEvent?.Invoke(
                 this,
@@ -249,18 +374,86 @@ public class StagingAlbumRevalidationJob(
                     nameof(StagingAlbumRevalidationJob),
                     albumsNeedingRevalidation.Length,
                     albumsRevalidated,
-                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid"));
+                    $"Revalidated [{albumsRevalidated}] albums, [{albumsNowValid}] now valid, lookup attempts [{albumsRevalidationLookupsAttempted}], no matches [{albumsRevalidationNoMatch}], skipped [{albumsSkippedRevalidation}], deferred [{albumsDeferredRevalidation}]"));
 
             Logger.Information(
-                "ℹ️ [{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move",
+                "[{JobName}] Completed in [{Elapsed}]ms. Revalidated [{Revalidated}] albums, [{NowValid}] now valid and ready to move, lookup attempts [{LookupAttempts}], no matches [{NoMatch}], skipped [{Skipped}], deferred [{Deferred}]",
                 nameof(StagingAlbumRevalidationJob),
                 elapsed.TotalMilliseconds,
                 albumsRevalidated,
-                albumsNowValid);
+                albumsNowValid,
+                albumsRevalidationLookupsAttempted,
+                albumsRevalidationNoMatch,
+                albumsSkippedRevalidation,
+                albumsDeferredRevalidation);
         }
         catch (Exception e)
         {
             Logger.Error(e, "[{JobName}] Processing Exception", nameof(StagingAlbumRevalidationJob));
+        }
+    }
+
+    private async Task<IStagingAlbumRevalidationStateSession> OpenRevalidationStateSessionAsync(
+        string stagingPath,
+        IReadOnlyCollection<Album> albumsNeedingRevalidation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await revalidationStateStore.OpenAsync(stagingPath, albumsNeedingRevalidation, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.Warning(
+                ex,
+                "[{JobName}] Unable to open staging revalidation state store. Continuing without persistent revalidation backoff.",
+                nameof(StagingAlbumRevalidationJob));
+            return new PassthroughRevalidationStateSession();
+        }
+    }
+
+    private static bool NeedsArtistRevalidation(Album album)
+    {
+        return album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists) ||
+               album.StatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasUnknownArtist);
+    }
+
+    private static string ProgressMessage(
+        int processed,
+        int total,
+        int revalidated,
+        int lookupAttempts,
+        int noMatches,
+        int skipped,
+        int deferred)
+    {
+        return $"Processed [{processed}/{total}], revalidated [{revalidated}], lookups [{lookupAttempts}], no matches [{noMatches}], skipped [{skipped}], deferred [{deferred}]";
+    }
+
+    private sealed class PassthroughRevalidationStateSession : IStagingAlbumRevalidationStateSession
+    {
+        public StagingAlbumRevalidationDecision GetDecision(Album album, DateTimeOffset now, bool force)
+        {
+            return new StagingAlbumRevalidationDecision(true, Reason: "Passthrough");
+        }
+
+        public void RecordAttempt(Album album, DateTimeOffset now, string outcome)
+        {
+        }
+
+        public void RecordSuccess(Album album)
+        {
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 }

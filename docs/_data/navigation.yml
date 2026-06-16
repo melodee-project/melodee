@@ -1,6 +1,6 @@
 - title: About
   url: about
-- title: Documentation
-  url: docs
 - title: Homelab
   url: homelab
+- title: News
+  url: news

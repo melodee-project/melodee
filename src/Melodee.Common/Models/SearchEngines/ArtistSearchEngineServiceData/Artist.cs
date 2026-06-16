@@ -49,6 +49,8 @@ public sealed class Artist
 
     public ICollection<Album> Albums { get; set; } = [];
 
+    public ICollection<ArtistAlias> Aliases { get; set; } = [];
+
     [NotMapped] public int Rank { get; set; }
 
     [NotMapped] public int AlbumCount { get; set; }

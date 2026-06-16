@@ -667,8 +667,13 @@ public static class AlbumExtensions
                 $"{ImageInfo.ImageFilePrefix}{(ii.i + 1).ToStringPadLeft(MelodeeConfiguration.ImageNameNumberPadding)}-{ii.x.PictureIdentifier.ToString()}.jpg";
             if (ii.x.FileInfo?.Exists(album.Directory) ?? false)
             {
-                File.Move(ii.x.FileInfo.FullName(album.Directory),
-                    Path.Combine(album.Directory.FullName(), newFilename), true);
+                var currentFileName = ii.x.FileInfo.FullName(album.Directory);
+                var newFullFileName = Path.Combine(album.Directory.FullName(), newFilename);
+                if (!string.Equals(currentFileName, newFullFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Move(currentFileName, newFullFileName, true);
+                }
+
                 renumberedImages.Add(ii.x with
                 {
                     FileInfo = new FileSystemFileInfo

@@ -81,9 +81,7 @@ public class MusicBrainzImportBenchmarks
         await context.Database.EnsureCreatedAsync();
 
         var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
-        await importer.ImportAsync(context, _testDataPath, null, CancellationToken.None);
-
-        var count = await context.Artists.CountAsync();
+        var summary = await importer.ImportAsync(context, _testDataPath, null, CancellationToken.None);
 
         try
         {
@@ -91,7 +89,7 @@ public class MusicBrainzImportBenchmarks
         }
         catch { }
 
-        return count;
+        return summary.Artists;
     }
 
     [Benchmark]
@@ -107,9 +105,7 @@ public class MusicBrainzImportBenchmarks
         await context.Database.EnsureCreatedAsync();
 
         var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
-        await importer.ImportAsync(context, _testDataPath, null, CancellationToken.None);
-
-        var count = await context.Artists.CountAsync();
+        var summary = await importer.ImportAsync(context, _testDataPath, null, CancellationToken.None);
 
         try
         {
@@ -117,7 +113,7 @@ public class MusicBrainzImportBenchmarks
         }
         catch { }
 
-        return count;
+        return summary.Artists;
     }
 
     [Benchmark]
@@ -133,10 +129,8 @@ public class MusicBrainzImportBenchmarks
         await context.Database.EnsureCreatedAsync();
 
         var importer = new DecentDBStreamingMusicBrainzImporter(_logger);
-        await importer.ImportAsync(context, _testDataPath,
+        var summary = await importer.ImportAsync(context, _testDataPath,
             (phase, current, total, msg) => { }, CancellationToken.None);
-
-        var count = await context.Artists.CountAsync();
 
         try
         {
@@ -144,7 +138,7 @@ public class MusicBrainzImportBenchmarks
         }
         catch { }
 
-        return count;
+        return summary.Artists;
     }
 }
 

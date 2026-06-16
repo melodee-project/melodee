@@ -73,9 +73,11 @@ public static class ArtistExtensions
 
     public static bool IsValid(this Artist artist)
     {
-        // If the artist is known already to Melodee (via Dbid) or is a known MusicBrainz or Spotify artist then is ok.
-        // Musicbrainz and Spotify reliably return images for artists, other providers (looking at you LastFm) are spotty.
-        return (artist.ArtistDbId != null || artist.MusicBrainzId != null || artist.SpotifyId != null) &&
+        // Melodee trusts MusicBrainz, Spotify, and iTunes artist identifiers as strong external identities.
+        return (artist.ArtistDbId != null ||
+                artist.MusicBrainzId != null ||
+                artist.SpotifyId.Nullify() != null ||
+                artist.ItunesId.Nullify() != null) &&
                artist.Name.Nullify() != null;
     }
 
@@ -125,8 +127,9 @@ public static class ArtistExtensions
         if (artistDirectoryId == null)
         {
             artistDirectoryId = SafeParser.Hash(artist.MusicBrainzId?.ToString() ??
-                                                artist.SpotifyId ?? throw new Exception(
-                                                    "Neither ArtistDbId, SearchEngineResultUniqueId, MusicBrainzId or SpotifyId is set."))
+                                                artist.SpotifyId ??
+                                                artist.ItunesId ?? throw new Exception(
+                                                    "Neither ArtistDbId, SearchEngineResultUniqueId, MusicBrainzId, SpotifyId or ItunesId is set."))
                 .ToString();
         }
 

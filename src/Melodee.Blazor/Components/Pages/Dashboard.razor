@@ -44,10 +44,26 @@
     <RadzenCard class="rz-background-color-danger-lighter" Style="cursor: pointer;" @onclick="@(() => NavigationManager.NavigateTo("/admin/doctor"))">
       <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
         <RadzenIcon Icon="health_and_safety" Style="font-size: 2rem; color: var(--rz-danger);"/>
-        <RadzenStack Gap="0" Style="flex: 1;">
+        <RadzenStack Gap="0.25rem" Style="flex: 1; min-width: 0;">
           <RadzenText TextStyle="TextStyle.H6" Style="color: var(--rz-danger-darker); margin: 0;">
             @L("Dashboard.IssuesDetected")
           </RadzenText>
+          @foreach (var issue in _healthIssues.Take(3))
+          {
+            <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-danger-darker); margin: 0; overflow-wrap: anywhere;">
+              @FormatHealthIssue(issue)
+            </RadzenText>
+          }
+          @if (DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_healthIssues))
+          {
+            <a href="@DashboardHealthWarningEvaluator.DecentDbMigrationGuideUrl"
+               target="_blank"
+               rel="noopener noreferrer"
+               @onclick:stopPropagation="true"
+               style="color: var(--rz-danger-darker); font-weight: 600;">
+              @L("Dashboard.DecentDbMigrationGuide")
+            </a>
+          }
         </RadzenStack>
         <RadzenIcon Icon="arrow_forward" Style="font-size: 1.5rem; color: var(--rz-danger);"/>
       </RadzenStack>
@@ -350,6 +366,7 @@
     private TopItemStat[] _recentlyPlayed = [];
     private SongDataInfo[] _recentlyPlayedSongs = [];
     private Request[] _unreadRequests = [];
+    private Melodee.Common.Services.Doctor.DoctorCheckResult[] _healthIssues = [];
     private bool _showHealthWarning;
     private bool _isAdmin;
 
@@ -363,6 +380,7 @@
     private bool _artistsLoading = true;
     private bool _albumsLoading = true;
     private bool _isLoading => _healthLoading || _pinsLoading || _kpisLoading || _playsLoading || _topSongsLoading || _recentlyPlayedLoading || _requestsLoading || _artistsLoading || _albumsLoading;
+    private bool _isDisposed;
 
     private short _latestPageSize;
     private LocalDate _rangeStart;
@@ -431,7 +449,7 @@
         var userApiKey = CurrentUser?.ToApiGuid() ?? Guid.Empty;
         var userId = CurrentUser?.UserId() ?? 0;
 
-        MainLayoutProxyService.ShowSpinner = true;
+        MainLayoutProxyService.SetSpinnerVisible(true);
 
         _ = LoadHealthAsync();
         _ = LoadPinsAsync(userId);
@@ -446,25 +464,43 @@
 
     private void UpdateSpinner()
     {
+        if (_isDisposed)
+        {
+            MainLayoutProxyService.SetSpinnerVisible(false);
+            return;
+        }
+
         var anyLoading = _healthLoading || _pinsLoading || _kpisLoading || _playsLoading || _topSongsLoading || _recentlyPlayedLoading || _requestsLoading || _artistsLoading || _albumsLoading;
-        MainLayoutProxyService.ShowSpinner = anyLoading;
+        MainLayoutProxyService.SetSpinnerVisible(anyLoading);
+    }
+
+    private async Task NotifyDashboardChangedAsync()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadHealthAsync()
     {
         try
         {
-            _showHealthWarning = await DashboardHealthWarningEvaluator.ShouldShowAsync(CurrentUser, DoctorService);
+            _healthIssues = (await DashboardHealthWarningEvaluator.GetIssuesAsync(CurrentUser, DoctorService)).ToArray();
+            _showHealthWarning = _healthIssues.Length > 0;
         }
         catch
         {
+            _healthIssues = [];
             _showHealthWarning = false;
         }
         finally
         {
             _healthLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -486,7 +522,7 @@
         {
             _pinsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -505,7 +541,7 @@
         {
             _kpisLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -524,7 +560,7 @@
         {
             _playsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -543,7 +579,7 @@
         {
             _topSongsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -599,7 +635,7 @@
         {
             _recentlyPlayedLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -618,7 +654,7 @@
         {
             _requestsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -644,7 +680,7 @@
         {
             _artistsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -670,7 +706,7 @@
         {
             _albumsLoading = false;
             UpdateSpinner();
-            await InvokeAsync(StateHasChanged);
+            await NotifyDashboardChangedAsync();
         }
     }
 
@@ -679,15 +715,43 @@
         _ = InvokeAsync(async () =>
         {
             var authenticationState = await authenticationStateTask;
+            if (_isDisposed)
+            {
+                return;
+            }
+
             _isAdmin = authenticationState.User.IsAdmin();
-            _showHealthWarning = await DashboardHealthWarningEvaluator.ShouldShowAsync(authenticationState.User, DoctorService);
+            _healthIssues = (await DashboardHealthWarningEvaluator.GetIssuesAsync(authenticationState.User, DoctorService)).ToArray();
+            _showHealthWarning = _healthIssues.Length > 0;
             StateHasChanged();
         });
     }
 
+    private string FormatHealthIssue(Melodee.Common.Services.Doctor.DoctorCheckResult issue)
+    {
+        var name = LocalizeHealthIssueName(issue.Name);
+        return string.IsNullOrWhiteSpace(issue.Details)
+            ? name
+            : $"{name}: {issue.Details}";
+    }
+
+    private string LocalizeHealthIssueName(string checkName)
+    {
+        return checkName switch
+        {
+            "Configuration" => L("AdminDoctor.Check.Configuration"),
+            "PostgresDatabase" => L("AdminDoctor.Check.PostgresDatabase"),
+            "MusicBrainzDatabase" => L("AdminDoctor.Check.MusicBrainzDatabase"),
+            "ArtistSearchEngineDatabase" => L("AdminDoctor.Check.ArtistSearchEngineDatabase"),
+            _ => checkName
+        };
+    }
+
     public void Dispose()
     {
+        _isDisposed = true;
         DashboardAuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        MainLayoutProxyService.SetSpinnerVisible(false);
     }
 
 }

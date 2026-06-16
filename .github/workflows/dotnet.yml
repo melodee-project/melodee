@@ -74,7 +74,8 @@ jobs:
         Jwt__Audience: "test"
         security__secretKey: "testsecretkeytestsecretkeytestsecretkey"
         QuartzDisabled: "true"
-      run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory coverage/results
+      # Parallel solution-level VSTest with coverage can return a non-zero exit after successful test summaries.
+      run: dotnet test --no-build -m:1 --verbosity normal --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory coverage/results
     - name: Generate coverage report
       run: |
         dotnet tool install -g dotnet-reportgenerator-globaltool

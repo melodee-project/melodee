@@ -87,12 +87,12 @@ public class StagingAutoMoveJob(
             return;
         }
 
-        var albumsMoved = 0;
+        ProcessingEventStatistics? finalStatistics = null;
         void OnProcessingProgress(object? sender, ProcessingEvent e)
         {
             if (e is { Type: ProcessingEventType.Stop, Statistics: not null })
             {
-                albumsMoved = e.Statistics.AlbumsMoved;
+                finalStatistics = e.Statistics;
             }
         }
 
@@ -108,17 +108,30 @@ public class StagingAutoMoveJob(
 
             if (moveResult.IsSuccess)
             {
-                context.Result = new ScanStepResult(AlbumsMoved: albumsMoved);
+                var albumsMoved = finalStatistics?.AlbumsMoved ?? 0;
+                var albumsMerged = finalStatistics?.AlbumsMergedWithExisting ?? 0;
+                var albumsHandled = albumsMoved + albumsMerged;
+
+                context.Result = new ScanStepResult(
+                    AlbumsReadyToMove: finalStatistics?.AlbumsReadyToMove ?? 0,
+                    AlbumsMoved: albumsMoved,
+                    AlbumsMergedWithExisting: albumsMerged,
+                    AlbumsSkippedByStatus: finalStatistics?.AlbumsSkippedByStatus ?? 0,
+                    AlbumsSkippedAsDuplicateDirectory: finalStatistics?.AlbumsSkippedAsDuplicateDirectory ?? 0,
+                    AlbumsFailedToLoad: finalStatistics?.AlbumsFailedToLoad ?? 0,
+                    AlbumsSkippedByReason: finalStatistics?.AlbumsSkippedByReason);
+
                 Logger.Information(
-                    "[{JobName}] Completed staging auto-move: moved [{MovedCount}] albums from [{StagingLibrary}] to [{StorageLibrary}]",
+                    "[{JobName}] Completed staging auto-move: moved [{MovedCount}] new albums and merged [{MergedCount}] existing albums from [{StagingLibrary}] to [{StorageLibrary}]",
                     nameof(StagingAutoMoveJob),
                     albumsMoved,
+                    albumsMerged,
                     stagingLibrary.Name,
                     targetLibrary.Name);
 
                 // Chain to LibraryInsertJob if this was a scheduled run (not manual) and we moved something,
                 // or if ChainOnComplete flag is set (for programmatic triggers like after upload)
-                if (ShouldChainToNextJob(context) && albumsMoved > 0)
+                if (ShouldChainToNextJob(context) && albumsHandled > 0)
                 {
                     await TriggerNextJobAsync(context, JobKeyRegistry.LibraryProcessJobJobKey).ConfigureAwait(false);
                 }

@@ -199,6 +199,7 @@ public class MelodeeJobExecutionContext(CancellationToken cancellation) : IJobEx
     public const string ScanJustDirectory = "ScanJustDirectory";
     public const string Verbose = "Verbose";
     public const string ChainOnComplete = "ChainOnComplete";
+    public const string DirectoryRunContext = "DirectoryRunContext";
 
     private readonly Dictionary<object, object> _dataMap = new();
 
@@ -218,6 +219,11 @@ public class MelodeeJobExecutionContext(CancellationToken cancellation) : IJobEx
         {
             _dataMap[key] = objectValue;
         }
+
+        if (key is string stringKey)
+        {
+            MergedJobDataMap[stringKey] = objectValue;
+        }
     }
 
     public object? Get(object key)
@@ -232,7 +238,7 @@ public class MelodeeJobExecutionContext(CancellationToken cancellation) : IJobEx
     public bool Recovering { get; } = false;
     public TriggerKey RecoveringTriggerKey { get; } = null!;
     public int RefireCount { get; } = 0;
-    public JobDataMap MergedJobDataMap { get; } = null!;
+    public JobDataMap MergedJobDataMap { get; } = new();
     public IJobDetail JobDetail { get; } = new JobDetailImpl();
     public IJob JobInstance { get; } = null!;
     public DateTimeOffset FireTimeUtc { get; } = DateTimeOffset.MinValue;

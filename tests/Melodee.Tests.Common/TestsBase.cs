@@ -122,6 +122,7 @@ public abstract class TestsBase
             { SettingRegistry.OpenSubsonicServerSupportedVersion, "1.16.1" },
             { SettingRegistry.OpenSubsonicServerType, "Melodee" },
             { SettingRegistry.SystemBaseUrl, "http://localhost:5000" },
+            { SettingRegistry.PluginEnabledBlackbeard, "true" },
             { SettingRegistry.PluginEnabledCueSheet, "true" },
             { SettingRegistry.PluginEnabledSimpleFileVerification, "true" },
             { SettingRegistry.PluginEnabledM3u, "true" },

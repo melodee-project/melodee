@@ -8,9 +8,9 @@ public record ITunesSearchResult
 
 public record Result
 {
-    public int? AmgArtistId { get; init; }
+    public long? AmgArtistId { get; init; }
 
-    public int? ArtistId { get; init; }
+    public long? ArtistId { get; init; }
 
     public string? ArtistLinkUrl { get; init; }
 
@@ -28,7 +28,7 @@ public record Result
 
     public string? CollectionExplicitness { get; init; }
 
-    public int? CollectionId { get; init; }
+    public long? CollectionId { get; init; }
 
     public string? CollectionName { get; init; }
 
@@ -46,7 +46,7 @@ public record Result
 
     public string? PrimaryGenreName { get; init; }
 
-    public int? PrimaryGenreId { get; init; }
+    public long? PrimaryGenreId { get; init; }
 
     public DateTime? ReleaseDate { get; init; }
 

@@ -20,6 +20,11 @@ public interface IDoctorService : Common.Services.Doctor.IDoctorService
     Task<bool> NeedsAttentionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns dashboard-safe health issues that should be shown to administrators immediately after login.
+    /// </summary>
+    Task<IReadOnlyList<DoctorCheckResult>> GetAttentionChecksAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks if the MusicBrainz database is empty or not properly initialized.
     /// </summary>
     Task<bool> IsMusicBrainzDatabaseEmptyAsync(CancellationToken cancellationToken = default);

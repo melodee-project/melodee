@@ -7,6 +7,7 @@
 @inject ArtistImageSearchEngineService ArtistImageSearchEngineService
 @inject MainLayoutProxyService MainLayoutProxyService
 @inject ILogger Logger
+@implements IDisposable
 
 <PageTitle>Image Search</PageTitle>
 
@@ -90,10 +91,13 @@
     bool _isLoading;
     int _maxResults = 10;
     bool _doDeleteExistingImages = true;
+    int _searchRequestId;
+    bool _disposed;
 
 
     private ImageSearchResult[] _results = [];
     private ImageSearchResult? _selectedResult;
+    private CancellationTokenSource? _searchCancellationTokenSource;
 
     [Parameter] public SearchValue[] SearchValues { get; set; } = [];
 
@@ -127,12 +131,13 @@
 
     private async Task SelectOrCancelClicked(bool clickedSelected)
     {
-        if (!clickedSelected)
+        if (!clickedSelected || _selectedResult is null)
         {
             await OnUpdateCallback.InvokeAsync(null);
+            return;
         }
 
-        if (OnUpdateCallback.HasDelegate && _selectedResult != null)
+        if (OnUpdateCallback.HasDelegate)
         {
             await OnUpdateCallback.InvokeAsync(_selectedResult);
         }
@@ -148,51 +153,102 @@
 
     private async Task DoSearchAsync()
     {
-        if (_isLoading)
+        if (_disposed || SearchType == ImageSearchType.Profile)
         {
             return;
         }
 
+        var searchValues = SearchValues.OrderBy(x => x.SortOrder).ToArray();
+        if (searchValues.Length == 0)
+        {
+            _results = [];
+            return;
+        }
+
+        var previousSearch = _searchCancellationTokenSource;
+        var searchTokenSource = new CancellationTokenSource();
+        _searchCancellationTokenSource = searchTokenSource;
+        var searchRequestId = Interlocked.Increment(ref _searchRequestId);
+        previousSearch?.Cancel();
+
         _isLoading = true;
+        _selectedResult = null;
+        _results = [];
+        await InvokeAsync(StateHasChanged);
+
         try
         {
             if (SearchType == ImageSearchType.Artist)
             {
-                _results = (await ArtistImageSearchEngineService.DoSearchAsync(new ArtistQuery
+                var results = (await ArtistImageSearchEngineService.DoSearchAsync(new ArtistQuery
                     {
-                        Name = SearchValues.First().Value
-                    }, _maxResults))
+                        Name = searchValues.First().Value
+                    }, _maxResults, searchTokenSource.Token))
                     .Data
                     .Where(x => x.ThumbnailUrlValue.Nullify() != null)
                     .Where(x => x.Width >= _minimumImageSize && x.Height >= _minimumImageSize)
                     .OrderByDescending(x => x.Width * x.Height)
                     .Select(x => new ImageSearchResult(x.ThumbnailUrlValue, x.MediaUrl, x.Title ?? string.Empty, _doDeleteExistingImages, x.Width, x.Height))
                     .ToArray();
+
+                if (searchRequestId == _searchRequestId && !searchTokenSource.IsCancellationRequested)
+                {
+                    _results = results;
+                }
             }
-            else if (SearchType != ImageSearchType.Profile)
+            else if (searchValues.Length >= 3)
             {
-                _results = (await AlbumImageSearchEngineService.DoSearchAsync(new AlbumQuery
+                var results = (await AlbumImageSearchEngineService.DoSearchAsync(new AlbumQuery
                     {
-                        Artist = SearchValues.OrderBy(x => x.SortOrder).First().Value,
-                        Year = SafeParser.ToNumber<int>(SearchValues.OrderBy(x => x.SortOrder).Skip(1).First().Value),
-                        Name = SearchValues.OrderBy(x => x.SortOrder).Skip(2).First().Value
-                    }, _maxResults))
+                        Artist = searchValues[0].Value,
+                        Year = SafeParser.ToNumber<int>(searchValues[1].Value),
+                        Name = searchValues[2].Value
+                    }, _maxResults, searchTokenSource.Token))
                     .Data
                     .Where(x => x.Width >= _minimumImageSize && x.Height >= _minimumImageSize)
                     .OrderByDescending(x => x.Width * x.Height)
                     .Select(x => new ImageSearchResult(x.ThumbnailUrlValue, x.MediaUrl, x.Title ?? string.Empty, _doDeleteExistingImages, x.Width, x.Height))
                     .ToArray();
+
+                if (searchRequestId == _searchRequestId && !searchTokenSource.IsCancellationRequested)
+                {
+                    _results = results;
+                }
             }
+        }
+        catch (OperationCanceledException) when (searchTokenSource.IsCancellationRequested)
+        {
+            // A newer search or dialog close superseded this request.
         }
         catch (Exception e)
         {
-            Logger.Error(e, "For search [{Value}]", SearchValues.FirstOrDefault()?.Value);
+            Logger.Error(e, "For search [{Value}]", searchValues.FirstOrDefault()?.Value);
         }
         finally
         {
-            _isLoading = false;
-            await InvokeAsync(StateHasChanged);
+            if (searchRequestId == _searchRequestId)
+            {
+                _isLoading = false;
+                if (!_disposed)
+                {
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+
+            if (ReferenceEquals(_searchCancellationTokenSource, searchTokenSource))
+            {
+                _searchCancellationTokenSource = null;
+            }
+
+            searchTokenSource.Dispose();
         }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Interlocked.Increment(ref _searchRequestId);
+        _searchCancellationTokenSource?.Cancel();
     }
 
 

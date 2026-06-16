@@ -1,4 +1,5 @@
 using System.Net;
+using DecentDB.AdoNet;
 using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
@@ -29,6 +30,7 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
             var configurationFactory = CreateConfigurationFactory(storagePath);
             var settingService = new SettingService(Logger, CacheManager, configurationFactory, MockFactory());
             var musicBrainzDbContextFactory = CreateMusicBrainzDbContextFactory(databasePath);
+            var warmupService = new MusicBrainzDecentDbWarmupService(Logger, musicBrainzDbContextFactory);
             var repositoryMock = new Mock<IMusicBrainzRepository>();
             MusicBrainzImportRequest? capturedRequest = null;
             repositoryMock.Setup(repository => repository.ImportData(
@@ -47,7 +49,8 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 settingService,
                 CreateHttpClientFactory(latestVersion),
                 musicBrainzDbContextFactory,
-                repositoryMock.Object);
+                repositoryMock.Object,
+                warmupService);
             var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
             File.Exists(databasePath).Should().BeTrue();
@@ -109,6 +112,7 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
             var configurationFactory = CreateConfigurationFactory(storagePath);
             var settingService = new SettingService(Logger, CacheManager, configurationFactory, MockFactory());
             var musicBrainzDbContextFactory = CreateMusicBrainzDbContextFactory(databasePath);
+            var warmupService = new MusicBrainzDecentDbWarmupService(Logger, musicBrainzDbContextFactory);
             var repositoryMock = new Mock<IMusicBrainzRepository>();
             repositoryMock.Setup(repository => repository.ImportData(
                     It.IsAny<MusicBrainzImportRequest>(),
@@ -127,7 +131,8 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 settingService,
                 CreateHttpClientFactory(latestVersion),
                 musicBrainzDbContextFactory,
-                repositoryMock.Object);
+                repositoryMock.Object,
+                warmupService);
             var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
             await job.Execute(context);
@@ -170,22 +175,17 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
     {
         var storagePath = Path.Combine(Path.GetTempPath(), $"melodee-mb-job-{Guid.NewGuid():N}");
         var databasePath = Path.Combine(Path.GetTempPath(), $"melodee-mb-job-db-{Guid.NewGuid():N}.ddb");
-        var fakeCliDirectory = Path.Combine(Path.GetTempPath(), $"melodee-decentdb-cli-{Guid.NewGuid():N}");
         Directory.CreateDirectory(storagePath);
-        Directory.CreateDirectory(fakeCliDirectory);
-        var previousCliPath = Environment.GetEnvironmentVariable("DECENTDB_CLI_PATH");
 
         try
         {
             const string latestVersion = "20260418-002325";
             await SeedPreparedStorageAsync(storagePath, latestVersion);
-            var checkpointArgsFile = Path.Combine(fakeCliDirectory, "checkpoint-args.txt");
-            var fakeCliPath = await CreateFakeDecentDbCliAsync(fakeCliDirectory, checkpointArgsFile);
-            Environment.SetEnvironmentVariable("DECENTDB_CLI_PATH", fakeCliPath);
 
             var configurationFactory = CreateConfigurationFactory(storagePath);
             var settingService = new SettingService(Logger, CacheManager, configurationFactory, MockFactory());
             var musicBrainzDbContextFactory = CreateMusicBrainzDbContextFactory(databasePath);
+            var warmupService = new MusicBrainzDecentDbWarmupService(Logger, musicBrainzDbContextFactory);
             var repositoryMock = new Mock<IMusicBrainzRepository>();
             MusicBrainzImportRequest? capturedRequest = null;
             repositoryMock.Setup(repository => repository.ImportData(
@@ -195,8 +195,7 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 .Callback<MusicBrainzImportRequest, ImportProgressCallback?, CancellationToken>((request, _, _) =>
                 {
                     capturedRequest = request;
-                    File.WriteAllText(request.TargetDatabasePath!, "imported");
-                    File.WriteAllBytes($"{request.TargetDatabasePath}.wal", new byte[4096]);
+                    SeedImportedDecentDb(request.TargetDatabasePath!);
                 })
                 .ReturnsAsync(new OperationResult<bool>
                 {
@@ -209,7 +208,8 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
                 settingService,
                 CreateHttpClientFactory(latestVersion),
                 musicBrainzDbContextFactory,
-                repositoryMock.Object);
+                repositoryMock.Object,
+                warmupService);
             var context = new MelodeeJobExecutionContext(CancellationToken.None);
 
             await job.Execute(context);
@@ -217,39 +217,19 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
             context.JobResult.Should().NotBeNull();
             context.JobResult!.Status.Should().Be(JobResultStatus.Success);
             capturedRequest.Should().NotBeNull();
-            File.Exists(checkpointArgsFile).Should().BeTrue();
-            var checkpointArgs = await File.ReadAllLinesAsync(checkpointArgsFile);
-            checkpointArgs.Should().Equal("checkpoint", "--db", capturedRequest!.TargetDatabasePath);
             File.Exists(databasePath).Should().BeTrue();
-            File.Exists($"{databasePath}.wal").Should().BeFalse();
+            CountCheckpointProbeRows(databasePath).Should().Be(1);
             File.Exists(capturedRequest.TargetDatabasePath!).Should().BeFalse();
-            File.Exists($"{capturedRequest.TargetDatabasePath}.wal").Should().BeFalse();
         }
         finally
         {
-            Environment.SetEnvironmentVariable("DECENTDB_CLI_PATH", previousCliPath);
             try
             {
-                if (File.Exists(databasePath))
-                {
-                    File.Delete(databasePath);
-                }
-                if (File.Exists($"{databasePath}.wal"))
-                {
-                    File.Delete($"{databasePath}.wal");
-                }
-                if (File.Exists($"{databasePath}.shm"))
-                {
-                    File.Delete($"{databasePath}.shm");
-                }
+                DeleteDatabaseArtifacts(databasePath);
 
                 if (Directory.Exists(storagePath))
                 {
                     Directory.Delete(storagePath, true);
-                }
-                if (Directory.Exists(fakeCliDirectory))
-                {
-                    Directory.Delete(fakeCliDirectory, true);
                 }
             }
             catch
@@ -332,59 +312,46 @@ public class MusicBrainzUpdateDatabaseJobTests : ServiceTestBase
         await File.WriteAllBytesAsync(Path.Combine(stagingPath, "mbdump-derived.tar.bz2"), [1]);
     }
 
-    private static async Task<string> CreateFakeDecentDbCliAsync(string directoryPath, string checkpointArgsFile)
+    private static void SeedImportedDecentDb(string databasePath)
     {
-        if (OperatingSystem.IsWindows())
+        using var connection = new DecentDBConnection($"Data Source={databasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+                              CREATE TABLE checkpoint_probe (
+                                  id INTEGER PRIMARY KEY,
+                                  name TEXT NOT NULL
+                              );
+                              INSERT INTO checkpoint_probe (id, name) VALUES (1, 'imported');
+                              """;
+        command.ExecuteNonQuery();
+    }
+
+    private static long CountCheckpointProbeRows(string databasePath)
+    {
+        using var connection = new DecentDBConnection($"Data Source={databasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM checkpoint_probe";
+        return Convert.ToInt64(command.ExecuteScalar());
+    }
+
+    private static void DeleteDatabaseArtifacts(string databasePath)
+    {
+        foreach (var path in new[]
+                 {
+                     databasePath,
+                     $"{databasePath}.wal",
+                     $"{databasePath}-wal",
+                     $"{databasePath}.shm",
+                     $"{databasePath}-shm",
+                     $"{databasePath}.coord"
+                 })
         {
-            var scriptPath = Path.Combine(directoryPath, "decentdb.cmd");
-            await File.WriteAllTextAsync(scriptPath, $"""
-                                                      @echo off
-                                                      echo %* > "{checkpointArgsFile}"
-                                                      set db=
-                                                      :loop
-                                                      if "%~1"=="" goto done
-                                                      if "%~1"=="--db" (
-                                                        shift
-                                                        set db=%~1
-                                                      )
-                                                      shift
-                                                      goto loop
-                                                      :done
-                                                      if not "%db%"=="" del "%db%.wal" 2>nul
-                                                      if not "%db%"=="" del "%db%.shm" 2>nul
-                                                      exit /b 0
-                                                      """);
-            return scriptPath;
-        }
-        else
-        {
-            var scriptPath = Path.Combine(directoryPath, "decentdb");
-            await File.WriteAllTextAsync(scriptPath, $"""
-                                                      #!/bin/sh
-                                                      printf '%s\n' "$@" > '{checkpointArgsFile.Replace("'", "'\"'\"'")}'
-                                                      db=""
-                                                      while [ "$#" -gt 0 ]; do
-                                                        if [ "$1" = "--db" ]; then
-                                                          shift
-                                                          db="$1"
-                                                        fi
-                                                        shift
-                                                      done
-                                                      if [ -n "$db" ]; then
-                                                        rm -f "$db.wal" "$db.shm"
-                                                      fi
-                                                      exit 0
-                                                      """);
-            File.SetUnixFileMode(
-                scriptPath,
-                UnixFileMode.UserRead |
-                UnixFileMode.UserWrite |
-                UnixFileMode.UserExecute |
-                UnixFileMode.GroupRead |
-                UnixFileMode.GroupExecute |
-                UnixFileMode.OtherRead |
-                UnixFileMode.OtherExecute);
-            return scriptPath;
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
     }
 

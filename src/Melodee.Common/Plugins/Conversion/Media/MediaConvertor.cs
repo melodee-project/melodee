@@ -95,6 +95,16 @@ public sealed partial class MediaConvertor(IMelodeeConfiguration configuration)
                     }
                     catch (Exception ex)
                     {
+                        var fallbackFileInfo = new FileInfo(newFileName);
+                        if (await IsUsableConvertedMp3Async(fallbackFileInfo, cancellationToken).ConfigureAwait(false))
+                        {
+                            fileInfo = FinalizeConvertedFile(songFileInfo, fallbackFileInfo);
+                            return new OperationResult<FileSystemFileInfo>
+                            {
+                                Data = fileInfo.ToFileSystemInfo()
+                            };
+                        }
+
                         throw new Exception($"Unable to convert [{songFileInfo.FullName}] to MP3", ex);
                     }
 
@@ -109,22 +119,9 @@ public sealed partial class MediaConvertor(IMelodeeConfiguration configuration)
                         throw new Exception($"Unable to convert [{songFileInfo.FullName}] to MP3");
                     }
 
-                    var newAtl = new Track(newFileName);
-                    if (string.Equals(newAtl.AudioFormat.ShortName, "mpeg", StringComparison.OrdinalIgnoreCase))
+                    if (await IsUsableConvertedMp3Async(newFileInfo, cancellationToken).ConfigureAwait(false))
                     {
-                        var convertedRenamedExtension =
-                            SafeParser.ToString(Configuration[SettingRegistry.ProcessingConvertedExtension]);
-                        fileInfo = new FileInfo(newFileName);
-                        if (SafeParser.ToBoolean(Configuration[SettingRegistry.ProcessingDoDeleteOriginal]))
-                        {
-                            songFileInfo.Delete();
-                        }
-                        else if (convertedRenamedExtension.Nullify() != null)
-                        {
-                            var movedFileName = Path.Combine(songFileInfo.DirectoryName!,
-                                $"{songFileInfo.Name}.{convertedRenamedExtension}");
-                            songFileInfo.MoveTo(movedFileName);
-                        }
+                        fileInfo = FinalizeConvertedFile(songFileInfo, newFileInfo);
                     }
                     else
                     {
@@ -138,6 +135,44 @@ public sealed partial class MediaConvertor(IMelodeeConfiguration configuration)
         {
             Data = fileInfo.ToFileSystemInfo()
         };
+    }
+
+    public static async Task<bool> IsUsableConvertedMp3Async(FileInfo fileInfo, CancellationToken cancellationToken = default)
+    {
+        if (!fileInfo.Exists || fileInfo.Length == 0 ||
+            !fileInfo.Extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            return await FileFormatDetector.DetectFormatAsync(fileInfo.FullName, cancellationToken).ConfigureAwait(false) == AudioFormat.MP3;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private FileInfo FinalizeConvertedFile(FileInfo sourceFileInfo, FileInfo convertedFileInfo)
+    {
+        var convertedRenamedExtension =
+            SafeParser.ToString(Configuration[SettingRegistry.ProcessingConvertedExtension]);
+
+        if (SafeParser.ToBoolean(Configuration[SettingRegistry.ProcessingDoDeleteOriginal]) &&
+            sourceFileInfo.Exists)
+        {
+            sourceFileInfo.Delete();
+        }
+        else if (convertedRenamedExtension.Nullify() != null && sourceFileInfo.Exists)
+        {
+            var movedFileName = Path.Combine(sourceFileInfo.DirectoryName!,
+                $"{sourceFileInfo.Name}.{convertedRenamedExtension}");
+            sourceFileInfo.MoveTo(movedFileName);
+        }
+
+        return convertedFileInfo;
     }
 
     private static bool ShouldMediaSongBeConverted(Track song)

@@ -145,8 +145,21 @@ public sealed class DirectoryRunContextTests
         using var context = new DirectoryRunContext();
 
         Assert.NotNull(context.ArtistSearchCache);
+        Assert.NotNull(context.ForcedArtistSearchCache);
         Assert.NotNull(context.AlbumImageCache);
         Assert.NotNull(context.ApiThrottler);
+    }
+
+    [Fact]
+    public void ForcedArtistSearchCache_WhenNormalCacheHasNegativeResult_RemainsSeparate()
+    {
+        using var context = new DirectoryRunContext();
+        var query = new ArtistQuery { Name = "Shared Artist" };
+
+        context.ArtistSearchCache.AddNegative(query);
+        var found = context.ForcedArtistSearchCache.TryGet(query, out _, out _);
+
+        Assert.False(found);
     }
 
     [Fact]
@@ -158,7 +171,9 @@ public sealed class DirectoryRunContextTests
         context.AddPluginTime(50);
         context.AddPluginTime(25);
 
-        // Implicitly tested via LogSummary
+        var summary = context.GetPerformanceSummary();
+
+        Assert.Equal(175, summary.PluginTimeMs);
     }
 
     [Fact]
@@ -168,6 +183,39 @@ public sealed class DirectoryRunContextTests
 
         Parallel.For(0, 100, _ => context.IncrementDirectoriesProcessed());
 
-        // Implicitly tested via LogSummary
+        var summary = context.GetPerformanceSummary();
+
+        Assert.Equal(100, summary.DirectoriesProcessed);
+    }
+
+    [Fact]
+    public void GetPerformanceSummary_WithRecordedCounters_ReturnsSnapshot()
+    {
+        using var context = new DirectoryRunContext();
+
+        context.AddConversionTime(125);
+        context.AddCopyTime(75);
+        context.AddEnrichmentTime(250);
+        context.RecordArtistSearchPersistenceConflict();
+        context.RecordArtistSearchPersistenceRetry();
+        context.RecordArtistSearchPersistenceCorruption();
+        context.RecordArtistSearchReadError();
+        context.RecordArtistSearchReadCorruption();
+        context.RecordAlbumSkippedRevalidation();
+        context.RecordAlbumDeferredRevalidation();
+
+        var summary = context.GetPerformanceSummary();
+
+        Assert.Equal(125, summary.ConversionTimeMs);
+        Assert.Equal(1, summary.ConversionFilesProcessed);
+        Assert.Equal(75, summary.CopyTimeMs);
+        Assert.Equal(250, summary.EnrichmentTimeMs);
+        Assert.Equal(1, summary.ArtistSearchPersistenceConflicts);
+        Assert.Equal(1, summary.ArtistSearchPersistenceRetries);
+        Assert.Equal(1, summary.ArtistSearchPersistenceCorruptions);
+        Assert.Equal(1, summary.ArtistSearchReadErrors);
+        Assert.Equal(1, summary.ArtistSearchReadCorruptions);
+        Assert.Equal(1, summary.AlbumsSkippedRevalidation);
+        Assert.Equal(1, summary.AlbumsDeferredRevalidation);
     }
 }

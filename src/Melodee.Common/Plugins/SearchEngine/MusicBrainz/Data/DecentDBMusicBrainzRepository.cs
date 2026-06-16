@@ -78,7 +78,10 @@ public class DecentDBMusicBrainzRepository(
         var startTicks = Stopwatch.GetTimestamp();
         var maxSearchResults = 10;
 
-        var cacheKey = $"{query.NameNormalized}:{query.MusicBrainzIdValue}:{maxResults}";
+        var albumKey = query.AlbumKeyValues is { Length: > 0 }
+            ? string.Join("|", query.AlbumKeyValues.Select(x => $"{x.Key}:{x.Value.ToNormalizedString()}"))
+            : string.Empty;
+        var cacheKey = $"{query.NameNormalized}:{query.MusicBrainzIdValue}:{maxResults}:{albumKey}";
         if (SearchCache.TryGetValue(cacheKey, out var cached) &&
             cached.CachedAt > DateTime.UtcNow.AddMinutes(-CacheExpirationMinutes))
         {
@@ -88,6 +91,12 @@ public class DecentDBMusicBrainzRepository(
 
         var data = new List<ArtistSearchResult>();
         var totalCount = 0;
+        var nameLookupMs = 0.0;
+        var idLookupMs = 0.0;
+        var albumLoadMs = 0.0;
+        var aliasLoadMs = 0.0;
+        var rankingMs = 0.0;
+        var releaseLoadMode = "none";
 
         try
         {
@@ -101,7 +110,9 @@ public class DecentDBMusicBrainzRepository(
 
                 if (!string.IsNullOrEmpty(query.NameNormalized))
                 {
+                    var phaseTicks = Stopwatch.GetTimestamp();
                     foundArtists = await SearchByNameAsync(context, query, maxSearchResults, cancellationToken);
+                    nameLookupMs += Stopwatch.GetElapsedTime(phaseTicks).TotalMilliseconds;
 
                     if (foundArtists.Length > 0 && !string.IsNullOrEmpty(mbIdRaw))
                     {
@@ -115,11 +126,14 @@ public class DecentDBMusicBrainzRepository(
 
                 if (foundArtists.Length == 0 && !string.IsNullOrEmpty(mbIdRaw))
                 {
+                    var phaseTicks = Stopwatch.GetTimestamp();
                     foundArtists = await context.Artists
                         .AsNoTracking()
                         .Where(a => a.MusicBrainzIdRaw == mbIdRaw)
+                        .OrderBy(a => a.Id)
                         .Take(maxSearchResults)
                         .ToArrayAsync(cancellationToken);
+                    idLookupMs += Stopwatch.GetElapsedTime(phaseTicks).TotalMilliseconds;
                 }
 
                 logger.Debug("[{RepoName}] Search found [{Count}] artists for [{NameNormalized}]",
@@ -128,10 +142,17 @@ public class DecentDBMusicBrainzRepository(
                 if (foundArtists.Length > 0)
                 {
                     var artistIds = foundArtists.Select(a => a.MusicBrainzArtistId).ToArray();
-                    var allAlbums = await context.Albums
-                        .AsNoTracking()
-                        .Where(a => artistIds.Contains(a.MusicBrainzArtistId) && a.ReleaseDate > DateTime.MinValue)
-                        .ToArrayAsync(cancellationToken);
+                    var shouldLoadFullReleaseList = ShouldLoadFullReleaseList(maxResults);
+                    releaseLoadMode = shouldLoadFullReleaseList ? "full" : "matching";
+                    var phaseTicks = Stopwatch.GetTimestamp();
+                    var allAlbums = await LoadAlbumsForArtistsAsync(
+                        context,
+                        artistIds,
+                        query,
+                        shouldLoadFullReleaseList,
+                        maxSearchResults,
+                        cancellationToken);
+                    albumLoadMs += Stopwatch.GetElapsedTime(phaseTicks).TotalMilliseconds;
 
                     var albumsByArtist = allAlbums
                         .GroupBy(a => a.MusicBrainzArtistId)
@@ -139,8 +160,14 @@ public class DecentDBMusicBrainzRepository(
                             .GroupBy(x => x.ReleaseGroupMusicBrainzIdRaw)
                             .Select(rg => rg.OrderBy(x => x.ReleaseDate).First())
                             .ToArray());
-                    var aliasValuesByArtist = await LoadAliasValuesByArtistAsync(context, artistIds, cancellationToken);
+                    var shouldLoadAliases = ShouldLoadAliasValues(query, foundArtists, maxResults);
+                    phaseTicks = Stopwatch.GetTimestamp();
+                    var aliasValuesByArtist = shouldLoadAliases
+                        ? await LoadAliasValuesByArtistAsync(context, artistIds, cancellationToken)
+                        : new Dictionary<long, string[]>();
+                    aliasLoadMs += Stopwatch.GetElapsedTime(phaseTicks).TotalMilliseconds;
 
+                    phaseTicks = Stopwatch.GetTimestamp();
                     foreach (var artist in foundArtists)
                     {
                         var alternateNamesValues = artist.AlternateNamesValues
@@ -206,6 +233,7 @@ public class DecentDBMusicBrainzRepository(
                     }
 
                     totalCount = foundArtists.Length;
+                    rankingMs += Stopwatch.GetElapsedTime(phaseTicks).TotalMilliseconds;
                 }
             }
         }
@@ -245,6 +273,17 @@ public class DecentDBMusicBrainzRepository(
             logger.Debug("[{RepoName}] SearchArtist COMPLETE: NO RESULTS for [{Query}] in {ElapsedMs:F1}ms",
                 nameof(DecentDBMusicBrainzRepository), LogSanitizer.Sanitize(query.NameNormalized), elapsedMs);
         }
+
+        logger.Debug(
+            "[{RepoName}] SearchArtist timings for [{Query}]: nameLookup={NameLookupMs:F1}ms, idLookup={IdLookupMs:F1}ms, albumLoad={AlbumLoadMs:F1}ms, aliasLoad={AliasLoadMs:F1}ms, ranking={RankingMs:F1}ms, releaseLoadMode={ReleaseLoadMode}",
+            nameof(DecentDBMusicBrainzRepository),
+            LogSanitizer.Sanitize(query.NameNormalized),
+            nameLookupMs,
+            idLookupMs,
+            albumLoadMs,
+            aliasLoadMs,
+            rankingMs,
+            releaseLoadMode);
 
         return result;
     }
@@ -286,24 +325,28 @@ public class DecentDBMusicBrainzRepository(
             {
                 var importer = new DecentDBStreamingMusicBrainzImporter(logger);
 
-                await importer.ImportAsync(
+                var importSummary = await importer.ImportAsync(
                     ct => CreateImportContextAsync(request.TargetDatabasePath, ct),
                     storagePath,
                     progressCallback,
                     cancellationToken);
 
-                await using var context = await CreateImportContextAsync(request.TargetDatabasePath, cancellationToken)
-                    .ConfigureAwait(false);
-                var artistCount = await context.Artists.CountAsync(cancellationToken);
-                var albumCount = await context.Albums.CountAsync(cancellationToken);
-
                 logger.Information(
-                    "DecentDBMusicBrainzRepository: Streaming import complete. Artists: {ArtistCount:N0}, Albums: {AlbumCount:N0}",
-                    artistCount, albumCount);
+                    "DecentDBMusicBrainzRepository: Streaming import complete. Artists: {ArtistCount:N0}, Aliases: {AliasCount:N0}, Artist relations: {RelationCount:N0}, Albums: {AlbumCount:N0}",
+                    importSummary.Artists,
+                    importSummary.ArtistAliases,
+                    importSummary.ArtistRelations,
+                    importSummary.Albums);
+
+                if (request.VerifyFinalCounts)
+                {
+                    await VerifyImportCountsAsync(request.TargetDatabasePath, importSummary, cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 return new OperationResult<bool>
                 {
-                    Data = artistCount > 0 && albumCount > 0
+                    Data = importSummary.HasMaterializedData
                 };
             }
             catch (OperationCanceledException)
@@ -338,6 +381,30 @@ public class DecentDBMusicBrainzRepository(
         }
 
         return new InvalidOperationException($"MusicBrainz import failed: {exception.Message}", exception);
+    }
+
+    private async Task VerifyImportCountsAsync(
+        string? targetDatabasePath,
+        DecentDBMusicBrainzImportSummary expectedSummary,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await CreateImportContextAsync(targetDatabasePath, cancellationToken)
+            .ConfigureAwait(false);
+        var artistCount = await context.Artists.CountAsync(cancellationToken);
+        var aliasCount = await context.ArtistAliases.CountAsync(cancellationToken);
+        var relationCount = await context.ArtistRelations.CountAsync(cancellationToken);
+        var albumCount = await context.Albums.CountAsync(cancellationToken);
+
+        logger.Information(
+            "DecentDBMusicBrainzRepository: Verified import counts. Artists: {ArtistCount:N0}/{ExpectedArtistCount:N0}, Aliases: {AliasCount:N0}/{ExpectedAliasCount:N0}, Artist relations: {RelationCount:N0}/{ExpectedRelationCount:N0}, Albums: {AlbumCount:N0}/{ExpectedAlbumCount:N0}",
+            artistCount,
+            expectedSummary.Artists,
+            aliasCount,
+            expectedSummary.ArtistAliases,
+            relationCount,
+            expectedSummary.ArtistRelations,
+            albumCount,
+            expectedSummary.Albums);
     }
 
     private async Task<MusicBrainzDbContext> CreateImportContextAsync(
@@ -429,6 +496,53 @@ public class DecentDBMusicBrainzRepository(
             .Where(a => distinctAliasArtistIds.Contains(a.MusicBrainzArtistId))
             .OrderBy(a => a.SortName)
             .Take(maxResults)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private static bool ShouldLoadFullReleaseList(int maxResults)
+    {
+        return maxResults > 1;
+    }
+
+    private static bool ShouldLoadAliasValues(ArtistQuery query, Artist[] foundArtists, int maxResults)
+    {
+        return maxResults > 1 ||
+               foundArtists.Any(artist => artist.NameNormalized != query.NameNormalized);
+    }
+
+    private static async Task<Album[]> LoadAlbumsForArtistsAsync(
+        MusicBrainzDbContext context,
+        long[] artistIds,
+        ArtistQuery query,
+        bool loadFullReleaseList,
+        int maxSearchResults,
+        CancellationToken cancellationToken)
+    {
+        var albumsQuery = context.Albums
+            .AsNoTracking()
+            .Where(a => artistIds.Contains(a.MusicBrainzArtistId) && a.ReleaseDate > DateTime.MinValue);
+
+        if (loadFullReleaseList)
+        {
+            return await albumsQuery.ToArrayAsync(cancellationToken);
+        }
+
+        var normalizedAlbumNames = query.AlbumKeyValues?
+            .Select(x => x.Value.ToNormalizedString())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
+
+        if (normalizedAlbumNames.Length == 0)
+        {
+            return [];
+        }
+
+        return await albumsQuery
+            .Where(a => normalizedAlbumNames.Contains(a.NameNormalized))
+            .OrderBy(a => a.ReleaseDate)
+            .ThenBy(a => a.SortName)
+            .Take(Math.Max(maxSearchResults, normalizedAlbumNames.Length * maxSearchResults))
             .ToArrayAsync(cancellationToken);
     }
 

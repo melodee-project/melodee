@@ -15,6 +15,9 @@
     </PackageReference>
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NBomber" />
+    <PackageReference Include="MessagePack">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="NodaTime.Testing" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

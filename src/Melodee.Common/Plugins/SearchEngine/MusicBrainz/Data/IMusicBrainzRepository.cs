@@ -13,7 +13,10 @@ namespace Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
 /// <param name="message">Optional message with additional details</param>
 public delegate void ImportProgressCallback(string phase, int currentItem, int totalItems, string? message = null);
 
-public sealed record MusicBrainzImportRequest(string? StoragePath = null, string? TargetDatabasePath = null);
+public sealed record MusicBrainzImportRequest(
+    string? StoragePath = null,
+    string? TargetDatabasePath = null,
+    bool VerifyFinalCounts = false);
 
 public interface IMusicBrainzRepository
 {

@@ -45,6 +45,8 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      SCAN_BASE_IMAGE: mcr.microsoft.com/dotnet/aspnet:10.0
 
     steps:
       - name: Checkout repository
@@ -58,18 +60,47 @@ jobs:
       - name: Publish application for scanning
         run: dotnet publish src/Melodee.Blazor/Melodee.Blazor.csproj -c Release -o scan/publish --self-contained false -p:PublishTrimmed=false
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Pull Docker base image for scanning
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$SCAN_BASE_IMAGE"; then
+              exit 0
+            fi
+
+            delay=$((attempt * 20))
+            echo "Base image pull failed on attempt ${attempt}; retrying in ${delay}s..."
+            sleep "$delay"
+          done
+
+          docker pull "$SCAN_BASE_IMAGE"
 
       - name: Build Docker image for scanning
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: .github/docker/Dockerfile.container-scan
-          load: true
-          tags: melodee:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3; do
+            if docker build \
+              --pull=false \
+              --build-arg DOTNET_ASPNET_IMAGE="$SCAN_BASE_IMAGE" \
+              -f .github/docker/Dockerfile.container-scan \
+              -t melodee:latest \
+              .; then
+              exit 0
+            fi
+
+            delay=$((attempt * 20))
+            echo "Docker image build failed on attempt ${attempt}; retrying in ${delay}s..."
+            sleep "$delay"
+          done
+
+          docker build \
+            --pull=false \
+            --build-arg DOTNET_ASPNET_IMAGE="$SCAN_BASE_IMAGE" \
+            -f .github/docker/Dockerfile.container-scan \
+            -t melodee:latest \
+            .
 
       - name: Run Trivy Vulnerability Scanner
         uses: aquasecurity/trivy-action@master

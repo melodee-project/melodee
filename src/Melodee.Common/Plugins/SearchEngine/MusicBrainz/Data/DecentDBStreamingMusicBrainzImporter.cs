@@ -21,13 +21,13 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     private const int MaxIndexSize = 255;
     private const int TotalImportSteps = 18;
 
-    public async Task ImportAsync(
+    public async Task<DecentDBMusicBrainzImportSummary> ImportAsync(
         MusicBrainzDbContext context,
         string storagePath,
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
-        await ImportAsync(
+        return await ImportAsync(
                 _ => Task.FromResult(context),
                 storagePath,
                 progressCallback,
@@ -36,13 +36,13 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             .ConfigureAwait(false);
     }
 
-    public async Task ImportAsync(
+    public async Task<DecentDBMusicBrainzImportSummary> ImportAsync(
         Func<CancellationToken, Task<MusicBrainzDbContext>> contextFactory,
         string storagePath,
         ImportProgressCallback? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
-        await ImportAsync(
+        return await ImportAsync(
                 contextFactory,
                 storagePath,
                 progressCallback,
@@ -51,7 +51,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             .ConfigureAwait(false);
     }
 
-    private async Task ImportAsync(
+    private async Task<DecentDBMusicBrainzImportSummary> ImportAsync(
         Func<CancellationToken, Task<MusicBrainzDbContext>> contextFactory,
         string storagePath,
         ImportProgressCallback? progressCallback,
@@ -67,28 +67,55 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                 await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            await ImportArtistStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken)
+            var artistStagingSummary = await ImportArtistStagingDataAsync(
+                    context,
+                    mbDumpPath,
+                    progressCallback,
+                    cancellationToken)
                 .ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
 
-            await MaterializeArtistsAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
+            await MaterializeArtistsAsync(
+                    artistStagingSummary.Artists,
+                    artistStagingSummary.ArtistAliases,
+                    progressCallback,
+                    cancellationToken)
+                .ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
 
-            await MaterializeArtistRelationsAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
+            var artistRelationCount = await MaterializeArtistRelationsAsync(context, progressCallback, cancellationToken)
+                .ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
 
             await DropArtistStagingTablesAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
 
-            var releaseCount = await ImportAlbumStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken)
+            var albumStagingSummary = await ImportAlbumStagingDataAsync(context, mbDumpPath, progressCallback, cancellationToken)
                 .ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
 
-            await MaterializeAlbumsAsync(context, releaseCount, progressCallback, cancellationToken).ConfigureAwait(false);
+            var albumCount = await MaterializeAlbumsAsync(
+                    context,
+                    albumStagingSummary.Releases,
+                    progressCallback,
+                    cancellationToken)
+                .ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
 
             await DropAlbumStagingTablesAsync(context, progressCallback, cancellationToken).ConfigureAwait(false);
             ResetContextState(context, cancellationToken);
+
+            return new DecentDBMusicBrainzImportSummary(
+                artistStagingSummary.Artists,
+                artistStagingSummary.ArtistAliases,
+                artistStagingSummary.Links,
+                artistStagingSummary.ArtistArtistLinks,
+                artistRelationCount,
+                albumStagingSummary.PrimaryArtistCredits,
+                albumStagingSummary.ReleaseGroups,
+                albumStagingSummary.ReleaseGroupMetaRows,
+                albumStagingSummary.Releases,
+                albumCount);
         }
         finally
         {
@@ -101,7 +128,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
     #region Phase 1: Artist Staging Data
 
-    private async Task ImportArtistStagingDataAsync(
+    private async Task<ArtistStagingImportSummary> ImportArtistStagingDataAsync(
         MusicBrainzDbContext context,
         string mbDumpPath,
         ImportProgressCallback? progressCallback,
@@ -233,6 +260,12 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             await RebuildMaterializedArtistLookupIndexesAsync(context, cancellationToken).ConfigureAwait(false);
             progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(5, "Staging indices created"));
             progressCallback?.Invoke("Loading Artists", 4, 4, WithImportStep(5, "Artist staging data loaded"));
+
+            return new ArtistStagingImportSummary(
+                artistCount,
+                aliasCount,
+                linkCount,
+                artistLinkCount);
         }
     }
 
@@ -367,14 +400,14 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     #region Phase 2: Materialize Artists
 
     private async Task MaterializeArtistsAsync(
-        MusicBrainzDbContext context,
+        int totalArtists,
+        int totalAliasRows,
         ImportProgressCallback? progressCallback,
         CancellationToken cancellationToken)
     {
         using (Operation.At(LogEventLevel.Debug).Time("DecentDbStreamingImporter: Materialize artists"))
         {
-            var totalArtists = await context.Artists.CountAsync(cancellationToken);
-            var totalAliasRows = await context.ArtistAliases.CountAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var totalArtistsForProgress = Math.Max(totalArtists, 1);
             progressCallback?.Invoke(
                 "Materializing Artists",
@@ -400,7 +433,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
     #region Phase 3: Materialize Artist Relations
 
-    private async Task MaterializeArtistRelationsAsync(
+    private async Task<int> MaterializeArtistRelationsAsync(
         MusicBrainzDbContext context,
         ImportProgressCallback? progressCallback,
         CancellationToken cancellationToken)
@@ -427,6 +460,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             logger.Debug("DecentDbStreamingImporter: Materialized {Count} artist relations", rowsAffected);
 
             progressCallback?.Invoke("Materializing Relations", 1, 1, WithImportStep(7, $"Materialized {rowsAffected:N0} artist relations"));
+            return rowsAffected;
         }
     }
 
@@ -453,7 +487,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
     #region Phase 5: Album Staging Data
 
-    private async Task<int> ImportAlbumStagingDataAsync(
+    private async Task<AlbumStagingImportSummary> ImportAlbumStagingDataAsync(
         MusicBrainzDbContext context,
         string mbDumpPath,
         ImportProgressCallback? progressCallback,
@@ -576,7 +610,11 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(16, "Creating resolved helper tables..."));
             progressCallback?.Invoke("Loading Albums", 6, 6, WithImportStep(16, "Album staging data loaded"));
 
-            return releaseCount;
+            return new AlbumStagingImportSummary(
+                creditNameCount,
+                groupCount,
+                metaCount,
+                releaseCount);
         }
     }
 
@@ -584,7 +622,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
     #region Phase 6: Materialize Albums
 
-    private async Task MaterializeAlbumsAsync(
+    private async Task<int> MaterializeAlbumsAsync(
         MusicBrainzDbContext context,
         int expectedAlbumCount,
         ImportProgressCallback? progressCallback,
@@ -646,6 +684,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
             logger.Debug("DecentDbStreamingImporter: Materialized {Count} albums", rowsAffected);
             progressCallback?.Invoke("Materializing Albums", 1, 1, WithImportStep(17, $"Materialized {rowsAffected:N0} albums"));
+            return rowsAffected;
         }
     }
 
@@ -699,6 +738,18 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         int ReleaseType,
         DateTime ReleaseDate);
 
+    private readonly record struct ArtistStagingImportSummary(
+        int Artists,
+        int ArtistAliases,
+        int Links,
+        int ArtistArtistLinks);
+
+    private readonly record struct AlbumStagingImportSummary(
+        int PrimaryArtistCredits,
+        int ReleaseGroups,
+        int ReleaseGroupMetaRows,
+        int Releases);
+
     private async Task<int> StreamFileToStagingRawAsync(
         MusicBrainzDbContext context,
         string filePath,
@@ -716,7 +767,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
             return 0;
         }
 
-        var totalCount = 0;
+        var insertedCount = 0;
         var pendingRows = new List<object?[]>(StagingRowsPerTransaction);
         var connection = context.Database.GetDbConnection();
 
@@ -743,11 +794,10 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                 }
 
                 pendingRows.Add(values);
-                totalCount++;
 
                 if (pendingRows.Count >= StagingRowsPerTransaction)
                 {
-                    await FlushPendingRowsAsync(
+                    insertedCount += await FlushPendingRowsAsync(
                             connection,
                             tableName,
                             columns,
@@ -766,7 +816,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
 
         if (pendingRows.Count > 0)
         {
-            await FlushPendingRowsAsync(
+            insertedCount += await FlushPendingRowsAsync(
                     connection,
                     tableName,
                     columns,
@@ -776,10 +826,10 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                 .ConfigureAwait(false);
         }
 
-        return totalCount;
+        return insertedCount;
     }
 
-    private static async Task FlushPendingRowsAsync(
+    private static async Task<int> FlushPendingRowsAsync(
         DbConnection connection,
         string tableName,
         string[] columns,
@@ -789,7 +839,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
     {
         if (pendingRows.Count == 0)
         {
-            return;
+            return 0;
         }
 
         if (connection.State != System.Data.ConnectionState.Open)
@@ -802,6 +852,7 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
         {
             transaction = connection.BeginTransaction();
 
+            var affectedRows = 0;
             for (var offset = 0; offset < pendingRows.Count; offset += StagingRowsPerInsertStatement)
             {
                 var rowCount = Math.Min(StagingRowsPerInsertStatement, pendingRows.Count - offset);
@@ -813,13 +864,15 @@ public sealed class DecentDBStreamingMusicBrainzImporter(ILogger logger)
                     pendingRows,
                     offset,
                     rowCount,
-                    onConflictDoNothing);
+                        onConflictDoNothing);
 
-                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                var commandAffectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                affectedRows += commandAffectedRows >= 0 ? commandAffectedRows : rowCount;
             }
 
             transaction.Commit();
             pendingRows.Clear();
+            return affectedRows;
         }
         catch
         {

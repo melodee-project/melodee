@@ -29,8 +29,8 @@ mcli doctor [OPTIONS]
    - Validates required connection strings exist
 2. **Database connectivity**
    - Postgres (`DefaultConnection`)
-   - MusicBrainz SQLite (`MusicBrainzConnection`)
-   - ArtistSearchEngine SQLite (`ArtistSearchEngineConnection`)
+   - MusicBrainz DecentDB (`MusicBrainzConnection`)
+   - ArtistSearchEngine DecentDB (`ArtistSearchEngineConnection`)
 3. **Library paths**
    - Ensures each configured library path exists
    - Optionally validates write access with `--write-test`
@@ -60,8 +60,8 @@ mcli doctor [OPTIONS]
 ```
 ✓ Configuration
 ✓ Database: Postgres
-✓ Database: MusicBrainz (SQLite)
-✓ Database: ArtistSearchEngine (SQLite)
+✓ Database: MusicBrainz (DecentDB)
+✓ Database: ArtistSearchEngine (DecentDB)
 ✓ Libraries
 
 All checks passed.

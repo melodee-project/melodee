@@ -1,4 +1,3 @@
-using IdSharp.Common.Utils;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -145,7 +144,7 @@ public sealed class AlbumRescanEventHandler(
                     // Get all songs in directory for album, add any missing, remove any on album not in the directory
                     foreach (var mediaFile in albumDirectory.AllMediaTypeFileInfos())
                     {
-                        var mediaFileHash = CRC32.Calculate(mediaFile);
+                        var mediaFileHash = Crc32.Calculate(mediaFile);
                         var melodeeSong = melodeeAlbum.Songs?.FirstOrDefault(x => x.File.Name == mediaFile.Name);
                         if (melodeeSong == null)
                         {

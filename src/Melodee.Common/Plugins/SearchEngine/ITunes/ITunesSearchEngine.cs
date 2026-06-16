@@ -97,7 +97,7 @@ ICacheManager cacheManager)
                             ReleaseDate = sr.ReleaseDate,
                             ThumbnailUrl = sr.ArtworkUrl100!,
                             Title = sr.CollectionName,
-                            UniqueId = sr.CollectionId ?? 0 + sr.ArtistId ?? 0,
+                            UniqueId = sr.CollectionId ?? sr.ArtistId ?? 0,
                             Width = 600
                         });
                     }
@@ -141,7 +141,7 @@ ICacheManager cacheManager)
 
         var httpClient = httpClientFactory.CreateClient();
         var requestUri =
-            $"https://itunes.apple.com/search?term={Uri.EscapeDataString(query.Name.Trim())}&entity=allArtist&country={query.Country}&media=all&limit={{maxResults}}";
+            $"https://itunes.apple.com/search?term={Uri.EscapeDataString(query.Name.Trim())}&entity=allArtist&country={query.Country}&media=all&limit={maxResults}";
 
         try
         {
@@ -175,7 +175,7 @@ ICacheManager cacheManager)
                         Rank = 1,
                         ThumbnailUrl = sr.ArtworkUrl100!,
                         Title = sr.CollectionName,
-                        UniqueId = sr.CollectionId ?? 0 + sr.ArtistId ?? 0,
+                        UniqueId = sr.CollectionId ?? sr.ArtistId ?? 0,
                         Width = 600
                     });
                 }

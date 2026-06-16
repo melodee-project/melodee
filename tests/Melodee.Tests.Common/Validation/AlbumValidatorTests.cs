@@ -364,6 +364,26 @@ public class AlbumValidatorTests : TestsBase
     }
 
     [Fact]
+    public void ValidateAlbum_WithItunesArtistIdWithoutSearchEngineResult_DoesNotFlagInvalidArtist()
+    {
+        var album = NewTestAlbum();
+        var artistName = "iTunes Artist";
+        album.Artist = new Artist(
+            artistName,
+            artistName.ToNormalizedString()!,
+            artistName)
+        {
+            ItunesId = "123456789"
+        };
+
+        var validator = new AlbumValidator(NewPluginsConfiguration());
+        var validationResult = validator.ValidateAlbum(album);
+
+        Assert.True(validationResult.IsSuccess);
+        Assert.False(validationResult.Data.AlbumStatusReasons.HasFlag(AlbumNeedsAttentionReasons.HasInvalidArtists));
+    }
+
+    [Fact]
     public void ValidateAlbumWithInvalidYear()
     {
         var testAlbum = NewTestAlbum();

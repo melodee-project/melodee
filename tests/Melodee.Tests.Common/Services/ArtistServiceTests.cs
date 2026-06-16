@@ -1913,6 +1913,47 @@ public class ArtistServiceTests : ServiceTestBase
         Assert.Equal(spotifyId, result.Data.SpotifyId);
     }
 
+    [Fact]
+    public async Task FindArtistAsync_ByItunesId_ReturnsArtist()
+    {
+        var itunesId = "123456789";
+        var artistName = "iTunes Find Test";
+
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            var library = new Library
+            {
+                Name = "Test Library",
+                Path = "/test/path",
+                Type = (int)LibraryType.Storage,
+                CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow)
+            };
+            context.Libraries.Add(library);
+            await context.SaveChangesAsync();
+
+            var artist = new Artist
+            {
+                ApiKey = Guid.NewGuid(),
+                ItunesId = itunesId,
+                Directory = "find-itunes-test",
+                CreatedAt = Instant.FromDateTimeUtc(DateTime.UtcNow),
+                LibraryId = library.Id,
+                Name = artistName,
+                NameNormalized = artistName.ToNormalizedString()!,
+                Library = library
+            };
+            context.Artists.Add(artist);
+            await context.SaveChangesAsync();
+        }
+
+        var result = await GetArtistService().FindArtistAsync(null, Guid.Empty, null, null, null, itunesId);
+
+        AssertResultIsSuccessful(result);
+        Assert.NotNull(result.Data);
+        Assert.Equal(artistName, result.Data.Name);
+        Assert.Equal(itunesId, result.Data.ItunesId);
+    }
+
     #endregion
 
     #region Additional Helper Methods

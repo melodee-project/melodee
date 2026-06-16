@@ -92,7 +92,7 @@ public class MusicBrainzImportBenchmark : IDisposable
             }
         }
 
-        await importer.ImportAsync(
+        var summary = await importer.ImportAsync(
             context,
             storagePath,
             ProgressCallback,
@@ -104,11 +104,8 @@ public class MusicBrainzImportBenchmark : IDisposable
             phaseTimings[currentPhase] = phaseStopwatch.ElapsedMilliseconds;
         }
 
-        var importedArtists = await context.Artists.CountAsync();
-        var importedAlbums = await context.Albums.CountAsync();
-
-        importedArtists.Should().Be(stats.ArtistCount);
-        importedAlbums.Should().BeGreaterThan(0);
+        summary.Artists.Should().Be(stats.ArtistCount);
+        summary.Albums.Should().BeGreaterThan(0);
         phaseTimings.Should().NotBeEmpty();
     }
 
@@ -171,7 +168,7 @@ public class MusicBrainzImportBenchmark : IDisposable
 
         // Run the import
         var importSw = Stopwatch.StartNew();
-        await importer.ImportAsync(
+        var summary = await importer.ImportAsync(
             context,
             storagePath,
             ProgressCallback,
@@ -188,10 +185,11 @@ public class MusicBrainzImportBenchmark : IDisposable
         results.TotalImportMs = importSw.ElapsedMilliseconds;
         results.PhaseTimings = phaseTimings;
 
-        // Get final counts
-        results.ImportedArtists = await context.Artists.CountAsync();
-        results.ImportedAlbums = await context.Albums.CountAsync();
-        results.ImportedRelations = await context.ArtistRelations.CountAsync();
+        // Use the importer's known materialization counts so benchmark results
+        // do not include extra large-table verification probes.
+        results.ImportedArtists = summary.Artists;
+        results.ImportedAlbums = summary.Albums;
+        results.ImportedRelations = summary.ArtistRelations;
 
         // Calculate metrics
         results.RecordsPerSecond = results.TotalRecordsGenerated / (results.TotalImportMs / 1000.0);

@@ -1,9 +1,12 @@
+using FluentAssertions;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Enums;
 using Melodee.Common.Imaging;
 using Melodee.Common.Models;
+using Melodee.Common.Models.Scripting;
 using Melodee.Common.Services;
 using Melodee.Common.Services.Scanning;
+using Melodee.Common.Services.ScriptEvaluation;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using NodaTime;
@@ -13,6 +16,21 @@ namespace Melodee.Tests.Common.Services.Scanning;
 public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 {
     #region Helper Methods
+
+    [Fact]
+    public void FormatProcessingEventMessage_WithException_ReturnsSingleLineSummary()
+    {
+        var exception = new InvalidOperationException("Non-negative number required.\nStack detail");
+
+        var result = DirectoryProcessorToStagingService.FormatProcessingEventMessage(
+            "Processing Directory [{0}]",
+            exception,
+            "Album Name");
+
+        result.Should().Be("Error: Processing Directory [Album Name]: Non-negative number required. Stack detail");
+        result.Should().NotContain("System.InvalidOperationException");
+        result.Should().NotContain(" at ");
+    }
 
     private DirectoryProcessorToStagingService GetDirectoryProcessorService()
     {
@@ -51,6 +69,29 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
             MockScriptOrchestrationService(),
             MockDirectoryContextProvider(),
             MockDenyActionHandlerFactory(),
+            new ImageProcessor());
+    }
+
+    private DirectoryProcessorToStagingService GetDirectoryProcessorService(
+        IFileSystemService fileSystemService,
+        IScriptOrchestrationService scriptOrchestrationService,
+        DenyActionHandlerFactory denyActionHandlerFactory)
+    {
+        return new DirectoryProcessorToStagingService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            GetLibraryService(),
+            Serializer,
+            GetMediaEditService(),
+            GetArtistSearchEngineService(),
+            GetAlbumImageSearchEngineService(),
+            MockHttpClientFactory(),
+            fileSystemService,
+            scriptOrchestrationService,
+            MockDirectoryContextProvider(),
+            denyActionHandlerFactory,
             new ImageProcessor());
     }
 
@@ -295,6 +336,486 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 
     #endregion
 
+    #region Source Metadata Cleanup Tests
+
+    [Fact]
+    public void IsSourceMetadataOnlyDirectory_WithOnlyKnownSidecars_ReturnsTrue()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-sidecars-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+
+            var result = DirectoryProcessorToStagingService.IsSourceMetadataOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.True(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceMetadataOnlyDirectory_WithUnknownFile_ReturnsFalse()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-sidecars-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "keep.txt"), "not sidecar metadata");
+
+            var result = DirectoryProcessorToStagingService.IsSourceMetadataOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.False(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteSourceSidecarMetadataFiles_DeletesKnownSidecarsOnly()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-sidecars-{Guid.NewGuid():N}");
+        var keepFilePath = Path.Combine(releasePath, "keep.txt");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.cue"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.m3u"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, ".blackbeard.provenance.json"), "{}");
+            File.WriteAllText(keepFilePath, "keep");
+
+            var deletedCount = DirectoryProcessorToStagingService.DeleteSourceSidecarMetadataFiles(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                Logger);
+
+            Assert.Equal(5, deletedCount);
+            Assert.True(File.Exists(keepFilePath));
+            var remainingFiles = Directory.EnumerateFiles(releasePath).ToArray();
+            Assert.Single(remainingFiles);
+            Assert.Equal(keepFilePath, remainingFiles[0]);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueOnlyDirectory_WithImageTextAndSidecarsNoMedia_ReturnsTrue()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.nfo"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "i-01-Front.jpg"), "image");
+            File.WriteAllText(Path.Combine(releasePath, "foo_dr.txt"), "text");
+
+            var result = DirectoryProcessorToStagingService.IsSourceResidueOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.True(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueOnlyDirectory_WithMediaFile_ReturnsFalse()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.sfv"), "metadata");
+            File.WriteAllText(Path.Combine(releasePath, "i-01-Front.jpg"), "image");
+            File.WriteAllText(Path.Combine(releasePath, "01-track.mp3"), "media");
+
+            var result = DirectoryProcessorToStagingService.IsSourceResidueOnlyDirectory(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                });
+
+            Assert.False(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteSourceResidueOnlyDirectoryFiles_WithNestedResidueDirectories_RemovesLeafThenParentResidue()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-residue-root-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album (part ");
+        var childPath = Path.Combine(releasePath, " two) (2026)");
+
+        try
+        {
+            Directory.CreateDirectory(childPath);
+            File.WriteAllText(Path.Combine(releasePath, "cover.jpg"), "image");
+            File.WriteAllText(Path.Combine(childPath, "i-01-Front.jpg"), "image");
+
+            var deletedCount = DirectoryProcessorToStagingService.DeleteSourceResidueOnlyDirectoryFiles(
+                new FileSystemDirectoryInfo
+                {
+                    Path = rootPath,
+                    Name = Path.GetFileName(rootPath)
+                },
+                Logger);
+
+            Assert.Equal(2, deletedCount);
+            Assert.False(Directory.Exists(releasePath));
+            Assert.True(Directory.Exists(rootPath));
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FindUnstableSourceFileAsync_WhenFileChanges_ReturnsFilePath()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-unstable-{Guid.NewGuid():N}");
+        var filePath = Path.Combine(releasePath, "01-track.mp3");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            await File.WriteAllTextAsync(filePath, "media");
+
+            var stabilityTask = DirectoryProcessorToStagingService.FindUnstableSourceFileAsync(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                delayMs: 300);
+
+            await Task.Delay(50);
+            await File.AppendAllTextAsync(filePath, " changed");
+
+            var result = await stabilityTask;
+
+            Assert.Equal(filePath, result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FindUnstableSourceFileAsync_WhenFilesAreStable_ReturnsNull()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-stable-{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            await File.WriteAllTextAsync(Path.Combine(releasePath, "01-track.mp3"), "media");
+
+            var result = await DirectoryProcessorToStagingService.FindUnstableSourceFileAsync(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                delayMs: 10);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Converted Source Resolution Tests
+
+    [Fact]
+    public void TryResolveSourceFileForStaging_WithOriginalFile_ReturnsOriginalFile()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-converted-{Guid.NewGuid():N}");
+        var sourceFilePath = Path.Combine(releasePath, "01-track.flac");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(sourceFilePath, "source");
+
+            var result = DirectoryProcessorToStagingService.TryResolveSourceFileForStaging(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                new FileSystemFileInfo
+                {
+                    Name = "01-track.flac",
+                    OriginalName = "01-track.flac",
+                    Size = 6
+                },
+                new Dictionary<string, FileSystemFileInfo>(StringComparer.OrdinalIgnoreCase),
+                new FileSystemService(Serializer),
+                out var sourceFile,
+                out var sourcePath);
+
+            Assert.True(result);
+            Assert.Equal("01-track.flac", sourceFile.Name);
+            Assert.Equal(sourceFilePath, sourcePath);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void TryResolveSourceFileForStaging_WithConvertedFile_ReturnsConvertedFile()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-converted-{Guid.NewGuid():N}");
+        var convertedFilePath = Path.Combine(releasePath, "01-track.mp3");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "01-track.flac"), "source");
+            File.WriteAllText(convertedFilePath, "converted");
+
+            var convertedFile = new FileSystemFileInfo
+            {
+                Name = "01-track.mp3",
+                OriginalName = "01-track.mp3",
+                Size = 9
+            };
+            var result = DirectoryProcessorToStagingService.TryResolveSourceFileForStaging(
+                new FileSystemDirectoryInfo
+                {
+                    Path = releasePath,
+                    Name = Path.GetFileName(releasePath)
+                },
+                new FileSystemFileInfo
+                {
+                    Name = "01-track.flac",
+                    OriginalName = "01-track.flac",
+                    Size = 6
+                },
+                new Dictionary<string, FileSystemFileInfo>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["01-track.flac"] = convertedFile
+                },
+                new FileSystemService(Serializer),
+                out var sourceFile,
+                out var sourcePath);
+
+            Assert.True(result);
+            Assert.Equal("01-track.mp3", sourceFile.Name);
+            Assert.Equal(convertedFilePath, sourcePath);
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Script Safety Tests
+
+    [Fact]
+    public async Task ProcessDirectoryAsync_WhenDirectoryDeleteScriptWouldDelete_DoesNotEvaluateDeleteEvent()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-inbound-{Guid.NewGuid():N}");
+        var stagingPath = Path.Combine(Path.GetTempPath(), $"melodee-staging-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            Directory.CreateDirectory(stagingPath);
+            await File.WriteAllTextAsync(Path.Combine(releasePath, "01-track.mp3"), "not real audio");
+
+            var scriptOrchestrationService = new Mock<IScriptOrchestrationService>();
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = true });
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    ScriptEventNames.DirectoryProcessingDelete,
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = false, OnDeny = "delete" });
+
+            var safeDeleteService = new Mock<ISafeDeleteService>(MockBehavior.Strict);
+            var service = GetDirectoryProcessorService(
+                new FileSystemService(Serializer),
+                scriptOrchestrationService.Object,
+                new DenyActionHandlerFactory(safeDeleteService.Object, new SettingService(), Logger));
+
+            await service.InitializeAsync(TestsBase.NewPluginsConfiguration(), stagingPath, CancellationToken.None);
+
+            await service.ProcessDirectoryAsync(new FileSystemDirectoryInfo
+            {
+                Path = rootPath,
+                Name = "inbound"
+            }, null, null);
+
+            Assert.True(Directory.Exists(releasePath));
+            scriptOrchestrationService.Verify(x => x.EvaluateScriptForEventAsync(
+                ScriptEventNames.DirectoryProcessingDelete,
+                It.IsAny<object>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+            safeDeleteService.Verify(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+
+            if (Directory.Exists(stagingPath))
+            {
+                Directory.Delete(stagingPath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ProcessDirectoryAsync_WhenStartScriptRequestsDelete_SkipsWithoutDeletingDirectory()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-inbound-{Guid.NewGuid():N}");
+        var stagingPath = Path.Combine(Path.GetTempPath(), $"melodee-staging-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album");
+
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            Directory.CreateDirectory(stagingPath);
+            await File.WriteAllTextAsync(Path.Combine(releasePath, "01-track.mp3"), "not real audio");
+
+            var scriptOrchestrationService = new Mock<IScriptOrchestrationService>();
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = true, IsDefault = true });
+            scriptOrchestrationService
+                .Setup(x => x.EvaluateScriptForEventAsync(
+                    ScriptEventNames.DirectoryProcessingStart,
+                    It.IsAny<object>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ScriptEvaluationResult { Result = false, IsDefault = false, OnDeny = "delete" });
+
+            var safeDeleteService = new Mock<ISafeDeleteService>(MockBehavior.Strict);
+            var service = GetDirectoryProcessorService(
+                new FileSystemService(Serializer),
+                scriptOrchestrationService.Object,
+                new DenyActionHandlerFactory(safeDeleteService.Object, new SettingService(), Logger));
+
+            await service.InitializeAsync(TestsBase.NewPluginsConfiguration(), stagingPath, CancellationToken.None);
+
+            await service.ProcessDirectoryAsync(new FileSystemDirectoryInfo
+            {
+                Path = rootPath,
+                Name = "inbound"
+            }, null, null);
+
+            Assert.True(Directory.Exists(releasePath));
+            safeDeleteService.Verify(x => x.DeleteDirectoryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+
+            if (Directory.Exists(stagingPath))
+            {
+                Directory.Delete(stagingPath, true);
+            }
+        }
+    }
+
+    #endregion
+
     #region Dispose Tests
 
     [Fact]
@@ -376,6 +897,25 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
 
         // Assert - start event should be raised
         Assert.True(true); // Test passes if no exception
+    }
+
+    #endregion
+
+    #region Conversion Throttle Tests
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(2, 1)]
+    [InlineData(4, 2)]
+    [InlineData(32, 2)]
+    public void CalculateMaxConcurrentConversions_WithProcessorCount_ReturnsBoundedConcurrency(
+        int processorCount,
+        int expectedConcurrency)
+    {
+        var result = DirectoryProcessorToStagingService.CalculateMaxConcurrentConversions(processorCount);
+
+        Assert.Equal(expectedConcurrency, result);
     }
 
     #endregion

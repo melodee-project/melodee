@@ -8,6 +8,8 @@ public class ArtistSearchEngineServiceDbContext(DbContextOptions<ArtistSearchEng
 {
     public DbSet<Artist> Artists { get; set; }
 
+    public DbSet<ArtistAlias> ArtistAliases { get; set; }
+
     public DbSet<Album> Albums { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -25,5 +27,14 @@ public class ArtistSearchEngineServiceDbContext(DbContextOptions<ArtistSearchEng
                     .HasConversion(new DateTimeOffsetToBinaryConverter());
             }
         }
+
+        modelBuilder.Entity<ArtistAlias>(entity =>
+        {
+            entity.ToTable("ArtistAliases");
+            entity.HasOne(x => x.Artist)
+                .WithMany(x => x.Aliases)
+                .HasForeignKey(x => x.ArtistId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

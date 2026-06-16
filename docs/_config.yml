@@ -47,11 +47,13 @@ version_params:
 
   # Allow these versions to be searched
   search_versions:
+    - 2.1.0
     - 2.0.0
     - 1.8.0
     - 1.7.0
-  latest: 2.0.0
+  latest: 2.1.0
   versions:
+    - 2.1.0
     - 2.0.0
     - 1.8.0
     - 1.7.0

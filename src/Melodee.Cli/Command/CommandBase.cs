@@ -100,6 +100,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         });
 
         services.AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>();
+        services.AddScoped<MusicBrainzDecentDbWarmupService>();
         services.AddSingleton<IMelodeeConfigurationFactory, MelodeeConfigurationFactory>();
         services.AddSingleton<ICacheManager>(opt
             => new MemoryCacheManager(opt.GetRequiredService<ILogger>(),
@@ -120,6 +121,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
         services.AddSingleton<IImageProcessor, ImageProcessor>();
         services.AddScoped<ISpotifyClientBuilder, SpotifyClientBuilder>();
         services.AddScoped<AlbumDiscoveryService>();
+        services.AddSingleton<IStagingAlbumRevalidationStateStore, StagingAlbumRevalidationStateStore>();
         services.AddScoped<AlbumImageSearchEngineService>();
         services.AddScoped<ArtistImageSearchEngineService>();
         services.AddScoped<ArtistSearchEngineService>();

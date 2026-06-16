@@ -6893,4 +6893,8 @@ Common fixes:
   <data name="AdminScriptEditor.MaxStatementsHelper" xml:space="preserve">
     <value>Max JavaScript statements allowed per execution</value>
   </data>
+
+  <data name="Dashboard.DecentDbMigrationGuide" xml:space="preserve">
+    <value>Open DecentDB migration guide</value>
+  </data>
 </root>

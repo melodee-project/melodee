@@ -9,11 +9,9 @@ using Serilog;
 namespace Melodee.Tests.Common.Services.ScriptEvaluation;
 
 /// <summary>
-/// Critical tests for directory deletion script logic.
-/// These tests ensure that directories are ONLY deleted when the script explicitly returns true
-/// and that directories are preserved in all other cases (errors, disabled scripts, default behavior).
-/// 
-/// PRODUCTION SAFETY: These tests are essential to prevent accidental data loss.
+/// Tests for legacy directoryProcessingDelete script evaluation.
+/// The ingestion processor must not physically delete release directories based on this event.
+/// These tests keep the script evaluator behavior covered for existing configuration compatibility.
 /// </summary>
 [Collection("ScriptEvaluation")]
 public class DirectoryDeletionScriptTests
@@ -35,7 +33,7 @@ public class DirectoryDeletionScriptTests
     }
 
     /// <summary>
-    /// The actual production delete script that checks for insufficient files or media.
+    /// Legacy delete script shape that checks for insufficient files or media.
     /// </summary>
     private const string ProductionDeleteScript = @"
         function check(ctx, scriptConfig) { 
@@ -516,31 +514,6 @@ public class DirectoryDeletionScriptTests
         result.Result.Should().BeTrue("error defaults to allow");
         result.IsDefault.Should().BeTrue("error means default behavior - MUST NOT trigger delete");
         result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
-    }
-
-    #endregion
-
-    #region Delete Decision Logic Tests
-
-    /// <summary>
-    /// This test simulates the exact condition in DirectoryProcessorToStagingService:
-    /// if (deleteResult.Result && !deleteResult.IsDefault)
-    /// </summary>
-    [Theory]
-    [InlineData(true, false, true, "Script returns true, not default = DELETE")]
-    [InlineData(true, true, false, "Script returns true but is default = DO NOT DELETE")]
-    [InlineData(false, false, false, "Script returns false = DO NOT DELETE")]
-    [InlineData(false, true, false, "Script returns false and is default = DO NOT DELETE")]
-    public void DeleteDecisionLogic_CorrectlyDeterminesWhetherToDelete(
-        bool scriptResult,
-        bool isDefault,
-        bool expectedShouldDelete,
-        string scenario)
-    {
-        // This is the exact condition from DirectoryProcessorToStagingService.cs line 1215
-        var shouldDelete = scriptResult && !isDefault;
-
-        shouldDelete.Should().Be(expectedShouldDelete, scenario);
     }
 
     #endregion

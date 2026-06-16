@@ -22,4 +22,5 @@ public record ProcessingEventStatistics(
     int AlbumsMergedWithExisting,
     int AlbumsSkippedByStatus,
     int AlbumsSkippedAsDuplicateDirectory,
-    int AlbumsFailedToLoad);
+    int AlbumsFailedToLoad,
+    IReadOnlyDictionary<string, int>? AlbumsSkippedByReason = null);

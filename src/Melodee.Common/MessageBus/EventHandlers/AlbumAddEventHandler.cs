@@ -1,4 +1,3 @@
-using IdSharp.Common.Utils;
 using JetBrains.Annotations;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
@@ -246,7 +245,7 @@ public sealed class AlbumAddEventHandler(
                                     continue;
                                 }
 
-                                var mediaFileHash = CRC32.Calculate(mediaFile);
+                                var mediaFileHash = Crc32.Calculate(mediaFile);
                                 var s = new Song
                                 {
                                     AlbumId = newAlbum.Id,

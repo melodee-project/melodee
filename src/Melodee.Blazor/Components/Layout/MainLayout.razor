@@ -228,7 +228,7 @@
                 .Select(x => new MediaLibraryInfo(x.Name, $"/media/library/{x.ApiKey}"))
                 .ToArray();
 
-            MainLayoutProxyService.ShowSpinner = false;
+            MainLayoutProxyService.SetSpinnerVisible(false);
 
             await CheckActivityAsync();
             _activityTimer = new Timer(async _ => await CheckActivityAsync(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));

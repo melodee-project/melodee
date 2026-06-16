@@ -9,7 +9,7 @@
     <NoWarn>$(NoWarn);NU1507</NoWarn>
 
     <!-- Auto-incrementing version -->
-    <VersionPrefix>2.1.0</VersionPrefix>
+    <VersionPrefix>2.1.3</VersionPrefix>
     <VersionSuffix>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionSuffix>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
     <FileVersion>$(VersionPrefix).0</FileVersion>
@@ -22,6 +22,7 @@
     <PackageReference Include="Crc32.NET" />
     <PackageReference Include="CsvHelper" />
     <PackageReference Include="Dapper" />
+    <PackageReference Include="DecentDB.AdoNet" />
     <PackageReference Include="DecentDB.EntityFrameworkCore" />
     <PackageReference Include="DecentDB.EntityFrameworkCore.NodaTime" />
     <PackageReference Include="Fastenshtein" />
@@ -31,8 +32,6 @@
     <PackageReference Include="Hqub.Last.fm" />
     <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="IdGen" />
-    <PackageReference Include="IdSharp.Common" />
-    <PackageReference Include="IdSharp.Tagging" />
     <PackageReference Include="JetBrains.Annotations" />
     <PackageReference Include="Jint" />
     <PackageReference Include="K4os.Hash.xxHash" />

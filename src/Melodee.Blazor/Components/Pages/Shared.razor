@@ -1,5 +1,4 @@
 @page "/share/{ShareUniqueId}"
-@using AuralizeBlazor
 @using Melodee.Common.Data.Models.Extensions
 @using Melodee.Common.Enums
 
@@ -13,15 +12,32 @@
 
 <div class="shared-container">
 
-    <Auralizer
-        InitialPreset="AuralizerPreset.ClassicLedBars"
-        TrackList="@_songInfos"
-        Height="400px"
-        Width="100%">
-        <div style="text-align: center;">
-            <audio class="audio-main" preload="metadata" loading="lazy" controls src="@_songInfos[0].Url"></audio>
+    @if (_selectedTrack is not null)
+    {
+        <div class="shared-player">
+            <img src="@_selectedTrack.CoverArtUrl" alt="" class="shared-cover-art" loading="lazy" />
+            <div class="shared-player-details">
+                <h1>@_selectedTrack.Title</h1>
+                <audio class="audio-main" preload="metadata" controls src="@_selectedTrack.Url"></audio>
+            </div>
         </div>
-    </Auralizer>
+    }
+
+    @if (_tracks.Length > 1)
+    {
+        <ol class="shared-track-list">
+            @foreach (var track in _tracks)
+            {
+                <li>
+                    <button type="button"
+                            class="shared-track-button"
+                            @onclick="() => SelectTrack(track)">
+                        @track.Title
+                    </button>
+                </li>
+            }
+        </ol>
+    }
 
 </div>
 
@@ -29,7 +45,8 @@
     [Parameter] public required string ShareUniqueId { get; set; }
     [CascadingParameter] private HttpContext? HttpContext { get; set; }
 
-    private IAuralizerTrack[] _songInfos = [new AuralizerTrack(string.Empty, string.Empty, string.Empty)];
+    private SharedTrack[] _tracks = [];
+    private SharedTrack? _selectedTrack;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -44,12 +61,12 @@
                     var songResult = await SongService.GetAsync(share.ShareId);
                     if (songResult is { IsSuccess: true, Data: not null })
                     {
-                        _songInfos =
+                        SetTracks(
                         [
-                            new AuralizerTrack(songResult.Data.ToApiStreamUrl(configuration, HttpContext),
+                            new SharedTrack(songResult.Data.ToApiStreamUrl(configuration, HttpContext),
                                 $"{songResult.Data.Album.Name} - {songResult.Data.Title}",
                                 $"/images/{songResult.Data.ToCoverArtId()}/{ ImageSize.Large }")
-                        ];
+                        ]);
                     }
 
                     break;
@@ -57,11 +74,11 @@
                     var albumResult = await AlbumService.GetAsync(share.ShareId);
                     if (albumResult is { IsSuccess: true, Data: not null })
                     {
-                        _songInfos = albumResult.Data.Songs.Select(x =>
-                            new AuralizerTrack(x.ToApiStreamUrl(configuration, HttpContext),
+                        SetTracks(albumResult.Data.Songs.Select(x =>
+                            new SharedTrack(x.ToApiStreamUrl(configuration, HttpContext),
                                 $"{albumResult.Data.Name} - {x.Title}",
                                 $"/images/{albumResult.Data.ToCoverArtId()}/{ ImageSize.Large }")
-                        ).ToArray();
+                        ).ToArray());
                     }
 
                     break;
@@ -69,11 +86,11 @@
                     var playlistResult = await PlaylistService.GetAsync(share.ShareId);
                     if (playlistResult is { IsSuccess: true, Data: not null })
                     {
-                        _songInfos = playlistResult.Data.Songs.Select(x =>
-                            new AuralizerTrack(x.Song.ToApiStreamUrl(configuration, HttpContext),
+                        SetTracks(playlistResult.Data.Songs.Select(x =>
+                            new SharedTrack(x.Song.ToApiStreamUrl(configuration, HttpContext),
                                 $"{x.Song.Album.Name} - {x.Song.Title}",
                                 $"/images/{x.Song.ToCoverArtId()}/{ ImageSize.Large }")
-                        ).ToArray();
+                        ).ToArray());
                     }
 
                     break;
@@ -83,8 +100,18 @@
         }
     }
 
+    private void SetTracks(SharedTrack[] tracks)
+    {
+        _tracks = tracks;
+        _selectedTrack = _tracks.FirstOrDefault();
+    }
 
+    private void SelectTrack(SharedTrack track)
+    {
+        _selectedTrack = track;
+    }
+
+    private sealed record SharedTrack(string Url, string Title, string CoverArtUrl);
 }
-
 
 

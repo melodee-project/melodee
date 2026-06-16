@@ -21,20 +21,167 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Added public DecentDB usage and migration documentation covering Melodee's
+  generated search databases and rebuild steps for unsupported file-format
+  errors.
+
+### Fixed
+
+- Admin dashboard and login health warnings now open-check MusicBrainz and
+  ArtistSearch DecentDB files and link to the migration guide when unsupported
+  DecentDB file-format versions are detected.
+
+## [2.1.3] - 2026-06-15
+
+### Added
+
+- Added MusicBrainz DecentDB index warm-up after Blazor startup and after
+  successful MusicBrainz database promotion, using native .NET queries against
+  the request-path indexed lookup shapes.
+- Added an internal DecentDB package-upgrade validation gate and runbook for
+  repeatable DDB-002/DDB-003 checks against checkpointed MusicBrainz data.
+
+### Changed
+
+- Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
+  `DecentDB.EntityFrameworkCore.NodaTime` to `2.13.1`.
+- MusicBrainz query probes now keep the broad ordered first-row existence
+  measurement opt-in via `--include-row-existence` so default validation stays
+  focused on request-safe indexed lookups.
+- Replaced the legacy IdSharp metadata fallback with Melodee's native ID3 tag
+  reader, removing the obsolete transitive image-processing dependency path.
+- Added explicit private `MessagePack` references for NBomber consumers so the
+  test and benchmark graphs resolve the non-vulnerable package version.
+
+### Fixed
+
+- Validated DecentDB `2.13.1` NuGet packages against the checkpointed real
+  MusicBrainz query probe, completing DDB-002 and DDB-003 with `IndexSeek`
+  plans and sub-millisecond warm indexed equality timings.
+- MusicBrainz DecentDB startup warm-up no longer runs the alias-by-artist
+  bounded query shape that DecentDB `2.13.1` rejects with a missing-parameter
+  error.
+
+## [2.1.2] - 2026-06-10
+
+### Added
+
+- Added DecentDB MusicBrainz import and query probes for real-file performance diagnostics,
+  including JSON phase timings, row counts, memory samples, WAL growth, SQL shape,
+  DecentDB `EXPLAIN` output, and cold/warm lookup timings.
+- Added internal DecentDB search strategy and provider enhancement notes covering ADO.NET
+  maintenance APIs, WAL visibility, query diagnostics, large indexed string equality, and
+  large-text search guidance.
+
+### Changed
+
+- Upgraded `DecentDB.AdoNet`, `DecentDB.EntityFrameworkCore`, and
+  `DecentDB.EntityFrameworkCore.NodaTime` to `2.13.0`.
+- Recorded DecentDB `2.13.0` real-file MusicBrainz validation. The package
+  provides indexed equality `EXPLAIN` plans for the tested query shapes, but
+  DDB-002 and DDB-003 remain provider follow-up because checkpointed large
+  `Artist` table equality probes still time out.
+- Validated a local DecentDB worktree fix for DDB-002 and DDB-003 through
+  direct local binding binaries; the items remain pending until a published
+  DecentDB NuGet package reproduces the real-file probe results.
+- MusicBrainz DecentDB imports now return materialized row counts and keep final full-table
+  verification counts opt-in, avoiding redundant full-table counts during normal imports.
+- Local artist cache lookups now use staged exact identifier, normalized name, and normalized
+  alias queries, with database-side paging for artist list requests.
+- Local artist aliases now use a normalized lookup table that is backfilled on startup for
+  existing cache data and synchronized when cached artists change.
+
+### Fixed
+
+- Release editing no longer triggers EasyMDE's Font Awesome CDN stylesheet load,
+  preventing Content Security Policy violations in the browser console.
+- The Blazor shell now loads the EasyMDE script only once.
+- Admin dashboard doctor checks no longer emit Entity Framework warnings for
+  unordered row-limiting probes.
+- Exact MusicBrainz ID lookups now apply deterministic ordering before row limiting.
+- DecentDB improvement tracking now separates completed Melodee changes from provider
+  enhancement candidates.
+- DecentDB improvement tracking now distinguishes the DecentDB `2.13.0`
+  planner/provider fix from the remaining large-file runtime/storage follow-up.
+- MusicBrainz database imports now checkpoint through the DecentDB
+  `DecentDBMaintenance.CheckpointAsync(...)` API instead of an external process.
+
+## [2.1.1] - 2026-05-25
+
+### Changed
+
+- Updated the docs release dropdown so the latest documentation track points to `2.1.0`, while patch releases continue to use the `2.1.x` application version line.
+- Replaced the top-navbar `Documentation` link with `News` so release posts are easier to find from the docs site.
+- Expanded `mcli library scan` storage-transfer reporting to separate ready albums, newly moved albums, albums merged with existing storage, duplicate-prefixed staging directories, failed metadata loads, and albums left in staging with their validation reason counts.
+- Added `mcli library scan` performance reporting for artist lookup cache behavior, conversion time, copy time, revalidation skips, and DecentDB artist-search persistence retry counts.
+- `mcli library scan` now shows live progress messages and item counts for inbound processing, staging revalidation, storage transfer, and database insert work instead of leaving active steps at an apparent 0%.
+- `mcli library scan` now suppresses ATL library stack traces during progress rendering and reports non-fatal inbound processing errors as scan warnings instead of letting raw exception text corrupt the TUI.
+- Artist search database read/open errors, including non-retryable DecentDB provider failures, are now counted in full-scan performance output and reported as scan warnings.
+- `mcli doctor` now validates DecentDB files by checking file presence, opening the configured database, inspecting expected schema tables, and running read queries instead of relying on shallow connection checks.
+- Bounded concurrent media conversions during inbound processing to reduce CPU and disk saturation on large batch scans.
+- Staging artist revalidation now uses a staging-local `.melodee-revalidation.ddb` retry state database so repeated scans defer recently failed albums instead of re-querying every invalid staged release on every run; the state database is recreated automatically if missing or corrupt.
+- Staging artist revalidation now logs the retry state database path and row counts, and `mcli library scan` reports artist lookup attempts and no-match counts for revalidation work.
+- MusicBrainz DecentDB artist searches now report phase timings and use a compact release/alias loading path for one-result ingestion lookups.
+
+### Fixed
+
+- Prevent inbound processing from deleting release directories through directory event scripts; releases now remain available for conversion, normalization, validation, and staging according to the documented ingestion pipeline.
+- Preserve copied cover images in staged album metadata after inbound processing renames images to Melodee's normalized `i-##-Type.jpg` filenames.
+- Revalidation during the full scan workflow now bypasses same-run negative artist lookup cache entries, allowing albums to become valid when artist metadata is discovered later in the ingestion pass.
+- iTunes artist matches now count as trusted artist identities alongside Spotify and MusicBrainz matches, allowing iTunes-only artist lookups to validate staged albums and participate in storage insert matching.
+- Staging revalidation now clears stale invalid-artist statuses when an album already contains a trusted artist identity, and iTunes-only artist IDs can be used for storage directory naming.
+- Dashboard loading now updates the layout spinner through the layout notification event and clears the global spinner when leaving the page.
+- Inbound move-mode processing now removes source sidecar metadata files such as `.sfv`, `.nfo`, `.m3u`, `.cue`, and Blackbeard provenance after albums are staged, including metadata-only directories left by earlier runs.
+- Inbound staging now tracks media files converted during processing, so NFO-derived albums that start as FLAC are staged from the converted MP3 files instead of leaving converted songs behind in `inbound`.
+- Storage-transfer chaining now treats albums merged into existing storage directories as handled work, so the next ingestion step can continue after merge-only batches.
+- Full-scan artist lookup work now shares one run-scoped cache across inbound processing and staging revalidation, including forced revalidation lookups.
+- Artist search persistence now retries transient DecentDB transaction conflicts while surfacing non-retryable DecentDB provider errors without retrying them.
+- Compound release artists such as `Artist One feat. Artist Two` now get conservative fallback artist lookups when the fallback candidate has trusted identity data and matching release evidence.
+- Staging revalidation now skips albums whose artist metadata is blank or obviously unsearchable instead of repeatedly calling external artist providers.
+- Forced staging revalidation no longer expands compound artist names into multiple fallback provider searches, preventing `mcli library scan` from appearing hung on batches of invalid collaboration artists.
+- Move-mode inbound cleanup now removes source residue files such as release artwork and `.txt` notes only after media files are gone, allowing empty inbound release directories to be removed without deleting unprocessed media.
+- Inbound processing now defers directories whose files are still changing instead of partially staging releases while the source copy is still in progress.
+- Media conversion now accepts a valid generated MP3 when ffmpeg produced usable output but ATL reports an unexpected format label, preventing converted tracks from being stranded in inbound.
+- External artist provider searches now honor bounded requested result limits instead of requesting unbounded provider result sets during forced lookups.
+- iTunes artist searches now deserialize large Apple artist, collection, AMG, and genre identifiers without failing, and artist image searches correctly send the requested result limit.
+- NFO parsing now ignores malformed track lines and missing artist metadata without emitting parser stack traces.
+- Inbound staging now reports missing staged files once per album when skipping tag updates instead of generating repeated per-song update warnings.
+
 ## [2.1.0] - 2026-05-24
 
 ### Changed
 
-- **Replaced `SixLabors.ImageSharp` with `SkiaSharp`** for all image processing operations. A new `IImageProcessor` abstraction centralizes decode, encode, resize, format identification, and average-hash computation. `ImageHasher`, `ImageConvertor`, and `ImageValidator` now receive `IImageProcessor` via dependency injection rather than using static library calls. All services, Blazor components, CLI commands, and test constructors were updated consistently. SkiaSharp native assets are included conditionally (`SkiaSharp.NativeAssets.Linux` on Linux) so builds work across platforms without extra runtime dependencies.
+- **Replaced the legacy image processing library with `SkiaSharp`** for all image processing operations.
+  A new `IImageProcessor` abstraction centralizes decode, encode, resize, format
+  identification, and average-hash computation. `ImageHasher`, `ImageConvertor`, and
+  `ImageValidator` now receive `IImageProcessor` via dependency injection rather than
+  using static library calls. All services, Blazor components, CLI commands, and test
+  constructors were updated consistently. SkiaSharp native assets are included
+  conditionally (`SkiaSharp.NativeAssets.Linux` on Linux) so builds work across
+  platforms without extra runtime dependencies.
 - Set min-width on album detail action column for layout stability
 - Remove unnecessary EnsureArtistAliasTableAsync call in MusicBrainz repository
 - Dashboard data loading moved from `OnInitializedAsync` to `OnAfterRenderAsync` so skeleton placeholders render immediately instead of blocking the initial page render.
 - Bulk delete operations in `SongService`, `AlbumService`, and `ArtistService` now batch-load entities in a single query instead of executing N+1 queries per item, significantly improving performance for large deletions.
 - Quartz job scheduling extracted into `QuartzSchedulerExtensions.ScheduleJobIfConfigured<TJob>` helper method, reducing `Program.cs` from 1,046 to ~860 lines and eliminating ~150 lines of repetitive scheduling code.
-- **Squashed 55 EF Core migrations into a single `InitialBaseline` migration.** The migration history (107 files spanning Feb 2025 – Jan 2026) has been consolidated into one baseline file that generates the complete current schema. This reduces repository size, speeds up CI builds, and eliminates fragile migration chains. Existing databases that have already applied the latest migration are unaffected; new setups will apply only the single baseline.
+- **Squashed 55 EF Core migrations into a single `InitialBaseline` migration.** The
+  migration history (107 files spanning Feb 2025 – Jan 2026) has been consolidated into
+  one baseline file that generates the complete current schema. This reduces repository
+  size, speeds up CI builds, and eliminates fragile migration chains. Existing databases
+  that have already applied the latest migration are unaffected; new setups will apply
+  only the single baseline.
 - Added `.kilo/` project configuration with slash commands (`/build`, `/test`, `/test-mql`, `/lint`, `/migrate`, `/coverage`) and a project-aware `melodee-developer` agent for consistent developer workflows.
 - Dropped JavaScript/TypeScript from CodeQL analysis — the repository contains only minimal JS files (jQuery, lunr.js in docs site), and scanning them wasted ~5–10 minutes per CI run with no security value.
-- **Refactored `PartyModeService` to call domain services directly instead of making HTTP requests to the same application.** Replaced `HttpClient` with `PartySessionService`, `PartyQueueService`, `PartyPlaybackService`, and `PartySessionEndpointRegistryService` via dependency injection. User identity resolved through `IAuthService.CurrentUser` rather than cookie auth. Eliminates ~20 HTTP round-trips per user interaction (create, join, leave, queue, playback, endpoints) in party mode Blazor components.
+- **Refactored `PartyModeService` to call domain services directly instead of making HTTP
+  requests to the same application.** Replaced `HttpClient` with `PartySessionService`,
+  `PartyQueueService`, `PartyPlaybackService`, and `PartySessionEndpointRegistryService`
+  via dependency injection. User identity resolved through `IAuthService.CurrentUser`
+  rather than cookie auth. Eliminates ~20 HTTP round-trips per user interaction (create,
+  join, leave, queue, playback, endpoints) in party mode Blazor components.
 
 ### Security
 

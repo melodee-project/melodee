@@ -138,6 +138,92 @@ public class DoctorServiceTests
     }
 
     [Fact]
+    public async Task GetAttentionChecksAsync_WhenMusicBrainzDecentDbFormatUnsupported_ReturnsVisibleIssue()
+    {
+        ConfigurePrimaryDatabaseCanConnect();
+
+        var musicBrainzPath = CreateNonEmptyFile("musicbrainz-unsupported-attention");
+        var artistSearchPath = Path.Combine(Path.GetTempPath(), $"artist-search-compatible-{Guid.NewGuid():N}.ddb");
+
+        try
+        {
+            var artistSearchOptions = CreateArtistSearchOptions(artistSearchPath);
+            await using (var artistSearchContext = new ArtistSearchEngineServiceDbContext(artistSearchOptions))
+            {
+                await artistSearchContext.Database.EnsureCreatedAsync();
+            }
+            ConfigureArtistSearchDatabase(artistSearchOptions);
+
+            _musicBrainzDbContextFactory
+                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("unsupported DecentDB file format version 11"));
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+            });
+            var service = CreateService(configuration);
+
+            var results = await service.GetAttentionChecksAsync();
+
+            var musicBrainzCheck = Assert.Single(results, x => x.Name == "MusicBrainzDatabase");
+            Assert.False(musicBrainzCheck.Success);
+            Assert.Contains("not supported by the current DecentDB provider", musicBrainzCheck.Details);
+            Assert.Contains("unsupported DecentDB file format version 11", musicBrainzCheck.Details);
+        }
+        finally
+        {
+            DeleteDatabaseArtifacts(musicBrainzPath);
+            DeleteDatabaseArtifacts(artistSearchPath);
+        }
+    }
+
+    [Fact]
+    public async Task GetAttentionChecksAsync_WhenArtistSearchDecentDbFormatUnsupported_ReturnsVisibleIssue()
+    {
+        ConfigurePrimaryDatabaseCanConnect();
+
+        var musicBrainzPath = Path.Combine(Path.GetTempPath(), $"musicbrainz-compatible-{Guid.NewGuid():N}.ddb");
+        var artistSearchPath = CreateNonEmptyFile("artist-search-unsupported-attention");
+
+        try
+        {
+            var musicBrainzOptions = CreateMusicBrainzOptions(musicBrainzPath);
+            await using (var musicBrainzContext = new MusicBrainzDbContext(musicBrainzOptions))
+            {
+                await musicBrainzContext.Database.EnsureCreatedAsync();
+            }
+            ConfigureMusicBrainzDatabase(musicBrainzOptions);
+
+            _artistSearchEngineDbContextFactory
+                .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("unsupported DecentDB file format version 11"));
+
+            var configuration = CreateConfiguration(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test",
+                ["ConnectionStrings:MusicBrainzConnection"] = $"Data Source={musicBrainzPath}",
+                ["ConnectionStrings:ArtistSearchEngineConnection"] = $"Data Source={artistSearchPath}"
+            });
+            var service = CreateService(configuration);
+
+            var results = await service.GetAttentionChecksAsync();
+
+            var artistSearchCheck = Assert.Single(results, x => x.Name == "ArtistSearchEngineDatabase");
+            Assert.False(artistSearchCheck.Success);
+            Assert.Contains("not supported by the current DecentDB provider", artistSearchCheck.Details);
+            Assert.Contains("unsupported DecentDB file format version 11", artistSearchCheck.Details);
+        }
+        finally
+        {
+            DeleteDatabaseArtifacts(musicBrainzPath);
+            DeleteDatabaseArtifacts(artistSearchPath);
+        }
+    }
+
+    [Fact]
     public async Task IsMusicBrainzDatabaseEmptyAsync_NoConnectionString_ReturnsTrue()
     {
         var configuration = CreateConfiguration(new Dictionary<string, string?>());

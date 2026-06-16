@@ -1,4 +1,16 @@
+using Melodee.Common.Configuration;
+using Melodee.Common.Data;
+using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
+using Melodee.Common.Plugins.SearchEngine;
+using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
+using Melodee.Common.Plugins.SearchEngine.Spotify;
+using Melodee.Common.Serialization;
+using Melodee.Common.Services;
+using Melodee.Common.Services.Caching;
+using Melodee.Common.Services.SearchEngines;
+using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace Melodee.Tests.Common.Services.SearchEngines;
 
@@ -329,4 +341,122 @@ public class AlbumImageSearchEngineServiceTests : ServiceTestBase
         Assert.NotNull(result.Data);
     }
 
+    [Fact]
+    public async Task DoSearchAsync_WithMultipleEnabledPlugins_StartsProvidersConcurrently()
+    {
+        var releaseSearches = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstPlugin = new BlockingAlbumImageSearchEnginePlugin("First", 10, 1, releaseSearches);
+        var secondPlugin = new BlockingAlbumImageSearchEnginePlugin("Second", 20, 2, releaseSearches);
+        var service = GetAlbumImageSearchEngineServiceWithPlugins(firstPlugin, secondPlugin);
+        var query = new AlbumQuery
+        {
+            Name = "Parallel Album",
+            Artist = "Parallel Artist",
+            Year = 2024
+        };
+
+        var searchTask = service.DoSearchAsync(query, 1);
+
+        await Task.WhenAll(firstPlugin.Started, secondPlugin.Started).WaitAsync(TimeSpan.FromSeconds(1));
+        releaseSearches.SetResult(true);
+
+        var result = await searchTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Single(result.Data);
+        Assert.Equal("Second", result.Data[0].FromPlugin);
+    }
+
+    private AlbumImageSearchEngineService GetAlbumImageSearchEngineServiceWithPlugins(
+        params IAlbumImageSearchEnginePlugin[] searchEngines)
+    {
+        return new TestAlbumImageSearchEngineService(
+            Logger,
+            CacheManager,
+            Serializer,
+            MockSettingService(),
+            MockConfigurationFactory(),
+            MockFactory(),
+            GetMusicBrainzRepository(),
+            MockSpotifyClientBuilder(),
+            MockHttpClientFactory(),
+            searchEngines);
+    }
+
+    private sealed class TestAlbumImageSearchEngineService(
+        ILogger logger,
+        ICacheManager cacheManager,
+        ISerializer serializer,
+        SettingService settingService,
+        IMelodeeConfigurationFactory configurationFactory,
+        IDbContextFactory<MelodeeDbContext> contextFactory,
+        IMusicBrainzRepository musicBrainzRepository,
+        ISpotifyClientBuilder spotifyClientBuilder,
+        IHttpClientFactory httpClientFactory,
+        IReadOnlyCollection<IAlbumImageSearchEnginePlugin> searchEngines)
+        : AlbumImageSearchEngineService(
+            logger,
+            cacheManager,
+            serializer,
+            settingService,
+            configurationFactory,
+            contextFactory,
+            musicBrainzRepository,
+            spotifyClientBuilder,
+            httpClientFactory)
+    {
+        protected override IReadOnlyCollection<IAlbumImageSearchEnginePlugin> CreateSearchEngines(IMelodeeConfiguration configuration)
+        {
+            return searchEngines;
+        }
+    }
+
+    private sealed class BlockingAlbumImageSearchEnginePlugin(
+        string displayName,
+        short rank,
+        long uniqueId,
+        TaskCompletionSource<bool> releaseSearch) : IAlbumImageSearchEnginePlugin
+    {
+        private readonly TaskCompletionSource<bool> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Started => _started.Task;
+
+        public bool StopProcessing => false;
+
+        public string Id => uniqueId.ToString();
+
+        public string DisplayName => displayName;
+
+        public bool IsEnabled { get; set; } = true;
+
+        public int SortOrder { get; } = 1;
+
+        public async Task<OperationResult<ImageSearchResult[]?>> DoAlbumImageSearch(
+            AlbumQuery query,
+            int maxResults,
+            CancellationToken cancellationToken = default)
+        {
+            _started.SetResult(true);
+            await releaseSearch.Task.WaitAsync(cancellationToken);
+
+            return new OperationResult<ImageSearchResult[]?>
+            {
+                Data =
+                [
+                    new ImageSearchResult
+                    {
+                        FromPlugin = displayName,
+                        Rank = rank,
+                        UniqueId = uniqueId,
+                        Width = 600,
+                        Height = 600,
+                        ThumbnailUrl = $"https://example.com/{uniqueId}.jpg",
+                        MediaUrl = $"https://example.com/{uniqueId}.jpg",
+                        Title = displayName
+                    }
+                ]
+            };
+        }
+    }
 }

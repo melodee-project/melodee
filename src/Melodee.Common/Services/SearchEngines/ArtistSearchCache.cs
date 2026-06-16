@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Melodee.Common.Models.SearchEngines;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Utility;
 
 namespace Melodee.Common.Services.SearchEngines;
 
@@ -98,17 +99,13 @@ public sealed class ArtistSearchCache : ICacheInvalidatable
 
     private string GenerateKey(ArtistQuery query)
     {
-        // Create a unique key based on normalized artist name
-        return $"{query.NameNormalized}|{query.MusicBrainzId}|{query.SpotifyId}".ToUpperInvariant();
+        // Create a stable key from normalized artist identity so equivalent names share cache entries.
+        var normalizedName = UnicodeNormalizer.NormalizeForSearch(query.NameNormalized ?? query.Name);
+        return $"{normalizedName}|{query.MusicBrainzId}|{query.SpotifyId}".ToUpperInvariant();
     }
 
     private void CleanExpiredEntries()
     {
-        if (_cache.Count <= _maxCacheSize)
-        {
-            return;
-        }
-
         var now = DateTime.UtcNow;
         var expiredKeys = _cache
             .Where(kvp => kvp.Value.Expiry <= now)

@@ -70,6 +70,7 @@ builder.Configuration
 
 Trace.Listeners.Clear();
 Trace.Listeners.Add(new ConsoleTraceListener());
+ATL.Settings.OutputStacktracesToConsole = false;
 
 builder.Host.UseSerilog((hostingContext, loggerConfiguration)
     => loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration));
@@ -165,6 +166,8 @@ if (!skipDbRegistration)
     {
         options.UseDecentDB(builder.Configuration.GetConnectionString("MusicBrainzConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
     });
+
+    builder.Services.AddHostedService<MusicBrainzDecentDbWarmupHostedService>();
 }
 
 builder.Services.AddApiVersioning(options =>
@@ -535,6 +538,7 @@ builder.Services
     .AddSingleton<StreamingLimiter>()
     .AddSingleton<EtagRepository>()
     .AddScoped<IMusicBrainzRepository, DecentDBMusicBrainzRepository>()
+    .AddScoped<MusicBrainzDecentDbWarmupService>()
     .AddScoped<SettingService>()
     .AddScoped<ArtistService>()
     .AddScoped<IBaseUrlService, BaseUrlService>()
@@ -561,6 +565,7 @@ builder.Services
     .AddSingleton<IPasswordHashService, PasswordHashService>()
     .AddSingleton<ISecretProtector, SecretProtector>()
     .AddScoped<AlbumDiscoveryService>()
+    .AddSingleton<IStagingAlbumRevalidationStateStore, StagingAlbumRevalidationStateStore>()
     .AddScoped<MediaEditService>()
     .AddScoped<DirectoryProcessorToStagingService>()
     .AddScoped<IScriptAdminService, ScriptAdminService>()

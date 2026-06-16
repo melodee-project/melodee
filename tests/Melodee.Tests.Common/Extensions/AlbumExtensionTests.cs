@@ -92,6 +92,57 @@ public class AlbumExtensionTests : TestsBase
     }
 
     [Fact]
+    public void RenumberImages_WhenCopiedImageHasDifferentOriginalName_KeepsStagedImage()
+    {
+        var albumDirectory = Path.Combine(Path.GetTempPath(), $"melodee-renumber-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(albumDirectory);
+
+        try
+        {
+            var stagedImagePath = Path.Combine(albumDirectory, "i-01-Front.jpg");
+            File.WriteAllText(stagedImagePath, "image");
+
+            var album = NewAlbum();
+            album.Directory = new FileSystemDirectoryInfo
+            {
+                Path = albumDirectory,
+                Name = Path.GetFileName(albumDirectory)
+            };
+            album.Images =
+            [
+                new ImageInfo
+                {
+                    CrcHash = "abc123",
+                    FileInfo = new FileSystemFileInfo
+                    {
+                        Name = "i-01-Front.jpg",
+                        OriginalName = "cover.jpg",
+                        Size = new FileInfo(stagedImagePath).Length
+                    },
+                    PictureIdentifier = PictureIdentifier.Front,
+                    Width = 1200,
+                    Height = 1200,
+                    SortOrder = 1
+                }
+            ];
+
+            var result = album.RenumberImages();
+
+            Assert.True(result);
+            var image = Assert.Single(album.Images!);
+            Assert.Equal("i-01-Front.jpg", image.FileInfo!.Name);
+            Assert.NotNull(album.CoverImage());
+        }
+        finally
+        {
+            if (Directory.Exists(albumDirectory))
+            {
+                Directory.Delete(albumDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
     public void NonEnglishTags_DoNotThrow_WhenCreatingDirectoryAndJsonNames()
     {
         var album = new Album

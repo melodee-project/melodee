@@ -14,6 +14,7 @@ using Melodee.Common.Plugins.Conversion;
 using Melodee.Common.Plugins.Conversion.Image;
 using Melodee.Common.Plugins.Conversion.Media;
 using Melodee.Common.Plugins.MetaData.Directory;
+using Melodee.Common.Plugins.MetaData.Directory.Blackbeard;
 using Melodee.Common.Plugins.MetaData.Directory.Nfo;
 using Melodee.Common.Plugins.MetaData.Song;
 using Melodee.Common.Plugins.Processor;
@@ -56,7 +57,21 @@ public sealed class DirectoryProcessorToStagingService(
     IImageProcessor imageProcessor)
     : ServiceBase(logger, cacheManager, contextFactory), IDisposable
 {
+    private const string CueSheetExtension = "CUE";
+    private static readonly HashSet<string> SourceSidecarMetadataExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        CueSheetExtension,
+        M3UPlaylist.HandlesExtension,
+        Nfo.HandlesExtension,
+        SimpleFileVerification.HandlesExtension
+    };
+    private static readonly HashSet<string> SourceResidueTextExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "txt"
+    };
+
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
+    private readonly SemaphoreSlim _conversionThrottle = new(CalculateMaxConcurrentConversions(Environment.ProcessorCount));
     private bool _disposed;
     private IAlbumNamesInDirectoryPlugin _albumNamesInDirectoryPlugin = null!;
     private IAlbumValidator _albumValidator = new AlbumValidator(new MelodeeConfiguration([]));
@@ -96,6 +111,20 @@ public sealed class DirectoryProcessorToStagingService(
     {
         _disposed = true;
         _processingThrottle.Dispose();
+        _conversionThrottle.Dispose();
+    }
+
+    /// <summary>
+    ///     Calculates the conversion concurrency cap used to avoid saturating CPU and disk with ffmpeg processes.
+    /// </summary>
+    public static int CalculateMaxConcurrentConversions(int processorCount)
+    {
+        if (processorCount < 1)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, Math.Min(2, processorCount / 2));
     }
 
     public async Task InitializeAsync(IMelodeeConfiguration? configuration = null, CancellationToken token = default)
@@ -127,7 +156,7 @@ public sealed class DirectoryProcessorToStagingService(
         [
             new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer), imageProcessor, _imageConvertor, _imageValidator,
                 _configuration),
-            new IdSharpMetaTag(new MetaTagsProcessor(_configuration, serializer), _configuration)
+            new NativeId3MetaTag(new MetaTagsProcessor(_configuration, serializer), _configuration)
         ];
         _albumNamesInDirectoryPlugin = new AtlMetaTag(new MetaTagsProcessor(_configuration, serializer),
             imageProcessor, _imageConvertor, _imageValidator, _configuration);
@@ -143,6 +172,10 @@ public sealed class DirectoryProcessorToStagingService(
             new CueSheet(serializer, _songPlugins, _albumValidator, _configuration)
             {
                 IsEnabled = _configuration.GetValue<bool>(SettingRegistry.PluginEnabledCueSheet)
+            },
+            new Blackbeard(serializer, _albumValidator, _configuration)
+            {
+                IsEnabled = _configuration.GetValue<bool?>(SettingRegistry.PluginEnabledBlackbeard) ?? true
             },
             new SimpleFileVerification(serializer, _songPlugins, _albumValidator, _configuration)
             {
@@ -194,12 +227,35 @@ public sealed class DirectoryProcessorToStagingService(
         FileSystemDirectoryInfo fileSystemDirectoryInfo, Instant? lastProcessDate, int? maxAlbumsToProcess,
         CancellationToken cancellationToken = default)
     {
-        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, null, cancellationToken);
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, (int?)null, cancellationToken);
+    }
+
+    public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo,
+        Instant? lastProcessDate,
+        int? maxAlbumsToProcess,
+        DirectoryRunContext? runContext,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, null, runContext, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
         FileSystemDirectoryInfo fileSystemDirectoryInfo, Instant? lastProcessDate, int? maxAlbumsToProcess,
         int? libraryId,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessDirectoryAsync(fileSystemDirectoryInfo, lastProcessDate, maxAlbumsToProcess, libraryId, null, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<OperationResult<DirectoryProcessorResult>> ProcessDirectoryAsync(
+        FileSystemDirectoryInfo fileSystemDirectoryInfo,
+        Instant? lastProcessDate,
+        int? maxAlbumsToProcess,
+        int? libraryId,
+        DirectoryRunContext? runContext,
         CancellationToken cancellationToken = default)
     {
         CheckInitialized();
@@ -236,8 +292,9 @@ public sealed class DirectoryProcessorToStagingService(
 
         var startTicks = Stopwatch.GetTimestamp();
 
-        // Create a run context for caching and observability
-        using var runContext = new DirectoryRunContext();
+        // Standalone processing owns the run context; full library scans pass one shared context across stages.
+        using var localRunContext = runContext is null ? new DirectoryRunContext() : null;
+        var activeRunContext = runContext ?? localRunContext!;
 
         // Ensure directory to process exists
         Trace.WriteLine($"Ensuring processing path [{fileSystemDirectoryInfo.Path}] exists...");
@@ -355,12 +412,12 @@ public sealed class DirectoryProcessorToStagingService(
                         artistsIdsSeen,
                         albumsIdsSeen,
                         songsIdsSeen,
-                        runContext,
+                        activeRunContext,
                         libraryId,
                         ct);
                     numberOfAlbumsProcessed += processingResult.Item1;
                     numberOfValidAlbumsProcessed += processingResult.Item2;
-                    runContext.IncrementDirectoriesProcessed();
+                    activeRunContext.IncrementDirectoriesProcessed();
 
                     var currentCount = Interlocked.Increment(ref processedCount);
                     if (currentCount >= nextProgressReport || currentCount == totalDirectories)
@@ -423,6 +480,11 @@ public sealed class DirectoryProcessorToStagingService(
             }
         }
 
+        if (_configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal))
+        {
+            DeleteSourceResidueOnlyDirectoryFiles(fileSystemDirectoryInfo, Logger);
+        }
+
         fileSystemDirectoryInfo.DeleteAllEmptyDirectories();
 
         LogAndRaiseEvent(LogEventLevel.Debug, "Processing Complete!");
@@ -473,6 +535,12 @@ public sealed class DirectoryProcessorToStagingService(
             Log.Write(logLevel, messageTemplate, args);
         }
 
+        OnProcessingEvent?.Invoke(this, FormatProcessingEventMessage(messageTemplate, exception, args));
+    }
+
+    public static string FormatProcessingEventMessage(string messageTemplate, Exception? exception = null,
+        params object[] args)
+    {
         var eventMessage = messageTemplate;
         if (args.Length > 0)
         {
@@ -480,13 +548,15 @@ public sealed class DirectoryProcessorToStagingService(
             {
                 eventMessage = Smart.Format(eventMessage, args);
             }
-            catch (Exception e)
+            catch
             {
-                Trace.WriteLine(e);
+                eventMessage = $"{messageTemplate} [{string.Join(", ", args.Select(x => x?.ToString() ?? string.Empty))}]";
             }
         }
 
-        OnProcessingEvent?.Invoke(this, exception?.ToString() ?? eventMessage);
+        return exception is null
+            ? eventMessage.ReplaceLineEndings(" ")
+            : $"Error: {eventMessage}: {exception.Message}".ReplaceLineEndings(" ");
     }
 
     private async Task<(int, int)> ProcessSingleDirectoryAsync(
@@ -510,7 +580,19 @@ public sealed class DirectoryProcessorToStagingService(
         Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
         try
         {
-            // Script evaluation hooks - process delete event first, then start event
+            var unstableSourceFile = await FindUnstableSourceFileAsync(directoryInfoToProcess, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            if (unstableSourceFile.Nullify() != null)
+            {
+                var message = $"Deferred directory [{directoryInfoToProcess.Path}] because source file [{unstableSourceFile}] is still changing.";
+                processingMessages.Add(message);
+                LogAndRaiseEvent(LogEventLevel.Warning, message);
+
+                return (numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
+            }
+
+            // Script evaluation hooks can skip a directory, but ingestion must not
+            // physically delete releases before they have a chance to reach staging.
             var scriptResult = await EvaluateDirectoryScriptsAsync(
                 directoryInfoToProcess,
                 cancellationToken);
@@ -602,7 +684,7 @@ public sealed class DirectoryProcessorToStagingService(
                 }
             }
 
-            var convertedSongFiles = false;
+            var convertedSourceFilesByOriginalName = new Dictionary<string, FileSystemFileInfo>(StringComparer.OrdinalIgnoreCase);
 
             // Run Enabled Conversion scripts on each file in directory
             // e.g. Convert FLAC to MP3, Convert non JPEG files into JPEGs, etc.
@@ -625,8 +707,30 @@ public sealed class DirectoryProcessorToStagingService(
 
                     if (plugin.DoesHandleFile(directoryInfoToProcess, fsi))
                     {
-                        var pluginResult = await plugin
-                            .ProcessFileAsync(directoryInfoToProcess, fsi, cancellationToken).ConfigureAwait(false);
+                        await _conversionThrottle.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        var conversionStartTicks = Stopwatch.GetTimestamp();
+                        OperationResult<FileSystemFileInfo> pluginResult;
+                        try
+                        {
+                            pluginResult = await plugin
+                                .ProcessFileAsync(directoryInfoToProcess, fsi, cancellationToken).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            runContext.AddConversionTime((long)Stopwatch.GetElapsedTime(conversionStartTicks).TotalMilliseconds);
+                            if (!_disposed)
+                            {
+                                try
+                                {
+                                    _conversionThrottle.Release();
+                                }
+                                catch (ObjectDisposedException)
+                                {
+                                    // Service shutdown disposed the semaphore while processing was being cancelled.
+                                }
+                            }
+                        }
+
                         if (!pluginResult.IsSuccess)
                         {
                             // ConcurrentBag doesn't have AddRange, so add items individually
@@ -648,7 +752,12 @@ public sealed class DirectoryProcessorToStagingService(
                         }
                         else
                         {
-                            convertedSongFiles = pluginResult.Data.Extension(directoryInfoToProcess) != originalFileExtension;
+                            if (!string.Equals(pluginResult.Data.Extension(directoryInfoToProcess), originalFileExtension,
+                                    StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(pluginResult.Data.Name, fsi.Name, StringComparison.OrdinalIgnoreCase))
+                            {
+                                convertedSourceFilesByOriginalName[fsi.Name] = pluginResult.Data;
+                            }
                         }
                     }
 
@@ -659,16 +768,10 @@ public sealed class DirectoryProcessorToStagingService(
                 }
             }
 
-            if (convertedSongFiles)
+            if (convertedSourceFilesByOriginalName.Count > 0)
             {
-                // Delete any melodee json files and let them get recreated as part of the conversion process
-                var melodeeFiles = directoryInfoToProcess.MelodeeJsonFiles().Select(f => f.FullName).ToList();
-                if (melodeeFiles.Count > 0)
-                {
-                    var deletedCount = await OptimizedFileOperations.DeleteFilesAsync(melodeeFiles, cancellationToken)
-                        .ConfigureAwait(false);
-                    LogAndRaiseEvent(LogEventLevel.Debug, "Deleted [{0}] existing Melodee files", null, deletedCount);
-                }
+                LogAndRaiseEvent(LogEventLevel.Debug, "Mapped [{0}] converted source files for staging", null,
+                    convertedSourceFilesByOriginalName.Count);
             }
 
             // If no albums were created by previous plugins, create from media files
@@ -730,6 +833,7 @@ public sealed class DirectoryProcessorToStagingService(
                 albumsIdsSeen,
                 songsIdsSeen,
                 runContext,
+                convertedSourceFilesByOriginalName,
                 cancellationToken);
             numberOfAlbumsProcessed += processingResult.Item1;
             numberOfValidAlbumsProcessed += processingResult.Item2;
@@ -751,6 +855,7 @@ public sealed class DirectoryProcessorToStagingService(
         ConcurrentBag<long?> albumsIdsSeen,
         ConcurrentBag<Guid> songsIdsSeen,
         DirectoryRunContext runContext,
+        IReadOnlyDictionary<string, FileSystemFileInfo> convertedSourceFilesByOriginalName,
         CancellationToken cancellationToken)
     {
         var httpClient = httpClientFactory.CreateClient();
@@ -848,32 +953,52 @@ public sealed class DirectoryProcessorToStagingService(
                 // Prepare song file operations
                 if (album.Songs != null)
                 {
-                    foreach (var song in album.Songs.Where(x => x.File.OriginalName != null))
+                    var songs = album.Songs.ToArray();
+                    for (var i = 0; i < songs.Length; i++)
                     {
                         if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
                         {
                             break;
                         }
 
-                        if (song.File.OriginalName != null)
+                        var song = songs[i];
+                        if (!TryResolveSourceFileForStaging(
+                                album.OriginalDirectory,
+                                song.File,
+                                convertedSourceFilesByOriginalName,
+                                fileSystemService,
+                                out var sourceSongFile,
+                                out var oldSongFilename))
                         {
-                            var oldSongFilename = fileSystemService.CombinePath(album.OriginalDirectory.FullName(),
-                                song.File.OriginalName!);
-                            if (!fileSystemService.FileExists(oldSongFilename))
-                            {
-                                continue;
-                            }
+                            continue;
+                        }
 
-                            var newSongFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(),
-                                song.ToSongFileName(albumDirectorySystemInfo));
-                            if (!string.Equals(oldSongFilename, newSongFileName,
-                                    StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(song.File.Name, sourceSongFile.Name, StringComparison.OrdinalIgnoreCase) ||
+                            song.File.Size != sourceSongFile.Size)
+                        {
+                            song = song with
                             {
-                                filesToCopy.Add((oldSongFilename, newSongFileName));
-                                song.File.Name = fileSystemService.GetFileName(newSongFileName);
-                            }
+                                File = new FileSystemFileInfo
+                                {
+                                    Name = sourceSongFile.Name,
+                                    Size = sourceSongFile.Size,
+                                    OriginalName = sourceSongFile.Name
+                                }
+                            };
+                            songs[i] = song;
+                        }
+
+                        var newSongFileName = fileSystemService.CombinePath(albumDirectorySystemInfo.FullName(),
+                            song.ToSongFileName(albumDirectorySystemInfo));
+                        if (!string.Equals(oldSongFilename, newSongFileName,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            filesToCopy.Add((oldSongFilename, newSongFileName));
+                            song.File.Name = fileSystemService.GetFileName(newSongFileName);
                         }
                     }
+
+                    album.Songs = songs;
                 }
 
                 // Perform batch file operations with streaming and timing
@@ -902,11 +1027,31 @@ public sealed class DirectoryProcessorToStagingService(
                         album.Songs!.Any(x => (x.Tags ?? []).Any(y => y.WasModified)))
                     {
                         Trace.WriteLine("Running plugins on songs with modified tags...");
+                        var songsWithModifiedTags = album.Songs
+                            .Where(x => x.Tags?.Any(t => t.WasModified) ?? false)
+                            .ToArray();
+                        var songsWithExistingFiles = songsWithModifiedTags
+                            .Where(x => File.Exists(x.File.FullName(albumDirectorySystemInfo)))
+                            .ToArray();
+                        var missingSongFiles = songsWithModifiedTags
+                            .Except(songsWithExistingFiles)
+                            .Select(x => x.File.Name)
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray();
+
+                        if (missingSongFiles.Length > 0)
+                        {
+                            Logger.Warning(
+                                "[{Name}] Skipping tag updates for [{Count}] missing staged files in album [{Album}] (examples: {Samples})",
+                                nameof(DirectoryProcessorToStagingService),
+                                missingSongFiles.Length,
+                                album.AlbumTitle(),
+                                string.Join(", ", missingSongFiles.Take(3)));
+                        }
 
                         foreach (var songPlugin in _songPlugins)
                         {
-                            foreach (var song in album.Songs.Where(x =>
-                                         x.Tags?.Any(t => t.WasModified) ?? false))
+                            foreach (var song in songsWithExistingFiles)
                             {
                                 if (cancellationToken.IsCancellationRequested || _stopProcessingTriggered)
                                 {
@@ -1174,6 +1319,19 @@ public sealed class DirectoryProcessorToStagingService(
                     {
                         fileSystemService.DeleteFile(album.MelodeeDataFileName);
                     }
+
+                    if (deleteOriginal)
+                    {
+                        var deletedSourceMetadataFiles = DeleteSourceSidecarMetadataFiles(album.OriginalDirectory, Logger);
+                        if (deletedSourceMetadataFiles > 0)
+                        {
+                            LogAndRaiseEvent(LogEventLevel.Debug,
+                                "Deleted [{0}] source metadata sidecar files for album [{1}]",
+                                null,
+                                deletedSourceMetadataFiles,
+                                album.AlbumTitle() ?? string.Empty);
+                        }
+                    }
                 }
                 else
                 {
@@ -1194,7 +1352,264 @@ public sealed class DirectoryProcessorToStagingService(
         return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
     }
 
+    public static bool IsSourceSidecarMetadataFile(FileInfo fileInfo)
+    {
+        if (fileInfo.Name.DoStringsMatch(Blackbeard.HandlesFileName))
+        {
+            return true;
+        }
+
+        var extension = fileInfo.Extension.TrimStart('.');
+        return SourceSidecarMetadataExtensions.Contains(extension);
+    }
+
+    public static bool IsSourceResidueFile(FileInfo fileInfo)
+    {
+        if (IsSourceSidecarMetadataFile(fileInfo))
+        {
+            return true;
+        }
+
+        var extension = fileInfo.Extension.TrimStart('.');
+        return FileHelper.IsFileImageType(extension) ||
+               SourceResidueTextExtensions.Contains(extension);
+    }
+
+    public static async Task<string?> FindUnstableSourceFileAsync(
+        FileSystemDirectoryInfo directoryInfo,
+        int delayMs = 250,
+        CancellationToken cancellationToken = default)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists)
+        {
+            return null;
+        }
+
+        var firstSnapshot = SnapshotSourceFiles(dirInfo);
+        if (firstSnapshot.Count == 0)
+        {
+            return null;
+        }
+
+        await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+
+        var secondSnapshot = SnapshotSourceFiles(dirInfo);
+        foreach (var (path, first) in firstSnapshot)
+        {
+            if (!secondSnapshot.TryGetValue(path, out var second) ||
+                first.Length != second.Length ||
+                first.LastWriteTimeUtc != second.LastWriteTimeUtc)
+            {
+                return path;
+            }
+        }
+
+        return secondSnapshot.Keys.FirstOrDefault(path => !firstSnapshot.ContainsKey(path));
+    }
+
+    public static bool TryResolveSourceFileForStaging(
+        FileSystemDirectoryInfo sourceDirectory,
+        FileSystemFileInfo file,
+        IReadOnlyDictionary<string, FileSystemFileInfo> convertedSourceFilesByOriginalName,
+        IFileSystemService fileSystemService,
+        out FileSystemFileInfo sourceFile,
+        out string sourcePath)
+    {
+        sourceFile = file;
+        sourcePath = string.Empty;
+
+        var sourceName = file.OriginalName.Nullify() ?? file.Name;
+        if (convertedSourceFilesByOriginalName.TryGetValue(sourceName, out var convertedSourceFile) &&
+            TryResolveSourceFile(sourceDirectory, convertedSourceFile.Name, convertedSourceFile, fileSystemService,
+                out sourceFile, out sourcePath))
+        {
+            return true;
+        }
+
+        if (!string.Equals(sourceName, file.Name, StringComparison.OrdinalIgnoreCase) &&
+            convertedSourceFilesByOriginalName.TryGetValue(file.Name, out convertedSourceFile) &&
+            TryResolveSourceFile(sourceDirectory, convertedSourceFile.Name, convertedSourceFile, fileSystemService,
+                out sourceFile, out sourcePath))
+        {
+            return true;
+        }
+
+        if (TryResolveSourceFile(sourceDirectory, sourceName, file, fileSystemService, out sourceFile, out sourcePath))
+        {
+            return true;
+        }
+
+        return !string.Equals(sourceName, file.Name, StringComparison.OrdinalIgnoreCase) &&
+               TryResolveSourceFile(sourceDirectory, file.Name, file, fileSystemService, out sourceFile, out sourcePath);
+    }
+
+    private static bool TryResolveSourceFile(
+        FileSystemDirectoryInfo sourceDirectory,
+        string sourceName,
+        FileSystemFileInfo file,
+        IFileSystemService fileSystemService,
+        out FileSystemFileInfo sourceFile,
+        out string sourcePath)
+    {
+        sourceFile = file;
+        sourcePath = fileSystemService.CombinePath(sourceDirectory.FullName(), sourceName);
+        return fileSystemService.FileExists(sourcePath);
+    }
+
+    public static bool IsSourceMetadataOnlyDirectory(FileSystemDirectoryInfo directoryInfo)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists || dirInfo.EnumerateDirectories("*", SearchOption.TopDirectoryOnly).Any())
+        {
+            return false;
+        }
+
+        var files = dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly).ToArray();
+        return files.Length > 0 && files.All(IsSourceSidecarMetadataFile);
+    }
+
+    public static bool IsSourceResidueOnlyDirectory(FileSystemDirectoryInfo directoryInfo)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists || dirInfo.EnumerateDirectories("*", SearchOption.TopDirectoryOnly).Any())
+        {
+            return false;
+        }
+
+        var files = dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly).ToArray();
+        return files.Length > 0 &&
+               !files.Any(file => FileHelper.IsFileMediaType(file.Extension)) &&
+               files.All(IsSourceResidueFile);
+    }
+
+    public static int DeleteSourceSidecarMetadataFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists)
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+                     .Where(IsSourceSidecarMetadataFile))
+        {
+            try
+            {
+                fileInfo.Delete();
+                deletedCount++;
+            }
+            catch (Exception e)
+            {
+                logger?.Warning(e, "Unable to delete source metadata sidecar file [{FileName}]", fileInfo.FullName);
+            }
+        }
+
+        return deletedCount;
+    }
+
+    public static int DeleteSourceResidueFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
+    {
+        var dirInfo = directoryInfo.ToDirectoryInfo();
+        if (!dirInfo.Exists)
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+                     .Where(IsSourceResidueFile))
+        {
+            try
+            {
+                fileInfo.Delete();
+                deletedCount++;
+            }
+            catch (Exception e)
+            {
+                logger?.Warning(e, "Unable to delete source residue file [{FileName}]", fileInfo.FullName);
+            }
+        }
+
+        return deletedCount;
+    }
+
+    public static int DeleteSourceResidueOnlyDirectoryFiles(FileSystemDirectoryInfo rootDirectory, ILogger logger)
+    {
+        var rootDirectoryInfo = rootDirectory.ToDirectoryInfo();
+        if (!rootDirectoryInfo.Exists)
+        {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        foreach (var directoryInfo in rootDirectoryInfo.EnumerateDirectories("*", SearchOption.AllDirectories)
+                     .OrderByDescending(x => x.FullName.Length)
+                     .Select(x => x.ToDirectorySystemInfo()))
+        {
+            if (!IsSourceResidueOnlyDirectory(directoryInfo))
+            {
+                continue;
+            }
+
+            deletedCount += DeleteSourceResidueFiles(directoryInfo, logger);
+            TryDeleteDirectoryIfEmpty(directoryInfo, logger);
+        }
+
+        if (deletedCount > 0)
+        {
+            logger.Information(
+                "[{ServiceName}] Deleted [{Count}] source residue files from media-free directories",
+                nameof(DirectoryProcessorToStagingService),
+                deletedCount);
+        }
+
+        return deletedCount;
+    }
+
     private record DirectoryScriptEvaluationResult(bool ShouldContinue, string? Message = null);
+
+    private static IReadOnlyDictionary<string, SourceFileSnapshot> SnapshotSourceFiles(DirectoryInfo dirInfo)
+    {
+        var snapshot = new Dictionary<string, SourceFileSnapshot>(StringComparer.OrdinalIgnoreCase);
+        foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                snapshot[fileInfo.FullName] = new SourceFileSnapshot(fileInfo.Length, fileInfo.LastWriteTimeUtc);
+            }
+            catch (IOException)
+            {
+                snapshot[fileInfo.FullName] = new SourceFileSnapshot(-1, DateTime.MinValue);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                snapshot[fileInfo.FullName] = new SourceFileSnapshot(-1, DateTime.MinValue);
+            }
+        }
+
+        return snapshot;
+    }
+
+    private static void TryDeleteDirectoryIfEmpty(FileSystemDirectoryInfo directoryInfo, ILogger logger)
+    {
+        try
+        {
+            var dirInfo = directoryInfo.ToDirectoryInfo();
+            if (dirInfo.Exists &&
+                !dirInfo.EnumerateFileSystemInfos("*", SearchOption.TopDirectoryOnly).Any())
+            {
+                dirInfo.Delete();
+            }
+        }
+        catch (Exception e)
+        {
+            logger.Warning(e, "Unable to delete empty source residue directory [{Directory}]", directoryInfo.Path);
+        }
+    }
+
+    private readonly record struct SourceFileSnapshot(long Length, DateTime LastWriteTimeUtc);
 
     private async Task<DirectoryScriptEvaluationResult> EvaluateDirectoryScriptsAsync(
         FileSystemDirectoryInfo directory,
@@ -1207,37 +1622,6 @@ public sealed class DirectoryProcessorToStagingService(
             Logger.Debug("Script context for [{Directory}]: TotalFilesCount={TotalFilesCount}, TotalDurationMinutes={TotalDurationMinutes}, HasTrackNumberGaps={HasTrackNumberGaps}, MediaFilesCount={MediaFilesCount}",
                 directory.Path, context.TotalFilesCount, context.TotalDurationMinutes, context.HasTrackNumberGaps, context.MediaFilesCount);
 
-            // Evaluate DirectoryProcessingDelete script first
-            var deleteResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
-                ScriptEventNames.DirectoryProcessingDelete,
-                context,
-                cancellationToken);
-
-            Logger.Debug("DirectoryProcessingDelete result: Result={Result}, IsDefault={IsDefault}, OnDeny={OnDeny}",
-                deleteResult.Result, deleteResult.IsDefault, deleteResult.OnDeny);
-
-            if (deleteResult.Result && !deleteResult.IsDefault)
-            {
-                var onDeny = deleteResult.OnDeny?.ToLowerInvariant() ?? "delete";
-                if (onDeny == "delete")
-                {
-                    var handler = denyActionHandlerFactory.CreateHandler("delete");
-                    var deleteSuccess = await handler.ExecuteAsync(directory.Path, cancellationToken);
-                    LogAndRaiseEvent(
-                        deleteSuccess ? LogEventLevel.Information : LogEventLevel.Warning,
-                        "DirectoryProcessingDelete script returned true; directory [{0}] {1}",
-                        null,
-                        directory.Path,
-                        deleteSuccess ? "deleted" : "delete failed, continuing processing");
-
-                    if (deleteSuccess)
-                    {
-                        return new DirectoryScriptEvaluationResult(false, "Directory deleted by script");
-                    }
-                }
-            }
-
-            // Evaluate DirectoryProcessingStart script
             var startResult = await scriptOrchestrationService.EvaluateScriptForEventAsync(
                 ScriptEventNames.DirectoryProcessingStart,
                 context,
@@ -1246,6 +1630,14 @@ public sealed class DirectoryProcessorToStagingService(
             if (!startResult.Result && !startResult.IsDefault)
             {
                 var onDeny = startResult.OnDeny?.ToLowerInvariant() ?? "skip";
+                if (onDeny == "delete")
+                {
+                    Logger.Warning(
+                        "DirectoryProcessingStart requested delete for [{Directory}], using skip instead.",
+                        directory.Path);
+                    onDeny = "skip";
+                }
+
                 var handler = denyActionHandlerFactory.CreateHandler(onDeny);
 
                 await handler.ExecuteAsync(directory.Path, cancellationToken);

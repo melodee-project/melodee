@@ -48,6 +48,26 @@ public class MelodeeJobExecutionContextTests
     }
 
     [Fact]
+    public void Constructor_MergedJobDataMap_IsNotNull()
+    {
+        var context = new MelodeeJobExecutionContext(CancellationToken.None);
+
+        Assert.NotNull(context.MergedJobDataMap);
+    }
+
+    [Fact]
+    public void Put_WithStringKey_MirrorsValueToMergedJobDataMap()
+    {
+        var context = new MelodeeJobExecutionContext(CancellationToken.None);
+        const string key = MelodeeJobExecutionContext.ChainOnComplete;
+
+        context.Put(key, true);
+
+        Assert.True(context.MergedJobDataMap.ContainsKey(key));
+        Assert.True(context.MergedJobDataMap.GetBoolean(key));
+    }
+
+    [Fact]
     public void Get_WithNonExistentKey_ReturnsNull()
     {
         var context = new MelodeeJobExecutionContext(CancellationToken.None);
