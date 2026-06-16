@@ -49,7 +49,7 @@ namespace Melodee.Common.Jobs;
 ///         <list type="bullet">
 ///             <item>Inbound library path not configured</item>
 ///             <item>Library is locked (IsLocked=true)</item>
-///             <item>No changes detected since last scan</item>
+///             <item>No changes detected since last scan for scheduled runs</item>
 ///         </list>
 ///     </para>
 ///     <para>
@@ -82,7 +82,7 @@ public sealed class LibraryInboundProcessJob(
             return;
         }
 
-        if (!inboundLibrary.NeedsScanning())
+        if (!ShouldBypassScanTimestamp(context) && !inboundLibrary.NeedsScanning())
         {
             Logger.Debug(
                 "[{JobName}] Inbound library does not need scanning. Directory last scanned [{LastScanAt}], Directory last write [{LastWriteTime}]",
@@ -151,6 +151,17 @@ public sealed class LibraryInboundProcessJob(
     private static bool IsManualTrigger(IJobExecutionContext context)
     {
         return context.Trigger is not ICronTrigger;
+    }
+
+    private static bool IsForceMode(IJobExecutionContext context)
+    {
+        return context.MergedJobDataMap.ContainsKey(MelodeeJobExecutionContext.ForceMode) &&
+               context.MergedJobDataMap.GetBoolean(MelodeeJobExecutionContext.ForceMode);
+    }
+
+    private static bool ShouldBypassScanTimestamp(IJobExecutionContext context)
+    {
+        return IsManualTrigger(context) || IsForceMode(context);
     }
 
     private static bool ShouldChainToNextJob(IJobExecutionContext context)

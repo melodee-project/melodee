@@ -323,11 +323,9 @@ public static class FileSystemDirectoryInfoExtensions
         {
             // Include directories with any files (not just media files) so that 
             // script-based deletion can evaluate and clean up non-media directories
-            var hasFiles = dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly).Any();
-            var hasMediaFiles = hasFiles && dir.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
-                .Any(x => FileHelper.IsFileMediaType(x.Extension));
+            var fileState = GetTopLevelFileProcessState(dir, modifiedSinceValue);
 
-            if (dir.LastWriteTimeUtc >= modifiedSinceValue && (hasMediaFiles || hasFiles))
+            if (ShouldProcessDirectory(dir, fileState, modifiedSinceValue))
             {
                 var fsDir = dir.ToFileSystemDirectoryInfo();
                 if (fsDir != null)
@@ -338,15 +336,60 @@ public static class FileSystemDirectoryInfoExtensions
         }
 
         // Check if the root directory itself has files (media or non-media)
-        var rootHasFiles = dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly).Any();
-        var rootHasMediaFiles = rootHasFiles && dirInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
-            .Any(x => x.LastWriteTimeUtc >= modifiedSinceValue && FileHelper.IsFileMediaType(x.Extension));
-
-        if (rootHasMediaFiles || (rootHasFiles && dirInfo.LastWriteTimeUtc >= modifiedSinceValue))
+        var rootFileState = GetTopLevelFileProcessState(dirInfo, modifiedSinceValue);
+        if (ShouldProcessDirectory(dirInfo, rootFileState, modifiedSinceValue))
         {
             yield return fileSystemDirectoryInfo;
         }
     }
+
+    private static DirectoryProcessFileState GetTopLevelFileProcessState(DirectoryInfo directoryInfo, DateTime modifiedSince)
+    {
+        var hasFiles = false;
+        var hasMediaFiles = false;
+        var hasModifiedMediaFiles = false;
+        var hasMelodeeJsonFiles = false;
+
+        foreach (var fileInfo in directoryInfo.EnumerateFiles("*.*", SearchOption.TopDirectoryOnly))
+        {
+            hasFiles = true;
+            var isMediaFile = FileHelper.IsFileMediaType(fileInfo.Extension);
+            hasMediaFiles |= isMediaFile;
+            hasModifiedMediaFiles |= isMediaFile && fileInfo.LastWriteTimeUtc >= modifiedSince;
+            hasMelodeeJsonFiles |= string.Equals(fileInfo.Name, Album.JsonFileName, StringComparison.OrdinalIgnoreCase);
+
+            if (hasMediaFiles && hasModifiedMediaFiles && hasMelodeeJsonFiles)
+            {
+                break;
+            }
+        }
+
+        return new DirectoryProcessFileState(hasFiles, hasMediaFiles, hasModifiedMediaFiles, hasMelodeeJsonFiles);
+    }
+
+    private static bool ShouldProcessDirectory(
+        DirectoryInfo directoryInfo,
+        DirectoryProcessFileState fileState,
+        DateTime modifiedSince)
+    {
+        if (!fileState.HasFiles)
+        {
+            return false;
+        }
+
+        if (directoryInfo.LastWriteTimeUtc >= modifiedSince || fileState.HasModifiedMediaFiles)
+        {
+            return true;
+        }
+
+        return fileState is { HasMediaFiles: true, HasMelodeeJsonFiles: false };
+    }
+
+    private readonly record struct DirectoryProcessFileState(
+        bool HasFiles,
+        bool HasMediaFiles,
+        bool HasModifiedMediaFiles,
+        bool HasMelodeeJsonFiles);
 
     public static (string, int) GetNextFileNameForType(this FileSystemDirectoryInfo fileSystemDirectoryInfo, string imageType)
     {

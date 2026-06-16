@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Extensions;
+using NodaTime;
 
 namespace Melodee.Tests.Common.Models.Extensions;
 
@@ -309,6 +310,68 @@ public class FileSystemDirectoryInfoExtensionsTests : IDisposable
         mediaDirs.Should().HaveCount(2);
         mediaDirs.Should().Contain(d => d.Name == "CD1");
         mediaDirs.Should().Contain(d => d.Name == "CD2");
+    }
+
+    [Fact]
+    public void GetFileSystemDirectoryInfosToProcess_WithOldUnprocessedMediaDirectory_ReturnsDirectory()
+    {
+        var root = CreateTestDirectory();
+        var albumPath = Path.Combine(root.FullName(), "Album");
+        Directory.CreateDirectory(albumPath);
+        var mediaPath = Path.Combine(albumPath, "song.mp3");
+        File.WriteAllText(mediaPath, "fake media");
+        var oldWriteTime = DateTime.UtcNow.AddDays(-10);
+        File.SetLastWriteTimeUtc(mediaPath, oldWriteTime);
+        Directory.SetLastWriteTimeUtc(albumPath, oldWriteTime);
+
+        var modifiedSince = Instant.FromDateTimeUtc(DateTime.UtcNow.AddDays(-1));
+        var directories = root.GetFileSystemDirectoryInfosToProcess(modifiedSince, SearchOption.AllDirectories).ToList();
+
+        directories.Should().ContainSingle(d => d.Name == "Album");
+    }
+
+    [Fact]
+    public void GetFileSystemDirectoryInfosToProcess_WithOldProcessedMediaDirectory_SkipsDirectory()
+    {
+        var root = CreateTestDirectory();
+        var albumPath = Path.Combine(root.FullName(), "Album");
+        Directory.CreateDirectory(albumPath);
+        var mediaPath = Path.Combine(albumPath, "song.mp3");
+        var metadataPath = Path.Combine(albumPath, Album.JsonFileName);
+        File.WriteAllText(mediaPath, "fake media");
+        File.WriteAllText(metadataPath, "{}");
+        var oldWriteTime = DateTime.UtcNow.AddDays(-10);
+        File.SetLastWriteTimeUtc(mediaPath, oldWriteTime);
+        File.SetLastWriteTimeUtc(metadataPath, oldWriteTime);
+        Directory.SetLastWriteTimeUtc(albumPath, oldWriteTime);
+
+        var modifiedSince = Instant.FromDateTimeUtc(DateTime.UtcNow.AddDays(-1));
+        var directories = root.GetFileSystemDirectoryInfosToProcess(modifiedSince, SearchOption.AllDirectories).ToList();
+
+        directories.Should().NotContain(d => d.Name == "Album");
+    }
+
+    [Fact]
+    public void GetFileSystemDirectoryInfosToProcess_WithModifiedMediaFileInOldProcessedDirectory_ReturnsDirectory()
+    {
+        var root = CreateTestDirectory();
+        var albumPath = Path.Combine(root.FullName(), "Album");
+        Directory.CreateDirectory(albumPath);
+        var mediaPath = Path.Combine(albumPath, "song.mp3");
+        var metadataPath = Path.Combine(albumPath, Album.JsonFileName);
+        File.WriteAllText(mediaPath, "fake media");
+        File.WriteAllText(metadataPath, "{}");
+        var oldWriteTime = DateTime.UtcNow.AddDays(-10);
+        var modifiedSince = DateTime.UtcNow.AddDays(-1);
+        File.SetLastWriteTimeUtc(metadataPath, oldWriteTime);
+        Directory.SetLastWriteTimeUtc(albumPath, oldWriteTime);
+        File.SetLastWriteTimeUtc(mediaPath, DateTime.UtcNow);
+
+        var directories = root
+            .GetFileSystemDirectoryInfosToProcess(Instant.FromDateTimeUtc(modifiedSince), SearchOption.AllDirectories)
+            .ToList();
+
+        directories.Should().ContainSingle(d => d.Name == "Album");
     }
 
     [Fact]

@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.4] - 2026-06-16
+
 ### Added
 
 - Added public DecentDB usage and migration documentation covering Melodee's
@@ -34,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin dashboard and login health warnings now open-check MusicBrainz and
   ArtistSearch DecentDB files and link to the migration guide when unsupported
   DecentDB file-format versions are detected.
+- Manual Library Inbound processing now bypasses the inbound root timestamp
+  shortcut so admin-triggered and force-mode scans inspect waiting releases.
+- Library Inbound scan selection now treats media folders without
+  `melodee.json` as unprocessed even when preserved file timestamps predate
+  the previous scan, while still avoiding churn for old folders that already
+  have Melodee metadata.
 
 ## [2.1.3] - 2026-06-15
 

@@ -16,7 +16,7 @@
 
     <!-- Auto-incrementing version -->
 
-    <VersionPrefix>2.1.3</VersionPrefix>
+    <VersionPrefix>2.1.4</VersionPrefix>
 
     <VersionSuffix>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionSuffix>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
