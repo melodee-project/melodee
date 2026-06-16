@@ -44,10 +44,26 @@
     <RadzenCard class="rz-background-color-danger-lighter" Style="cursor: pointer;" @onclick="@(() => NavigationManager.NavigateTo("/admin/doctor"))">
       <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
         <RadzenIcon Icon="health_and_safety" Style="font-size: 2rem; color: var(--rz-danger);"/>
-        <RadzenStack Gap="0" Style="flex: 1;">
+        <RadzenStack Gap="0.25rem" Style="flex: 1; min-width: 0;">
           <RadzenText TextStyle="TextStyle.H6" Style="color: var(--rz-danger-darker); margin: 0;">
             @L("Dashboard.IssuesDetected")
           </RadzenText>
+          @foreach (var issue in _healthIssues.Take(3))
+          {
+            <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-danger-darker); margin: 0; overflow-wrap: anywhere;">
+              @FormatHealthIssue(issue)
+            </RadzenText>
+          }
+          @if (DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_healthIssues))
+          {
+            <a href="@DashboardHealthWarningEvaluator.DecentDbMigrationGuideUrl"
+               target="_blank"
+               rel="noopener noreferrer"
+               @onclick:stopPropagation="true"
+               style="color: var(--rz-danger-darker); font-weight: 600;">
+              @L("Dashboard.DecentDbMigrationGuide")
+            </a>
+          }
         </RadzenStack>
         <RadzenIcon Icon="arrow_forward" Style="font-size: 1.5rem; color: var(--rz-danger);"/>
       </RadzenStack>
@@ -350,6 +366,7 @@
     private TopItemStat[] _recentlyPlayed = [];
     private SongDataInfo[] _recentlyPlayedSongs = [];
     private Request[] _unreadRequests = [];
+    private Melodee.Common.Services.Doctor.DoctorCheckResult[] _healthIssues = [];
     private bool _showHealthWarning;
     private bool _isAdmin;
 
@@ -471,10 +488,12 @@
     {
         try
         {
-            _showHealthWarning = await DashboardHealthWarningEvaluator.ShouldShowAsync(CurrentUser, DoctorService);
+            _healthIssues = (await DashboardHealthWarningEvaluator.GetIssuesAsync(CurrentUser, DoctorService)).ToArray();
+            _showHealthWarning = _healthIssues.Length > 0;
         }
         catch
         {
+            _healthIssues = [];
             _showHealthWarning = false;
         }
         finally
@@ -702,9 +721,30 @@
             }
 
             _isAdmin = authenticationState.User.IsAdmin();
-            _showHealthWarning = await DashboardHealthWarningEvaluator.ShouldShowAsync(authenticationState.User, DoctorService);
+            _healthIssues = (await DashboardHealthWarningEvaluator.GetIssuesAsync(authenticationState.User, DoctorService)).ToArray();
+            _showHealthWarning = _healthIssues.Length > 0;
             StateHasChanged();
         });
+    }
+
+    private string FormatHealthIssue(Melodee.Common.Services.Doctor.DoctorCheckResult issue)
+    {
+        var name = LocalizeHealthIssueName(issue.Name);
+        return string.IsNullOrWhiteSpace(issue.Details)
+            ? name
+            : $"{name}: {issue.Details}";
+    }
+
+    private string LocalizeHealthIssueName(string checkName)
+    {
+        return checkName switch
+        {
+            "Configuration" => L("AdminDoctor.Check.Configuration"),
+            "PostgresDatabase" => L("AdminDoctor.Check.PostgresDatabase"),
+            "MusicBrainzDatabase" => L("AdminDoctor.Check.MusicBrainzDatabase"),
+            "ArtistSearchEngineDatabase" => L("AdminDoctor.Check.ArtistSearchEngineDatabase"),
+            _ => checkName
+        };
     }
 
     public void Dispose()

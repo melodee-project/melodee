@@ -54,6 +54,35 @@
         </RadzenColumn>
     </RadzenRow>
 
+    @if (!_isCheckingHealth && _systemHealthIssues.Length > 0)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Outlined" Icon="error">
+            <RadzenStack Gap="0.5rem">
+                <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0;">@L("Dashboard.IssuesDetected")</RadzenText>
+                @foreach (var issue in _systemHealthIssues)
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" Style="margin: 0; overflow-wrap: anywhere;">
+                        @FormatHealthIssue(issue)
+                    </RadzenText>
+                }
+                @if (DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_systemHealthIssues))
+                {
+                    <a href="@DashboardHealthWarningEvaluator.DecentDbMigrationGuideUrl"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       style="font-weight: 600;">
+                        @L("Dashboard.DecentDbMigrationGuide")
+                    </a>
+                }
+                <RadzenButton Text="@L("Navigation.Doctor")"
+                              Icon="health_and_safety"
+                              Click="@(() => NavigationManager.NavigateTo("/admin/doctor"))"
+                              Size="ButtonSize.Small"
+                              ButtonStyle="ButtonStyle.Danger"/>
+            </RadzenStack>
+        </RadzenAlert>
+    }
+
     <RadzenRow Gap="1rem">
         @* Quick Links *@
         <RadzenColumn Size="12" SizeMD="6">
@@ -502,6 +531,7 @@
     private string _melodeeVersion = "---";
     private string _apiVersion = "---";
     private string _osDescription = "---";
+    private Melodee.Common.Services.Doctor.DoctorCheckResult[] _systemHealthIssues = [];
     private bool _systemHealthy = true;
     private bool _isCheckingHealth = true;
 
@@ -648,10 +678,19 @@
         try
         {
             var results = await DoctorService.RunAllChecksAsync();
-            _systemHealthy = results.Checks.All(c => c.Success);
+            _systemHealthIssues = results.Checks.Where(c => !c.Success).Take(5).ToArray();
+            _systemHealthy = _systemHealthIssues.Length == 0;
         }
         catch
         {
+            _systemHealthIssues =
+            [
+                new Melodee.Common.Services.Doctor.DoctorCheckResult(
+                    "Doctor",
+                    false,
+                    "Doctor checks failed before returning results",
+                    TimeSpan.Zero)
+            ];
             _systemHealthy = false;
         }
         finally
@@ -659,6 +698,43 @@
             _isCheckingHealth = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private string FormatHealthIssue(Melodee.Common.Services.Doctor.DoctorCheckResult issue)
+    {
+        var name = LocalizeHealthIssueName(issue.Name);
+        return string.IsNullOrWhiteSpace(issue.Details)
+            ? name
+            : $"{name}: {issue.Details}";
+    }
+
+    private string LocalizeHealthIssueName(string checkName)
+    {
+        return checkName switch
+        {
+            "Configuration" => L("AdminDoctor.Check.Configuration"),
+            "PostgresDatabase" => L("AdminDoctor.Check.PostgresDatabase"),
+            "MusicBrainzDatabase" => L("AdminDoctor.Check.MusicBrainzDatabase"),
+            "ArtistSearchEngineDatabase" => L("AdminDoctor.Check.ArtistSearchEngineDatabase"),
+            "LibraryPaths" => L("AdminDoctor.Check.LibraryPaths"),
+            "SerilogLogging" => L("AdminDoctor.Check.SerilogLogging"),
+            "ConfigurableServices" => L("AdminDoctor.Check.ConfigurableServices"),
+            "DiskSpace" => L("AdminDoctor.Check.DiskSpace"),
+            "LibraryPathOverlap" => L("AdminDoctor.Check.LibraryPathOverlap"),
+            "SearchEngineApiKeys" => L("AdminDoctor.Check.SearchEngineApiKeys"),
+            "SmtpConfiguration" => L("AdminDoctor.Check.SmtpConfiguration"),
+            "JwtTokenStrength" => L("AdminDoctor.Check.JwtTokenStrength"),
+            "HttpsSecurity" => L("AdminDoctor.Check.HttpsSecurity"),
+            "AdminPassword" => L("AdminDoctor.Check.AdminPassword"),
+            "Scheduler" => L("AdminDoctor.Check.Scheduler"),
+            "FFmpeg" => L("AdminDoctor.Check.FFmpeg"),
+            "Memory" => L("AdminDoctor.Check.Memory"),
+            "TempDirectory" => L("AdminDoctor.Check.TempDirectory"),
+            "DatabaseLatency" => L("AdminDoctor.Check.DatabaseLatency"),
+            "JukeboxConfiguration" => L("AdminDoctor.Check.JukeboxConfiguration"),
+            "PodcastConfiguration" => L("AdminDoctor.Check.PodcastConfiguration"),
+            _ => checkName
+        };
     }
 
     private void ClearCacheClicked()

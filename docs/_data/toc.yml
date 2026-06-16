@@ -20,6 +20,8 @@
       url: "hardware"
     - title: "Backup & Recovery"
       url: "backup"
+    - title: "DecentDB Usage & Migration"
+      url: "decentdb"
 
 - title: Core Concepts
   links:

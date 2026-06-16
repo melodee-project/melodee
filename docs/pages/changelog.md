@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added public DecentDB usage and migration documentation covering Melodee's
+  generated search databases and rebuild steps for unsupported file-format
+  errors.
+
+### Fixed
+
+- Admin dashboard and login health warnings now open-check MusicBrainz and
+  ArtistSearch DecentDB files and link to the migration guide when unsupported
+  DecentDB file-format versions are detected.
+
 ## [2.1.3] - 2026-06-15
 
 ### Added

@@ -61,33 +61,45 @@ public sealed class DoctorService(
 
     public async Task<bool> NeedsAttentionAsync(CancellationToken cancellationToken = default)
     {
+        var checks = await GetAttentionChecksAsync(cancellationToken);
+        return checks.Count > 0;
+    }
+
+    public async Task<IReadOnlyList<DoctorCheckResult>> GetAttentionChecksAsync(CancellationToken cancellationToken = default)
+    {
         // Dashboard uses this fast path on first render, so keep it limited to
-        // cheap checks that still catch obviously unhealthy startup state.
+        // cheap checks that still catch obviously unhealthy startup state. The
+        // DecentDB open probes are intentionally included because file
+        // existence alone misses unsupported local database format versions.
+        var checks = new List<DoctorCheckResult>();
+
         using (Operation.At(LogEventLevel.Debug).Time("[{Service}] HasMissingConnectionStrings", nameof(DoctorService)))
         {
             if (HasMissingConnectionStrings())
             {
-                return true;
+                checks.Add(new DoctorCheckResult(
+                    "Configuration",
+                    false,
+                    "One or more required connection strings are missing",
+                    TimeSpan.Zero));
             }
         }
 
-        // Fast-path: only verify the MusicBrainz file exists and is non-empty.
-        // Full probe (query) is deferred to RunAllChecksAsync.
         using (Operation.At(LogEventLevel.Debug).Time("[{Service}] HasMusicBrainzFileIssues", nameof(DoctorService)))
         {
-            if (!HasConfiguredFileBackedDatabase("MusicBrainzConnection"))
+            var musicBrainzCheck = await RunMusicBrainzAttentionCheckAsync(cancellationToken);
+            if (!musicBrainzCheck.Success)
             {
-                return true;
+                checks.Add(musicBrainzCheck);
             }
         }
 
-        // Fast-path: only verify the ArtistSearch file exists and is non-empty.
-        // Full probe (query) is deferred to RunAllChecksAsync.
         using (Operation.At(LogEventLevel.Debug).Time("[{Service}] HasArtistSearchFileIssues", nameof(DoctorService)))
         {
-            if (!HasConfiguredFileBackedDatabase("ArtistSearchEngineConnection"))
+            var artistSearchCheck = await RunArtistSearchAttentionCheckAsync(cancellationToken);
+            if (!artistSearchCheck.Success)
             {
-                return true;
+                checks.Add(artistSearchCheck);
             }
         }
 
@@ -96,13 +108,26 @@ public sealed class DoctorService(
             try
             {
                 await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-                return !await db.Database.CanConnectAsync(cancellationToken);
+                if (!await db.Database.CanConnectAsync(cancellationToken))
+                {
+                    checks.Add(new DoctorCheckResult(
+                        "PostgresDatabase",
+                        false,
+                        "Unable to connect to the primary database",
+                        TimeSpan.Zero));
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                return true;
+                checks.Add(new DoctorCheckResult(
+                    "PostgresDatabase",
+                    false,
+                    $"Unable to connect to the primary database: {FirstMessageLine(ex)}",
+                    TimeSpan.Zero));
             }
         }
+
+        return checks;
     }
 
     public async Task<bool> IsMusicBrainzDatabaseEmptyAsync(CancellationToken cancellationToken = default)
@@ -476,6 +501,103 @@ public sealed class DoctorService(
     private bool HasConfiguredFileBackedDatabase(string connectionStringName)
     {
         return HasNonEmptyFileBackedDatabase(configuration.GetConnectionString(connectionStringName));
+    }
+
+    private async Task<DoctorCheckResult> RunMusicBrainzAttentionCheckAsync(CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+        var connectionString = configuration.GetConnectionString("MusicBrainzConnection") ?? "";
+        var fileInfo = DescribeFileDatabasePath(connectionString);
+        if (!HasNonEmptyFileBackedDatabase(connectionString))
+        {
+            return new DoctorCheckResult(
+                "MusicBrainzDatabase",
+                false,
+                $"MusicBrainz DecentDB database file is missing or empty; {fileInfo}",
+                sw.Elapsed);
+        }
+
+        try
+        {
+            await using var db = await _musicBrainzDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+            return new DoctorCheckResult(
+                "MusicBrainzDatabase",
+                canConnect,
+                canConnect
+                    ? $"OK; {fileInfo}"
+                    : $"MusicBrainz DecentDB database cannot be opened by the current DecentDB provider; {fileInfo}",
+                sw.Elapsed);
+        }
+        catch (Exception ex)
+        {
+            return new DoctorCheckResult(
+                "MusicBrainzDatabase",
+                false,
+                FormatDecentDbOpenFailure("MusicBrainz", ex, fileInfo),
+                sw.Elapsed);
+        }
+    }
+
+    private async Task<DoctorCheckResult> RunArtistSearchAttentionCheckAsync(CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+        var connectionString = configuration.GetConnectionString("ArtistSearchEngineConnection") ?? "";
+        var fileInfo = DescribeFileDatabasePath(connectionString);
+        if (!HasNonEmptyFileBackedDatabase(connectionString))
+        {
+            return new DoctorCheckResult(
+                "ArtistSearchEngineDatabase",
+                false,
+                $"ArtistSearch DecentDB database file is missing or empty; {fileInfo}",
+                sw.Elapsed);
+        }
+
+        try
+        {
+            await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+            return new DoctorCheckResult(
+                "ArtistSearchEngineDatabase",
+                canConnect,
+                canConnect
+                    ? $"OK; {fileInfo}"
+                    : $"ArtistSearch DecentDB database cannot be opened by the current DecentDB provider; {fileInfo}",
+                sw.Elapsed);
+        }
+        catch (Exception ex)
+        {
+            return new DoctorCheckResult(
+                "ArtistSearchEngineDatabase",
+                false,
+                FormatDecentDbOpenFailure("ArtistSearch", ex, fileInfo),
+                sw.Elapsed);
+        }
+    }
+
+    private static string FormatDecentDbOpenFailure(string databaseName, Exception exception, string fileInfo)
+    {
+        var message = FirstMessageLine(exception);
+        if (IsUnsupportedDecentDbFormat(message))
+        {
+            return $"{databaseName} DecentDB database uses a file format that is not supported by the current DecentDB provider. Rebuild the database or upgrade Melodee/DecentDB. Provider error: {message}; {fileInfo}";
+        }
+
+        return $"Unable to open {databaseName} DecentDB database: {message}; {fileInfo}";
+    }
+
+    private static bool IsUnsupportedDecentDbFormat(string message)
+    {
+        return message.Contains("unsupported", StringComparison.OrdinalIgnoreCase) &&
+               message.Contains("format", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FirstMessageLine(Exception exception)
+    {
+        var message = exception.GetBaseException().Message;
+        return string.IsNullOrWhiteSpace(message)
+            ? exception.GetType().Name
+            : message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? message;
     }
 
     private async Task<bool> HasMusicBrainzConnectionIssuesAsync(CancellationToken cancellationToken)
