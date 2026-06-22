@@ -6897,4 +6897,36 @@ Common fixes:
   <data name="Dashboard.DecentDbMigrationGuide" xml:space="preserve">
     <value>Open DecentDB migration guide</value>
   </data>
+
+  <data name="MediaArtists.Export" xml:space="preserve">
+    <value>Export</value>
+  </data>
+
+  <data name="MediaArtists.Import" xml:space="preserve">
+    <value>Import</value>
+  </data>
+
+  <data name="MediaArtists.ImportPreview" xml:space="preserve">
+    <value>Import Preview</value>
+  </data>
+
+  <data name="MediaArtists.ArtistsCount" xml:space="preserve">
+    <value>Artists: {0}</value>
+  </data>
+
+  <data name="MediaArtists.AlbumsCount" xml:space="preserve">
+    <value>Albums: {0}</value>
+  </data>
+
+  <data name="MediaArtists.AliasesCount" xml:space="preserve">
+    <value>Aliases: {0}</value>
+  </data>
+
+  <data name="MediaArtists.OverwriteExisting" xml:space="preserve">
+    <value>Overwrite existing artists</value>
+  </data>
+
+  <data name="MediaArtists.ApplyImport" xml:space="preserve">
+    <value>Apply Import</value>
+  </data>
 </root>
