@@ -87,64 +87,11 @@ public class ArtistSearchEngineService(
 
         await using (var scopedContext = await artistSearchEngineServiceDbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            await scopedContext.Database.EnsureCreatedAsync(cancellationToken);
-            await EnsureHousekeepingIndexesAsync(scopedContext, cancellationToken).ConfigureAwait(false);
-            await EnsureLocalArtistAliasLookupAsync(scopedContext, cancellationToken).ConfigureAwait(false);
+            await scopedContext.Database.MigrateAsync(cancellationToken);
+            await BackfillLocalArtistAliasLookupAsync(scopedContext, cancellationToken).ConfigureAwait(false);
         }
 
         _initialized = true;
-    }
-
-    private static async Task EnsureHousekeepingIndexesAsync(
-        ArtistSearchEngineServiceDbContext context,
-        CancellationToken cancellationToken)
-    {
-        if (!context.Database.IsRelational())
-        {
-            return;
-        }
-
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
-            ON "Artists" ("IsLocked", "LastRefreshed")
-            """,
-            cancellationToken);
-    }
-
-    private static async Task EnsureLocalArtistAliasLookupAsync(
-        ArtistSearchEngineServiceDbContext context,
-        CancellationToken cancellationToken)
-    {
-        if (!context.Database.IsRelational())
-        {
-            return;
-        }
-
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE TABLE IF NOT EXISTS "ArtistAliases" (
-                "Id" INTEGER NOT NULL PRIMARY KEY,
-                "ArtistId" INTEGER NOT NULL,
-                "NameNormalized" TEXT NOT NULL,
-                FOREIGN KEY ("ArtistId") REFERENCES "Artists" ("Id") ON DELETE CASCADE
-            )
-            """,
-            cancellationToken);
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE INDEX IF NOT EXISTS "IX_ArtistAliases_NameNormalized"
-            ON "ArtistAliases" ("NameNormalized")
-            """,
-            cancellationToken);
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ArtistAliases_ArtistId_NameNormalized"
-            ON "ArtistAliases" ("ArtistId", "NameNormalized")
-            """,
-            cancellationToken);
-
-        await BackfillLocalArtistAliasLookupAsync(context, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task BackfillLocalArtistAliasLookupAsync(

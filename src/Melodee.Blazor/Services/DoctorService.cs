@@ -647,16 +647,6 @@ public sealed class DoctorService(
         try
         {
             await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
-            await db.Database.EnsureCreatedAsync(cancellationToken);
-            if (db.Database.IsRelational())
-            {
-                await db.Database.ExecuteSqlRawAsync(
-                    """
-                    CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
-                    ON "Artists" ("IsLocked", "LastRefreshed")
-                    """,
-                    cancellationToken);
-            }
 
             _ = await db.Artists
                 .AsNoTracking()

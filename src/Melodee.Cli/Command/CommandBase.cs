@@ -95,7 +95,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
 
         services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
         {
-            options.UseDecentDB(configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+            options.UseDecentDB(configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime().MigrationsAssembly("Melodee.Common"));
             options.EnableSensitiveDataLogging(true);
         });
 
