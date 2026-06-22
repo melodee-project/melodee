@@ -23,6 +23,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Media Artist export/import: export all search-engine artist data (artists, albums,
+  aliases) as JSON via the `/admin/mediaartists` page; import JSON exports with optional
+  overwrite and full preview of artist/album/alias counts.
+- ArtistSearch database auto-creation in Blazor Doctor: when the `.ddb` file is missing
+  but the parent directory exists, the health check now creates it via EF Core migrations
+  instead of reporting an error.
+
+### Changed
+
+- Replaced the hand-rolled raw-SQL ArtistSearch initial migration with a proper
+  model-driven EF Core migration that uses `CREATE TABLE IF NOT EXISTS` for idempotent
+  application on both fresh and existing databases.
+
+### Fixed
+
+- Resolved EF Core "pending model changes" error for `ArtistSearchEngineServiceDbContext`
+  by regenerating the model snapshot to match the `IsLocked` `INTEGER` column type
+  configured in the DbContext.
+- ArtistSearch database is now auto-created on first use when the `.ddb` file is absent,
+  eliminating the "database is empty or not initialized" error that previously required
+  manual intervention.
+
 ## [2.1.4] - 2026-06-16
 
 ### Added

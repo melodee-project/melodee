@@ -118,14 +118,9 @@ namespace Melodee.Common.Migrations.ArtistSearchEngine
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "Albums");
-
-            migrationBuilder.DropTable(
-                name: "ArtistAliases");
-
-            migrationBuilder.DropTable(
-                name: "Artists");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS \"Albums\"");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS \"ArtistAliases\"");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS \"Artists\"");
         }
     }
 }

@@ -300,6 +300,17 @@ public sealed class DoctorService(
             var fileInfo = DescribeFileDatabasePath(connectionString);
             if (!HasNonEmptyFileBackedDatabase(connectionString))
             {
+                var dataSource = GetDataSourceFromConnectionString(connectionString);
+                if (!string.IsNullOrWhiteSpace(dataSource) && Directory.Exists(Path.GetDirectoryName(dataSource)))
+                {
+                    await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
+                    await db.Database.MigrateAsync(cancellationToken);
+                    fileInfo = DescribeFileDatabasePath(connectionString);
+                }
+            }
+
+            if (!HasNonEmptyFileBackedDatabase(connectionString))
+            {
                 return new DoctorCheckResult(
                     "ArtistSearchEngineDatabase",
                     false,
@@ -620,6 +631,19 @@ public sealed class DoctorService(
 
         var (canQuery, _) = await ProbeArtistSearchDatabaseAsync(cancellationToken);
         return !canQuery;
+    }
+
+    private static string? GetDataSourceFromConnectionString(string connectionString)
+    {
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            return builder.ContainsKey("Data Source") ? builder["Data Source"]?.ToString() : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static bool HasNonEmptyFileBackedDatabase(string? connectionString)
