@@ -422,7 +422,12 @@ public class ArtistSearchEngineService(
                 }
                 else
                 {
-                    var pageProbeSize = pagedRequest.TakeValue + 1;
+                    // Execute the paged query before the count query. DecentDB's ADO.NET provider
+                    // numbers positional parameters ($1, $2, ...) per connection and does not reset
+                    // the counter between sequential commands on the same DbContext. Running
+                    // CountAsync first (which may consume $1) leaves the LIMIT/OFFSET params of the
+                    // page query unbound ("missing value for parameter $2"). The count query carries
+                    // no LIMIT/OFFSET parameters, so executing it afterward is safe.
                     var page = await ApplyArtistListOrdering(query, pagedRequest)
                         .Select(x => new Artist
                         {
@@ -442,15 +447,13 @@ public class ArtistSearchEngineService(
                             LastRefreshed = x.LastRefreshed
                         })
                         .Skip(pagedRequest.SkipValue)
-                        .Take(pageProbeSize)
+                        .Take(pagedRequest.TakeValue)
                         .ToArrayAsync(cancellationToken)
                         .ConfigureAwait(false);
 
-                    var hasMoreRows = page.Length > pagedRequest.TakeValue;
-                    artists = page.Take(pagedRequest.TakeValue).ToArray();
-                    totalCount = artists.Length == 0 && pagedRequest.SkipValue == 0
-                        ? 0
-                        : pagedRequest.SkipValue + artists.Length + (hasMoreRows ? 1 : 0);
+                    artists = page;
+
+                    totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
 
                     var artistIds = artists.Select(x => x.Id).ToArray();
                     if (artistIds.Length > 0)
