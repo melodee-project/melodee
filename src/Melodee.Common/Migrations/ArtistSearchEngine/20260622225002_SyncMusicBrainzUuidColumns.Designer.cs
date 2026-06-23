@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Melodee.Common.Migrations.ArtistSearchEngine
 {
     [DbContext(typeof(ArtistSearchEngineServiceDbContext))]
-    [Migration("20260622223847_SyncMusicBrainzUuidColumns")]
+    [Migration("20260622225002_SyncMusicBrainzUuidColumns")]
     partial class SyncMusicBrainzUuidColumns
     {
         /// <inheritdoc />

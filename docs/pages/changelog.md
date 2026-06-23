@@ -37,12 +37,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced the hand-rolled raw-SQL ArtistSearch initial migration with a proper
   model-driven EF Core migration that uses `CREATE TABLE IF NOT EXISTS` for idempotent
   application on both fresh and existing databases.
+- Added a second `SyncMusicBrainzUuidColumns` migration as a no-op to satisfy EF Core's
+  migration chain. DecentDB reports `Guid`/`byte[]` columns as `UUID` in the EF model but
+  stores them as `BLOB`, and `ALTER COLUMN TYPE` to `UUID` is unsupported by DecentDB
+  (only `INT64`, `FLOAT64`, `TEXT`, `BOOL`). The no-op migration records itself as applied
+  without attempting the unsupported `ALTER`, keeping `MigrateAsync` stable.
 
 ### Fixed
 
 - Resolved EF Core "pending model changes" error for `ArtistSearchEngineServiceDbContext`
   by regenerating the model snapshot to match the `IsLocked` `INTEGER` column type
   configured in the DbContext.
+- Resolved DecentDB `ALTER COLUMN TYPE supports only INT64, FLOAT64, TEXT, and BOOL` crash
+  during ArtistSearch migration by making the `SyncMusicBrainzUuidColumns` migration a no-op.
 - ArtistSearch database is now auto-created on first use when the `.ddb` file is absent,
   eliminating the "database is empty or not initialized" error that previously required
   manual intervention.
