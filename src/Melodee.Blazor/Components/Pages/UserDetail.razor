@@ -1,4 +1,4 @@
-@page "/user/{UserApiKey}"
+@page "/user/{UserApiKey:guid}"
 @using System.Globalization
 @using NodaTime
 @using Melodee.Common.Data
@@ -207,7 +207,7 @@
 
 @code {
     [Parameter]
-    public string UserApiKey { get; set; } = string.Empty;
+    public Guid UserApiKey { get; set; }
 
     User? _user;
     string _userName = string.Empty;
@@ -225,15 +225,14 @@
 
         try
         {
-            var apiKey = ParseUserApiKey(UserApiKey);
-            if (!apiKey.HasValue)
+            if (UserApiKey == Guid.Empty)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.InvalidApiKeyFormat") });
                 _isLoading = false;
                 return;
             }
 
-            var userResult = await UserProfileService.GetByApiKeyAsync(apiKey.Value);
+            var userResult = await UserProfileService.GetByApiKeyAsync(UserApiKey);
             if (!userResult.IsSuccess || userResult.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.UserNotFound") });
@@ -385,33 +384,6 @@
         _stats.BookmarksCount = await scopedContext.Bookmarks
             .Where(b => b.UserId == _user.Id)
             .CountAsync();
-    }
-
-    Guid? ParseUserApiKey(string apiKeyInput)
-    {
-        if (string.IsNullOrWhiteSpace(apiKeyInput))
-        {
-            return null;
-        }
-
-        // Try direct GUID parse first (Melodee format: "51b53687-e735-4f63-90f7-ab61f4249b06")
-        if (Guid.TryParse(apiKeyInput, out var directGuid))
-        {
-            return directGuid;
-        }
-
-        // Try OpenSubsonic format: "user_{guid}"
-        const string userPrefix = "user_";
-        if (apiKeyInput.StartsWith(userPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            var guidPart = apiKeyInput.Substring(userPrefix.Length);
-            if (Guid.TryParse(guidPart, out var parsedGuid))
-            {
-                return parsedGuid;
-            }
-        }
-
-        return null;
     }
 
     sealed class UserStats
