@@ -29,7 +29,7 @@ jobs:
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
@@ -56,13 +56,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -70,7 +70,7 @@ jobs:
 
       - name: Build and push Docker image by digest
         id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -79,15 +79,24 @@ jobs:
           outputs: type=image,name=${{ needs.prepare.outputs.image }},name-canonical=true,push-by-digest=true,push=true
           cache-from: type=gha,scope=${{ matrix.platform-id }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform-id }}
+          no-cache-filters: final
 
       - name: Export image digest
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
+          set -euo pipefail
+
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "Unexpected image digest format" >&2
+            exit 1
+          fi
+
           mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
+          touch "/tmp/digests/${IMAGE_DIGEST#sha256:}"
 
       - name: Upload image digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: digest-${{ matrix.platform-id }}
           path: /tmp/digests/*
@@ -102,17 +111,17 @@ jobs:
 
     steps:
       - name: Download image digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: /tmp/digests
           pattern: digest-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -123,16 +132,24 @@ jobs:
           DOCKER_METADATA_OUTPUT_JSON: ${{ needs.prepare.outputs.json }}
           IMAGE_NAME: ${{ needs.prepare.outputs.image }}
         run: |
+          set -euo pipefail
+
           cd /tmp/digests
-          # Build the list of digest references
-          digest_refs=""
+          tag_args=()
+          while IFS= read -r tag; do
+            tag_args+=("-t" "$tag")
+          done < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+
+          digest_refs=()
           for digest in *; do
-            digest_refs="$digest_refs $IMAGE_NAME@sha256:$digest"
+            if [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
+              echo "Unexpected image digest filename: $digest" >&2
+              exit 1
+            fi
+            digest_refs+=("$IMAGE_NAME@sha256:$digest")
           done
-          # Create the manifest
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $digest_refs
+
+          docker buildx imagetools create "${tag_args[@]}" "${digest_refs[@]}"
 
       - name: Inspect published image
         env:

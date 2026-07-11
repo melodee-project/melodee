@@ -1519,8 +1519,8 @@ public class ArtistSearchEngineService(
             {
                 Logger.Warning(ex,
                     "[{Plugin}] Search failed during artist lookup for query [{ArtistName}]",
-                    plugin.DisplayName,
-                    artistName);
+                    LogSanitizer.Sanitize(plugin.DisplayName),
+                    LogSanitizer.Sanitize(artistName));
                 failedProviders.Add((plugin.Id, "Search failed"));
             }
         }

@@ -28,63 +28,50 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Run Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
-          # Fail on critical, high, and moderate vulnerabilities
+          # Fail on high and critical vulnerabilities
           fail-on-severity: high
           # Comment on pull requests with details
           comment-summary-in-pr: on-failure
 
   container-scan:
-    name: Container Image Scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    name: Container Image Scan (${{ matrix.platform-id }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     permissions:
       contents: read
       security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            platform-id: linux-amd64
+            runner: ubuntu-24.04
+            sarif-category: trivy-container-scan
+          - platform: linux/arm64
+            platform-id: linux-arm64
+            runner: ubuntu-24.04-arm
+            sarif-category: trivy-container-scan-linux-arm64
     env:
-      SCAN_BASE_IMAGE: mcr.microsoft.com/dotnet/aspnet:10.0
+      SCAN_PLATFORM: ${{ matrix.platform }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.104
-
-      - name: Publish application for scanning
-        run: dotnet publish src/Melodee.Blazor/Melodee.Blazor.csproj -c Release -o scan/publish --self-contained false -p:PublishTrimmed=false
-
-      - name: Pull Docker base image for scanning
-        run: |
-          set -euo pipefail
-
-          for attempt in 1 2 3 4 5; do
-            if docker pull "$SCAN_BASE_IMAGE"; then
-              exit 0
-            fi
-
-            delay=$((attempt * 20))
-            echo "Base image pull failed on attempt ${attempt}; retrying in ${delay}s..."
-            sleep "$delay"
-          done
-
-          docker pull "$SCAN_BASE_IMAGE"
-
-      - name: Build Docker image for scanning
+      - name: Build production Docker image for scanning
         run: |
           set -euo pipefail
 
           for attempt in 1 2 3; do
             if docker build \
-              --pull=false \
-              --build-arg DOTNET_ASPNET_IMAGE="$SCAN_BASE_IMAGE" \
-              -f .github/docker/Dockerfile.container-scan \
+              --pull \
+              --platform "$SCAN_PLATFORM" \
               -t melodee:latest \
               .; then
               exit 0
@@ -96,27 +83,51 @@ jobs:
           done
 
           docker build \
-            --pull=false \
-            --build-arg DOTNET_ASPNET_IMAGE="$SCAN_BASE_IMAGE" \
-            -f .github/docker/Dockerfile.container-scan \
+            --pull \
+            --platform "$SCAN_PLATFORM" \
             -t melodee:latest \
             .
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: 'melodee:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          limit-severity-skip: false
+          scanners: 'vuln'
+          limit-severities-for-sarif: true
+          version: 'v0.72.0'
 
       - name: Upload SARIF results
         if: always() && hashFiles('trivy-results.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
         with:
           sarif_file: trivy-results.sarif
-          category: "trivy-container-scan"
+          category: ${{ matrix.sarif-category }}
+
+      - name: Generate full Trivy vulnerability report
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+        with:
+          image-ref: 'melodee:latest'
+          format: 'json'
+          output: 'trivy-full-results.json'
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+          scanners: 'vuln'
+          skip-setup-trivy: true
+          cache: false
+
+      - name: Upload full Trivy vulnerability report
+        if: always() && hashFiles('trivy-full-results.json') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-full-results-${{ matrix.platform-id }}
+          path: trivy-full-results.json
+          if-no-files-found: error
+          retention-days: 14
 
   nuget-vuln-scan:
     name: NuGet Vulnerability Scan
@@ -127,10 +138,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: 10.0.104
 

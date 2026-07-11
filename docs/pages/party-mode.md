@@ -1,423 +1,138 @@
 ---
-title: Party Mode
+title: Party Mode (Preview)
+description: Evaluate Melodee's preview party-session, shared-queue, playback-intent, and endpoint features.
 permalink: /party-mode/
+tags:
+  - party-mode
+  - preview
+  - playback
 ---
 
-# Party Mode
+# Party Mode (Preview)
 
-Party Mode enables collaborative music listening sessions where multiple users can contribute to and control a shared playlist. It's perfect for parties, gatherings, or any time you want to share music control with friends and family.
+Party Mode stores collaborative sessions, participants, a revision-controlled
+queue, playback intent, and playback endpoints. In Melodee 2.2.0 this feature is
+an administrator/developer preview. Its server-side model and APIs are farther
+along than the browser workflow, and it should not be presented to users as a
+finished synchronized-listening experience.
 
-## Overview
+## Enable the Preview
 
-Party Mode provides:
+`partyMode.enabled` is recognized but is not seeded as a database setting in a
+new 2.2.0 installation, so it resolves to `false`. Create it explicitly:
 
-- **Shared Queues**: Multiple users can add songs to a common playlist
-- **Real-Time Sync**: All participants see queue changes instantly
-- **Flexible Playback**: Route audio to any participant's device or the server's Jukebox
-- **Access Control**: Session owners can moderate participants and lock queues
-- **Mobile-Friendly**: Full functionality on phones and tablets
+```bash
+mcli configuration set partyMode.enabled true
+```
 
-## Concepts
+Refresh or restart Melodee after changing it. The **Party Mode** navigation item
+then opens `/party` for signed-in users.
 
-### Sessions
+To disable it:
 
-A Party Mode session is a collaborative listening space with:
+```bash
+mcli configuration set partyMode.enabled false
+```
 
-- **Unique URL**: Each session has a shareable link
-- **Owner**: The user who created the session (has full control)
-- **Participants**: Users who have joined the session
-- **Queue**: The ordered list of songs to play
-- **Active Endpoint**: The device or backend playing music
+Disabling the flag prevents new sessions through the service. Existing database
+rows are retained.
 
-### Participants
+## What the 2.2.0 UI Provides
 
-Users in a session have different roles:
+The `/party` page can:
 
-| Role | Description | Capabilities |
-|------|-------------|--------------|
-| **Owner** | Session creator | Full control over session, queue, and participants |
-| **DJ** | Promoted participant | Can modify queue and control playback |
-| **Guest** | Regular participant | Can add songs to queue, view queue |
+- create a named session;
+- list the signed-in user's active sessions;
+- list active sessions that do not require a join code;
+- join an open session by selecting it or entering its session GUID;
+- open a session detail page.
 
-### Endpoints
+The session page can display the stored participants, endpoint state, playback
+state, and queue. It exposes endpoint attach/detach controls, playback-intent
+controls, queue refresh/remove/clear/reorder actions, an invite-link copy button,
+and leave-session behavior. The service layer enforces queue revisions, session
+membership, roles, queue locks, and ended sessions.
 
-An endpoint is where the music plays. Party Mode supports:
+Roles in the data model are:
 
-| Endpoint Type | Description |
-|---------------|-------------|
-| **Browser** | Audio plays in the participant's web browser |
-| **Server Jukebox** | Audio plays through the server's audio output (requires [Jukebox](/jukebox/)) |
-| **External** | Reserved for future integrations |
+| Role | Server-side policy |
+|------|--------------------|
+| `Owner` | Owns the session and can administer it |
+| `DJ` | Can control playback and manage the queue |
+| `Listener` | Cannot control playback; queue changes are denied when the queue is locked |
 
-## Enabling Party Mode
+## Important Preview Limitations
 
-Party Mode must be enabled by an administrator:
+Do not plan an event around the current UI without testing the exact build and
+workflow. In 2.2.0:
 
-1. Go to **Admin** → **Settings**
-2. Find the `partyMode.enabled` setting
-3. Set the value to `true`
-4. Save changes
+- there is no anonymous guest flow; participants are Melodee users;
+- the UI can create a join-code-protected session, but its join form accepts a
+  session GUID and does not submit the separate join code;
+- the session page does not provide a song search or add-to-queue workflow;
+- clicking a queue item selects it locally but does not start that item;
+- queue rows and now-playing metadata show placeholder song/user information;
+- the participant moderation menu is not implemented in the page;
+- the owner page has no completed end-session action and an owner cannot use the
+  normal leave operation;
+- a SignalR hub and server notifications exist, but the current session
+  components do not subscribe to them; playback state is polled every five
+  seconds and other views require explicit reloads;
+- the UI does not automatically register the browser as a WebPlayer playback
+  endpoint or provide synchronized playback in multiple browsers;
+- there is no QR-code invitation, remote-listening synchronization, chat, or
+  bulk album/artist/playlist queue UI.
 
-Once enabled, **Party Mode** appears in the main navigation menu for all users.
-
-> **Note**: Party Mode and [Jukebox](/jukebox/) are separate features with independent settings. You can enable one without the other.
-
-## Getting Started
-
-### Creating a Session
-
-**From the Party Mode Dashboard:**
-1. Click **Party Mode** in the main navigation menu (or go to `/party`)
-2. On the dashboard, click **Create Session**
-3. Enter a session name (e.g., "Friday Night Vibes")
-4. Click **Create**
-5. You'll be redirected to your new session
-6. Share the session code or URL with participants
-
-**From Albums/Artists/Playlists:**
-1. Navigate to any album, artist, or playlist in Melodee
-2. Click the **Party Mode** button (🎉) or select **Start Party** from the menu
-3. Configure session options:
-   - **Session Name**: A friendly name for your party
-   - **Privacy**: Public (discoverable) or private (invite-only)
-   - **Queue Lock**: Whether only DJs/owner can modify the queue
-4. Click **Create Session**
-5. Share the session URL with participants
-
-### Joining a Session
-
-**Via Direct Link:**
-1. Open the party session URL shared by the owner
-2. Sign in if prompted (or join as guest if allowed)
-3. You're now a participant!
-
-**Via Session Code:**
-1. Click **Party Mode** in the main navigation menu (or go to `/party`)
-2. Enter the session code in the "Join Session" field
-3. Click **Join**
-
-**Via Session Browser:**
-1. Click **Party Mode** in the main navigation menu (or go to `/party`)
-2. Browse the **Active Sessions** list for public sessions
-3. Click **Join** on any session
-
-### Adding Songs
-
-1. Browse artists, albums, or use search within the party session
-2. Click the **Add to Queue** button on any song
-3. The song appears in the shared queue immediately
-
-**Bulk Add:**
-- Add entire albums with **Add Album to Queue**
-- Add artist's top songs with **Add Popular**
-- Add from playlists with **Add Playlist**
-
-## Session Controls
-
-### For Session Owners
-
-As the session owner, you have full control:
-
-#### Queue Management
-- **Reorder**: Drag songs to change play order
-- **Remove**: Delete any song from the queue
-- **Clear**: Remove all songs from the queue
-- **Lock/Unlock**: Control who can modify the queue
-
-#### Participant Management
-- **Promote to DJ**: Give a participant DJ privileges
-- **Demote**: Remove DJ privileges from a participant
-- **Kick**: Remove a participant from the session
-- **Ban**: Permanently block a user from the session
-
-#### Playback Control
-- **Select Endpoint**: Choose where music plays (browser or Jukebox)
-- **Play/Pause**: Control playback
-- **Skip**: Move to the next song
-- **Seek**: Jump to a specific position in the current song
-- **Volume**: Adjust playback volume (endpoint-dependent)
-
-#### Session Settings
-- **Rename**: Change the session name
-- **Privacy**: Switch between public and private
-- **End Session**: Terminate the session for all participants
-
-### For Participants
-
-Regular participants can:
-
-- View the current queue
-- Add songs to the queue (when unlocked)
-- See what's currently playing
-- Leave the session at any time
-
-DJs additionally can:
-
-- Reorder and remove songs
-- Control playback
-- Skip to next song
+These are current-product boundaries, not configuration problems.
 
 ## Playback Endpoints
 
-### Browser Endpoint
-
-Play audio directly in your web browser:
-
-**Advantages:**
-- No additional setup required
-- Works on any device with a browser
-- Individual volume control
-- Headphone friendly
-
-**Limitations:**
-- Audio plays on one device only
-- Browser tab must remain open
-- Mobile devices may interrupt background audio
-
-**To use browser endpoint:**
-1. Click the **Endpoint** button in the party player
-2. Select **This Browser**
-3. Audio begins playing in your browser
-
-### Server Jukebox Endpoint
-
-Route audio through the server's audio output:
-
-**Advantages:**
-- Centralized playback for all participants
-- Consistent audio quality
-- Works with home audio systems
-- No client-side processing
-
-**Requirements:**
-- [Jukebox feature](/jukebox/) must be enabled
-- Server must have audio output configured
-- Admin must have configured the backend (MPV or MPD)
-
-**To use Jukebox endpoint:**
-1. Click the **Endpoint** button in the party player
-2. Select **Server Jukebox** (only available if enabled)
-3. Audio plays through the server's speakers
-
-## Real-Time Features
-
-Party Mode uses WebSocket connections for real-time updates:
-
-- **Queue Changes**: See songs added/removed instantly
-- **Playback State**: Current song and position sync across all participants
-- **Participant Updates**: See who joins or leaves
-- **Chat Messages**: (Future feature) Communicate with other participants
-
-### Connection Status
-
-The party interface shows connection status:
-
-| Status | Meaning |
-|--------|---------|
-| 🟢 Connected | Real-time updates active |
-| 🟡 Reconnecting | Temporarily disconnected, attempting reconnect |
-| 🔴 Offline | Not connected; refresh to reconnect |
-
-## Permissions Matrix
-
-| Action | Owner | DJ | Guest |
-|--------|-------|-----|-------|
-| View queue | ✅ | ✅ | ✅ |
-| Add songs | ✅ | ✅ | ✅* |
-| Remove songs | ✅ | ✅ | ❌ |
-| Reorder queue | ✅ | ✅ | ❌ |
-| Control playback | ✅ | ✅ | ❌ |
-| Manage participants | ✅ | ❌ | ❌ |
-| Change settings | ✅ | ❌ | ❌ |
-| End session | ✅ | ❌ | ❌ |
-
-\* When queue is unlocked
-
-## Use Cases
-
-### House Party
-
-1. Set up speakers connected to your Melodee server
-2. Enable [Jukebox](/jukebox/) with MPV backend
-3. Create a Party Mode session
-4. Share the QR code or URL with guests
-5. Guests add songs from their phones
-6. Music plays through your speakers
-
-### Family Road Trip
-
-1. Connect a phone/tablet to the car's audio system
-2. Create a Party Mode session with browser endpoint
-3. Everyone in the car joins the session
-4. Take turns adding songs to the queue
-5. The driver's device plays the music
-
-### Remote Listening Party
-
-1. Create a private Party Mode session
-2. Share the link with remote friends
-3. Each person uses their own browser endpoint
-4. Everyone queues songs and listens simultaneously
-5. Coordinate via video chat for reactions
-
-## Best Practices
-
-### For Hosts
-
-1. **Test Before the Event**: Ensure Jukebox works and audio levels are appropriate
-2. **Create a Starter Queue**: Pre-populate with some songs to set the mood
-3. **Consider Queue Locking**: Lock the queue if you want curated playlists
-4. **Promote Trusted DJs**: Give DJ access to friends who will help manage
-5. **Monitor the Queue**: Watch for inappropriate additions
-6. **Have a Backup Plan**: Download key playlists in case of network issues
-
-### For Participants
-
-1. **Respect the Queue**: Don't flood with many songs at once
-2. **Match the Mood**: Add songs that fit the event's vibe
-3. **Check What's Queued**: Avoid adding duplicates
-4. **Use the Search**: Find specific songs rather than browsing endlessly
-5. **Ask Before Skipping**: Communicate with the host about skips
-
-## Troubleshooting
-
-### Party Mode Not in Navigation Menu
-
-1. **Feature Disabled**: An admin must set `partyMode.enabled` to `true`
-2. **Refresh Page**: After changing settings, refresh the browser
-3. **Check Settings**: Verify the setting in Admin → Settings
-
-### Can't Join Session
-
-1. **Check URL**: Ensure you have the correct session link
-2. **Session Active**: The session may have ended
-3. **Sign In**: Some sessions require authentication
-4. **Permissions**: You may have been banned from the session
-
-### No Audio Playing
-
-1. **Check Endpoint**: Ensure the correct playback endpoint is selected
-2. **Browser Permissions**: Allow audio playback in your browser
-3. **Volume**: Check browser volume, system volume, and Jukebox volume
-4. **Tab Focus**: Some browsers pause audio in background tabs
-
-### Songs Not Adding
-
-1. **Queue Locked**: The owner may have locked the queue
-2. **Rate Limit**: Too many additions too quickly
-3. **Connection Lost**: Check your connection status
-
-### Out of Sync
-
-1. **Refresh**: Reload the page to resync
-2. **Check Connection**: Verify WebSocket connection is active
-3. **Clear Cache**: Clear browser cache and rejoin
-
-### Jukebox Not Available
-
-1. **Feature Disabled**: An admin must enable Jukebox
-2. **Backend Error**: The MPV/MPD backend may not be running
-3. **Permissions**: Only the owner can select Jukebox as endpoint
-
-## API Reference
-
-### Session Management
-
-```
-# Create session
-POST /api/v1/party-sessions
-Body: { "name": "My Party", "isPublic": true }
-
-# Get session
-GET /api/v1/party-sessions/{apiKey}
-
-# Update session
-PATCH /api/v1/party-sessions/{apiKey}
-Body: { "name": "New Name", "isQueueLocked": true }
-
-# Delete session
-DELETE /api/v1/party-sessions/{apiKey}
-
-# List your sessions
-GET /api/v1/party-sessions/my
-
-# List active public sessions
-GET /api/v1/party-sessions/active
-```
-
-### Participants
-
-```
-# Join session
-POST /api/v1/party-sessions/{apiKey}/join
-
-# Leave session
-POST /api/v1/party-sessions/{apiKey}/leave
-
-# Get participants
-GET /api/v1/party-sessions/{apiKey}/participants
-
-# Update participant role
-PATCH /api/v1/party-sessions/{apiKey}/participants/{userId}
-Body: { "role": "DJ" }
-
-# Kick participant
-DELETE /api/v1/party-sessions/{apiKey}/participants/{userId}
-```
-
-### Queue
-
-```
-# Get queue
-GET /api/v1/party-sessions/{apiKey}/queue
-
-# Add to queue
-POST /api/v1/party-sessions/{apiKey}/queue
-Body: { "songId": 12345 }
-
-# Remove from queue
-DELETE /api/v1/party-sessions/{apiKey}/queue/{itemApiKey}
-
-# Reorder queue
-POST /api/v1/party-sessions/{apiKey}/queue/reorder
-Body: { "itemApiKey": "...", "newIndex": 5 }
-
-# Clear queue
-DELETE /api/v1/party-sessions/{apiKey}/queue
-```
-
-### Playback
-
-```
-# Get playback state
-GET /api/v1/party-sessions/{apiKey}/playback
-
-# Update playback
-POST /api/v1/party-sessions/{apiKey}/playback
-Body: { "action": "play" | "pause" | "stop" | "next" | "previous" }
-
-# Seek
-POST /api/v1/party-sessions/{apiKey}/playback/seek
-Body: { "positionSeconds": 120 }
-
-# Set volume
-POST /api/v1/party-sessions/{apiKey}/playback/volume
-Body: { "volume": 0.75 }
-```
-
-### Endpoints
-
-```
-# Get available endpoints
-GET /api/v1/party-sessions/{apiKey}/endpoints
-
-# Set active endpoint
-POST /api/v1/party-sessions/{apiKey}/endpoints/{endpointApiKey}/activate
-
-# Detach endpoint
-POST /api/v1/party-sessions/{apiKey}/endpoints/{endpointApiKey}/detach
-```
-
----
-
-Have questions about Party Mode? Open an issue on GitHub or check the [API documentation](/api/) for technical details.
+The server model supports `WebPlayer`, `MpvBackend`, and `MpdBackend` endpoint
+types with capabilities, ownership, attachment, heartbeat, and stale-state
+tracking. An endpoint must be registered before the selector can attach it to a
+session.
+
+The [Jukebox](/jukebox/) playback backend has a native operation to register
+itself as an endpoint. Jukebox setup, audio-device access, and media-path access
+remain separate requirements. Merely enabling Party Mode does not create an
+audio output.
+
+## Native API Surface
+
+Preview controllers are grouped beneath:
+
+| Route family | Purpose |
+|--------------|---------|
+| `/api/v1/party-sessions` | Create, list, get, join, leave, end, and list participants |
+| `/api/v1/party-sessions/{id}/queue` | Get, add, remove, reorder, and clear queue items |
+| `/api/v1/party-sessions/{id}/playback` | Read state and submit play, pause, stop, next, seek, and volume intents |
+| `/api/v1/party-sessions/{id}` moderation routes | Queue lock, role, kick, ban, unban, and audit operations |
+| `/api/v1/party-endpoints` | Endpoint registration, capabilities, heartbeat, state, and detach |
+| `/api/v1/endpoints` | List and attach endpoints for a session |
+| `/party-hub` | SignalR notification hub |
+
+All native routes require a Melodee JWT. The party API and DTOs are preview
+contracts and can change; use the running `/scalar/v1` document for the exact
+request shapes in the installed build. Test API authentication and each desired
+operation before writing an integration.
+
+Queue and playback mutations use expected revision values for optimistic
+concurrency. On a conflict, reload current state and decide whether to retry
+against the new revision rather than resubmitting blindly.
+
+## Evaluation Checklist
+
+For a controlled test:
+
+1. Enable Party Mode for a non-production instance.
+2. Create two ordinary test users and an open session.
+3. Confirm both users can join and observe the same persisted queue.
+4. Register and attach a tested Jukebox endpoint if audio output is needed.
+5. Exercise role, queue-lock, revision-conflict, endpoint-offline, and session-end
+   behavior through the API.
+6. Review logs for party service, endpoint, playback, and SignalR errors.
+7. Disable the flag again if the browser limitations are unsuitable for users.
+
+When reporting a defect, include the Melodee version, UI or API path, user role,
+session/queue/playback revision, endpoint type, sanitized response, and relevant
+log correlation. Never publish JWTs, join codes, or private endpoint addresses.

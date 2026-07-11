@@ -4,13 +4,14 @@
 #
 # Usage:
 #   ./scripts/bump_version.sh          # interactive prompt
-#   ./scripts/bump_version.sh 2.1.0    # bump to 2.1.0
-#   ./scripts/bump_version.sh --dry-run 2.1.0  # preview changes only
+#   ./scripts/bump_version.sh 2.3.0    # bump to 2.3.0
+#   ./scripts/bump_version.sh --dry-run 2.3.0  # preview changes only
 #
 # This script updates:
 #   - All 4 .csproj VersionPrefix values
 #   - docs/pages/changelog.md (promotes [Unreleased] to the new version)
 #   - docs/VERSION (if it exists)
+#   - docs/_config.yml (sets the default documentation release)
 #
 # After merging the PR, create the git tag and GitHub Release from the tag.
 #
@@ -30,7 +31,7 @@ for arg in "$@"; do
       echo ""
       echo "Options:"
       echo "  --dry-run   Show what would change without modifying files"
-      echo "  VERSION     Semantic version (e.g., 2.1.0). Prompts if omitted."
+      echo "  VERSION     Semantic version (e.g., 2.3.0). Prompts if omitted."
       exit 0
       ;;
     *)
@@ -64,13 +65,12 @@ fi
 # Determine current version
 CURRENT_VERSION="$(grep -oP '(?<=<VersionPrefix>)[^<]+' src/Melodee.Blazor/Melodee.Blazor.csproj | head -1)"
 
-if [[ "$VERSION" == "$CURRENT_VERSION" ]]; then
-  echo "Version is already $VERSION. No changes needed."
-  exit 0
-fi
-
 echo ""
-echo "Bumping version: $CURRENT_VERSION → $VERSION"
+if [[ "$VERSION" == "$CURRENT_VERSION" ]]; then
+  echo "Synchronizing version metadata at $VERSION"
+else
+  echo "Bumping version: $CURRENT_VERSION → $VERSION"
+fi
 echo ""
 
 # Track updated files
@@ -93,6 +93,19 @@ log_skip() {
   local reason="$2"
   echo "  SKIP  $file — $reason"
   skipped=$((skipped + 1))
+}
+
+version_list_contains() {
+  local file="$1"
+  local key="$2"
+  local version="$3"
+
+  awk -v key="$key" -v version="$version" '
+    $0 == "  " key ":" { in_list = 1; next }
+    in_list && $0 == "    - " version { found = 1; exit }
+    in_list && $0 !~ /^    - / { exit }
+    END { exit(found ? 0 : 1) }
+  ' "$file"
 }
 
 # --- Update .csproj files ---
@@ -136,13 +149,55 @@ if [[ -f "$VERSION_FILE" ]]; then
     log_update "$VERSION_FILE" "$old_ver → $VERSION"
   fi
 else
-  log_skip "$VERSION_FILE" "file does not exist (legacy/orphaned)"
+  log_skip "$VERSION_FILE" "file not found"
+fi
+
+# --- Update documentation release selector ---
+DOCS_CONFIG="docs/_config.yml"
+if [[ -f "$DOCS_CONFIG" ]]; then
+  if ! grep -q '^  search_versions:$' "$DOCS_CONFIG" ||
+     ! grep -q '^  latest:' "$DOCS_CONFIG" ||
+     ! grep -q '^  versions:$' "$DOCS_CONFIG"; then
+    echo "Error: $DOCS_CONFIG is missing required version_params keys" >&2
+    exit 1
+  fi
+
+  old_latest="$(sed -n 's/^  latest:[[:space:]]*//p' "$DOCS_CONFIG" | head -1)"
+  docs_config_synced=true
+  if [[ "$old_latest" != "$VERSION" ]]; then
+    docs_config_synced=false
+  fi
+  if ! version_list_contains "$DOCS_CONFIG" "search_versions" "$VERSION"; then
+    docs_config_synced=false
+  fi
+  if ! version_list_contains "$DOCS_CONFIG" "versions" "$VERSION"; then
+    docs_config_synced=false
+  fi
+
+  if [[ "$docs_config_synced" == true ]]; then
+    log_skip "$DOCS_CONFIG" "default Release already set to $VERSION"
+  elif [[ "$DRY_RUN" == true ]]; then
+    log_update "$DOCS_CONFIG" "default Release: $old_latest → $VERSION"
+  else
+    sed -i "s|^  latest:.*$|  latest: ${VERSION}|" "$DOCS_CONFIG"
+    if ! version_list_contains "$DOCS_CONFIG" "search_versions" "$VERSION"; then
+      sed -i "/^  search_versions:$/a\\    - ${VERSION}" "$DOCS_CONFIG"
+    fi
+    if ! version_list_contains "$DOCS_CONFIG" "versions" "$VERSION"; then
+      sed -i "/^  versions:$/a\\    - ${VERSION}" "$DOCS_CONFIG"
+    fi
+    log_update "$DOCS_CONFIG" "default Release: $old_latest → $VERSION"
+  fi
+else
+  log_skip "$DOCS_CONFIG" "file not found"
 fi
 
 # --- Update changelog ---
 CHANGELOG="docs/pages/changelog.md"
 if [[ -f "$CHANGELOG" ]]; then
-  if [[ "$DRY_RUN" == true ]]; then
+  if grep -Fq "## [${VERSION}] - " "$CHANGELOG"; then
+    log_skip "$CHANGELOG" "already contains release $VERSION"
+  elif [[ "$DRY_RUN" == true ]]; then
     log_update "$CHANGELOG" "promote [Unreleased] → [$VERSION]"
   else
     today="$(date +%Y-%m-%d)"
@@ -185,4 +240,4 @@ echo "  2. Open a PR and get it approved/merged"
 echo "  3. After merge, create the tag: git tag -a v${VERSION} -m \"Release v${VERSION}\" && git push origin v${VERSION}"
 echo "  4. Create GitHub Release from tag v${VERSION} (triggers Docker publish)"
 echo "  5. Verify About page shows v${VERSION} in the UI"
-echo "  6. Verify /changelog/ docs page shows the new entry"
+echo "  6. Verify /changelog/ shows the new entry and the docs Release menu defaults to ${VERSION}"

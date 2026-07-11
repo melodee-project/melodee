@@ -1,7 +1,11 @@
 ---
 layout: page
 title: Articles
+description: Browse the archive of Melodee release announcements and project news.
 permalink: /archive/
+tags:
+  - news
+  - archive
 ---
 # News Archive
 

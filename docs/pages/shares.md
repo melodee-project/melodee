@@ -1,299 +1,123 @@
 ---
 title: Shares
+description: Create share records for songs, albums, playlists, or artists and understand the 2.2.0 public-access limitations.
 permalink: /shares/
+tags:
+  - shares
+  - open-subsonic
+  - preview
 ---
 
 # Shares
 
-Shares in Melodee allow you to create shareable links to your music that can be accessed by anyone—even people without a Melodee account. Share a favorite song with a friend, send an album link to someone, or create a playlist link for a party.
+> Shares are a preview feature in 2.2.0. Creation and metadata APIs are implemented, but anonymous playback, expiry enforcement, downloads, and visit tracking are not yet consistent across the web and API surfaces.
 
-## What Are Shares?
+A share stores an owner, resource type and database ID, short URL ID, description, optional expiration, downloadable flag, and visit counters.
 
-A share is a unique, short URL that provides access to a specific piece of content in your library:
+Supported resource types in the native API are **Song**, **Album**, **Playlist**, and **Artist**. OpenSubsonic creation supports songs, albums, and playlists.
 
-- **Songs**: Share a single track
-- **Albums**: Share an entire album with all its songs
-- **Artists**: Share an artist's profile and discography
-- **Playlists**: Share a curated playlist
+## Create and manage shares
 
-Shares work without requiring the recipient to log in or have an account on your Melodee server.
+The 2.2.0 Shares page lists records and lets an Editor or Administrator delete selected unlocked shares. It does not have create or edit forms, and the list is not filtered to the current owner.
 
-## How Shares Work
+Create or update shares through the native or OpenSubsonic API. The native API requires the user's **Share** capability. Owners can read, update, and delete their records; administrators can manage another user's record through native endpoints.
 
-1. **Create a share** for any song, album, artist, or playlist
-2. **Get a unique URL** with a short, shareable ID (e.g., `/share/abc123xyz`)
-3. **Send the link** to anyone you want to share with
-4. **Recipients access** the content through a public page—no login required
+The generated URL has this form:
 
-## Share Features
-
-| Feature | Description |
-|---------|-------------|
-| **Unique URLs** | Each share has a short, unique ID for easy sharing |
-| **Expiration** | Optionally set an expiration date after which the share becomes invalid |
-| **Download Option** | Allow or disallow downloads of shared content |
-| **Visit Tracking** | See how many times your share has been accessed |
-| **Descriptions** | Add custom descriptions to explain what you're sharing |
-
-## Creating Shares
-
-### From the Melodee UI
-
-1. Navigate to any song, album, artist, or playlist
-2. Click the **Share** button or icon
-3. Configure share options:
-   - **Description**: Optional note about what you're sharing
-   - **Expiration**: When the share should expire (or never)
-   - **Downloadable**: Whether recipients can download the content
-4. Copy the generated share link
-
-### From Music Clients
-
-Some Subsonic-compatible clients support creating shares:
-
-- Look for a "Share" or "Create Link" option in song/album context menus
-- The client will create the share and provide you with the URL
-
-## Share Options
-
-### Expiration
-
-Control how long a share remains valid:
-
-| Option | Use Case |
-|--------|----------|
-| **No expiration** | Permanent links for friends and family |
-| **1 day** | Quick share for immediate listening |
-| **1 week** | Short-term sharing |
-| **1 month** | Medium-term access |
-| **Custom date** | Specific expiration needs |
-
-Expired shares return a "Share has expired" message to visitors.
-
-### Download Permission
-
-Control whether recipients can download the shared content:
-
-- **Downloadable**: Recipients can download files (songs, albums)
-- **Stream only**: Recipients can only stream, not download
-
-Consider your bandwidth and storage when enabling downloads for shares.
-
-## Accessing Shared Content
-
-### For Recipients
-
-When someone receives a share link:
-
-1. Click the link to open the share page
-2. View information about the shared content (cover art, track listing, etc.)
-3. Play the content directly in their browser
-4. Download if permitted by the share creator
-
-No account or login required.
-
-### Public Share Page
-
-The public share page displays:
-
-- **Cover art** or artist image
-- **Title** and description
-- **Track listing** (for albums and playlists)
-- **Play controls** for streaming
-- **Download button** (if enabled)
-
-## Managing Shares
-
-### Viewing Your Shares
-
-1. Navigate to **Shares** in the Melodee UI
-2. See all shares you've created
-3. View statistics (visit count, last visited, expiration status)
-
-### Editing Shares
-
-Update existing shares:
-
-- Change the description
-- Modify expiration date
-- Toggle download permission
-
-Note: The share URL remains the same when editing.
-
-### Deleting Shares
-
-Remove shares you no longer want active:
-
-1. Select the share(s) to delete
-2. Confirm deletion
-3. The share URL immediately becomes invalid
-
-Deleted shares cannot be recovered.
-
-## Share Types
-
-### Song Shares
-
-Share a single track:
-
-- Displays song title, artist, and album
-- Shows cover art
-- Provides a play button for streaming
-- Optional download of the single track
-
-### Album Shares
-
-Share an entire album:
-
-- Displays album cover, title, and artist
-- Lists all tracks with track numbers and durations
-- Play the entire album or individual tracks
-- Download the complete album (if enabled)
-
-### Artist Shares
-
-Share an artist profile:
-
-- Displays artist image and name
-- Shows artist information
-- Links to the artist's albums and songs
-- Great for introducing someone to an artist
-
-### Playlist Shares
-
-Share a curated playlist:
-
-- Displays playlist name and description
-- Lists all songs in playlist order
-- Play the entire playlist or jump to specific tracks
-- Download all songs (if enabled)
-
-## Use Cases
-
-### Sharing with Friends
-
-Send a friend a link to:
-- A song you think they'll love
-- A new album discovery
-- Your "Road Trip" playlist
-
-### Event Playlists
-
-Create a playlist for an event and share:
-- Party playlist for guests to preview
-- Wedding reception music for the couple to review
-- Workout playlist for gym buddies
-
-### Music Discovery
-
-Share interesting finds:
-- Obscure artist you discovered
-- Classic album recommendation
-- Genre-specific playlist
-
-### Temporary Access
-
-Use expiring shares for:
-- Preview access before a music swap
-- Limited-time promotional sharing
-- Time-boxed listening sessions
-
-## Privacy and Security
-
-### What Recipients Can See
-
-- The shared content (song, album, artist, or playlist)
-- Cover art and metadata
-- Your description (if provided)
-
-### What Recipients Cannot See
-
-- Your username or personal information
-- Other content in your library
-- Your listening history or statistics
-- Other users' shares
-
-### Best Practices
-
-- Use expiring shares for sensitive or temporary content
-- Disable downloads if you're concerned about redistribution
-- Delete shares you no longer need
-- Monitor visit counts for unexpected access patterns
-
-## API Access
-
-Shares are accessible via the Melodee API:
-
+```text
+https://your-server.example/share/{shortId}
 ```
-# List your shares
-GET /api/v1/shares
 
-# Get share by API key
-GET /api/v1/shares/{apiKey}
+## Current public-access behavior
 
-# Create a new share
-POST /api/v1/shares
-Body: {
-  "shareType": "Song|Album|Artist|Playlist",
-  "resourceId": "<guid>",
-  "description": "Optional description",
-  "isDownloadable": true|false,
-  "expiresAt": "2024-12-31T23:59:59Z" (optional)
-}
+There are two anonymous surfaces:
 
-# Update a share
-PUT /api/v1/shares/{apiKey}
-Body: {
-  "description": "Updated description",
-  "isDownloadable": true|false,
-  "expiresAt": "2024-12-31T23:59:59Z"
-}
+### Public JSON endpoint
 
-# Delete a share
-DELETE /api/v1/shares/{apiKey}
-
-# Public access (no auth required)
-GET /api/v1/shares/public/{shareUniqueId}
+```text
+GET /api/v1/shares/public/{shortId}
 ```
+
+This endpoint:
+
+- rejects an expired share with HTTP 410;
+- returns metadata for artists, albums, songs, and playlists;
+- returns song stream URLs and the `isDownloadable` flag.
+
+The returned stream URLs still point at authenticated `/rest/stream` routes. The flag does not grant anonymous download access.
+
+### Blazor share page
+
+```text
+GET /share/{shortId}
+```
+
+The page builds a simple audio player for a song, album, or playlist. In 2.2.0:
+
+- it does not support Artist shares;
+- it does not check `ExpiresAt`;
+- it does not display the description or downloadable flag;
+- its audio URLs require normal OpenSubsonic authentication.
+
+Consequently, a recipient without a Melodee account cannot reliably play the media. Do not present 2.2.0 share links as anonymous streaming links.
+
+## Other current limitations
+
+- `VisitCount`, `LastVisitedAt`, and `ShareActivity` are modeled but public requests do not update them.
+- No share-download endpoint enforces `IsDownloadable`.
+- The native and OpenSubsonic update paths persist description changes, but the current shared update service does not persist changed expiration or downloadable values.
+- The web list exposes few details and no per-share statistics view.
+
+Use an authenticated playlist or client account when reliable remote playback is required.
+
+## Native API
+
+Use a native bearer token:
+
+```text
+GET    /api/v1/shares?page=1&pageSize=20
+GET    /api/v1/shares/{shareGuid}
+POST   /api/v1/shares
+PUT    /api/v1/shares/{shareGuid}
+DELETE /api/v1/shares/{shareGuid}
+GET    /api/v1/shares/public/{shortId}
+```
+
+Example create body:
+
+```json
+{
+  "shareType": "Album",
+  "resourceId": "00000000-0000-0000-0000-000000000000",
+  "description": "Listen to this album",
+  "isDownloadable": false,
+  "expiresAt": "2026-08-01T00:00:00Z"
+}
+```
+
+`resourceId` is the resource's raw API-key GUID. `expiresAt` uses extended ISO 8601.
+
+The native list is filtered to the authenticated user's records, even though the Blazor Shares page currently is not.
 
 ## OpenSubsonic API
 
-Shares are also available through the OpenSubsonic API:
+Melodee implements GET and POST variants:
 
-```
-# Get all shares
-GET /rest/getShares
-
-# Create a share
-GET /rest/createShare?id=<songId>&description=<text>&expires=<timestamp>
-
-# Update a share
-GET /rest/updateShare?id=<shareId>&description=<text>&expires=<timestamp>
-
-# Delete a share
-GET /rest/deleteShare?id=<shareId>
+```text
+/rest/getShares
+/rest/createShare?id={typedResourceId}
+/rest/updateShare?id={shareId}
+/rest/deleteShare?id={shareId}
 ```
 
-## Troubleshooting
+`description` is optional. `expires` is Unix time in milliseconds. IDs returned by Melodee can be numeric or use its typed API-key form depending on the operation and client.
 
-### Share Link Not Working
+Because public playback is incomplete, third-party client “share” support does not by itself make the resulting URL anonymously playable.
 
-- Check if the share has expired
-- Verify the share hasn't been deleted
-- Ensure the shared content still exists in your library
+## Security guidance
 
-### Cannot Create Shares
-
-- Verify your account has the "Share" capability enabled
-- Check that you're not locked out of your account
-- Ensure the content you're sharing exists
-
-### Downloads Not Available
-
-- The share creator may have disabled downloads
-- Check your browser's download settings
-- Large albums may take time to prepare for download
-
----
-
-Have questions about shares? Open an issue on GitHub or check the [API documentation](/api/) for technical details.
+- Assume anybody who receives a short ID can read the metadata endpoint until the record is deleted or its API-enforced expiry is reached.
+- Do not use shares for confidential content.
+- Reverse-proxy authentication can protect the whole instance, but it also prevents anonymous share access.
+- Delete obsolete records rather than relying on the web page's current expiry behavior.
+- Respect licensing and redistribution rights for the media you host.

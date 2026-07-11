@@ -1,0 +1,12 @@
+# LogSanitizer.Sanitize replaces every supported line-ending character before
+# returning its value. Model that return value only as a log-injection barrier;
+# do not suppress the log-forging query or mark unrelated masking helpers safe.
+# ConfigurationLogRedactor.RedactValue is deny-by-default and permits only
+# sanitized operational metadata, so its return is safe for external storage.
+extensions:
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierModel
+    data:
+      - ["Melodee.Common.Utility", "LogSanitizer", false, "Sanitize", "(System.String)", "", "ReturnValue", "log-injection", "manual"]
+      - ["Melodee.Common.Configuration", "ConfigurationLogRedactor", false, "RedactValue", "(System.String,System.Object)", "", "ReturnValue", "file-content-store", "manual"]

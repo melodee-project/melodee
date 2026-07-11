@@ -1,274 +1,138 @@
 ---
-title: Quick Start for Homelabs
+title: Quick Start
+description: Run Melodee 2.2.0 with Docker or Podman and complete the first-time setup.
 permalink: /quickstart/
+tags:
+  - installation
+  - containers
+  - homelab
 ---
 
-# Quick Start Guide
+# Quick Start
 
-This guide provides a fast path to getting Melodee running in your homelab environment with best practices for home lab deployments.
+This guide gets a new Melodee 2.2.0 container installation running on port
+`8080`. See [Installing](/installing/) for source builds, bind mounts, and native
+development.
 
 ## Prerequisites
 
-Before starting, ensure you have:
+- A 64-bit Linux host using AMD64 or ARM64
+- Docker with the Compose plugin, or Podman with a Compose provider
+- At least 2 GB of RAM and 5 GB of free space before adding music
+- Git, Python 3, and an available TCP port 8080
 
-- A server or SBC with Docker/Podman installed
-- At least 4GB RAM (8GB+ recommended for large collections)
-- Sufficient storage for your music library
-- Basic knowledge of Docker and container management
-- A domain name or subdomain (optional but recommended)
+## Option 1: Use the Published Image
 
-## Step 1: Prepare Your Environment
-
-### System Preparation
-```bash
-# Update your system
-sudo apt update && sudo apt upgrade -y
-
-# Install Docker (Ubuntu/Debian)
-sudo apt install docker.io docker-compose -y
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Or install Podman (alternative)
-sudo apt install podman podman-compose -y
-```
-
-### Storage Setup
-For homelab deployments, prepare your music storage:
+Clone the repository to obtain the supported Compose file and environment
+template:
 
 ```bash
-# Create directories for your music (if using bind mounts instead of volumes)
-mkdir -p ~/melodee/{storage,inbound,staging,user-images,playlists}
-```
-
-## Step 2: Deploy Melodee
-
-### Automated Deployment (Recommended)
-For the easiest setup, use our Python setup script which automates the entire process:
-
-```bash
-# Download and run the setup script
-curl -O https://raw.githubusercontent.com/melodee-project/melodee/main/scripts/setup_melodee.py
-python3 scripts/setup_melodee.py
-```
-
-The script will:
-- Check for required dependencies (Git, Docker/Podman)
-- Clone the Melodee repository (if not already present)
-- Generate a secure environment configuration
-- Build and start the containers automatically
-- Wait for the service to be healthy
-- Provide you with the URL to access the Blazor Admin UI
-
-### Manual Deployment
-If you prefer to set up manually:
-
-#### Clone and Configure
-```bash
-# Clone the repository
 git clone https://github.com/melodee-project/melodee.git
 cd melodee
-
-# Copy environment file
 cp example.env .env
-
-# Edit the environment file with your preferences
-nano .env
 ```
 
-Key settings for homelab deployment:
-- Set a strong `DB_PASSWORD`
-- Adjust `MELODEE_PORT` if needed
-- Consider increasing `DB_MIN_POOL_SIZE` and `DB_MAX_POOL_SIZE` for better performance
+Edit `.env` before starting. At minimum:
 
-#### Start the Services
-```bash
-# Using Docker Compose
-docker-compose up -d
+1. Replace `DB_PASSWORD` with a unique database password.
+2. Replace `MELODEE_AUTH_TOKEN` with a random value of at least 64 characters.
+3. Add this line to pin the application image:
 
-# Or using Podman Compose
-podman-compose up -d
-```
+   ```text
+   MELODEE_IMAGE=ghcr.io/melodee-project/melodee:2.2.0
+   ```
 
-## Step 3: Initial Configuration
-
-### Access the Web Interface
-1. Open your browser and navigate to `http://your-server-ip:8080` (or your configured port)
-2. Create your first user account (this will be the administrator)
-3. Log in with your new credentials
-
-### Configure Library Paths
-1. Navigate to the Configuration section
-2. Set up your library paths:
-   - **Inbound**: Where you'll place new music files
-   - **Staging**: Where files go after initial processing
-   - **Storage**: Where final processed music is stored
-
-### Set Up Metadata Providers
-1. Go to the metadata configuration
-2. Add API keys for providers you want to use:
-   - MusicBrainz (no API key needed)
-   - Last.FM (free API key)
-   - Spotify (free API key)
-   - iTunes (no API key needed)
-   - Brave Search (for artwork, requires API key)
-
-## Step 4: Homelab Optimization
-
-### Reverse Proxy Setup (Recommended)
-For homelab deployments, set up a reverse proxy with SSL:
-
-**Nginx Proxy Manager:**
-1. Deploy Nginx Proxy Manager alongside Melodee
-2. Create a proxy host for your Melodee instance
-3. Enable SSL with Let's Encrypt
-
-**Traefik:**
-Add labels to your compose file:
-```yaml
-services:
-  melodee.blazor:
-    # ... existing config ...
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.melodee.rule=Host(`music.yourdomain.com`)"
-      - "traefik.http.routers.melodee.tls=true"
-      - "traefik.http.routers.melodee.entrypoints=websecure"
-```
-
-### Hardware Optimization
-Based on your homelab hardware:
-
-**For SBCs (Raspberry Pi, etc.):**
-- Limit concurrent transcoding jobs
-- Use lower quality transcoding settings
-- Monitor temperature during processing
-
-**For Full Servers:**
-- Increase database connection pool sizes
-- Enable more concurrent processing jobs
-- Configure transcoding for higher quality output
-
-## Step 5: Add Your Music
-
-### Initial Music Import
-1. Place your music files in the **inbound** directory
-2. Go to the Jobs section in the web interface
-3. Start a manual scan to process your music
-4. Monitor the staging area for files that need manual review
-5. Approve and promote files to storage
-
-### Ongoing Music Management
-- New music goes to the inbound directory
-- Processing happens automatically based on your schedule
-- Review staging items regularly for manual metadata fixes
-
-## Step 6: Configure Clients
-
-### OpenSubsonic Compatible Clients
-Melodee is compatible with many existing Subsonic clients:
-- **MeloAmp**: Official desktop client
-- **Dsub**: Android client
-- **Sublimemusic**: Cross-platform client
-- **Feishin**: Modern client with web-based UI
-
-### Client Configuration
-- **Server URL**: Your Melodee server address (e.g., `https://music.yourdomain.com`)
-- **Username/Password**: Your Melodee account credentials
-- **API Path**: Usually auto-detected, but may need to be set to `/api/rest` for OpenSubsonic compatibility
-
-## Step 7: Set Up Automation
-
-### Backup Strategy
-Create a backup script for your homelab:
+You can generate suitable secrets with OpenSSL:
 
 ```bash
-#!/bin/bash
-# backup-melodee.sh
-
-BACKUP_DIR="/backup/melodee/$(date +%Y-%m-%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Stop services briefly for consistent backup
-docker-compose down
-
-# Backup database
-docker exec melodee-db pg_dump -U melodeeuser -d melodeedb | gzip > "$BACKUP_DIR/db_backup.sql.gz"
-
-# Export volumes
-docker run --rm -v melodee_storage:/volume -v "$BACKUP_DIR:/backup" alpine tar czf /backup/storage.tar.gz -C /volume .
-docker run --rm -v melodee_user_images:/volume -v "$BACKUP_DIR:/backup" alpine tar czf /backup/user_images.tar.gz -C /volume .
-docker run --rm -v melodee_playlists:/volume -v "$BACKUP_DIR:/backup" alpine tar czf /backup/playlists.tar.gz -C /volume .
-
-# Start services
-docker-compose up -d
-
-echo "Backup completed: $BACKUP_DIR"
+openssl rand -base64 32
+openssl rand -hex 32
 ```
 
-Schedule with cron:
-```bash
-# Daily backup at 2 AM
-0 2 * * * /path/to/backup-melodee.sh
-```
-
-### Maintenance Jobs
-Configure regular maintenance tasks:
-- Database optimization
-- Log rotation
-- Storage cleanup
-
-## Step 8: Monitoring
-
-### System Monitoring
-Monitor your homelab deployment with:
+Pull the application image and start both services without building locally:
 
 ```bash
-# Check service status
-docker-compose ps
-
-# Monitor resource usage
-docker stats melodee-blazor melodee-db
-
-# Check application logs
-docker-compose logs -f melodee-blazor
+docker compose pull melodee.blazor
+docker compose up -d --no-build
+docker compose ps
 ```
 
-### Health Checks
-Melodee provides health endpoints:
-- `/health` - Basic health check
-- `/health/ready` - Readiness check for orchestration tools
+For Podman, use `podman compose` or `podman-compose` in place of
+`docker compose`, depending on the installed provider.
 
-## Troubleshooting Common Issues
+## Option 2: Build Locally with the Setup Script
 
-### Performance Issues
-- **Slow UI**: Check database connection settings and storage performance
-- **High CPU**: Monitor transcoding jobs and adjust settings
-- **Memory issues**: Increase container memory limits
+The repository includes a setup script that checks prerequisites, creates a
+secure `.env`, builds the image, and can start the services:
 
-### Connection Issues
-- **Can't access web UI**: Check port configuration and firewall
-- **Client can't connect**: Verify API compatibility and authentication
+```bash
+git clone https://github.com/melodee-project/melodee.git
+cd melodee
+python3 scripts/run-container-setup.py --start
+```
 
-### Storage Issues
-- **Running out of space**: Monitor volume sizes and configure cleanup
-- **Slow music access**: Ensure storage volumes are on fast drives
+Use `--check-only` to run preflight checks without changing the installation.
+The script prefers an installed Podman provider, then Docker.
+
+## Complete Onboarding
+
+1. Open `http://HOST:8080`, replacing `HOST` with the server name or address.
+2. Register the first account. The first registered account becomes an
+   administrator.
+3. Follow the onboarding checklist and set `system.baseUrl` to the public URL
+   clients will use, such as `https://music.example.com`.
+4. Review **Admin > Libraries**. The default container paths are:
+
+   | Library | Container path |
+   |---------|----------------|
+   | Inbound | `/app/inbound/` |
+   | Staging | `/app/staging/` |
+   | Storage | `/app/storage/` |
+   | Podcasts | `/app/podcasts/` |
+   | Templates | `/app/templates/` |
+   | Themes | `/app/themes/` |
+
+5. Open **Admin > Doctor** and resolve any failed checks before importing a
+   large collection.
+
+## Add Music
+
+The default Compose file uses named volumes. For a one-time import, copy a
+release directory into the inbound volume:
+
+```bash
+docker compose cp /path/to/release/. melodee.blazor:/app/inbound/release/
+```
+
+For an existing library or regular imports, configure host bind mounts instead;
+see [Installing: Persistent storage](/installing/#persistent-storage). Do not
+point the Inbound and Storage libraries at the same host directory.
+
+Run the ingestion pipeline from **Admin > Jobs**, or from a locally configured
+CLI:
+
+```bash
+./mcli library scan
+```
+
+Albums that need attention remain in Staging. Valid albums can move through
+Storage and into the PostgreSQL index automatically.
+
+## Verify the Installation
+
+```bash
+curl --fail http://localhost:8080/health
+docker compose logs --tail=100 melodee.blazor
+```
+
+Melodee exposes one health endpoint: `/health`. A healthy container does not
+guarantee every optional integration is configured, so also review
+**Admin > Doctor**.
 
 ## Next Steps
 
-### Advanced Configuration
-- Explore advanced metadata configuration
-- Set up automated music import workflows
-- Configure user permissions and sharing
-
-### Community Resources
-- Join the Discord community
-- Check GitHub for updates and issues
-- Share your homelab setup in the community forums
-
-### Hardware Upgrades
-- Consider SSD for database volume
-- Add more RAM for larger collections
-- Upgrade network for better streaming performance
-
-This quick start guide should get your Melodee homelab deployment up and running. For more detailed information on specific topics, explore the other documentation sections.
+- [Installation and storage options](/installing/)
+- [Configuration](/configuration/)
+- [Backup and recovery](/backup/)
+- [Reverse proxy and homelab deployment](/homelab/)
+- [Connect an OpenSubsonic client](/api-opensubsonic/)

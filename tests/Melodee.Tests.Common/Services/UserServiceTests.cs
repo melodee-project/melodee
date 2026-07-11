@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
@@ -14,6 +16,9 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using NodaTime;
 using Rebus.Bus;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace Melodee.Tests.Common.Services;
 
@@ -40,13 +45,16 @@ public class UserServiceTests : ServiceTestBase
             CreateUserProfileService(actualConfigFactory, actualBus));
     }
 
-    private UserProfileService CreateUserProfileService(IMelodeeConfigurationFactory? configFactory = null, IBus? bus = null)
+    private UserProfileService CreateUserProfileService(
+        IMelodeeConfigurationFactory? configFactory = null,
+        IBus? bus = null,
+        Serilog.ILogger? logger = null)
     {
         var actualConfigFactory = configFactory ?? MockConfigurationFactory();
         var actualBus = bus ?? MockBus();
 
         return new UserProfileService(
-            Logger,
+            logger ?? Logger,
             CacheManager,
             MockFactory(),
             actualConfigFactory,
@@ -457,6 +465,34 @@ public class UserServiceTests : ServiceTestBase
             // If not successful, at least verify the operation completed without throwing
             Assert.NotNull(result);
         }
+    }
+
+    [Fact]
+    public async Task UserLookupTimings_DoNotLogEmailAddressOrUsername()
+    {
+        const string email = "sensitive.user@example.test";
+        const string username = "sensitive-username";
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            context.Users.Add(CreateTestUser(210, username, email));
+            await context.SaveChangesAsync();
+        }
+
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var userProfileService = CreateUserProfileService(logger: logger);
+
+        var emailResult = await userProfileService.GetByEmailAddressAsync(email);
+        var usernameResult = await userProfileService.GetByUsernameAsync(username);
+
+        emailResult.IsSuccess.Should().BeTrue();
+        usernameResult.IsSuccess.Should().BeTrue();
+        sink.Output.Should().Contain("GetByEmailAddressAsync");
+        sink.Output.Should().Contain("GetByUsernameAsync");
+        sink.Output.Should().NotContainAny(email, username);
     }
 
     [Fact]
@@ -1568,4 +1604,18 @@ public class UserServiceTests : ServiceTestBase
     }
 
     #endregion
+
+    private sealed class RecordingLogEventSink : ILogEventSink
+    {
+        private readonly ConcurrentQueue<LogEvent> _events = new();
+
+        public string Output => string.Join(
+            Environment.NewLine,
+            _events.Select(x => $"{x.RenderMessage()} {x.Exception}"));
+
+        public void Emit(LogEvent logEvent)
+        {
+            _events.Enqueue(logEvent);
+        }
+    }
 }

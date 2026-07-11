@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
       with:
         dotnet-version: 10.0.104
     - name: Restore dependencies
@@ -80,10 +80,12 @@ jobs:
       run: |
         dotnet tool install -g dotnet-reportgenerator-globaltool
         reportgenerator -reports:"coverage/results/**/coverage.cobertura.xml" -targetdir:"coverage/report" -reporttypes:"Html;TextSummary" -assemblyfilters:"+Melodee.*;+server;+mcli;-Melodee.Tests.*"
-        echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
-        cat coverage/report/Summary.txt >> $GITHUB_STEP_SUMMARY
+        {
+          echo "## Coverage Summary"
+          cat coverage/report/Summary.txt
+        } >> "$GITHUB_STEP_SUMMARY"
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: coverage-report
         path: coverage/report/

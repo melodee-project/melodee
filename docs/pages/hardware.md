@@ -1,287 +1,129 @@
 ---
 title: Hardware & Performance
+description: Size and tune a Melodee host for library scans, PostgreSQL, transcoding, and concurrent streams.
 permalink: /hardware/
+tags:
+  - hardware
+  - performance
+  - sizing
+  - homelab
 ---
 
-# Hardware & Performance Guide
+# Hardware & Performance
 
-This guide covers hardware recommendations and performance optimization strategies for running Melodee in various homelab environments, from single-board computers to full server setups.
+Melodee's resource use depends more on active work than raw song count. Initial
+imports stress CPU and storage, PostgreSQL benefits from low-latency random I/O,
+and real-time transcoding consumes CPU for every concurrent stream.
 
-## System Architecture Overview
+## Baseline Requirements
 
-Melodee has three main resource-intensive components:
-1. **Database** (PostgreSQL): Handles metadata indexing and queries
-2. **Media Processing**: Handles transcoding, normalization, and validation
-3. **Streaming**: Handles concurrent audio streams to clients
+The container setup helper checks for at least 2 GB of RAM and 5 GB of free
+space before media is added. Treat those values as an installation floor, not a
+capacity plan.
 
-Understanding these components helps optimize your hardware choices.
+The published image supports Linux AMD64 and ARM64. A dual-core system with
+2-4 GB of RAM can evaluate Melodee and serve a small, mostly direct-play
+library. Increase resources for concurrent users, background imports, or
+transcoding.
 
-## Hardware Recommendations by Scale
+## Starting Profiles
 
-### Small Libraries (<5,000 tracks)
-- **CPU**: Dual-core 2.0GHz+ (Intel/AMD x64 or ARM64)
-- **RAM**: 2GB minimum, 4GB recommended
-- **Storage**: 
-  - System: 100GB SSD
-  - Media: Any drive with sufficient space
-- **Network**: 100 Mbps Ethernet
-- **Examples**: 
-  - Raspberry Pi 4 (4GB RAM) with external USB drive
-  - Old laptop with 4GB+ RAM
-  - Intel NUC with low-end processor
+These are conservative starting points to validate with your own collection:
 
-### Medium Libraries (5,000 - 50,000 tracks)
-- **CPU**: Quad-core 2.5GHz+ 
-- **RAM**: 4GB minimum, 8GB recommended
-- **Storage**:
-  - System: 100GB+ SSD
-  - Database: SSD recommended for performance
-  - Media: SSD cache or fast spinning drives
-- **Network**: Gigabit Ethernet
-- **Examples**:
-  - Raspberry Pi 5 or Rock 5B
-  - Used desktop with i5/i7 processor
-  - Home server with ECC RAM
+| Workload | CPU | RAM | Storage guidance |
+|----------|-----|-----|------------------|
+| Evaluation or small personal library | 2 cores | 2-4 GB | SSD for PostgreSQL; media on local disk |
+| Regular homelab use and moderate imports | 4 cores | 8 GB | SSD for database and working directories |
+| Large imports or several concurrent users | 6+ modern cores | 16 GB+ | NVMe database; separate media capacity tier |
 
-### Large Libraries (50,000+ tracks)
-- **CPU**: 6+ cores, 3.0GHz+ (Intel i7/Ryzen 5 or better)
-- **RAM**: 16GB minimum, 32GB+ recommended
-- **Storage**:
-  - System: Fast NVMe SSD
-  - Database: NVMe or fast SSD
-  - Media: Multiple drives in RAID or separate volumes
-- **Network**: 10Gbps recommended for multi-user scenarios
-- **Examples**:
-  - High-end NAS (Synology RS series, QNAP)
-  - Custom home server with ECC RAM
-  - Enterprise-grade hardware repurposed
+Library size alone does not establish a hard boundary. Measure scan duration,
+query latency, memory pressure, and transcoding CPU before resizing.
 
-## Single-Board Computers (SBCs)
+## Storage
 
-### Raspberry Pi Series
-- **Pi 4 (4GB)**: Suitable for small collections, limited concurrent streaming
-- **Pi 4 (8GB)**: Better for medium collections, light concurrent use
-- **Pi 5**: Significantly better performance, recommended for medium collections
-- **Storage**: Use fast USB 3.0+ SSD for best performance
+Prioritize storage in this order:
 
-### Alternative SBCs
-- **Rock 5B/5E**: ARM64 with better performance than Pi, good transcoding
-- **Odroid N2+**: Good for media processing, ARM64
-- **Pine64 ROCK64**: Budget option, ARM64
-- **ASUS Tinker Board**: x86 compatibility, good performance
+1. **PostgreSQL**: low latency, durable SSD or NVMe storage.
+2. **Inbound and Staging**: enough local working space for simultaneous imports
+   and converted output.
+3. **Storage library**: capacity and reliable sequential throughput; a NAS is
+   acceptable if directory enumeration and metadata operations are responsive.
+4. **Backups**: a separate failure domain with verified restore procedures.
 
-### SBC Optimization Tips
-```bash
-# Increase swap space for SBCs
-sudo dphys-swapfile swapoff
-sudo nano /etc/dphys-swapfile
-# Set CONF_SWAPSIZE=2048
-sudo dphys-swapfile setup
-sudo dphys-swapfile swapon
-```
+RAID improves availability but is not a backup. Preserve PostgreSQL and media
+with the coordinated procedure in [Backup & Recovery](/backup/).
 
-## NAS Integration
+When using NFS or SMB:
 
-### Mounting Strategies
-```bash
-# NFS mount for media library
-sudo mount -t nfs -o vers=4.2,nofail,intr,tcp,rsize=1048576,wsize=1048576 your-nas:/music /mnt/music
+- Mount the share on the host and bind mount it into the container.
+- Keep PostgreSQL on local block storage.
+- Use a wired network for predictable streaming and scans.
+- Test permissions as the container user before importing media.
+- Avoid network mounts that silently reconnect read-only.
 
-# SMB mount
-sudo mount -t cifs //your-nas/music /mnt/music -o username=youruser,password=yourpass,uid=1000,gid=1000
-```
+## CPU and Transcoding
 
-### Performance Considerations
-- Use NFS v4.2 or SMB 3.0+ for best performance
-- Ensure gigabit or 10Gbps network connection
-- Use dedicated network for NAS if possible
-- Consider local cache for frequently accessed files
+Direct play is inexpensive. AAC, MP3, and Opus transcoding launches `ffmpeg` and
+can become the dominant CPU load. The standard transcoding commands use software
+encoding; hardware-accelerated transcoding is not configured automatically.
 
-## Storage Configuration
+Estimate capacity by running the formats and bitrates your clients actually
+request while monitoring CPU. Leave headroom for the web application,
+PostgreSQL, and scheduled jobs.
 
-### Volume Optimization
-```
-Database Volume: SSD recommended (high IOPS)
-Storage Volume: Fast drives for frequently accessed media
-Inbound Volume: Local SSD for processing speed
-Staging Volume: Local storage for temporary files
-User Images: Fast access storage
-Playlists: Fast access storage
-Logs: Can be on slower storage
-```
+## Memory and Container Limits
 
-### RAID Configurations
-- **RAID 1**: Mirroring for database volume (redundancy + performance)
-- **RAID 5/6**: Good balance for large media libraries
-- **RAID 10**: Best performance for high-concurrency scenarios
+The supplied Compose file limits `melodee.blazor` to one CPU and 2 GB of memory.
+For larger workloads, override those limits rather than editing the tracked
+Compose file:
 
-## Performance Tuning
-
-### Database Optimization
-
-**PostgreSQL Configuration** (in container environment):
-```
-DB_MIN_POOL_SIZE=10
-DB_MAX_POOL_SIZE=50
-DB_CONNECTION_TIMEOUT=30
-```
-
-**Custom PostgreSQL Settings** (if using external DB):
-```sql
--- In postgresql.conf
-shared_buffers = 25% of RAM
-effective_cache_size = 50% of RAM
-work_mem = 4MB
-maintenance_work_mem = 256MB
-```
-
-### Media Processing
-
-**Transcoding Settings:**
-- Use hardware acceleration if available (VA-API, NVENC)
-- Configure appropriate quality settings based on client bandwidth
-- Use lossless formats for storage, transcode for streaming
-
-**Concurrent Processing:**
-- Limit concurrent transcodes to avoid CPU saturation
-- Monitor CPU temperature during processing
-- Use separate processing schedule during off-peak hours
-
-### Memory Management
-
-**Container Resource Limits:**
 ```yaml
-deploy:
-  resources:
-    limits:
-      cpus: '2.0'
-      memory: 4G
-    reservations:
-      cpus: '0.5'
-      memory: 1G
+services:
+  melodee.blazor:
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8g
 ```
 
-**System Memory:**
-- Reserve 1GB+ for system processes
-- Monitor memory usage during scans
-- Consider swap space for SBCs with limited RAM
+Watch for container restarts or OOM kills during imports. Do not compensate for
+chronic memory pressure with heavy swap on flash-based single-board computers;
+reduce concurrency or add RAM where possible.
 
-## Network Optimization
+## PostgreSQL Connections
 
-### Bandwidth Requirements
-- **Single stream**: 320 kbps (MP3) to 1.4 Mbps (CD quality FLAC)
-- **Multiple streams**: Plan for 10x concurrent streams
-- **Transcoding**: Additional CPU load, consider quality settings
+The default Compose connection pool uses a minimum of 10 and maximum of 50
+connections. More connections do not automatically improve performance and can
+increase memory use in PostgreSQL. Change `DB_MIN_POOL_SIZE` and
+`DB_MAX_POOL_SIZE` only after observing pool saturation and database capacity.
 
-### Quality of Service (QoS)
+## Single-Board Computers
+
+ARM64 boards can run the published image, but sustained imports and transcoding
+require adequate cooling and fast storage. Avoid using a low-endurance microSD
+card for PostgreSQL. Prefer a USB 3 or NVMe SSD, active cooling, and direct play
+for clients.
+
+## Measure the System
+
 ```bash
-# Example QoS with tc (Traffic Control)
-tc qdisc add dev eth0 root handle 1: htb default 10
-tc class add dev eth0 parent 1: classid 1:1 htb rate 100mbit
-tc class add dev eth0 parent 1:1 classid 1:10 htb rate 80mbit ceil 100mbit
+docker stats
+docker compose ps
+docker compose logs --tail=200 melodee.blazor
+df -h
 ```
 
-## Monitoring & Metrics
+On the host, use tools such as `iostat`, `vmstat`, and your platform's thermal
+sensors. Useful application-level observations include:
 
-### System Monitoring Tools
+- Time to process an Inbound batch
+- Staging revalidation and Storage insert duration
+- PostgreSQL query latency during browsing and search
+- CPU per active transcode
+- Storage latency and free space
+- Container restarts, OOM events, and log growth
 
-**Docker Stats:**
-```bash
-# Monitor container resources
-docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}"
-```
-
-**Custom Monitoring Script:**
-```bash
-#!/bin/bash
-# melodee-monitor.sh
-
-echo "=== Melodee System Monitor ==="
-echo "Date: $(date)"
-echo "System Load: $(uptime | awk -F'load average:' '{print $2}')"
-echo "Memory Usage:"
-free -h
-echo "Disk Usage:"
-df -h | grep -E 'melodee|music'
-echo "Container Stats:"
-docker stats --no-stream
-```
-
-### Performance Metrics to Track
-- CPU utilization during scans and streaming
-- Memory usage patterns
-- Disk I/O performance
-- Network throughput
-- Database query response times
-
-## Hardware-Specific Optimizations
-
-### Intel Hardware
-- Enable Quick Sync for hardware transcoding
-- Use Intel drivers for best performance
-- Consider Intel NUC for compact solutions
-
-### AMD Hardware
-- Use appropriate drivers for transcoding acceleration
-- Ryzen processors offer good multi-core performance
-- Consider AMD-based NAS solutions
-
-### ARM Platforms
-- Ensure Docker images are built for ARM64
-- Monitor thermal throttling
-- Use active cooling for sustained performance
-
-## Troubleshooting Performance Issues
-
-### Common Performance Problems
-
-**Slow Initial Scans:**
-- Solution: Ensure database is on fast storage
-- Check: `docker exec melodee-db iostat -x 1`
-
-**High CPU During Streaming:**
-- Solution: Adjust transcoding quality settings
-- Check: CPU temperature and thermal throttling
-
-**Slow UI Response:**
-- Solution: Increase database connection pool
-- Check: Memory usage and swap activity
-
-### Diagnostic Commands
-```bash
-# Check system resources
-top -p $(pgrep -f melodee)
-# Check container resources
-docker stats melodee-blazor melodee-db
-# Check disk performance
-dd if=/dev/zero of=/tmp/test bs=1M count=1000 oflag=dsync
-```
-
-## Scaling Strategies
-
-### Vertical Scaling
-- Add more CPU cores
-- Increase RAM
-- Upgrade storage to faster drives
-- Improve network connection
-
-### Horizontal Scaling (Future)
-- Database read replicas
-- Load balancing across multiple instances
-- Distributed transcoding
-- CDN for artwork and static assets
-
-## Power Efficiency
-
-### For Always-On Systems
-- Use energy-efficient hardware
-- Configure power management
-- Monitor power consumption
-- Consider renewable energy sources
-
-### Scheduling
-- Use cron jobs for off-peak processing
-- Schedule maintenance during low-usage hours
-- Consider power management for non-critical functions
-
-This guide provides comprehensive information for optimizing Melodee performance based on your hardware setup. For specific configurations or advanced scenarios, consult the community or open an issue for additional guidance.
+Change one variable at a time and repeat a representative workload. Performance
+advice based only on collection size or synthetic disk throughput is rarely
+reliable.

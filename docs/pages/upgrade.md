@@ -1,293 +1,127 @@
 ---
 title: Upgrade Guide
+description: Back up, upgrade, verify, and if necessary restore a Melodee container deployment.
 permalink: /upgrade/
+tags:
+  - upgrade
+  - deployment
+  - containers
+  - migration
 ---
 
 # Upgrade Guide
 
-This guide covers upgrading Melodee from any previous version to the latest release. Melodee is designed for seamless upgrades with automatic database migrations.
+Melodee applies PostgreSQL migrations during startup. Generated DecentDB search
+files have a separate on-disk format and may occasionally require the migration
+procedure described in [DecentDB Usage & Migration](/decentdb/).
 
 ## Before You Upgrade
 
-### 1. Check Current Version
+1. Record the running version:
 
-```bash
-# Via API
-curl -s http://localhost:8080/api/v1/system/info | jq .version
+   ```bash
+   curl --fail http://localhost:8080/api/v1/system/info
+   ```
 
-# Or check the UI footer
+2. Read the [changelog](/changelog/) and the release notes for every version you
+   are crossing.
+3. Create and verify a PostgreSQL dump and persistent-volume backup by following
+   [Backup & Recovery](/backup/).
+4. Save copies of `.env`, `compose.yml`, and any Compose override.
+5. Record local changes with `git status`; do not overwrite an installation with
+   uncommitted customizations.
+
+## Published-Image Upgrade
+
+For a pinned image, change `MELODEE_IMAGE` in `.env` to the desired tag. To
+upgrade to 2.2.0:
+
+```text
+MELODEE_IMAGE=ghcr.io/melodee-project/melodee:2.2.0
 ```
 
-### 2. Review Release Notes
-
-Check the [News](/news/) page or [GitHub Releases](https://github.com/melodee-project/melodee/releases) for:
-- Breaking changes
-- New required configuration
-- Deprecated features
-- Known issues
-
-### 3. Backup Your Data
-
-**Always backup before upgrading, especially for major version changes.**
+Then pull and recreate only the application service:
 
 ```bash
-# Quick backup of critical volumes
-BACKUP_DIR="melodee-backup-$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Database (most critical)
-podman volume export melodee_db_data > "$BACKUP_DIR/db_data.tar"
-
-# User data
-podman volume export melodee_playlists > "$BACKUP_DIR/playlists.tar"
-podman volume export melodee_user_images > "$BACKUP_DIR/user_images.tar"
-
-# Configuration
-cp .env "$BACKUP_DIR/.env.backup"
+docker compose pull melodee.blazor
+docker compose up -d --no-build melodee.blazor
+docker compose ps
 ```
 
-See [Backup & Recovery](/backup/) for comprehensive backup strategies.
+Compose preserves all named volumes. Do not add `-v` to `docker compose down`
+or use a volume-pruning command during an upgrade.
 
-## Upgrade Methods
+## Source-Build Upgrade
 
-### Method 1: Using the Setup Script (Recommended)
-
-The safest and easiest way to upgrade:
+The setup helper's update mode rebuilds the checked-out source and recreates the
+containers while preserving volumes:
 
 ```bash
 cd /path/to/melodee
-git fetch --tags
-git checkout v1.8.0  # Or: git pull origin main for latest
+git pull --ff-only origin main
 python3 scripts/run-container-setup.py --update
 ```
 
-The script will:
-1. Show current container status
-2. Build a fresh image with the latest code
-3. Stop existing containers gracefully
-4. Start new containers with updated image
-5. Run database migrations automatically
-6. Wait for health checks to pass
-7. Report success or any issues
-
-**For automated/CI deployments:**
+Use `--yes` only in automation where the branch, backup, and working tree have
+already been validated:
 
 ```bash
-git pull && python3 scripts/run-container-setup.py --update --yes
-```
-
-### Method 2: Manual Docker/Podman Commands
-
-```bash
-cd /path/to/melodee
-
-# Get latest code
-git fetch --tags
-git checkout v1.8.0  # Specific version
-# Or: git pull origin main  # Latest development
-
-# Rebuild image
-podman compose build --no-cache
-# Or: docker compose build --no-cache
-
-# Recreate containers (data preserved)
-podman compose down
-podman compose up -d
-# Or: docker compose down && docker compose up -d
-
-# Verify health
-podman compose ps
-curl -s http://localhost:8080/api/v1/system/info
-```
-
-### Method 3: Using Pre-built Images (Coming Soon)
-
-```bash
-# Pull latest image from registry
-docker pull ghcr.io/melodee-project/melodee:1.8.0
-
-# Update compose.yml to use the image
-# Then recreate containers
-docker compose down
-docker compose up -d
-```
-
-## What Happens During Upgrade
-
-### Automatic Database Migrations
-
-Melodee uses Entity Framework Core migrations that run automatically on startup:
-
-1. Container starts
-2. `entrypoint.sh` runs the EF migration bundle
-3. Migrations apply any schema changes
-4. Application starts normally
-
-**Migration is idempotent** - running it multiple times is safe. Already-applied migrations are skipped.
-
-### Data Preservation
-
-| Component | Location | Preserved? |
-|-----------|----------|------------|
-| Database | `melodee_db_data` volume | ✅ Yes |
-| Music library | `melodee_storage` volume | ✅ Yes |
-| Podcasts | `melodee_storage/podcasts` | ✅ Yes |
-| Themes | `melodee_storage/themes` | ✅ Yes |
-| User images | `melodee_user_images` volume | ✅ Yes |
-| Playlists | `melodee_playlists` volume | ✅ Yes |
-| Templates | `melodee_templates` volume | ✅ Yes |
-| Logs | `melodee_logs` volume | ✅ Yes |
-| `.env` config | Host filesystem | ✅ Yes |
-| Container image | Replaced | ❌ Updated |
-
-## Version-Specific Upgrade Notes
-
-### Upgrading to 1.8.0
-
-**From 1.7.x:**
-
-1.8.0 introduces several new features with database schema changes:
-- Party Mode tables
-- Podcast support tables
-- Theme library support
-- Jukebox settings
-
-**Steps:**
-```bash
-git checkout v1.8.0
-python3 scripts/run-container-setup.py --update
-```
-
-**New configuration options (optional):**
-- Podcast settings are disabled by default
-- Party Mode is available immediately
-- Jukebox requires MPV or MPD backend configuration
-- Theme library is created automatically at `/storage/themes/`
-
-**No manual intervention required** - all migrations run automatically.
-
-### Upgrading to 1.7.x
-
-**From 1.6.x:**
-
-Standard upgrade process applies. No breaking changes.
-
-## Troubleshooting Upgrades
-
-### Migration Failures
-
-If migrations fail to apply:
-
-```bash
-# Check container logs
-podman compose logs melodee.blazor | grep -i "migration\|error"
-
-# Manually run migrations (if needed)
-podman compose exec melodee.blazor /app/efbundle --connection "Host=melodee-db;..."
-```
-
-### Container Won't Start
-
-```bash
-# Check for errors
-podman compose logs -f
-
-# Verify database is running
-podman compose ps melodee-db
-
-# Try recreating from scratch (data preserved)
-podman compose down
-podman compose up -d
-```
-
-### Health Check Failures
-
-```bash
-# Check health status
-podman inspect melodee_melodee.blazor_1 --format='{{.State.Health.Status}}'
-
-# View health check output
-podman inspect melodee_melodee.blazor_1 --format='{{range .State.Health.Log}}{{.Output}}{{end}}'
-
-# Common causes:
-# - Database not ready yet (wait longer)
-# - Port conflict (check MELODEE_PORT)
-# - Memory issues (increase container limits)
-```
-
-### Rolling Back
-
-If an upgrade causes issues:
-
-```bash
-# Stop current containers
-podman compose down
-
-# Checkout previous version
-git checkout v1.7.6  # Or your previous version
-
-# Rebuild and start
-podman compose build
-podman compose up -d
-```
-
-**Database rollback (if needed):**
-
-```bash
-# Restore database backup
-podman compose down
-podman volume rm melodee_db_data
-podman volume create melodee_db_data
-podman volume import melodee_db_data < backup/db_data.tar
-podman compose up -d
-```
-
-## Upgrade Checklist
-
-- [ ] Noted current version
-- [ ] Reviewed release notes for target version
-- [ ] Backed up database volume
-- [ ] Backed up `.env` configuration
-- [ ] Fetched latest code/tags
-- [ ] Ran upgrade command
-- [ ] Verified containers are healthy
-- [ ] Verified version via API/UI
-- [ ] Tested basic functionality (login, browse, play)
-- [ ] Checked logs for any warnings
-
-## Automated Upgrades
-
-For homelabs that want automatic updates, consider:
-
-### Watchtower (for pre-built images)
-
-```yaml
-services:
-  watchtower:
-    image: containrrr/watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 86400 melodee.blazor
-```
-
-### Scheduled Script
-
-```bash
-#!/bin/bash
-# /etc/cron.weekly/melodee-upgrade
-
-cd /path/to/melodee
-git pull origin main
 python3 scripts/run-container-setup.py --update --yes
-
-# Notify on failure
-if [ $? -ne 0 ]; then
-    echo "Melodee upgrade failed" | mail -s "Upgrade Alert" admin@example.com
-fi
 ```
 
-## Getting Help
+For a manual source build:
 
-- [Discord Community](https://discord.gg/bfMnEUrvbp) - Quick help from the community
-- [GitHub Issues](https://github.com/melodee-project/melodee/issues) - Bug reports
-- [GitHub Discussions](https://github.com/melodee-project/melodee/discussions) - Questions and feature requests
+```bash
+git pull --ff-only origin main
+docker compose build --no-cache melodee.blazor
+docker compose up -d melodee.blazor
+```
+
+## Verify the Upgrade
+
+The first startup can take longer while migrations and initialization run.
+
+```bash
+docker compose ps
+docker compose logs --tail=250 melodee.blazor
+curl --fail http://localhost:8080/health
+curl --fail http://localhost:8080/api/v1/system/info
+```
+
+Then sign in and run **Admin > Doctor**. Confirm:
+
+- The reported Melodee version is the requested release.
+- PostgreSQL migrations completed without errors.
+- Library paths are mounted and writable.
+- MusicBrainz and Artist Search DecentDB checks pass.
+- A known album can be browsed and streamed.
+
+If Doctor reports DecentDB error 8, stop the application service and use the
+generated migration dialog or [DecentDB guide](/decentdb/). Do not delete the
+primary PostgreSQL database to resolve a DecentDB format warning.
+
+## Rollback and Restore
+
+Rolling the application image backward after a PostgreSQL schema migration is
+not guaranteed to be safe. A reliable rollback restores the application image,
+PostgreSQL dump, and persistent files from the same pre-upgrade backup set.
+
+1. Stop the application:
+
+   ```bash
+   docker compose stop melodee.blazor
+   ```
+
+2. Restore PostgreSQL and any changed persistent volumes by following
+   [Backup & Recovery](/backup/#restore-a-backup).
+3. Set `MELODEE_IMAGE` to the previous pinned version, then recreate the service:
+
+   ```bash
+   docker compose pull melodee.blazor
+   docker compose up -d --no-build melodee.blazor
+   ```
+
+4. Repeat the health, version, Doctor, and playback checks.
+
+Keep the failed upgrade logs and backup set until the restored installation has
+been exercised successfully.

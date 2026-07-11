@@ -550,6 +550,7 @@ builder.Services
     .AddScoped<LibraryService>()
     .AddScoped<LibraryAuthorizationService>()
     .AddScoped<UserService>()
+    .AddScoped<IPasswordResetTokenGenerator, UserServicePasswordResetTokenGenerator>()
     .AddScoped<UserGroupService>()
     .AddScoped<UserRatingService>()
     .AddScoped<UserBookmarkService>()

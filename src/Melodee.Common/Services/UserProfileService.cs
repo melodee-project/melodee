@@ -19,7 +19,7 @@ using NodaTime;
 using Rebus.Bus;
 using Serilog;
 using Serilog.Events;
-using SerilogTimings;
+using SerilogTimings.Extensions;
 using SmartFormat;
 using MelodeeModels = Melodee.Common.Models;
 
@@ -318,8 +318,8 @@ public sealed class UserProfileService(
         var id = await CacheManager.GetAsync(
             CacheKeyDetailByEmailAddressKeyTemplate.FormatSmart(emailAddressNormalized), async () =>
             {
-                using (Operation.At(LogEventLevel.Debug).Time("[{ServiceName}] GetByEmailAddressAsync [{EmailAddress}]",
-                           nameof(UserProfileService), emailAddress))
+                using (_logger.OperationAt(LogEventLevel.Debug).Time("[{ServiceName}] GetByEmailAddressAsync",
+                           nameof(UserProfileService)))
                 {
                     await using (var scopedContext =
                                  await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
@@ -348,8 +348,8 @@ public sealed class UserProfileService(
         var id = await CacheManager.GetAsync(CacheKeyDetailByUsernameTemplate.FormatSmart(usernameNormalized),
             async () =>
             {
-                using (Operation.At(LogEventLevel.Debug).Time("[{ServiceName}] GetByUsernameAsync [{Username}]",
-                           nameof(UserProfileService), username))
+                using (_logger.OperationAt(LogEventLevel.Debug).Time("[{ServiceName}] GetByUsernameAsync",
+                           nameof(UserProfileService)))
                 {
                     await using (var scopedContext =
                                  await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
@@ -408,7 +408,7 @@ public sealed class UserProfileService(
 
         var result = await CacheManager.GetAsync(CacheKeyDetailTemplate.FormatSmart(id), async () =>
         {
-            using (Operation.At(LogEventLevel.Debug).Time("[{ServiceName}] GetAsync [{id}]", nameof(UserProfileService), id))
+            using (_logger.OperationAt(LogEventLevel.Debug).Time("[{ServiceName}] GetAsync [{id}]", nameof(UserProfileService), id))
             {
                 await using (var scopedContext =
                              await ContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))

@@ -18,18 +18,141 @@ import argparse
 import datetime as dt
 import json
 import os
-import re
 import sys
 import time
 import zipfile
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import requests
 
+MAX_LINK_HEADER_LENGTH = 16_384
+MAX_LINK_HEADER_ENTRIES = 32
+MAX_RELATIONS_PER_LINK = 8
 
-LINK_RE = re.compile(r'<([^>]+)>;\s*rel="([^"]+)"')
+
+def _split_link_header_values(link_header: str) -> List[str]:
+    """Split a bounded Link header at commas outside URIs and quotes."""
+    values: List[str] = []
+    value_start = 0
+    inside_uri = False
+    inside_quotes = False
+    escaped = False
+
+    for index, character in enumerate(link_header):
+        if escaped:
+            escaped = False
+            continue
+
+        if inside_quotes and character == "\\":
+            escaped = True
+            continue
+
+        if not inside_quotes:
+            if character == "<":
+                inside_uri = True
+            elif character == ">":
+                inside_uri = False
+
+        if not inside_uri and character == '"':
+            inside_quotes = not inside_quotes
+        elif not inside_uri and not inside_quotes and character == ",":
+            values.append(link_header[value_start:index])
+            if len(values) >= MAX_LINK_HEADER_ENTRIES:
+                return values
+            value_start = index + 1
+
+    if len(values) < MAX_LINK_HEADER_ENTRIES:
+        values.append(link_header[value_start:])
+
+    return values
+
+
+def _parse_link_parameter_value(
+    link_value: str,
+    position: int,
+) -> Tuple[str, int]:
+    """Read a quoted or unquoted Link parameter value once, left to right."""
+    if position >= len(link_value):
+        return "", position
+
+    if link_value[position] != '"':
+        value_start = position
+        while position < len(link_value) and link_value[position] not in "; \t":
+            position += 1
+        return link_value[value_start:position], position
+
+    position += 1
+    characters: List[str] = []
+    while position < len(link_value):
+        character = link_value[position]
+        position += 1
+        if character == '"':
+            break
+        if character == "\\" and position < len(link_value):
+            character = link_value[position]
+            position += 1
+        characters.append(character)
+
+    return "".join(characters), position
+
+
+def _parse_link_value(link_value: str) -> Tuple[str, List[str]]:
+    """Extract a URL and relation names from one RFC 8288 Link value."""
+    link_value = link_value.strip()
+    if not link_value.startswith("<"):
+        return "", []
+
+    url_end = link_value.find(">", 1)
+    if url_end == -1:
+        return "", []
+
+    url = link_value[1:url_end].strip()
+    relation_value = ""
+    position = url_end + 1
+
+    while position < len(link_value):
+        while position < len(link_value) and link_value[position] in " \t":
+            position += 1
+        if position >= len(link_value):
+            break
+        if link_value[position] != ";":
+            return "", []
+
+        position += 1
+        while position < len(link_value) and link_value[position] in " \t":
+            position += 1
+
+        name_start = position
+        while position < len(link_value) and link_value[position] not in "=; \t":
+            position += 1
+        parameter_name = link_value[name_start:position].casefold()
+
+        while position < len(link_value) and link_value[position] in " \t":
+            position += 1
+        if position >= len(link_value) or link_value[position] != "=":
+            while position < len(link_value) and link_value[position] != ";":
+                position += 1
+            continue
+
+        position += 1
+        while position < len(link_value) and link_value[position] in " \t":
+            position += 1
+        parameter_value, position = _parse_link_parameter_value(
+            link_value,
+            position,
+        )
+        if parameter_name == "rel" and not relation_value:
+            relation_value = parameter_value
+
+        while position < len(link_value) and link_value[position] in " \t":
+            position += 1
+        if position < len(link_value) and link_value[position] != ";":
+            return "", []
+
+    relations = relation_value.split()[:MAX_RELATIONS_PER_LINK]
+    return url, relations
 
 
 def parse_link_header(link_header: str) -> Dict[str, str]:
@@ -39,14 +162,16 @@ def parse_link_header(link_header: str) -> Dict[str, str]:
       <https://api.github.com/...&page=2>; rel="next", <...&page=4>; rel="last"
     """
     links: Dict[str, str] = {}
-    if not link_header:
+    if not link_header or len(link_header) > MAX_LINK_HEADER_LENGTH:
         return links
-    for part in link_header.split(","):
-        part = part.strip()
-        m = LINK_RE.search(part)
-        if m:
-            url, rel = m.group(1), m.group(2)
-            links[rel] = url
+
+    for link_value in _split_link_header_values(link_header):
+        url, relations = _parse_link_value(link_value)
+        if not url:
+            continue
+        for relation in relations:
+            links[relation] = url
+
     return links
 
 
@@ -133,7 +258,7 @@ class GitHubClient:
 
             # Retry some transient failures
             if resp.status_code in (500, 502, 503, 504):
-                backoff = min(2 ** attempt, 30)
+                backoff = min(2**attempt, 30)
                 print(
                     f"[retry] {resp.status_code} from {url} (attempt {attempt}/5), sleeping {backoff}s...",
                     file=sys.stderr,
@@ -150,7 +275,9 @@ class GitHubClient:
 
         raise RuntimeError(f"Failed after retries calling {url}")
 
-    def paginate(self, path: str, *, params: Optional[Dict[str, Any]] = None) -> List[Any]:
+    def paginate(
+        self, path: str, *, params: Optional[Dict[str, Any]] = None
+    ) -> List[Any]:
         """
         Fetch all pages for an endpoint that uses Link headers.
         """
@@ -159,7 +286,9 @@ class GitHubClient:
         local_params = dict(params or {})
 
         while True:
-            data, resp = self.request_json("GET", url, params=local_params, expected_status=(200,))
+            data, resp = self.request_json(
+                "GET", url, params=local_params, expected_status=(200,)
+            )
             if isinstance(data, list):
                 items.extend(data)
             else:
@@ -188,7 +317,13 @@ def extract_alert_key(alert: Dict[str, Any]) -> Optional[AlertKey]:
     tool_name = tool.get("name") or ""
     if not (ref and analysis_key and category and commit_sha and tool_name):
         return None
-    return AlertKey(ref=ref, analysis_key=analysis_key, category=category, commit_sha=commit_sha, tool_name=tool_name)
+    return AlertKey(
+        ref=ref,
+        analysis_key=analysis_key,
+        category=category,
+        commit_sha=commit_sha,
+        tool_name=tool_name,
+    )
 
 
 def analysis_matches_key(analysis: Dict[str, Any], key: AlertKey) -> bool:
@@ -241,7 +376,10 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.token:
-        print("ERROR: No token provided. Use --token or set GH_TOKEN / GITHUB_TOKEN.", file=sys.stderr)
+        print(
+            "ERROR: No token provided. Use --token or set GH_TOKEN / GITHUB_TOKEN.",
+            file=sys.stderr,
+        )
         return 2
 
     api_url = args.api_url.rstrip("/") + "/"
@@ -275,7 +413,10 @@ def main() -> int:
             alert_keys.append(k)
     key_set = set(alert_keys)
 
-    print(f"[match] Alerts with usable most_recent_instance keys: {len(key_set)}", file=sys.stderr)
+    print(
+        f"[match] Alerts with usable most_recent_instance keys: {len(key_set)}",
+        file=sys.stderr,
+    )
 
     # 3) Download analyses and match to those keys.
     # Analyses list returns id/ref/analysis_key/category/commit_sha/tool/sarif_id, etc. :contentReference[oaicite:8]{index=8}
@@ -319,12 +460,18 @@ def main() -> int:
             seen.add(i)
             analysis_ids.append(i)
 
-    print(f"[analyses] Analyses selected for SARIF download: {len(analysis_ids)}", file=sys.stderr)
+    print(
+        f"[analyses] Analyses selected for SARIF download: {len(analysis_ids)}",
+        file=sys.stderr,
+    )
 
     # 4) Download SARIF for each selected analysis id using custom media type application/sarif+json. :contentReference[oaicite:9]{index=9}
     sarif_by_analysis_id: Dict[str, Any] = {}
     for idx, analysis_id in enumerate(analysis_ids, start=1):
-        print(f"[sarif] ({idx}/{len(analysis_ids)}) Downloading analysis_id={analysis_id} ...", file=sys.stderr)
+        print(
+            f"[sarif] ({idx}/{len(analysis_ids)}) Downloading analysis_id={analysis_id} ...",
+            file=sys.stderr,
+        )
         path = f"/repos/{owner}/{repo}/code-scanning/analyses/{analysis_id}"
         sarif_json, _ = client.request_json(
             "GET",
@@ -362,9 +509,13 @@ def main() -> int:
     if args.pretty:
         json_bytes = json.dumps(combined, indent=2, ensure_ascii=False).encode("utf-8")
     else:
-        json_bytes = json.dumps(combined, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        json_bytes = json.dumps(
+            combined, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
 
-    with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    with zipfile.ZipFile(
+        out_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as zf:
         zf.writestr(json_name, json_bytes)
 
     print(f"[done] Wrote {out_zip} containing {json_name}", file=sys.stderr)

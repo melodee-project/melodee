@@ -1,302 +1,188 @@
 ---
 title: Melodee Query Language (MQL)
+description: Search songs, albums, artists, and podcast episodes with Melodee's field-aware query language.
 permalink: /mql/
+tags:
+  - search
+  - mql
+  - api
 ---
 
 # Melodee Query Language (MQL)
 
-MQL is a powerful query language for searching your music library. It allows you to search by specific fields, use comparisons, combine conditions with boolean logic, and more.
+MQL adds field filters, numeric comparisons, ranges, and Boolean logic to the
+Search page. Select **Advanced**, choose an entity type, enter a query, and run
+the search. Podcast search appears when podcasts are enabled.
 
-## Quick Start
-
-Access MQL search by clicking the **Advanced** button in the Search page. Select an entity type (Songs, Albums, or Artists) and enter your query.
-
-### Basic Examples
-
-```
+```text
 artist:"Pink Floyd" AND year:>=1970
 genre:Jazz rating:>=4
-title:/.*remix.*/i
-starred:true lastPlayedAt:-30d
+duration:180-300 AND plays:0
+(artist:Beatles OR artist:"Rolling Stones") NOT title:live
 ```
 
-## Syntax Overview
+The selected entity controls which fields are valid. **All** runs the same query
+against songs, albums, artists, and enabled podcast episodes; a field that exists
+for only one type can be invalid for the others.
 
-MQL queries consist of terms that can be combined with boolean operators.
+## Syntax
 
-### Term Types
+| Form | Meaning | Example |
+|------|---------|---------|
+| `word` | Free-text term | `Beatles` |
+| `field:value` | Field filter | `artist:Beatles` |
+| `field:"value with spaces"` | Exact normalized string | `artist:"Pink Floyd"` |
+| `field:>value` | Comparison | `year:>=2000` |
+| `field:min-max` | Inclusive numeric range | `year:1970-1979` |
+| `field:contains value` | Explicit substring operation | `title:contains live` |
+| `field:startsWith value` | Prefix operation | `title:startsWith The` |
+| `field:endsWith value` | Suffix operation | `title:endsWith Mix` |
+| `field:wildcard value` | `*`/`?` wildcard operation | `title:wildcard *remix*` |
 
-| Type | Syntax | Example |
-|------|--------|---------|
-| Free text | `word` or `"phrase"` | `Beatles` or `"Abbey Road"` |
-| Field filter | `field:value` | `artist:Beatles` |
-| Comparison | `field:>value` | `year:>=2000` |
-| Range | `field:start-end` | `year:1970-1980` |
-| Regex | `field:/pattern/flags` | `title:/.*live.*/i` |
+For registered text fields, an unquoted `field:value` normally uses substring
+matching. A quoted field value is exact after Melodee's text normalization.
+Standalone quoted phrases are not a supported free-text form; qualify them with
+a field.
 
-### Boolean Operators
+Whitespace between terms is an implicit `AND`. Keywords are case-insensitive:
 
-Combine terms using boolean logic:
+- `AND` requires both sides;
+- `OR` accepts either side;
+- `NOT` negates the next term or group;
+- parentheses group expressions.
 
-- **AND**: Both conditions must match (default when omitted)
-- **OR**: Either condition must match
-- **NOT**: Exclude matching results
-- **( )**: Group conditions
+Precedence is parentheses, `NOT`, `AND`, then `OR`.
 
-**Operator Precedence** (highest to lowest):
-1. Parentheses `( )`
-2. `NOT`
-3. `AND`
-4. `OR`
-
-### Examples
-
-```
-# All conditions must match (implicit AND)
-artist:Beatles album:"Abbey Road"
-
-# Explicit boolean logic
-(rock OR metal) AND NOT live
-
-# Complex grouping
-(artist:Beatles OR artist:"Rolling Stones") AND year:1965-1970
+```text
+artist:Beatles year:>=1965
+(genre:Rock OR genre:Metal) AND NOT title:live
+NOT (channel:Music OR channel:Sports)
 ```
 
-## Field Reference
-
-### Song Fields
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `title` | string | Song title | `title:"Comfortably Numb"` |
-| `artist` | string | Artist name | `artist:"Pink Floyd"` |
-| `album` | string | Album name | `album:"The Wall"` |
-| `genre` | string | Genre tag | `genre:Jazz` |
-| `mood` | string | Mood tag | `mood:Chill` |
-| `year` | number | Release year | `year:1979` or `year:1970-1980` |
-| `duration` | number | Duration in seconds | `duration:<300` (under 5 min) |
-| `bpm` | number | Beats per minute | `bpm:>120` |
-| `rating` | number | Your rating (0-5) | `rating:>=4` |
-| `plays` | number | Your play count | `plays:>10` |
-| `starred` | boolean | Is starred/liked | `starred:true` |
-| `starredAt` | date | When you starred it | `starredAt:last-week` |
-| `lastPlayedAt` | date | When you last played it | `lastPlayedAt:-30d` |
-
-### Album Fields
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `album` / `name` | string | Album name | `album:"Abbey Road"` |
-| `artist` | string | Artist name | `artist:Beatles` |
-| `year` | number | Release year | `year:1969` |
-| `duration` | number | Total duration (seconds) | `duration:<3600` |
-| `genre` | string | Genre tag | `genre:Rock` |
-| `mood` | string | Mood tag | `mood:Chill` |
-| `rating` | number | Your rating (0-5) | `rating:>=4` |
-| `plays` | number | Your play count | `plays:>0` |
-| `starred` | boolean | Is starred/liked | `starred:true` |
-| `starredAt` | date | When you starred it | `starredAt:last-month` |
-| `lastPlayedAt` | date | When you last played it | `lastPlayedAt:-30d` |
-| `added` | date | When added to library | `added:-30d` |
-
-### Artist Fields
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `artist` / `name` | string | Artist name | `artist:"Miles Davis"` |
-| `rating` | number | Your rating (0-5) | `rating:>=4` |
-| `starred` | boolean | Is starred/liked | `starred:true` |
-| `starredAt` | date | When you starred it | `starredAt:last-year` |
-| `plays` | number | Global play count | `plays:>0` |
-| `added` | date | When added to library | `added:last-month` |
-
-## Operators
-
-### Comparison Operators
+## Comparison Operators
 
 | Operator | Meaning | Example |
 |----------|---------|---------|
-| `:` | Equals (strings: contains) | `artist:Beatles` |
-| `:=` | Exact equals | `year:=1969` |
-| `:>` | Greater than | `rating:>3` |
-| `:>=` | Greater than or equal | `year:>=2000` |
-| `:<` | Less than | `duration:<300` |
+| `:` | Field's default match/equality behavior | `starred:true` |
+| `:=` | Numeric/date equality token | `year:=1969` |
+| `:!=` | Not equal | `year:!=1969` |
+| `:>` | Greater than | `plays:>10` |
+| `:>=` | Greater than or equal | `rating:>=4` |
+| `:<` | Less than | `duration:<180` |
 | `:<=` | Less than or equal | `bpm:<=100` |
-| `:!=` | Not equal | `genre:!=Classical` |
 
-### Range Operator
+Ranges are inclusive. Durations are entered in seconds even though their
+database representation uses milliseconds.
 
-Use a hyphen for inclusive ranges:
+## Song Fields
 
+| Field | Type | Notes |
+|-------|------|-------|
+| `title` | text | Song title |
+| `artist` | text | Album artist name |
+| `album` | text | Album name |
+| `genre`, `mood` | text array | Tag membership |
+| `year` | number | Album release year |
+| `duration` | number | Seconds |
+| `bpm` | number | Beats per minute |
+| `rating` | number | Current user's rating |
+| `plays` | number | Current user's play count |
+| `starred` | boolean | Current user's starred state |
+| `starredAt`, `lastPlayedAt` | date | Current-user dates |
+| `added` | date | Library creation date |
+| `composer` | text | Normalized composer |
+| `discNumber` (`disc`) | number | Disc number |
+| `trackNumber` (`track`) | number | Track sort order |
+| `comment` | text | Song comment |
+| `imageCount` (`images`) | number | Image count |
+
+## Album Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `album` (`name`) | text | Album name |
+| `artist` | text | Artist name |
+| `year` | number | Release year |
+| `originalYear` (`origyear`) | number | Original album year |
+| `duration` | number | Total seconds |
+| `songCount` (`trackcount`) | number | Song count |
+| `genre`, `mood` | text array | Tags |
+| `rating`, `plays`, `starred` | user-scoped | Current user's values |
+| `starredAt`, `lastPlayedAt` | date | Current-user dates |
+| `added` | date | Library creation date |
+
+## Artist Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `artist` (`name`) | text | Artist name |
+| `rating`, `starred`, `starredAt` | user-scoped | Current user's values |
+| `plays` | number | Total play count |
+| `songCount` | number | Song count |
+| `albumCount` | number | Album count |
+| `added` | date | Library creation date |
+
+## Podcast Episode Fields
+
+Podcast results are limited to the signed-in user's non-deleted channels.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `channel` | text | Channel title |
+| `title` | text | Episode title |
+| `published` (`date`) | date | Publish date |
+| `downloaded` | boolean | Download status |
+| `duration` | number | Seconds |
+
+```text
+channel:Science AND duration:<1800
+title:Interview AND downloaded:true
 ```
-year:1970-1980       # 1970 to 1980 inclusive
-duration:180-300     # 3 to 5 minutes
-rating:3-5           # Ratings 3, 4, or 5
-```
 
-### Regex Operator
+## Current Date and Regex Boundaries
 
-For advanced pattern matching (case-insensitive with `i` flag):
+The tokenizer and validation API recognize ISO dates (`2026-01-06`), `today`,
+`yesterday`, `last-week`, `last-month`, `last-year`, and relative values such as
+`-7d`, `-3w`, and `-12h`. In 2.2.0, execution of registered date fields through
+the database compilers has known type-conversion limitations and can return a
+compilation error. Do not depend on date filters for production automation in
+this release.
 
-```
-title:/.*remix.*/i           # Contains "remix" (any case)
-artist:/^The .*/             # Starts with "The "
-album:/.*\(live\)$/i         # Ends with "(live)"
-```
+The parser also recognizes `field:/pattern/i`, but regex execution is disabled
+in the Search service's default compiler options. Use `contains`, `startsWith`,
+`endsWith`, or `wildcard` for executable 2.2.0 searches.
 
-**Note**: Regex queries are limited for performance. Use sparingly on large libraries.
+## Practical Queries
 
-## Date Values
-
-### Absolute Dates
-
-Use ISO format: `YYYY-MM-DD`
-
-```
-added:2024-01-01
-lastPlayedAt:2024-06-15
-```
-
-### Relative Dates
-
-**Named shortcuts:**
-- `today` - Current day
-- `yesterday` - Previous day
-- `last-week` - Past 7 days
-- `last-month` - Past 30 days
-- `last-year` - Past 365 days
-
-**Duration syntax:**
-- `-7d` - Past 7 days
-- `-3w` - Past 3 weeks
-- `-12h` - Past 12 hours
-- `-6m` - Past 6 months
-
-```
-added:last-week          # Added in past 7 days
-lastPlayedAt:-30d        # Played in past 30 days
-starredAt:last-month     # Starred in past 30 days
-```
-
-## Common Query Patterns
-
-### Finding Unplayed Music
-
-```
-# Songs never played
+```text
 plays:0
-
-# Albums added recently but not played
-added:last-month plays:0
+starred:true AND artist:"Pink Floyd"
+genre:Jazz AND duration:<300
+bpm:>140 AND (genre:Electronic OR genre:Dance)
+year:1970-1979 AND genre:Rock
+composer:Morricone
+disc:2 AND track:>=5
+songCount:>12
+albumCount:>=10 AND plays:>50
 ```
 
-### Finding Your Favorites
+If a query fails, check the selected entity, field spelling, quoting, operator,
+and balanced parentheses. The UI reports parser/validator or compilation errors
+and can suggest nearby field names.
 
-```
-# Highly rated songs
-rating:>=4
+## Smart Playlist Preview
 
-# Starred songs from a specific artist
-starred:true artist:"Pink Floyd"
+The native smart-playlist endpoints under `/api/v1/playlists/smart` can create,
+read, update, and delete stored MQL definitions for `songs`, `albums`, or
+`artists`. In 2.2.0, the evaluate endpoint records the evaluation time but
+always returns an empty result set. Treat this API as schema preview only; it
+does not yet produce a playable playlist. Regular and file-defined playlists
+are covered in [Playlists](/playlists/).
 
-# Your top rated albums
-rating:5
-```
+## Parse and Suggest API
 
-### Discovery Queries
-
-```
-# Jazz you haven't heard in a while
-genre:Jazz lastPlayedAt:<-90d
-
-# Short songs (under 3 minutes) you might have missed
-duration:<180 plays:0
-
-# High BPM tracks for workout
-bpm:>140 genre:(Electronic OR Dance)
-```
-
-### By Era
-
-```
-# Classic rock from the 70s
-year:1970-1979 genre:Rock
-
-# Recent additions to your library
-added:-7d
-
-# Music from this millennium
-year:>=2000
-```
-
-### Complex Searches
-
-```
-# Pink Floyd or Roger Waters, but not compilations
-(artist:"Pink Floyd" OR artist:"Roger Waters") NOT album:/.*greatest.*/i
-
-# Jazz or Blues albums you've rated highly
-(genre:Jazz OR genre:Blues) rating:>=4
-
-# Long prog rock tracks
-genre:"Progressive Rock" duration:>600
-```
-
-## Tips and Best Practices
-
-### Quote Strings with Spaces
-
-```
-# Correct
-artist:"Pink Floyd"
-album:"The Dark Side of the Moon"
-
-# Incorrect (will search for separate terms)
-artist:Pink Floyd
-```
-
-### Use Parentheses for Clarity
-
-```
-# Clear intent
-(rock OR metal) AND year:>=2000
-
-# Ambiguous (AND has higher precedence than OR)
-rock OR metal AND year:>=2000
-```
-
-### Combine with Simple Search
-
-For quick searches, use the simple search box. Switch to MQL Advanced mode when you need:
-- Field-specific searches
-- Numeric comparisons
-- Date ranges
-- Boolean logic
-
-### Performance Tips
-
-- Be specific with fields to narrow results faster
-- Avoid regex on very large libraries
-- Use date ranges instead of open-ended comparisons when possible
-
-## Error Messages
-
-If your query has a syntax error, MQL will show:
-- **Error position**: Where the problem occurred
-- **Suggestions**: Possible fixes or similar field names
-- **Valid fields**: List of fields available for the entity type
-
-Common errors:
-- **Unknown field**: Check spelling (e.g., `artistt` → `artist`)
-- **Invalid literal**: Check value format (e.g., `year:abc` should be `year:2024`)
-- **Unbalanced parentheses**: Ensure all `(` have matching `)`
-- **Invalid date format**: Use ISO dates or relative shortcuts
-
-## API Access
-
-MQL is also available via the API:
-
-### Parse/Validate Query
+The MQL HTTP controller parses and suggests queries; it does not return library
+search results. It is intentionally omitted from the generated OpenAPI document.
 
 ```http
 POST /api/v1/query/parse
@@ -304,11 +190,9 @@ Content-Type: application/json
 
 {
   "entity": "songs",
-  "query": "artist:\"Pink Floyd\" AND year:>=1970"
+  "query": "artist:Beatles AND year:>=1970"
 }
 ```
-
-### Query Suggestions (Autocomplete)
 
 ```http
 POST /api/v1/query/suggest
@@ -321,6 +205,7 @@ Content-Type: application/json
 }
 ```
 
----
-
-For more details on the API, see the [API Reference](/api/).
+Valid API entities are `songs`, `albums`, `artists`, and `podcasts`. Parse
+requests are limited to 500 characters and 10 requests per minute per detected
+client address. See [Native API](/api/) for general HTTP security and deployment
+guidance.

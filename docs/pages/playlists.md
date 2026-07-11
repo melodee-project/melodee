@@ -1,192 +1,124 @@
 ---
 title: Playlists
+description: Create, import, play, and export regular playlists, and understand Melodee's file-defined dynamic playlists.
 permalink: /playlists/
+tags:
+  - playlists
+  - open-subsonic
+  - administration
 ---
 
 # Playlists
 
-Melodee supports two types of playlists: **Dynamic Playlists** that automatically populate based on user actions, and **User Playlists** that you create and manage manually.
+Melodee 2.2.0 has two playlist systems:
 
-## Dynamic Playlists
+- **regular playlists**, stored in PostgreSQL and owned by a user;
+- **file-defined dynamic playlists**, stored as trusted JSON definitions under the Playlist library.
 
-Dynamic playlists are automatically generated and updated based on your listening behavior and ratings. You don't need to manually add songs—they appear automatically when you interact with your music.
+The native smart-playlist API is a separate preview surface. It stores MQL definitions, but evaluation currently returns no media; see [MQL](/mql/#smart-playlist-preview).
 
-### Your Favorite Songs
+## Regular playlists
 
-A personal playlist containing all songs you've "liked" or starred.
+Regular playlists preserve a manually chosen song order. They have a name, optional comment, owner, public flag, songs, and optional image.
 
-**How songs are added:**
-- Click the heart/star icon on any song
-- Use the "like" or "favorite" action in your music client
-- Songs appear instantly in this playlist
+### What the web UI supports
 
-**How songs are removed:**
-- Unlike or unstar the song
-- The song is immediately removed from the playlist
+Open **Playlists** from the main navigation. The page can:
 
-This playlist is **private to you**—other users have their own "Your Favorite Songs" playlist.
+- list and search regular and visible dynamic playlists;
+- import an M3U or M3U8 file;
+- delete selected regular playlists when the current user is allowed;
+- open, pin, play, and export a playlist as M3U8.
 
-### Your Rated Songs
+The detail page's **Lock**, **Unlock**, and **Set Cover Image** actions are placeholders in 2.2.0. The list's edit link also has no matching editor route. Use a compatible OpenSubsonic client or the native API to create, rename, add, remove, or reorder songs.
 
-A personal playlist containing all songs you've given a rating (1-5 stars).
+Playlist import and deletion controls are shown to Editor and Administrator users. API operations also require the relevant user capability.
 
-**How songs are added:**
-- Rate any song from 1 to 5 stars
-- Use your client's rating feature or the Melodee UI
-- Songs appear instantly in this playlist
+### Import M3U/M3U8
 
-**How songs are removed:**
-- Remove the rating (set to 0 or unrated)
-- The song is immediately removed from the playlist
+Select **Import Playlist**, choose a `.m3u` or `.m3u8` file, and optionally provide a name. Melodee tries to match each media reference to a local song. Matched songs are added immediately; unmatched references are retained in import records for later inspection.
 
-This playlist is **private to you** and sorted by rating (highest rated songs first).
+For the most portable result, use UTF-8 and paths shaped like:
 
-### Rated Songs
-
-A **global playlist** showing all songs that any user has rated greater than zero. This is a community-curated collection of quality music.
-
-**How songs are added:**
-- When any user rates a song 1-5 stars, it appears in this playlist
-- Multiple users rating the same song doesn't create duplicates
-
-**How songs are removed:**
-- Only when all user ratings for a song are removed
-- As long as one user has rated it, the song remains
-
-This playlist is **visible to all users** and provides a great way to discover music that others in your household or organization have enjoyed.
-
-## Dynamic Playlist Summary
-
-| Playlist | Scope | Trigger | Visibility |
-|----------|-------|---------|------------|
-| Your Favorite Songs | Personal | Like/Star a song | Only you |
-| Your Rated Songs | Personal | Rate a song (1-5) | Only you |
-| Rated Songs | Global | Any user rates a song | All users |
-
-## User Playlists
-
-User playlists are traditional playlists that you create and manually curate. You have full control over which songs are included and their order.
-
-### Creating Playlists
-
-You can create playlists through:
-
-- **Melodee UI**: Navigate to Playlists and click "Create New Playlist"
-- **Music Clients**: Most Subsonic-compatible clients support playlist creation
-
-### Managing Playlists via Clients
-
-Most Subsonic-compatible music clients support full playlist management:
-
-#### Symfonium (Android)
-- Long-press a song → "Add to playlist"
-- Create new playlists from the playlist screen
-- Reorder songs by drag-and-drop
-
-#### DSub (Android)
-- Menu on any song → "Add to Playlist"
-- Playlist management in the Playlists tab
-- Supports playlist editing and deletion
-
-#### Sonixd (Desktop)
-- Right-click a song → "Add to Playlist"
-- Full playlist editor with drag-and-drop reordering
-- Create, rename, and delete playlists
-
-#### Sublime Music (Desktop)
-- Add songs via context menu
-- Manage playlists in the sidebar
-- Supports M3U import/export
-
-#### play:Sub (iOS)
-- Tap the menu on any song → "Add to Playlist"
-- Create and manage playlists in the Playlists tab
-
-### Playlist Operations
-
-| Operation | Melodee UI | Client Support |
-|-----------|------------|----------------|
-| Create playlist | ✓ | Most clients |
-| Add songs | ✓ | Most clients |
-| Remove songs | ✓ | Most clients |
-| Reorder songs | ✓ | Some clients |
-| Rename playlist | ✓ | Some clients |
-| Delete playlist | ✓ | Most clients |
-| Public/Private toggle | ✓ | Limited |
-
-### Playlist Visibility
-
-- **Private playlists**: Only visible to you (default)
-- **Public playlists**: Visible to all users on the server
-
-Toggle visibility in the Melodee UI playlist settings.
-
-## Likes vs Ratings
-
-Understanding the difference between likes and ratings:
-
-| Action | Effect | Dynamic Playlist |
-|--------|--------|------------------|
-| **Like/Star** | Binary (on/off) | Your Favorite Songs |
-| **Rate 1-5** | Granular preference | Your Rated Songs, Rated Songs (global) |
-
-**Pro tip**: You can both like AND rate a song. Liking adds it to "Your Favorite Songs" while rating adds it to "Your Rated Songs" and the global "Rated Songs" playlist.
-
-## API Details
-
-For developers building clients:
-
-### OpenSubsonic API
-
-```
-# Get playlists
-GET /rest/getPlaylists
-
-# Get playlist contents
-GET /rest/getPlaylist?id=<playlistId>
-
-# Create playlist
-GET /rest/createPlaylist?name=<name>
-
-# Update playlist (add/remove songs)
-GET /rest/updatePlaylist?playlistId=<id>&songIdToAdd=<songId>&songIndexToRemove=<index>
-
-# Delete playlist
-GET /rest/deletePlaylist?id=<playlistId>
-
-# Star/unstar a song (for favorites)
-GET /rest/star?id=<songId>
-GET /rest/unstar?id=<songId>
-
-# Set rating
-GET /rest/setRating?id=<songId>&rating=<0-5>
+```text
+#EXTM3U
+#EXTINF:243,Artist - Song title
+Artist/Album/01 - Song title.flac
 ```
 
-### Native Melodee API
+The exported M3U8 format uses `Artist/Album/Filename`, which is also understood by the importer.
 
+### Visibility
+
+`IsPublic` is stored on regular playlists and returned to API clients. In the 2.2.0 Blazor playlist list, regular playlists are not filtered by owner or public status, so do not treat a private playlist as hidden from other authenticated web users.
+
+Owners can modify their playlists through the APIs. Administrators can delete other users' playlists; normal users cannot.
+
+## File-defined dynamic playlists
+
+Dynamic playlists execute a PostgreSQL `WHERE` and optional `ORDER BY` fragment against the song catalog every time the playlist is read. They live under:
+
+```text
+/app/playlists/dynamic/*.json
 ```
-# Star/unstar
-POST /api/v1/Songs/starred/{songId}/{isStarred}
 
-# Set rating
-POST /api/v1/Songs/setrating/{songId}/{rating}
+The administrator/editor import dialog accepts this shape:
+
+```json
+{
+  "id": "1f631cc9-c7ac-4f23-8315-092c1c2db57e",
+  "isEnabled": true,
+  "name": "Recently added",
+  "comment": "Songs added during the last 30 days",
+  "isPublic": true,
+  "forUserId": null,
+  "songSelectionWhere": "s.\"CreatedAt\" > NOW() - INTERVAL '30 days'",
+  "songSelectionOrder": "s.\"CreatedAt\" DESC",
+  "songLimit": 100
+}
 ```
 
-## Best Practices
+`id`, `name`, `comment`, and `songSelectionWhere` are required by the importer. Set `forUserId` to a user's API-key GUID for a user-specific definition; otherwise a definition must be public to appear.
 
-- **Use likes for quick favorites**: Fast way to build a "best of" collection
-- **Use ratings for nuanced preferences**: 5-star system helps with sorting and recommendations
-- **Check global Rated Songs**: Great for discovering what others enjoy
-- **Create themed playlists**: Organize by mood, genre, activity, or occasion
-- **Sync across clients**: Playlists created in any client appear everywhere
+Dynamic definitions are disabled globally when `playlist.dynamicPlaylist.disabled` is `true`.
 
-## Tips for Discovery
+> Dynamic playlist SQL is interpolated into database queries. Only a trusted administrator should write or import these files. Do not accept definitions from untrusted users.
 
-1. **Browse "Rated Songs"** to see what's popular across all users
-2. **Sort "Your Rated Songs"** by rating to find your top-rated tracks
-3. **Use "Your Favorite Songs"** as a quick-access playlist for everyday listening
-4. **Create playlists from dynamic playlists** by adding songs you discover
+`songLimit` is part of the definition model, but the current query path applies API paging rather than enforcing that value consistently.
 
----
+## OpenSubsonic API
 
-Have questions about playlists? Open an issue on GitHub or check the [API documentation](/api/) for technical details.
+Melodee implements the standard playlist routes using GET or POST:
+
+```text
+/rest/getPlaylists
+/rest/getPlaylist?id={playlistId}
+/rest/createPlaylist?name={name}
+/rest/updatePlaylist?playlistId={id}
+/rest/deletePlaylist?id={playlistId}
+```
+
+`updatePlaylist` supports metadata updates plus song additions and removals using the standard OpenSubsonic parameters. IDs returned by Melodee normally use a typed prefix such as `playlist|{guid}`.
+
+Client menus and capabilities vary, so verify create/reorder/public controls in the client you use rather than relying on a client-specific workflow.
+
+## Native API
+
+Use a native bearer token:
+
+```text
+GET    /api/v1/playlists?page=1&pageSize=20
+GET    /api/v1/playlists/{playlistGuid}
+GET    /api/v1/playlists/{playlistGuid}/songs
+POST   /api/v1/playlists
+POST   /api/v1/playlists/import
+PUT    /api/v1/playlists/{playlistGuid}
+DELETE /api/v1/playlists/{playlistGuid}
+POST   /api/v1/playlists/{playlistGuid}/songs
+DELETE /api/v1/playlists/{playlistGuid}/songs
+PUT    /api/v1/playlists/{playlistGuid}/songs/reorder
+POST   /api/v1/playlists/{playlistGuid}/image
+DELETE /api/v1/playlists/{playlistGuid}/image
+```
+
+The native smart-playlist preview is under `/api/v1/playlists/smart`. See [Native API](/api/) for token and response details.

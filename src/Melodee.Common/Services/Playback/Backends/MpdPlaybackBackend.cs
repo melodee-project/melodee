@@ -281,7 +281,10 @@ public sealed class MpdPlaybackBackend : IPlaybackBackend, IDisposable
 
                 if (!string.IsNullOrEmpty(_password))
                 {
-                    var passwordResponse = ExecuteCommand($"password {_password}", out var isError);
+                    var passwordResponse = ExecuteCommandCore(
+                        $"password {_password}",
+                        "password ***",
+                        out var isError);
                     if (isError)
                     {
                         _logger.Error("[MpdPlaybackBackend] Failed to authenticate with MPD");
@@ -341,7 +344,14 @@ public sealed class MpdPlaybackBackend : IPlaybackBackend, IDisposable
 
     private Task ExecuteCommandAsync(string command, CancellationToken cancellationToken)
     {
-        var safeCommand = GetSafeCommandForLogging(command);
+        return ExecuteCommandCoreAsync(command, GetSafeCommandForLogging(command), cancellationToken);
+    }
+
+    private Task ExecuteCommandCoreAsync(
+        string wireCommand,
+        string safeCommand,
+        CancellationToken cancellationToken)
+    {
         try
         {
             if (!IsConnected())
@@ -350,7 +360,7 @@ public sealed class MpdPlaybackBackend : IPlaybackBackend, IDisposable
                 return Task.CompletedTask;
             }
 
-            var fullCommand = $"{command}\n";
+            var fullCommand = $"{wireCommand}\n";
             var commandBytes = Encoding.UTF8.GetBytes(fullCommand);
             _networkStream!.Write(commandBytes, 0, commandBytes.Length);
 
@@ -379,8 +389,12 @@ public sealed class MpdPlaybackBackend : IPlaybackBackend, IDisposable
 
     private string ExecuteCommand(string command, out bool isError)
     {
+        return ExecuteCommandCore(command, GetSafeCommandForLogging(command), out isError);
+    }
+
+    private string ExecuteCommandCore(string wireCommand, string safeCommand, out bool isError)
+    {
         isError = false;
-        var safeCommand = GetSafeCommandForLogging(command);
         try
         {
             if (!IsConnected())
@@ -389,7 +403,7 @@ public sealed class MpdPlaybackBackend : IPlaybackBackend, IDisposable
                 return string.Empty;
             }
 
-            var fullCommand = $"{command}\n";
+            var fullCommand = $"{wireCommand}\n";
             var commandBytes = Encoding.UTF8.GetBytes(fullCommand);
             _networkStream!.Write(commandBytes, 0, commandBytes.Length);
 

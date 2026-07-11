@@ -1,491 +1,180 @@
 ---
 title: Homelab Deployment
+description: Deploy Melodee safely behind a reverse proxy with persistent storage and routine monitoring.
 permalink: /homelab/
+tags:
+  - deployment
+  - homelab
+  - reverse-proxy
+  - containers
 ---
 
-# Homelab Deployment Guide
+# Homelab Deployment
 
-This guide provides comprehensive instructions for deploying Melodee in a homelab environment, covering everything from basic setup to advanced configurations.
+This guide builds on the [Quick Start](/quickstart/) and covers the choices that
+matter for a long-running home server: storage, networking, TLS, permissions,
+and monitoring.
 
-## Quick Start
+## Recommended Layout
 
-For first-time setup, use the automated setup script:
+Use separate storage for the PostgreSQL database, working directories, and
+published media when possible:
 
-```bash
-# Clone the repository
-git clone https://github.com/melodee-project/melodee.git
-cd melodee
+```text
+Fast local disk
+├── PostgreSQL volume
+├── inbound
+├── staging
+└── logs
 
-# Run the setup script (detects podman or docker automatically)
-python3 scripts/run-container-setup.py
-
-# Or setup and start containers in one step
-python3 scripts/run-container-setup.py --start
+Capacity storage or NAS
+├── storage
+├── podcasts
+├── playlists
+├── themes
+└── templates
 ```
 
-The setup script will:
-- Detect your container runtime (podman or docker)
-- **Offer to install podman** if no container runtime is found (supports Debian/Ubuntu, Fedora, RHEL/CentOS, Arch, openSUSE, and macOS with Homebrew)
-- Generate secure passwords and JWT tokens
-- Create a properly configured `.env` file
-- Optionally start the containers
-
-After setup, access Melodee at `http://localhost:8080`
-
-## System Requirements
-
-### Minimum Requirements
-- **CPU**: Dual-core processor (Intel/AMD x64 or ARM64)
-- **RAM**: 2GB (4GB recommended for libraries with thousands of tracks)
-- **Storage**: 100GB+ for application and database (additional space for music library)
-- **Network**: 100 Mbps Ethernet (1 Gbps recommended for multi-user streaming)
-
-### Recommended for Large Libraries
-- **CPU**: Quad-core or higher (for parallel transcoding and scanning)
-- **RAM**: 8GB+ (for efficient metadata processing)
-- **Storage**: SSD for database volume, separate drives for media
-- **Network**: Gigabit Ethernet or higher
-
-## Hardware Recommendations
-
-### Single-Board Computers (SBCs)
-- **Raspberry Pi 4 (8GB)**: Suitable for small collections (<5,000 tracks)
-- **Raspberry Pi 5**: Better performance for medium collections
-- **Rock 5B/5E**: ARM64 with better performance than Pi
-- **Odroid N2+**: Good for media processing
-
-### NAS Integration
-For homelabs with existing NAS:
-- Mount music library via NFS/SMB to the `storage` volume
-- Keep database on local SSD for performance
-- Use the `inbound` volume on local storage for processing
-
-### VM Setup
-- **CPU**: Enable passthrough for transcoding acceleration
-- **RAM**: Allocate based on library size
-- **Storage**: Use separate virtual disks for each volume type
-
-## Network Configuration
-
-### Port Requirements
-- **8080**: Default web interface and API (configurable via MELODEE_PORT)
-- **80/443**: If using reverse proxy
-- **32400**: If integrating with other media servers (optional)
-
-### Firewall Rules
-```bash
-# Example iptables rules
-iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-iptables -A INPUT -p tcp --dport 443 -j ACCEPT
-iptables -A INPUT -p tcp --dport 8080 -j ACCEPT  # Only if not behind proxy
-```
-
-## Container Orchestration
-
-### Docker Compose with Reverse Proxy
+The default Compose deployment uses named volumes. A
+`compose.override.yml` can bind existing host directories to the container:
 
 ```yaml
-name: melodee
-
 services:
-  nginx-proxy:
-    image: nginxproxy/nginx-proxy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - conf:/etc/nginx/conf.d
-      - vhost:/etc/nginx/vhost.d
-      - html:/usr/share/nginx/html
-      - certs:/etc/nginx/certs:ro
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-    restart: unless-stopped
-
-  acme-companion:
-    image: nginxproxy/acme-companion
-    depends_on:
-      - nginx-proxy
-    volumes:
-      - certs:/etc/nginx/certs:rw
-      - acme:/etc/acme.sh
-      - vhost:/etc/nginx/vhost.d
-      - html:/usr/share/nginx/html
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-
-  melodee-db:
-    image: docker.io/library/postgres:17
-    environment:
-      POSTGRES_DB: melodeedb
-      POSTGRES_USER: melodeeuser
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      PGUSER: melodeeuser
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U melodeeuser -d melodeedb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   melodee.blazor:
-    image: melodee:latest
-    build:
-      context: .
-      dockerfile: ${DOCKERFILE_PATH:-Dockerfile}
-      tags:
-        - "melodee:latest"
-    depends_on:
-      melodee-db:
-        condition: service_healthy
-    environment:
-      - DB_PASSWORD=${DB_PASSWORD}
-      - ConnectionStrings__DefaultConnection=Host=melodee-db;Port=5432;Database=melodeedb;Username=melodeeuser;Password=${DB_PASSWORD};Pooling=true;MinPoolSize=${DB_MIN_POOL_SIZE:-10};MaxPoolSize=${DB_MAX_POOL_SIZE:-50};SSL Mode=Disable;Include Error Detail=true
-      - ConnectionStrings__MusicBrainzConnection=Data Source=/app/storage/_search-engines/musicbrainz/musicbrainz.db
-      - ConnectionStrings__ArtistSearchEngineConnection=Data Source=/app/storage/_search-engines/artistSearchEngine.db;Cache=Shared
-      - DB_MIN_POOL_SIZE=${DB_MIN_POOL_SIZE:-10}
-      - DB_MAX_POOL_SIZE=${DB_MAX_POOL_SIZE:-50}
-      - VIRTUAL_HOST=music.yourdomain.com
-      - LETSENCRYPT_HOST=music.yourdomain.com
     volumes:
-      - storage:/app/storage
-      - inbound:/app/inbound
-      - staging:/app/staging
-      - user_images:/app/user-images
-      - playlists:/app/playlists
-      - templates:/app/templates
-      - logs:/app/Logs
-    restart: unless-stopped
-    user: "0:0"
-    entrypoint: ["/entrypoint.sh"]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      start_period: 60s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: "1.00"
-          memory: 1g
-
-volumes:
-  db_data:
-    name: melodee_db_data
-  storage:
-    name: melodee_storage
-  inbound:
-    name: melodee_inbound
-  staging:
-    name: melodee_staging
-  user_images:
-    name: melodee_user_images
-  playlists:
-    name: melodee_playlists
-  templates:
-    name: melodee_templates
-  logs:
-    name: melodee_logs
-  conf:
-  vhost:
-  html:
-  certs:
-  acme:
+      - /srv/melodee/inbound:/app/inbound
+      - /srv/melodee/staging:/app/staging
+      - /mnt/music:/app/storage
+      - /srv/melodee/podcasts:/app/podcasts
 ```
 
-### Proxmox Deployment
+Avoid mounting Inbound, Staging, and Storage on the same directory. Melodee
+moves and rewrites files while processing, so overlapping roots can cause
+reprocessing or data loss.
 
-For homelabs using Proxmox as their virtualization platform, Melodee can be deployed in several ways:
+For NFS or SMB storage, mount the share on the host first and bind that host
+mount into the container. Store SMB credentials in a root-readable credentials
+file rather than placing a password directly in shell history or Compose YAML.
 
-#### Option A: Container Deployment in LXC
+## Network Exposure
 
-Deploy Melodee using an LXC container with Docker support:
+The supplied Compose file publishes `MELODEE_PORT` (default `8080`) on all host
+interfaces. For a LAN-only installation, restrict access with the host firewall.
+For internet access, place Melodee behind a TLS-terminating reverse proxy and do
+not expose PostgreSQL.
 
-1. **Create an LXC container**:
-   - Use Ubuntu/Debian template
-   - Allocate 2-4 CPU cores, 4-8GB RAM
-   - 20-100GB disk space (adjust based on needs)
+After configuring the proxy, set `system.baseUrl` under **Admin > Settings** to
+the external origin, for example `https://music.example.com`. Do not include a
+trailing API path.
 
-2. **Install Docker in the container**:
-   ```bash
-   apt update && apt install -y docker.io docker-compose-plugin
-   ```
+### Nginx Example
 
-3. **Deploy Melodee**:
-   Follow the standard Docker Compose installation process inside the container.
+Blazor Server and Party Mode use upgraded connections, while audio streaming
+benefits from disabled proxy buffering:
 
-#### Option B: VM with Docker
+```nginx
+server {
+    listen 443 ssl;
+    server_name music.example.com;
 
-Create a dedicated VM for Melodee:
+    ssl_certificate /etc/letsencrypt/live/music.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/music.example.com/privkey.pem;
 
-1. **Create VM specifications**:
-   - 2-4 vCPUs
-   - 4-8GB RAM
-   - 100GB+ storage (SSD recommended for database)
-   - Bridge network interface
+    client_max_body_size 100m;
 
-2. **Install operating system**:
-   - Ubuntu Server 22.04 LTS or later
-   - Enable SSH access
-
-3. **Install Docker and deploy**:
-   ```bash
-   # Install Docker
-   curl -fsSL https://get.docker.com | sh
-   systemctl enable docker
-   usermod -aG docker $USER
-
-   # Clone and deploy Melodee
-   git clone https://github.com/melodee-project/melodee.git
-   cd melodee
-   
-   # Run setup script to generate secure configuration
-   python3 scripts/run-container-setup.py --start
-   ```
-
-#### Option C: Using Proxmox Backup Server (PBS)
-
-For backup integration with Proxmox:
-
-1. **Configure PBS for container backups**:
-   - Set up backup schedules for Melodee containers
-   - Include database volume in backup policies
-   - Test restore procedures regularly
-
-2. **Snapshot strategy**:
-   - Create VM/container snapshots before major updates
-   - Use Proxmox's built-in snapshot features
-   - Coordinate with application-level backups
-
-#### Proxmox-Specific Optimizations
-
-**Resource Allocation**:
-- Use dedicated CPU cores when possible
-- Assign sufficient RAM for metadata processing
-- Consider using SSD storage for database VM/container
-
-**Network Configuration**:
-- Use bridge networking for consistent IP addressing
-- Configure port forwarding if running behind NAT
-- Consider VLAN setup for media traffic isolation
-
-**Storage Options**:
-- Use local storage for database performance
-- Mount network storage (CIFS/NFS) for music library
-- Configure ZFS with compression for space efficiency
-
-**Monitoring Integration**:
-- Use Proxmox's built-in monitoring for system metrics
-- Export application metrics via API calls
-- Set up Proxmox notifications for critical events
-
-### Docker Swarm Setup
-
-For high availability in homelabs:
-
-```bash
-# Initialize swarm
-docker swarm init
-
-# Create overlay network
-docker network create --driver overlay --attachable melodee-network
-
-# Deploy as stack
-docker stack deploy -c compose.yml melodee
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+    }
+}
 ```
 
-## Media Library Management
+Melodee enables forwarded-header processing by default. Keep the application
+reachable only through a trusted proxy when relying on forwarded client
+addresses.
 
-### Mounting External Storage
+### Traefik Labels
 
-For homelabs with large music collections:
-
-```bash
-# Mount NAS share to storage volume
-sudo mount -t nfs your-nas:/music /mnt/music
-docker volume create melodee_storage
-# Then bind mount to container
+```yaml
+services:
+  melodee.blazor:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.melodee.rule=Host(`music.example.com`)"
+      - "traefik.http.routers.melodee.entrypoints=websecure"
+      - "traefik.http.routers.melodee.tls=true"
+      - "traefik.http.services.melodee.loadbalancer.server.port=8080"
 ```
 
-### Volume Management
+## Container Resources
 
-| Volume | Purpose | Backup Strategy |
-|--------|---------|-----------------|
-| `melodee_db_data` | Database | Daily dumps, off-site backup |
-| `melodee_storage` | Processed music library | Incremental backup, off-site |
-| `melodee_inbound` | New media for processing | Temporary, no backup needed |
-| `melodee_staging` | Media awaiting approval | Periodic backup |
-| `melodee_user_images` | User avatars | Backup with media |
-| `melodee_playlists` | User playlists | Backup with media |
-| `melodee_templates` | Email templates | Backup with configuration |
-| `melodee_logs` | Application logs | Rotate and archive |
+The supplied Compose file caps the application at one CPU and 2 GB of memory.
+That is adequate for initial evaluation but can constrain large scans,
+transcoding, or multiple streams. Adjust the `deploy.resources.limits` values in
+an override after observing the host; do not remove limits on a shared machine
+without monitoring.
 
-## Monitoring & Maintenance
+Keep the PostgreSQL volume on low-latency storage. Media can live on slower or
+network storage, but scans and imports will be limited by that storage's random
+I/O and metadata performance.
 
-### System Monitoring
+See [Hardware & Performance](/hardware/) for starting points.
 
-**Disk Usage:**
+## Rootless Podman and Permissions
+
+The setup helper includes a permissions diagnostic:
+
 ```bash
-# Monitor storage volumes
-docker exec -it melodee.blazor df -h
-# Check database size
-docker exec -it melodee-db psql -U melodeeuser -d melodeedb -c "SELECT pg_size_pretty(pg_database_size('melodeedb'));"
+python3 scripts/run-container-setup.py --check-permissions
 ```
 
-**Resource Usage:**
+For bind mounts, ensure the mapped container process can traverse every parent
+directory and write the Inbound, Staging, Storage, podcast, theme, and template
+paths. Prefer narrowly scoped ownership or ACLs over world-writable modes.
+
+## Audio Output and Jukebox
+
+The published image includes `ffmpeg`, but it does not install MPV or MPD or
+automatically expose host audio devices. Server-side [Jukebox](/jukebox/)
+therefore requires a custom image or a separately reachable MPD instance, plus
+explicit audio-device access. Ordinary browser and API streaming does not need
+host audio hardware.
+
+## Monitoring
+
 ```bash
-# Monitor container resources
-docker stats melodee.blazor melodee-db
-```
-
-### Automated Maintenance
-
-**Cleanup Script:**
-```bash
-#!/bin/bash
-# cleanup-melodee.sh
-
-# Remove old containers
-docker container prune -f
-
-# Remove unused images
-docker image prune -f
-
-# Check disk usage
-echo "Disk usage:"
-docker system df
-
-# Optional: Rotate logs
-docker exec melodee.blazor logrotate -f /etc/logrotate.d/melodee
-```
-
-**Schedule with cron:**
-```bash
-# Weekly cleanup
-0 3 * * 0 /path/to/cleanup-melodee.sh
-```
-
-### Health Checks
-
-**System Status:**
-```bash
-# Check service health
 docker compose ps
-# Check application health endpoint
-curl http://localhost:8080/health
+docker compose logs --tail=200 melodee.blazor
+docker compose logs --tail=100 melodee-db
+docker stats
+curl --fail http://localhost:8080/health
 ```
 
-## Backup & Recovery
+The `/health` endpoint is the container liveness/readiness probe. Use
+**Admin > Doctor** for deeper checks such as library paths, required tools,
+DecentDB compatibility, search-provider credentials, and writable storage.
 
-### Backup Strategy
+Monitor at least:
 
-**Full Backup:**
-```bash
-#!/bin/bash
-# full-backup.sh
+- Free space on the database, Inbound, Staging, Storage, and backup filesystems
+- Application restarts and unhealthy container states
+- PostgreSQL backup completion and restore tests
+- Scan duration, transcoding CPU use, and application log growth
 
-BACKUP_DIR="/backup/melodee/$(date +%Y-%m-%d)"
-mkdir -p "$BACKUP_DIR"
+## Routine Operations
 
-# Stop services to ensure consistency
-docker compose down
+- Back up PostgreSQL and persistent application volumes before upgrades.
+- Pin release images instead of relying on `latest` for unattended updates.
+- Review release notes before changing versions.
+- Keep the proxy, container runtime, host kernel, and PostgreSQL image patched.
+- Test restores on a separate host or isolated Compose project.
 
-# Export volumes
-docker run --rm -v melodee_db_data:/volume -v "$BACKUP_DIR:/backup" alpine tar czf /backup/db_backup.tar.gz -C /volume .
-
-# For other volumes
-docker run --rm -v melodee_storage:/volume -v "$BACKUP_DIR:/backup" alpine tar czf /backup/storage_backup.tar.gz -C /volume .
-
-# Start services
-docker compose up -d
-
-echo "Backup completed: $BACKUP_DIR"
-```
-
-**Incremental Backup:**
-```bash
-# Database only backup
-docker exec melodee-db pg_dump -U melodeeuser -d melodeedb > /backup/melodee_db_$(date +%Y%m%d_%H%M%S).sql
-```
-
-### Recovery Process
-
-1. **Stop services:** `docker compose down`
-2. **Restore database:** 
-   ```bash
-   docker run --rm -v /backup:/backup -v melodee_db_data:/volume alpine tar xzf /backup/db_backup.tar.gz -C /volume
-   ```
-3. **Restore media:** 
-   ```bash
-   docker run --rm -v /backup:/backup -v melodee_storage:/volume alpine tar xzf /backup/storage_backup.tar.gz -C /volume
-   ```
-4. **Start services:** `docker compose up -d`
-
-## Troubleshooting
-
-### Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| High CPU during initial scan | This is normal; scans run in background |
-| Database connection errors | Check `DB_PASSWORD` in .env file |
-| Container won't start | Run `docker logs melodee.blazor` for details |
-| Slow streaming | Check network bandwidth and proxy buffer settings |
-| Missing artwork | Ensure metadata providers are configured with API keys |
-
-### Performance Tuning
-
-**For Large Libraries:**
-- Increase database connection pool size
-- Adjust scan intervals to avoid system overload
-- Use SSDs for database volume
-- Configure transcoding quality based on client network capabilities
-
-**For Multiple Users:**
-- Adjust concurrent stream limits
-- Monitor resource usage during peak times
-- Consider hardware upgrades if needed
-
-## Security Best Practices
-
-### Access Control
-- Use strong passwords for all accounts
-- Enable 2FA if available
-- Regularly rotate API keys
-- Monitor access logs
-
-### Network Security
-- Always use HTTPS with valid certificates
-- Restrict access to admin functions
-- Use fail2ban or similar for brute force protection
-- Keep containers updated
-
-### Data Security
-- Encrypt backup files
-- Use encrypted volumes for sensitive data
-- Regular security audits
-- Keep up with security patches
-
-## Scaling Considerations
-
-### When to Scale Up
-- Multiple concurrent users streaming
-- Libraries exceeding 50,000 tracks
-- Slow UI response times
-- High CPU/memory usage during scans
-
-### Scaling Options
-- **Vertical**: Add more CPU/RAM to existing server
-- **Horizontal**: Add caching layers, separate database server
-- **Hybrid**: Combine both approaches
-
-## Community Resources
-
-- **Discord**: Join the Melodee community for real-time help
-- **GitHub**: Report issues and request features
-- **Documentation**: Keep checking for updates
-- **Forums**: Share your homelab experiences and learn from others
-
-This guide covers the essential aspects of deploying Melodee in a homelab environment. For specific scenarios or advanced configurations, consult the main documentation or reach out to the community.
+See [Backup & Recovery](/backup/) and [Upgrade Guide](/upgrade/) for executable
+procedures.

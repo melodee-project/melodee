@@ -1,12 +1,24 @@
+using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Claims;
 using FluentAssertions;
 using Melodee.Blazor.Controllers.Melodee.Models;
+using Melodee.Blazor.Filters;
+using Melodee.Common.Data;
+using Melodee.Common.Serialization;
+using Melodee.Common.Services.Caching;
+using Melodee.Common.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Moq;
+using NodaTime;
+using Serilog;
 
 namespace Melodee.Tests.Blazor.Controllers.Melodee;
 
@@ -271,5 +283,125 @@ public class MelodeeApiAuthFilterTests
         traceId.Should().NotBeNullOrEmpty();
     }
 
+    [Fact]
+    public async Task OnActionExecutionAsync_WhenUserIsBlacklisted_LogsOnlyInternalUserId()
+    {
+        const int userId = 45;
+        const string username = "sensitive-username";
+        const string email = "sensitive.user@example.test";
+        const string clientIp = "203.0.113.42";
+        var apiKey = Guid.NewGuid();
+        var options = new DbContextOptionsBuilder<MelodeeDbContext>()
+            .UseInMemoryDatabase($"api-auth-filter-{Guid.NewGuid():N}")
+            .Options;
+        var contextFactory = new TestDbContextFactory(options);
+        await using (var dbContext = await contextFactory.CreateDbContextAsync())
+        {
+            dbContext.Users.Add(new global::Melodee.Common.Data.Models.User
+            {
+                Id = userId,
+                ApiKey = apiKey,
+                UserName = username,
+                UserNameNormalized = username.ToUpperInvariant(),
+                Email = email,
+                EmailNormalized = email.ToUpperInvariant(),
+                PublicKey = "public-key",
+                PasswordEncrypted = "encrypted-password",
+                CreatedAt = SystemClock.Instance.GetCurrentInstant()
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        var userProfileService = CreateUserProfileService(contextFactory);
+        var blacklistService = new Mock<IBlacklistService>();
+        blacklistService.Setup(x => x.IsEmailBlacklistedAsync(email)).ReturnsAsync(true);
+        var logger = new RecordingLogger<MelodeeApiAuthFilter>();
+        var filter = new MelodeeApiAuthFilter(userProfileService, blacklistService.Object, logger);
+        var actionContext = CreateContext(CreateAuthenticatedUser(apiKey, username, email));
+        actionContext.HttpContext.Connection.RemoteIpAddress = IPAddress.Parse(clientIp);
+        var nextCalled = false;
+        ActionExecutionDelegate next = () =>
+        {
+            nextCalled = true;
+            return Task.FromResult<ActionExecutedContext>(null!);
+        };
+
+        await filter.OnActionExecutionAsync(actionContext, next);
+
+        nextCalled.Should().BeFalse();
+        actionContext.Result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        logger.Output.Should().Contain($"user ID {userId}");
+        logger.Output.Should().NotContainAny(username, email, clientIp);
+    }
+
     #endregion
+
+    private static UserProfileService CreateUserProfileService(IDbContextFactory<MelodeeDbContext> contextFactory)
+    {
+        var logger = new LoggerConfiguration().CreateLogger();
+        var serializer = new Serializer(logger);
+        var cacheManager = new FakeCacheManager(logger, TimeSpan.FromMinutes(1), serializer);
+
+        return new UserProfileService(
+            logger,
+            cacheManager,
+            contextFactory,
+            new Mock<IMelodeeConfigurationFactory>().Object,
+            null!,
+            null!,
+            null!,
+            null!,
+            null!,
+            null!,
+            new Mock<Rebus.Bus.IBus>().Object,
+            new Mock<IPasswordHashService>().Object,
+            new Mock<ISecretProtector>().Object,
+            null!);
+    }
+
+    private sealed class TestDbContextFactory(DbContextOptions<MelodeeDbContext> options)
+        : IDbContextFactory<MelodeeDbContext>
+    {
+        public MelodeeDbContext CreateDbContext()
+        {
+            return new MelodeeDbContext(options);
+        }
+
+        public Task<MelodeeDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new MelodeeDbContext(options));
+        }
+    }
+
+    private sealed class RecordingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        private readonly ConcurrentQueue<string> _entries = new();
+
+        public string Output => string.Join(Environment.NewLine, _entries);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            _entries.Enqueue(formatter(state, exception));
+            if (exception is not null)
+            {
+                _entries.Enqueue(exception.ToString());
+            }
+        }
+    }
 }

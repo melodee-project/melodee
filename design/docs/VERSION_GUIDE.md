@@ -38,7 +38,7 @@ Melodee uses the `MAJOR.MINOR.PATCH` format:
 
 ## Current Versioning Architecture
 
-Melodee has **two independent version tracks** that must be kept in sync during releases:
+Melodee has **three synchronized version tracks** that must be updated during releases:
 
 ### Track 1: Assembly Version (.csproj files)
 
@@ -46,22 +46,40 @@ Used at runtime, displayed in the About page, and embedded in compiled binaries.
 
 **Files (all 4 must be updated together):**
 
-| File | Property | Current Value |
+| File | Property | Required Release Value |
 |------|----------|---------------|
-| `src/Melodee.Blazor/Melodee.Blazor.csproj` | `VersionPrefix` | `2.0.0` |
-| `src/Melodee.Common/Melodee.Common.csproj` | `VersionPrefix` | `2.0.0` |
-| `src/Melodee.Cli/Melodee.Cli.csproj` | `VersionPrefix` | `2.0.0` |
-| `src/Melodee.Mql/Melodee.Mql.csproj` | `VersionPrefix` | `2.0.0` |
+| `src/Melodee.Blazor/Melodee.Blazor.csproj` | `VersionPrefix` | `X.Y.Z` |
+| `src/Melodee.Common/Melodee.Common.csproj` | `VersionPrefix` | `X.Y.Z` |
+| `src/Melodee.Cli/Melodee.Cli.csproj` | `VersionPrefix` | `X.Y.Z` |
+| `src/Melodee.Mql/Melodee.Mql.csproj` | `VersionPrefix` | `X.Y.Z` |
 
 Each .csproj also defines:
 - `VersionSuffix` — auto-generated build timestamp (e.g., `build20260501165851`)
-- `AssemblyVersion` — `$(VersionPrefix).0` (e.g., `2.0.0.0`)
-- `FileVersion` — `$(VersionPrefix).0` (e.g., `2.0.0.0`)
-- `InformationalVersion` — `$(VersionPrefix)+$(VersionSuffix)` (e.g., `2.0.0+build20260501165851`)
+- `AssemblyVersion` — `$(VersionPrefix).0` (e.g., `2.2.0.0`)
+- `FileVersion` — `$(VersionPrefix).0` (e.g., `2.2.0.0`)
+- `InformationalVersion` — `$(VersionPrefix)+$(VersionSuffix)` (e.g., `2.2.0+build20260501165851`)
 
-The `AppVersionProvider` service strips the suffix and displays only the `VersionPrefix` (e.g., `2.0.0`) in the UI.
+The `AppVersionProvider` service strips the suffix and displays only the `VersionPrefix` (e.g., `2.2.0`) in the UI.
 
-### Track 2: Docker Image Tags (GitHub Releases)
+### Track 2: Documentation Release Version
+
+The documentation site displays its default release in the navigation bar and
+uses the same version for versioned search and release navigation.
+
+**Files and settings:**
+
+| File | Setting | Purpose |
+|------|---------|---------|
+| `docs/VERSION` | File content | Mirrors the current application release |
+| `docs/_config.yml` | `version_params.latest` | Default Release shown for current documentation |
+| `docs/_config.yml` | `version_params.versions` | Releases offered in the documentation menu |
+| `docs/_config.yml` | `version_params.search_versions` | Releases included in documentation search |
+
+The new version must be the value of `latest` and the first item in both
+version lists. Previous versions remain in the lists so archived documentation
+continues to be available.
+
+### Track 3: Docker Image Tags (GitHub Releases)
 
 Docker images are published to `ghcr.io` and tagged based on **GitHub release tags**.
 
@@ -70,16 +88,23 @@ Docker images are published to `ghcr.io` and tagged based on **GitHub release ta
 **Trigger:** GitHub release published (or manual `workflow_dispatch`)
 
 **Tag patterns:**
-- `{{version}}` — full SemVer (e.g., `2.0.0`)
-- `{{major}}.{{minor}}` — minor track (e.g., `2.0`)
+- `{{version}}` — full SemVer (e.g., `2.2.0`)
+- `{{major}}.{{minor}}` — minor track (e.g., `2.2`)
 - `{{major}}` — major track (e.g., `2`)
 - `latest` — applied to every release
 
-### Track 3: docs/VERSION (Orphaned)
-
-The file `docs/VERSION` currently contains `0.0.31` and is **not referenced by any code, build, or CI pipeline**. It appears to be a legacy artifact. Consider removing it or integrating it into the release process.
-
 ## Step-by-Step Version Bump Procedure
+
+Use the version bump script as the preferred workflow. It updates the assembly
+versions, documentation version metadata, and changelog together:
+
+```bash
+./scripts/bump_version.sh --dry-run X.Y.Z
+./scripts/bump_version.sh X.Y.Z
+```
+
+The steps below describe each change made by the script and the remaining
+release actions.
 
 ### Prerequisites
 
@@ -134,7 +159,7 @@ Change `<VersionPrefix>X.Y.Z</VersionPrefix>` to the new version.
 > ```xml
 > <Project>
 >   <PropertyGroup>
->     <MelodeeVersion>2.1.0</MelodeeVersion>
+>     <MelodeeVersion>2.2.0</MelodeeVersion>
 >     <VersionPrefix>$(MelodeeVersion)</VersionPrefix>
 >     <VersionSuffix>build$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionSuffix>
 >     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
@@ -144,17 +169,37 @@ Change `<VersionPrefix>X.Y.Z</VersionPrefix>` to the new version.
 > </Project>
 > ```
 
-### Step 3: Commit and Open a PR
+### Step 3: Update the Documentation Release
+
+Update `docs/VERSION` to the new application version. In
+`docs/_config.yml`, update `version_params.latest` and prepend the new version
+to both `version_params.versions` and `version_params.search_versions`.
+
+For example:
+
+```yaml
+version_params:
+  search_versions:
+    - X.Y.Z
+  latest: X.Y.Z
+  versions:
+    - X.Y.Z
+```
+
+Keep prior releases below the new value in both lists so archived navigation
+and versioned search remain available.
+
+### Step 4: Commit and Open a PR
 
 ```bash
-git add docs/pages/changelog.md src/*/ docs/VERSION 2>/dev/null || true
+git add docs/VERSION docs/_config.yml docs/pages/changelog.md src/*/ 2>/dev/null || true
 git commit -m "chore: release vX.Y.Z"
 git push origin <branch>
 ```
 
 Open a PR targeting `main`. The version bump is reviewed like any other change.
 
-### Step 4: Merge and Tag
+### Step 5: Merge and Tag
 
 After the PR is approved and merged to `main`:
 
@@ -166,7 +211,7 @@ git push origin vX.Y.Z
 
 > The tag **must** be created on `main` after merge so the `docker-publish.yml` workflow picks it up.
 
-### Step 5: Create a GitHub Release
+### Step 6: Create a GitHub Release
 
 1. Go to **GitHub → Releases → Draft a new release**
 2. Select the tag `vX.Y.Z`
@@ -189,7 +234,7 @@ git push origin vX.Y.Z
 
 5. Click **Publish release**
 
-### Step 6: Verify Docker Image Publication
+### Step 7: Verify Docker Image Publication
 
 After publishing the release, the `docker-publish.yml` workflow triggers automatically. Verify:
 
@@ -203,22 +248,26 @@ Pull and test the image:
 docker pull ghcr.io/<owner>/melodee:X.Y.Z
 ```
 
-### Step 7: Verify the About Page and Changelog
+### Step 8: Verify the Application and Documentation
 
 After deploying:
 
 1. Navigate to the **About** page in the Melodee UI and confirm the displayed version matches the new `X.Y.Z`.
 2. Navigate to the **Changelog** page on the docs site (`/changelog/`) and confirm the new version entry is visible.
+3. Confirm the documentation navigation displays `Release: X.Y.Z` by default
+   and offers the new release in its version menu.
 
 ## Version Display Locations
 
 | Location | Source | Format |
 |----------|--------|--------|
-| About page | `IAppVersionProvider.GetSemVerForDisplay()` | `2.0.0` (prefix only) |
-| Admin Dashboard → Server Stats | `Assembly.GetName().Version` | `2.0.0.0` |
-| Admin Doctor → Server Info | `Assembly.GetName().Version` | `2.0.0.0` |
-| Docker image tags | GitHub release tag | `2.0.0`, `2.0`, `2`, `latest` |
-| Assembly metadata | `InformationalVersion` | `2.0.0+build20260501165851` |
+| About page | `IAppVersionProvider.GetSemVerForDisplay()` | `X.Y.Z` (prefix only) |
+| Admin Dashboard → Server Stats | `Assembly.GetName().Version` | `X.Y.Z.0` |
+| Admin Doctor → Server Info | `Assembly.GetName().Version` | `X.Y.Z.0` |
+| Documentation Release menu | `docs/_config.yml` → `version_params.latest` | `X.Y.Z` |
+| Documentation version marker | `docs/VERSION` | `X.Y.Z` |
+| Docker image tags | GitHub release tag | `X.Y.Z`, `X.Y`, `X`, `latest` |
+| Assembly metadata | `InformationalVersion` | `X.Y.Z+buildYYYYMMDDHHMMSS` |
 
 ## API Versioning (Separate from App Version)
 
@@ -229,9 +278,11 @@ Melodee uses `Asp.Versioning.Mvc` for REST API versioning, which is **independen
 - Consumers specify version via URL segment (`/api/v1/...`) or `X-Api-Version` header
 - API version bumps are independent of application version bumps
 
-## Automated Version Bumping (Future)
+## Further Version Automation
 
-Consider adopting one of these tools for automated version management:
+The repository's `scripts/bump_version.sh` handles the synchronized release
+files. Consider adopting one of these tools if tag-derived or fully automated
+release management is desired:
 
 | Tool | Approach | Best For |
 |------|----------|----------|

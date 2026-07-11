@@ -14,12 +14,53 @@ Cross-platform support for Windows, Linux, and macOS.
 """
 
 import os
-import sys
-import subprocess
-import shutil
-import time
 import platform
+import secrets
+import shutil
+import subprocess
+import sys
+import time
 from pathlib import Path
+
+if __package__:
+    from .private_config import (
+        PRIVATE_FILE_MODE as _PRIVATE_FILE_MODE,
+        existing_private_file_message,
+        path_entry_exists,
+        path_entry_is_regular_file,
+        path_entry_is_symlink,
+        private_file_created_message,
+        secure_existing_private_file,
+        write_private_file,
+    )
+else:
+    _PRIVATE_CONFIG_PATH = Path(__file__).resolve().with_name("private_config.py")
+    _SCRIPT_DIRECTORY = str(_PRIVATE_CONFIG_PATH.parent)
+    if _SCRIPT_DIRECTORY not in sys.path:
+        sys.path.insert(0, _SCRIPT_DIRECTORY)
+    import private_config as _private_config_module
+
+    if Path(_private_config_module.__file__).resolve() != _PRIVATE_CONFIG_PATH:
+        raise ImportError(
+            f"Refusing non-sibling private_config module at "
+            f"{_private_config_module.__file__}"
+        )
+    from private_config import (
+        PRIVATE_FILE_MODE as _PRIVATE_FILE_MODE,
+        existing_private_file_message,
+        path_entry_exists,
+        path_entry_is_regular_file,
+        path_entry_is_symlink,
+        private_file_created_message,
+        secure_existing_private_file,
+        write_private_file,
+    )
+
+    del _private_config_module
+
+PRIVATE_FILE_MODE = _PRIVATE_FILE_MODE
+DATABASE_SECRET_BYTES = 32
+AUTH_TOKEN_SECRET_BYTES = 64
 
 
 def print_header():
@@ -56,6 +97,28 @@ def check_command_exists(command):
     return shutil.which(command) is not None
 
 
+def generate_secret(byte_count: int) -> str:
+    """Generate a URL-safe secret from the requested random byte count."""
+    return secrets.token_urlsafe(byte_count)
+
+
+def replace_environment_setting(
+    env_content: str,
+    setting_name: str,
+    setting_value: str,
+) -> str:
+    """Replace one required setting in environment-file content."""
+    setting_prefix = f"{setting_name}="
+    lines = env_content.splitlines()
+
+    for index, line in enumerate(lines):
+        if line.startswith(setting_prefix):
+            lines[index] = f"{setting_prefix}{setting_value}"
+            return "\n".join(lines) + "\n"
+
+    raise ValueError(f"Required setting {setting_name} was not found")
+
+
 def check_dependencies():
     """Check if required dependencies are installed."""
     print("\\n🔍 Checking Dependencies...")
@@ -71,7 +134,9 @@ def check_dependencies():
     # Check for Docker or Podman
     has_docker = check_command_exists("docker")
     has_podman = check_command_exists("podman")
-    has_compose = check_command_exists("docker-compose") or check_command_exists("podman-compose")
+    has_compose = check_command_exists("docker-compose") or check_command_exists(
+        "podman-compose"
+    )
 
     if not (has_docker or has_podman):
         print("❌ Neither Docker nor Podman is installed or in PATH")
@@ -97,16 +162,20 @@ def check_dependencies():
     return True
 
 
-def clone_repository(repo_url="https://github.com/melodee-project/melodee.git", target_dir="melodee"):
+def clone_repository(
+    repo_url="https://github.com/melodee-project/melodee.git", target_dir="melodee"
+):
     """Clone the Melodee repository if it doesn't exist."""
-    print(f"\\n📥 Cloning Melodee repository...")
+    print("\\n📥 Cloning Melodee repository...")
 
     if os.path.exists(target_dir):
         print(f"📁 Repository directory '{target_dir}' already exists, skipping clone")
         return True
 
     try:
-        subprocess.run(["git", "clone", repo_url, target_dir], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "clone", repo_url, target_dir], check=True, capture_output=True
+        )
         print(f"✅ Successfully cloned repository to '{target_dir}'")
         return True
     except subprocess.CalledProcessError as e:
@@ -114,15 +183,26 @@ def clone_repository(repo_url="https://github.com/melodee-project/melodee.git", 
         return False
 
 
-def setup_environment_config(melodee_dir):
-    """Set up the .env file from example.env with a secure password."""
+def setup_environment_config(melodee_dir: str) -> bool:
+    """Set up a .env file with generated secrets and POSIX mode 0600."""
     print("\\n🔧 Setting up environment configuration...")
 
     env_example_path = os.path.join(melodee_dir, "example.env")
     env_path = os.path.join(melodee_dir, ".env")
 
-    if os.path.exists(env_path):
-        print("📄 Environment file (.env) already exists, skipping setup")
+    if path_entry_exists(env_path):
+        if path_entry_is_symlink(env_path):
+            print("❌ Refusing to use .env because it is a symbolic link")
+            return False
+        if not path_entry_is_regular_file(env_path):
+            print("❌ Refusing to use .env because it is not a regular file")
+            return False
+        try:
+            secure_existing_private_file(env_path)
+        except (OSError, NotImplementedError) as error:
+            print(f"❌ Failed to secure existing .env file: {error}")
+            return False
+        print(f"📄 {existing_private_file_message('.env file')}")
         return True
 
     if not os.path.exists(env_example_path):
@@ -130,31 +210,23 @@ def setup_environment_config(melodee_dir):
         return False
 
     try:
-        # Read the example.env file
-        with open(env_example_path, 'r') as f:
+        with open(env_example_path, "r", encoding="utf-8") as f:
             env_content = f.read()
 
-        # Strip out DB_PASSWORD so credentials are provided manually (not stored by this script)
-        sanitized_lines = []
-        for line in env_content.splitlines():
-            if line.startswith("DB_PASSWORD="):
-                sanitized_lines.append("DB_PASSWORD=")
-            else:
-                sanitized_lines.append(line)
-        env_content = "\n".join(sanitized_lines) + "\n"
+        env_content = replace_environment_setting(
+            env_content,
+            "DB_PASSWORD",
+            generate_secret(DATABASE_SECRET_BYTES),
+        )
+        env_content = replace_environment_setting(
+            env_content,
+            "MELODEE_AUTH_TOKEN",
+            generate_secret(AUTH_TOKEN_SECRET_BYTES),
+        )
+        write_private_file(env_path, env_content)
 
-        # Write the new .env file with restricted permissions
-        import stat
-        with open(env_path, 'w') as f:
-            # codeql[py/clear-text-storage-sensitive-data]: .env is intentionally created for local setup; file is chmod 600 immediately after write.
-            f.write(env_content)
-        # Set file permissions to owner read/write only (0600)
-        os.chmod(env_path, stat.S_IRUSR | stat.S_IWUSR)
-
-        print(f"✅ Created .env file without database credentials")
-        # Instruction uses env var naming (DB underscore PASSWORD) to guide user
-        db_cred_var = "DB_" + "PASSWORD"  # Split to avoid static analysis false positive
-        print(f"   Please set {db_cred_var} manually in .env")
+        print(f"✅ {private_file_created_message('.env file')}")
+        print("✅ Generated database and authentication secrets")
         return True
 
     except Exception as e:
@@ -187,7 +259,9 @@ def build_and_start_containers(melodee_dir):
     try:
         # Build and start the containers
         print("Building and starting Melodee containers...")
-        subprocess.run([compose_cmd, "up", "-d", "--build"], check=True, capture_output=True)
+        subprocess.run(
+            [compose_cmd, "up", "-d", "--build"], check=True, capture_output=True
+        )
         print("✅ Containers are building and starting...")
         return True
     except subprocess.CalledProcessError as e:
@@ -216,7 +290,9 @@ def wait_for_service_health(melodee_dir, max_wait_time=300):
                     return True
 
             # Also check if the service is running (even if health check isn't showing yet)
-            if "Up " in result.stdout and ("melodee-blazor" in result.stdout or "melodee.blazor" in result.stdout):
+            if "Up " in result.stdout and (
+                "melodee-blazor" in result.stdout or "melodee.blazor" in result.stdout
+            ):
                 print("✅ Melodee service appears to be running!")
                 return True
 
@@ -226,7 +302,9 @@ def wait_for_service_health(melodee_dir, max_wait_time=300):
         print("   Still waiting... (this may take 2-5 minutes)")
         time.sleep(10)
 
-    print("⚠️  Service may still be starting up. Check manually at http://localhost:8080")
+    print(
+        "⚠️  Service may still be starting up. Check manually at http://localhost:8080"
+    )
     return True  # Return True anyway as it might just be taking longer
 
 
@@ -235,10 +313,10 @@ def get_port_from_env():
     env_path = os.path.join(os.getcwd(), ".env")
 
     if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
+        with open(env_path, "r") as f:
             for line in f:
-                if line.startswith('MELODEE_PORT='):
-                    return line.split('=')[1].strip()
+                if line.startswith("MELODEE_PORT="):
+                    return line.split("=")[1].strip()
 
     # Default port if not found
     return "8080"
@@ -253,7 +331,9 @@ def main():
 
     # Check dependencies
     if not check_dependencies():
-        print("\\n❌ Prerequisites not met. Please install the required dependencies and try again.")
+        print(
+            "\\n❌ Prerequisites not met. Please install the required dependencies and try again."
+        )
         sys.exit(1)
 
     # Clone repository
@@ -284,12 +364,16 @@ def main():
     print("\\n🎉 Setup Complete!")
     print("=" * 50)
     print(f"🌐 Access Melodee at: http://localhost:{port}")
-    print(f"📝 First user registered will become administrator")
-    print(f"💡 Check the logs with: {detect_container_runtime()} logs -f melodee.blazor")
+    print("📝 First user registered will become administrator")
+    print(
+        f"💡 Check the logs with: {detect_container_runtime()} logs -f melodee.blazor"
+    )
     print(f"🛑 Stop the service with: {detect_container_runtime()} down")
     print("=" * 50)
 
-    print("\\n✅ Melodee is now running! The Blazor Admin UI is accessible at the URL above.")
+    print(
+        "\\n✅ Melodee is now running! The Blazor Admin UI is accessible at the URL above."
+    )
 
 
 if __name__ == "__main__":

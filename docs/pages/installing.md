@@ -1,435 +1,203 @@
 ---
 title: Installing
+description: Install Melodee from a published container image, a local container build, or source.
 permalink: /installing/
+tags:
+  - installation
+  - containers
+  - docker
+  - podman
 ---
 
 # Installing
 
-This guide covers getting Melodee running quickly using containers, plus optional native dev setup.
+Melodee is supported as a Linux AMD64 or ARM64 container. The application uses
+PostgreSQL 17 for primary data and stores media and generated DecentDB search
+files in persistent volumes.
 
-## Option 1: Container Deployment (Recommended)
+## Choose an Installation Method
 
-### Pre-built Images (Fastest — No Build Required)
+| Method | Best for | Builds locally? |
+|--------|----------|-----------------|
+| Published GHCR image | Most servers and homelabs | No |
+| Container setup script | Contributors and customized images | Yes |
+| Native source run | Development | Yes |
 
-Melodee publishes **pre-built, multi-arch container images** (linux/amd64, linux/arm64) to GitHub Container Registry on every release. This is the fastest way to get started — no local build step needed.
+## Published Container Image
+
+Release images are published to the
+[Melodee package registry](https://github.com/orgs/melodee-project/packages).
+The release workflow publishes these tags:
+
+| Tag pattern | Meaning |
+|-------------|---------|
+| `latest` | Most recently published stable release |
+| `2` | Most recent 2.x release |
+| `2.2` | Most recent 2.2.x release |
+| `2.2.0` | Immutable release version |
+| `sha-...` | Image from a manually dispatched build |
+
+Pin an exact version when repeatable deployments and rollbacks matter.
 
 ```bash
-# Clone the repository (for compose.yml and config)
 git clone https://github.com/melodee-project/melodee.git
 cd melodee
-
-# Copy and configure environment
 cp example.env .env
-# Edit .env — set DB_PASSWORD, MELODEE_AUTH_TOKEN, etc.
-
-# Use the pre-built image instead of building locally
-export MELODEE_IMAGE=ghcr.io/melodee-project/melodee:latest
-
-# Start with Docker
-docker compose up -d
-
-# Or with Podman
-podman compose up -d
 ```
 
-**Available image tags:**
+Edit `.env`, replace every placeholder secret, and add:
 
-| Tag | Description |
-|-----|-------------|
-| `latest` | Latest stable release |
-| `2.0` | Latest 2.0.x patch release |
-| `2.0.1` | Specific pinned version |
-| `sha-{commit}` | Build from a specific commit (workflow_dispatch only) |
+```text
+MELODEE_IMAGE=ghcr.io/melodee-project/melodee:2.2.0
+```
 
-Browse all available tags: [ghcr.io/melodee-project/melodee](https://github.com/melodee-project/melodee/pkgs/container/melodee)
-
-### Automated Setup Script
-
-#### Prerequisites
-
-- Docker or Podman (with podman‑compose if using Podman)
-- At least 2GB RAM (4GB recommended for large scans)
-- At least 5GB free disk space
-- Persistent storage volumes or bound host directories
-
-### Automated Setup (Easiest)
-
-For a fully automated setup, use our container setup script:
+Then pull and start the services:
 
 ```bash
-# Clone the repository
-git clone https://github.com/melodee-project/melodee.git
-cd melodee
+docker compose pull melodee.blazor
+docker compose up -d --no-build
+docker compose ps
+```
 
-# Run the setup script (checks prerequisites, creates .env, optionally starts containers)
+The web UI and all API surfaces listen on the host port defined by
+`MELODEE_PORT`, which defaults to `8080`.
+
+## Local Container Build
+
+The supported setup helper checks available memory, disk, port, runtime, and
+required files. It generates random secrets and offers to start the result:
+
+```bash
 python3 scripts/run-container-setup.py --start
 ```
 
-The script will:
-- Run preflight checks (disk space, memory, port availability, required files)
-- Detect your container runtime (Podman or Docker)
-- Offer to install Podman if no runtime is found
-- **Ask if you want to create a dedicated `melodee` system user** (recommended for multi-user servers)
-- Generate a secure `.env` file with random passwords and JWT tokens
-- Build the container image
-- Start the containers
-- Wait for health checks to pass
-- Provide you with the URL to access Melodee
-
-#### User Configuration
-
-The setup script offers two user configurations:
-
-**Option 1: Current User (Simple, Homelab)**
-- Containers run as your current user
-- Files owned by your user
-- Best for single-user homelab setups
-- No additional setup required
-
-**Option 2: Dedicated melodee User (Recommended for Servers)**
-- Creates a `melodee` system user
-- Containers run as the melodee user  
-- Multiple users can be added to the `melodee` group for shared access
-- Best for multi-user servers, CI/CD deployments, production environments
-
-**When to use dedicated melodee user:**
-- Demo/production servers with multiple admins
-- CI/CD deployments (e.g., GitHub Actions deploy user + admin user)
-- Shared server environments
-- When you want consistent ownership regardless of who manages the server
-
-**Example multi-user scenario:**
-```bash
-# After setup creates melodee user:
-sudo usermod -aG melodee steven   # Admin can access files
-sudo usermod -aG melodee deploy   # CI/CD user can access files
-# Both users can now manage Melodee files
-```
-
-#### Setup Script Options
+Useful modes include:
 
 ```bash
-# Just run checks without making changes
+# Validate the host without creating files
 python3 scripts/run-container-setup.py --check-only
 
-# Start containers after setup
-python3 scripts/run-container-setup.py --start
+# Check named-volume permissions for rootless Podman
+python3 scripts/run-container-setup.py --check-permissions
 
-# Overwrite existing .env without prompting
+# Replace an existing generated .env after confirmation
 python3 scripts/run-container-setup.py --force
-
-# Update existing containers to latest code (see Upgrading section)
-python3 scripts/run-container-setup.py --update
-
-# Skip confirmation prompts (for automated/CI deployments)
-python3 scripts/run-container-setup.py --update --yes
 ```
 
-### Manual Setup
-
-If you prefer to set up manually:
-
-#### 1. Clone & Configure
+For a manual local build:
 
 ```bash
-git clone https://github.com/melodee-project/melodee.git
-cd melodee
 cp example.env .env
-```
-
-Edit `.env` values:
-
-```bash
-DB_PASSWORD=change_me_to_a_secure_password
-MELODEE_PORT=8080
-MELODEE_AUTH_TOKEN=change_me_to_a_64_character_random_string
-```
-
-#### 2. Build and Launch
-
-```bash
-# Podman (build first, then start)
-podman compose build
-podman compose up -d
-
-# Or Docker
+# Edit .env before continuing.
 docker compose up -d --build
 ```
 
-Access: http://localhost:8080 — create the first user (becomes admin).
+The setup helper and `--build` workflow build the current checkout. They do not
+pull the published Melodee application image.
 
-### 3. Provide Music Directories
+## Persistent Storage
 
-The compose file defines volumes for:
+The default Compose file creates these named volumes:
 
-- inbound: Drop new raw media here.
-- staging: Holds processed media awaiting approval.
-- storage: Canonical library (served to clients).
+| Volume | Container path | Contents |
+|--------|----------------|----------|
+| `melodee_db_data` | `/var/lib/postgresql/data` | PostgreSQL data files |
+| `melodee_storage` | `/app/storage` | Published media and generated search databases |
+| `melodee_inbound` | `/app/inbound` | New media awaiting processing |
+| `melodee_staging` | `/app/staging` | Processed media awaiting promotion |
+| `melodee_user_images` | `/app/user-images` | User images |
+| `melodee_playlists` | `/app/playlists` | Playlist files |
+| `melodee_podcasts` | `/app/podcasts` | Downloaded podcast media |
+| `melodee_themes` | `/app/themes` | Imported theme packs |
+| `melodee_templates` | `/app/templates` | Email templates and custom blocks |
+| `melodee_logs` | `/app/Logs` | Application logs |
+| `melodee_data_protection_keys` | `/home/melodee/.aspnet/DataProtection-Keys` | ASP.NET data-protection keys |
 
-Mount or copy your music appropriately. The job engine will pick up changes on schedule (or trigger a scan manually in the UI / CLI).
+Use a Compose override to replace media volumes with host directories. Absolute
+host paths are recommended:
 
-### 4. Upgrading
-
-The safest way to upgrade is using the setup script's `--update` flag:
-
-```bash
-cd /path/to/melodee
-git pull
-python3 scripts/run-container-setup.py --update
-```
-
-This will:
-- Show current container status
-- Build a fresh image with the latest code
-- Recreate containers (preserving all data volumes)
-- Run any new database migrations automatically
-- Wait for health checks to pass
-
-For automated/CI deployments, add `--yes` to skip confirmation:
-
-```bash
-git pull && python3 scripts/run-container-setup.py --update --yes
-```
-
-#### Manual Upgrade
-
-If you prefer manual commands:
-
-```bash
-git pull origin main
-podman compose build      # Rebuild with new code
-podman compose up -d      # Recreate containers (volumes preserved)
-```
-
-**Important:** Your data volumes (database, media, playlists, etc.) are preserved during upgrades. Only the container images are replaced.
-
-#### What Gets Preserved During Upgrades
-
-| Component | Preserved? | Notes |
-|-----------|------------|-------|
-| Database (PostgreSQL) | ✅ Yes | `melodee_db_data` volume |
-| Media library | ✅ Yes | `melodee_storage` volume |
-| User images | ✅ Yes | `melodee_user_images` volume |
-| Playlists | ✅ Yes | `melodee_playlists` volume |
-| Logs | ✅ Yes | `melodee_logs` volume |
-| `.env` configuration | ✅ Yes | On host filesystem |
-| Container image | ❌ Replaced | New code deployed |
-
-## Homelab Deployment Options
-
-### Option A: Standalone Container Deployment
-
-For basic homelab setups, the default `compose.yml` is sufficient. Simply run:
-
-```bash
-git clone https://github.com/melodee-project/melodee.git
-cd melodee
-python3 scripts/run-container-setup.py --start
-```
-
-### Option B: Reverse Proxy with HTTPS
-
-For homelabs exposed to the internet or requiring SSL, configure a reverse proxy:
-
-**Nginx Proxy Manager Configuration:**
-- Domain: your-music.domain.com
-- Scheme: http
-- Host: 127.0.0.1 (if running on same machine)
-- Port: 8080 (or whatever MELODEE_PORT is set to)
-
-**Traefik Configuration (docker-compose):**
 ```yaml
+# compose.override.yml
 services:
   melodee.blazor:
-    # ... existing config ...
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.melodee.rule=Host(`music.your-domain.com`)"
-      - "traefik.http.routers.melodee.tls=true"
-      - "traefik.http.routers.melodee.entrypoints=websecure"
+    volumes:
+      - /srv/melodee/inbound:/app/inbound
+      - /srv/melodee/staging:/app/staging
+      - /srv/music:/app/storage
+      - /srv/melodee/podcasts:/app/podcasts
+      - /srv/melodee/themes:/app/themes
+      - /srv/melodee/templates:/app/templates
 ```
 
-### Option C: Docker Swarm Deployment
+Create the host directories first and ensure the container can read and write
+them. Keep PostgreSQL on its named volume unless you have an established
+database storage and backup design.
 
-For high availability homelabs:
+## Runtime Configuration
 
-```bash
-# Initialize swarm
-docker swarm init
+The default `compose.yml` requires:
 
-# Deploy as stack
-docker stack deploy -c compose.yml melodee
-```
+- `DB_PASSWORD`: PostgreSQL password used by both services.
+- `MELODEE_AUTH_TOKEN`: a random value of at least 64 characters; it is used as
+  the JWT signing key in the supplied Compose deployment.
 
-### Option D: Hardware Optimization
+Common optional values are `MELODEE_PORT`, `DB_MIN_POOL_SIZE`,
+`DB_MAX_POOL_SIZE`, `JWT_ISSUER`, and `JWT_AUDIENCE`. See the
+[Configuration Reference](/configuration-reference/) before adding application
+settings to a Compose override.
 
-For homelabs with large collections:
+## Native Development Run
 
-- **CPU**: Multi-core processor recommended (parallel transcoding)
-- **RAM**: 8GB+ for large libraries (tens of thousands of tracks)
-- **Storage**: SSD for database, spinning drives for media
-- **Network**: Gigabit Ethernet for streaming performance
+Native development requires:
 
-## Option 2: Local Development (Source)
-
-Prerequisites: .NET 10 SDK, PostgreSQL 17 (or use the compose DB service), ffmpeg in PATH (for transcoding), optional: imagemagick.
+- .NET 10 SDK
+- PostgreSQL 17 or a compatible PostgreSQL server
+- `ffmpeg` on `PATH`
+- Valid `DefaultConnection`, `MusicBrainzConnection`, and
+  `ArtistSearchEngineConnection` connection strings
 
 ```bash
 dotnet restore
 dotnet run --project src/Melodee.Blazor
 ```
 
-For CLI utilities:
+The development appsettings file contains machine-specific examples and is not
+a production template. Supply your own secrets and paths through user secrets,
+environment variables, or an untracked settings file.
+
+Build or run the CLI with:
 
 ```bash
 dotnet run --project src/Melodee.Cli -- --help
 ```
 
-## Initial Configuration Steps
+## First Start
 
-1. Add or verify library paths in the configuration section of the UI.
-2. Configure metadata providers (supply API keys where required).
-3. Kick off an initial full scan (Jobs panel) to index existing media.
-4. Review staging items, edit metadata/artwork, promote to storage.
-5. Connect clients (OpenSubsonic URL usually: http://host:port). Use your username + password / token.
+1. Browse to `http://HOST:8080` or the configured port.
+2. Register the first account; it becomes the initial administrator.
+3. Complete onboarding and set the public `system.baseUrl`.
+4. Verify all library paths under **Admin > Libraries**.
+5. Run **Admin > Doctor**.
+6. Configure metadata providers and job schedules as needed.
 
-### Data path (simplified):
-
-```mermaid
-flowchart LR
-	A[Inbound Files &#40;Raw Media&#41;] --> B[Ingestion / Conversion Normalization & Validation]
-	B --> C[Staging Manual Edits & Artwork]
-	C --> D[Storage Libraries Canonical Media]
-	D --> E[Indexed DB Metadata Search & Stats]
-	E --> F[APIs / Streaming OpenSubsonic + Native REST]
-
-	%% Style definitions &#40;single class applied to all for now&#41;
-	classDef proc fill:#4e79a7,stroke:#1f3349,color:#fff;
-	class A,B,C,D,E,F proc
-```
-
-## Backups
-
-Primary data to retain:
-
-- PostgreSQL volume (melodee_db_data)
-- Media volumes (storage + artwork)
-- User images & playlists volumes
-
-Example (Podman):
+## Operations
 
 ```bash
-podman volume export melodee_db_data > db_backup_$(date +%F).tar
-podman volume export melodee_storage > storage_backup_$(date +%F).tar
+# Service state
+docker compose ps
+
+# Application logs
+docker compose logs -f melodee.blazor
+
+# Health probe
+curl --fail http://localhost:8080/health
+
+# Stop without deleting volumes
+docker compose down
 ```
 
-### Automated Backup Script
+Never use `docker compose down -v` during routine maintenance; `-v` deletes the
+named volumes that hold the database and application data.
 
-Create a backup script for homelab automation:
-
-```bash
-#!/bin/bash
-# backup-melodee.sh
-
-BACKUP_DIR="/backup/melodee/$(date +%Y-%m-%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Export volumes
-podman volume export melodee_db_data > "$BACKUP_DIR/db_backup.tar"
-podman volume export melodee_storage > "$BACKUP_DIR/storage_backup.tar"
-podman volume export melodee_user_images > "$BACKUP_DIR/user_images_backup.tar"
-podman volume export melodee_playlists > "$BACKUP_DIR/playlists_backup.tar"
-
-# Compress backups
-gzip "$BACKUP_DIR"/*.tar
-
-# Optional: Upload to cloud storage
-# aws s3 sync "$BACKUP_DIR" s3://your-backup-bucket/melodee/
-
-echo "Backup completed: $BACKUP_DIR"
-```
-
-Schedule with cron:
-```bash
-# Daily backup at 2 AM
-0 2 * * * /path/to/backup-melodee.sh
-```
-
-## Troubleshooting
-
-| Symptom | Suggestion |
-|---------|------------|
-| "short-name did not resolve" error | Run `podman compose build` before `up`, or ensure image is built |
-| High CPU during first run | Normal while initial scan & metadata enrichment proceeds. | 
-| Streams 429 Too Many Requests | Reduce concurrent streams or adjust limiter settings (coming soon to config). |
-| Client fails auth | Verify first user created; rotate API key if compromised. |
-| Missing artwork | Ensure metadata jobs ran; trigger artwork refresh job. |
-| Container not healthy | Run `podman compose logs -f` to see application logs |
-| Port already in use | Change `MELODEE_PORT` in `.env` file |
-| Permission denied on volume files (rootless podman) | The setup script should create `compose.override.yml` automatically. If missing, see below. |
-
-### Rootless Podman Permission Issues
-
-If you're using **rootless podman** and encounter permission errors when accessing files in volumes (e.g., uploaded media in the inbound directory), the setup script automatically creates a `compose.override.yml` file to fix this.
-
-**How it works:**
-- Rootless podman uses user namespace mapping where container UIDs don't match host UIDs by default
-- The override file configures the Melodee app container to use `userns_mode: keep-id`, which disables UID remapping
-- Files created in app volumes (inbound, storage, staging, etc.) are then owned by your host user
-
-**Database volumes:**
-- The PostgreSQL container (`melodee-db`) intentionally uses default namespace mapping (sub-UIDs)
-- This is **correct and expected** - you don't need direct host access to database internal files
-- Use PostgreSQL tools (`pg_dump`, `pg_restore`) or the app's backup features for database backups
-- Trying to "fix" database volume permissions can break PostgreSQL
-
-**If you see permission errors on app volumes:**
-
-1. Check current permissions: `python3 scripts/run-container-setup.py --check-permissions`
-2. Re-run the setup script: `python3 scripts/run-container-setup.py`
-3. Or manually create `compose.override.yml` with your UID/GID:
-
-```yaml
-# compose.override.yml (for rootless podman only)
-services:
-  melodee.blazor:
-    user: "1000:1000"  # Replace with your UID:GID from 'id' command
-    userns_mode: "keep-id:uid=1000,gid=1000"  # Critical: prevents UID remapping
-    environment:
-      - MELODEE_RUNNING_AS_USER=true
-```
-
-4. Restart containers: `podman compose down && podman compose up -d`
-
-**To check if you're affected:**
-- Run `podman info --format='{{.Host.Security.Rootless}}'`
-- If it returns `true`, you're using rootless podman
-- The setup script handles this automatically
-
-**Note:** This issue does **not** affect Docker or rootful (sudo) Podman.
-
-### Container Diagnostics
-
-```bash
-# Check container status
-podman compose ps
-
-# View live logs
-podman compose logs -f
-
-# View logs for specific service
-podman compose logs melodee.blazor
-
-# Check container health
-podman inspect melodee_melodee.blazor_1 --format='{{.State.Health.Status}}'
-
-# Run preflight checks
-python3 scripts/run-container-setup.py --check-only
-```
-
-## Next Steps
-
-- Read: /configuration/ for deeper tuning.
-- Explore: /api/ for custom integrations.
-- Contribute: /about/ for roadmap & community links.
-
+Continue with [Backup & Recovery](/backup/) before importing a large library,
+and use the [Upgrade Guide](/upgrade/) for later releases.

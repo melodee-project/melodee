@@ -1,192 +1,126 @@
 ---
 title: Command Line Interface (CLI)
+description: Run Melodee administration, library, diagnostics, search, and maintenance commands with mcli.
 permalink: /cli/
+tags:
+  - cli
+  - administration
+  - automation
 ---
 
 # Command Line Interface (CLI)
 
-The Melodee CLI (`mcli`) is a powerful command-line utility for managing music libraries, processing media files, and performing maintenance tasks. It provides direct access to Melodee's core functionality without requiring the web interface.
-
-## Getting Started
-
-### Installation
-
-The CLI is included with Melodee and is built as a standalone executable:
+`mcli` provides local database/filesystem administration and a small remote API
+mode. The command's built-in help is the source of truth for the installed
+version:
 
 ```bash
-# Build from source
+mcli --help
+mcli help library
+mcli help library scan
+```
+
+## Run the CLI
+
+The published application image includes the CLI at `/app/cli/mcli`:
+
+```bash
+docker compose exec melodee.blazor /app/cli/mcli --help
+docker compose exec melodee.blazor /app/cli/mcli doctor
+```
+
+This is the simplest local mode because the container already has the same
+connection strings and volume mounts as the server.
+
+To build it from source:
+
+```bash
 dotnet build src/Melodee.Cli/Melodee.Cli.csproj
-
-# Run from debug folder
-cd src/Melodee.Cli/bin/Debug/net10.0
-./mcli --help
+src/Melodee.Cli/bin/Debug/net10.0/mcli --help
 ```
 
-### Configuration
+## Local Configuration
 
-The CLI uses the same configuration as the web application. You can specify a custom configuration file using an environment variable:
+Local mode opens PostgreSQL, DecentDB, and library paths directly. Run it on a
+trusted machine with access to those resources.
+
+| Variable | Purpose |
+|----------|---------|
+| `MELODEE_APPSETTINGS_PATH` | Path to a specific `appsettings.json` file |
+| `ASPNETCORE_ENVIRONMENT` | Selects `appsettings.{Environment}.json` |
+| `MELODEE_ENVIRONMENT` | CLI environment fallback |
+| `ConnectionStrings__DefaultConnection` | PostgreSQL override |
+| `ConnectionStrings__MusicBrainzConnection` | MusicBrainz DecentDB override |
+| `ConnectionStrings__ArtistSearchEngineConnection` | Artist Search DecentDB override |
 
 ```bash
-# Point to a specific appsettings.json file
-export MELODEE_APPSETTINGS_PATH="/path/to/appsettings.json"
-
-# Or inline
-MELODEE_APPSETTINGS_PATH="/path/to/appsettings.json" ./mcli library list
+MELODEE_APPSETTINGS_PATH=/etc/melodee/appsettings.json mcli library list
 ```
 
-**Environment Variables:**
+## Command Reference
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `MELODEE_APPSETTINGS_PATH` | Path to custom appsettings.json | `/etc/melodee/appsettings.json` |
-| `ASPNETCORE_ENVIRONMENT` | Environment name | `Development`, `Production` |
+| Command | Purpose | Reference |
+|---------|---------|-----------|
+| `album` | List, search, inspect, and delete albums | [Album](/cli/album/) |
+| `artist` | List, search, deduplicate, and delete artists | [Artist](/cli/artist/) |
+| `backup export` | Export settings and libraries | [Backup](/cli/backup/) |
+| `configuration` | Read and change database-backed settings | [Configuration](/cli/configuration/) |
+| `doctor` | Diagnose the installation | [Doctor](/cli/doctor/) |
+| `file mpeg` | Inspect an audio file | [File](/cli/file/) |
+| `import` | Import user favorite songs from CSV | [Import](/cli/import/) |
+| `job` | List and run background jobs | [Job](/cli/job/) |
+| `library` | Process, move, scan, validate, and report on libraries | [Library](/cli/library/) |
+| `parser parse` | Parse CUE, M3U, NFO, or SFV metadata | [Parser](/cli/parser/) |
+| `search` | Search artists, albums, songs, and playlists | [Search](/cli/search/) |
+| `system info` | Print server information | [System](/cli/system/) |
+| `tags show` | Inspect tags in a media file | [Tags](/cli/tags/) |
+| `user` | Create, list, inspect, and delete users | [User](/cli/user/) |
+| `validate` | Validate `melodee.json` album metadata | [Validate](/cli/validate/) |
 
-## Command Structure
-
-The CLI uses a hierarchical command structure:
-
-```
-mcli [BRANCH] [COMMAND] [OPTIONS]
-```
-
-## Available Commands
-
-| Command | Description | Documentation |
-|---------|-------------|---------------|
-| [album](/cli/album/) | Album data management and statistics | [View Details](/cli/album/) |
-| [artist](/cli/artist/) | Artist data management and statistics | [View Details](/cli/artist/) |
-| [configuration](/cli/configuration/) | Manage Melodee configuration settings | [View Details](/cli/configuration/) |
-| [doctor](/cli/doctor/) | Run environment and configuration diagnostics | [View Details](/cli/doctor/) |
-| [file](/cli/file/) | File analysis and inspection tools | [View Details](/cli/file/) |
-| [import](/cli/import/) | Import data from external sources | [View Details](/cli/import/) |
-| [job](/cli/job/) | Run background jobs and maintenance tasks | [View Details](/cli/job/) |
-| [library](/cli/library/) | Library management and operations | [View Details](/cli/library/) |
-| [parser](/cli/parser/) | Parse and analyze media metadata files | [View Details](/cli/parser/) |
-| [tags](/cli/tags/) | Display and manage media file tags | [View Details](/cli/tags/) |
-| [user](/cli/user/) | User account management | [View Details](/cli/user/) |
-| [validate](/cli/validate/) | Validate media files and metadata | [View Details](/cli/validate/) |
-
-## Quick Examples
+## Common Examples
 
 ```bash
-# List all libraries
-./mcli library list
+# Deep installation checks
+mcli doctor --write-test
 
-# Full scan workflow - process inbound → staging → storage → database
-./mcli library scan
+# Full Inbound -> Staging -> Storage -> PostgreSQL workflow
+mcli library scan
 
-# Silent scan for cron jobs (no output, exit code only)
-./mcli library scan --silent
+# JSON scan summary without progress rendering
+mcli library scan --json
 
-# JSON scan output for scripting/automation
-./mcli library scan --json
+# Search recent albums
+mcli album search --since 7 --sort Added --sort-dir desc
 
-# Show album statistics
-./mcli album stats
+# Create a user
+mcli user create --username alice --email alice@example.com --password 'replace-me'
 
-# Search for albums
-./mcli album search "Beatles"
-
-# Find albums added in the last 7 days
-./mcli album search --since 7
-
-# Search and sort by year (newest first)
-./mcli album search --sort Year --sort-dir desc
-
-# Bulk delete albums added in the last 5 days (with confirmation)
-./mcli album search --since 5 --delete
-
-# Search for an artist
-./mcli artist search "Beatles"
-
-# Find artists added in the last 30 days, sorted by album count
-./mcli artist search --since 30 --sort Albums --sort-dir desc
-
-# Find duplicate artists with high confidence
-./mcli artist find-duplicates -m 0.9
-
-# Find and merge duplicate artists
-./mcli artist find-duplicates -m 0.95 --merge
-
-# List all users
-./mcli user list
-
-# Create a new user
-./mcli user create -u "demo" -e "demo@melodee.org" -p "SecurePass123!"
-
-# List background jobs with next run times
-./mcli job list
-
-# Run a specific job
-./mcli job run -j ArtistHousekeepingJob
-
-# Get a configuration value
-./mcli configuration get imaging.smallSize
+# Export configuration without clear-text secrets
+mcli backup export --output melodee-settings.json --redact-secrets
 ```
 
-## Common Options
+## Output and Exit Codes
 
-These options are available across most commands:
+Output flags are command-specific; `--json`, `--raw`, `--silent`, and
+`--verbose` are not universal global options. Check the target command's help
+before using it in automation.
 
-| Option | Description |
-|--------|-------------|
-| `-h`, `--help` | Show help information for the command |
-| `--json` | Output results as JSON (structured output for automation) |
-| `--raw` | Output in JSON format for scripting |
-| `--silent` | Suppress all output (for cron jobs, returns exit code only) |
-| `--verbose` | Output verbose debug and timing information (default: false) |
+Most commands use `0` for success and a nonzero value for failure, but some
+legacy commands have command-specific behavior. Remote mode reserves exit codes
+10-15; see [CLI Remote Server Mode](/cli-remote-mode/#exit-codes). Test the exact
+command and version before making an automation decision solely from its exit
+status.
 
-## Exit Codes
+## Destructive Commands
 
-The CLI uses standard exit codes:
+Commands such as `album delete`, `artist delete`, `library clean`,
+`library purge`, duplicate merging, and `configuration set --remove` can remove
+database records or files. Create a [backup](/backup/), omit confirmation-bypass
+flags on the first run, and use preview or JSON modes where provided.
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Error or failure |
+## Remote Mode
 
-These can be used in scripts for error handling:
-
-```bash
-#!/bin/bash
-./mcli library stats --library "Storage"
-if [ $? -eq 0 ]; then
-    echo "Success!"
-else
-    echo "Failed!"
-fi
-```
-
-## Troubleshooting
-
-### "Invalid library Name" Error
-
-**Problem:** The CLI can't find the library in the database.
-
-**Solution:**
-1. Check that you're using the correct configuration file:
-   ```bash
-   MELODEE_APPSETTINGS_PATH="/path/to/appsettings.json" ./mcli library list
-   ```
-2. Verify the library exists:
-   ```bash
-   ./mcli library list
-   ```
-3. Check connection string in `appsettings.json`
-
-### Configuration Not Found
-
-**Problem:** The CLI can't find `appsettings.json`.
-
-**Solution:**
-Use the `MELODEE_APPSETTINGS_PATH` environment variable:
-```bash
-export MELODEE_APPSETTINGS_PATH="/full/path/to/appsettings.json"
-```
-
-## See Also
-
-- [Background Jobs](/jobs/) - Automated job scheduling
-- [Libraries](/libraries/) - Library concepts and management
-- [Configuration Reference](/configuration-reference/) - All configuration settings
-- [API Reference](/api/) - REST API documentation
+Only `search`, `system info`, `user me`, and `user list` currently use the
+remote REST client. Other commands remain local even if similarly named. See
+[CLI Remote Server Mode](/cli-remote-mode/) for token acquisition, exact option
+placement, and security guidance.

@@ -1,157 +1,129 @@
 ---
 title: Scrobbling
+description: Record now-playing and completed-play events locally and optionally forward them to Last.fm.
 permalink: /scrobbling/
+tags:
+  - scrobbling
+  - open-subsonic
+  - lastfm
 ---
 
 # Scrobbling
 
-Scrobbling is the process of tracking and recording what music you listen to. When you play a song, your music client sends information about that playback to the server, enabling features like "Now Playing" displays, listening history, play counts, and integration with external services like Last.fm.
+Scrobbling records playback activity. Melodee distinguishes a **now-playing** heartbeat from a completed **submission**.
 
-## How Scrobbling Works
+## What Melodee records
 
-Scrobbling in Melodee follows the OpenSubsonic/Subsonic protocol standard and consists of two types of events:
+A now-playing event:
 
-### Now Playing
+- clears the current user's previous now-playing item;
+- creates or updates a play-history row with progress, client, user agent, and IP address;
+- appears on the shared **Now Playing** page;
+- can update Last.fm's now-playing state.
 
-When you start playing a song, your client sends a "Now Playing" notification to the server. This:
+A completed submission:
 
-- Marks the song as currently being played by you
-- Updates the "Now Playing" page in the Melodee UI
-- Allows other users to see what you're listening to (if enabled)
+- increments artist, album, song, and per-user song play counts;
+- updates last-played timestamps;
+- converts the matching now-playing row into completed history, or creates completed history;
+- can submit the play to Last.fm.
 
-### Played (Submission)
+Melodee does not decide whether a listener heard 50% or four minutes before accepting a completed music submission. The client decides when to send `submission=true`. The native Played route records the full catalog duration as seconds played.
 
-When you finish listening to a song (typically after listening to at least 50% or 4 minutes), your client sends a "Played" submission. This:
+## Enable a user
 
-- Records the play in your listening history
-- Increments the song's play count
-- Clears the "Now Playing" status
-- Can trigger scrobbles to external services (Last.fm, Libre.fm)
+The native scrobble route requires the user's **Scrobbling** capability (`IsScrobblingEnabled`). Administrators manage this on the user record.
 
-## Why Use Scrobbling?
+OpenSubsonic authentication and the client's own scrobble setting also apply. Client menus vary; look for an option such as “scrobble to server” or “submit plays.”
 
-Scrobbling provides several benefits:
+## OpenSubsonic API
 
-| Feature | Description |
-|---------|-------------|
-| **Listening History** | Track what you've listened to over time |
-| **Play Counts** | See which songs and albums you play most |
-| **Now Playing** | Share what you're currently listening to |
-| **Statistics** | Generate insights about your listening habits |
-| **Recommendations** | Enable personalized music recommendations |
-| **External Integration** | Sync plays to Last.fm, Libre.fm, and other services |
+`/rest/scrobble` accepts GET or POST:
 
-## Enabling Scrobbling in Your Client
-
-Most Subsonic-compatible music clients support scrobbling, but it's often disabled by default. Here's how to enable it in popular clients:
-
-### Symfonium (Android)
-
-1. Open **Settings**
-2. Navigate to **Playback**
-3. Enable **"Scrobble to server"**
-
-### DSub (Android)
-
-1. Open **Settings**
-2. Go to **Playback**
-3. Enable **"Scrobble"**
-
-### Sonixd (Desktop)
-
-1. Open **Settings**
-2. Find the scrobbling section
-3. Enable **"Enable scrobbling"**
-
-### Sublime Music (Desktop)
-
-1. Open **Preferences**
-2. Enable **"Submit plays to server"**
-
-### Ultrasonic (Android)
-
-1. Open **Settings**
-2. Navigate to **Music & Playback**
-3. Enable **"Scrobble plays"**
-
-### play:Sub (iOS)
-
-1. Open **Settings**
-2. Enable **"Scrobbling"**
-
-### Substreamer (Multi-platform)
-
-1. Open **Settings**
-2. Find **Server settings**
-3. Enable **"Scrobble plays to server"**
-
-## Troubleshooting
-
-### "Now Playing" Page is Empty
-
-If the "Now Playing" page doesn't show your currently playing song:
-
-1. **Check client settings**: Ensure scrobbling is enabled in your music client
-2. **Verify server connection**: Make sure your client can communicate with Melodee
-3. **Test with a different client**: Try a client known to support scrobbling (like Symfonium or DSub)
-
-### Play Counts Not Updating
-
-If your play counts aren't incrementing:
-
-1. **Listen long enough**: Most clients require 50% of the song or 4 minutes before submitting
-2. **Check scrobble settings**: Some clients have separate settings for "now playing" vs "submission"
-3. **Review server logs**: Check Melodee logs for scrobble requests
-
-### External Scrobbling (Last.fm)
-
-To scrobble to external services like Last.fm:
-
-1. Configure your Last.fm credentials in Melodee settings
-2. Enable external scrobbling in the configuration
-3. Plays will be forwarded to Last.fm when submitted
-
-## API Details
-
-For developers building clients, scrobbling uses the following endpoints:
-
-### OpenSubsonic API
-
+```text
+/rest/scrobble?id={songId}&submission=false
+/rest/scrobble?id={songId}&submission=true
 ```
-GET/POST /rest/scrobble
+
 Parameters:
-  - id: Song ID (required)
-  - submission: true for played, false for now playing (default: true)
-  - time: Timestamp of playback (optional, milliseconds since epoch)
+
+| Parameter | Meaning |
+|---|---|
+| `id` | One or more typed Melodee song or podcast-episode IDs |
+| `submission` | `false` for now playing; `true` for completed, which is the default |
+| `time` | Optional values paired with the IDs |
+
+For music, Melodee suppresses a duplicate OpenSubsonic completed submission when it cannot find a corresponding now-playing record. If counts do not change, confirm the client sends `submission=false` when playback starts and `submission=true` when it completes.
+
+Podcast episode IDs are routed to podcast playback history and bookmarks rather than music play counts.
+
+## Native API
+
+Use a native bearer token with the Scrobbling capability:
+
+```text
+POST /api/v1/scrobble
 ```
 
-### Native Melodee API
-
-```
-POST /api/v1/Scrobble
-Body:
+```json
 {
-  "songId": "<guid>",
-  "scrobbleType": "NowPlaying" | "Played",
-  "playedDuration": <seconds>,
-  "playerName": "<client name>"
+  "songId": "00000000-0000-0000-0000-000000000000",
+  "playerName": "Example Player",
+  "scrobbleType": "NowPlaying",
+  "timestamp": null,
+  "playedDuration": 75
 }
 ```
 
-## Best Practices
+Set `scrobbleType` to `Played` for a completed submission. The route accepts raw song API-key GUIDs, not the typed OpenSubsonic ID.
 
-- **Enable scrobbling** in your preferred client for the best Melodee experience
-- **Keep clients updated** to ensure proper scrobbling protocol support
-- **Check "Now Playing"** in the Melodee UI to verify scrobbling is working
-- **Review your history** periodically to ensure plays are being recorded
+## Last.fm
 
-## Privacy Considerations
+Last.fm is the only external scrobbler implemented in 2.2.0. Libre.fm and ListenBrainz forwarding are not implemented.
 
-- Scrobble data is stored in your Melodee instance
-- "Now Playing" visibility can be controlled by user permissions
-- External scrobbling (Last.fm) is optional and requires explicit configuration
-- All scrobble data can be exported or deleted per user
+An administrator must configure:
 
----
+| Setting | Purpose |
+|---|---|
+| `scrobbling.lastFm.Enabled` | Enable the Last.fm plug-in |
+| `scrobbling.lastFm.apiKey` | Last.fm application API key |
+| `scrobbling.lastFm.sharedSecret` | Last.fm application shared secret |
 
-Have questions about scrobbling? Open an issue on GitHub or check the [API documentation](/api/) for technical details.
+Each user then needs a Last.fm session key. There is no account-linking control in the 2.2.0 Blazor profile page; integrations can complete the flow with:
+
+```text
+GET  /api/v1/scrobble/lastfm/auth-url?callback={absoluteHttpOrHttpsUrl}
+POST /api/v1/scrobble/lastfm/session
+POST /api/v1/scrobble/lastfm/disconnect
+```
+
+The session request body is `{ "token": "lastfm-token" }`. If Last.fm reports that the session is no longer authenticated, Melodee clears the user's stored session key.
+
+## Privacy and retention
+
+Now-playing and completed history store the user, media, client name, user agent, IP address, and playback progress. The Now Playing page is instance-wide; 2.2.0 has no per-user visibility switch.
+
+The public web UI does not provide per-user history export or deletion. Apply your own database retention policy if local privacy requirements call for one, and disclose external Last.fm forwarding to users.
+
+## Troubleshooting
+
+### Now Playing is empty
+
+1. Confirm the user's Scrobbling capability is enabled.
+2. Confirm the client calls `/rest/scrobble` with `submission=false`.
+3. Check authentication and typed song IDs.
+4. Review the server log and **NowPlayingCleanupJob** history.
+
+### Counts do not increase
+
+1. Confirm a completed `submission=true` request follows now playing.
+2. Check that the song still exists.
+3. Check for client-side minimum-listen rules.
+4. Avoid two clients submitting the same play.
+
+### Last.fm does not update
+
+1. Confirm all three server settings above.
+2. Confirm the user completed the session exchange.
+3. Re-link after a revoked or expired Last.fm session.
+4. Review Last.fm plug-in errors in the server log.

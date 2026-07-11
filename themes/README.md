@@ -11,7 +11,7 @@ This directory contains pre-built custom theme packs ready for administrators to
 Custom themes require a **Theme library** to be configured in your Melodee instance:
 
 1. Go to **Admin > Libraries**
-2. Ensure a Theme library exists (default path: `/storage/themes/`)
+2. Ensure a Theme library exists (the Compose default is `/app/themes/`)
 
 ## Available Themes
 
@@ -34,12 +34,14 @@ Custom themes require a **Theme library** to be configured in your Melodee insta
 
 ## Installation
 
-1. Download the theme zip file you want
-2. Go to **Admin > Themes** in your Melodee instance
-3. Click **Import Theme** and select the zip file
-4. The theme will appear in the theme selector
+1. Download the theme zip file you want.
+2. Extract its top-level theme directory into the configured Themes library.
+3. Go to **Admin > Themes** and rescan.
 
-Alternatively, extract the zip directly into your Themes library directory (see **Admin > Libraries**).
+The repository archives contain a top-level directory. Melodee 2.2.0's UI
+importer instead expects `theme.json` and `theme.css` at the ZIP root, so
+repackage the directory contents before using **Import Theme**. See **Admin >
+Libraries** for the effective Themes path.
 
 ## Versioning
 

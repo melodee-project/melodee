@@ -202,7 +202,7 @@ public abstract class CommandBase<T> : AsyncCommand<T> where T : Spectre.Console
                 Console.Error.WriteLine("WARNING: Passing tokens on the command line can leak secrets via shell history. Prefer MELODEE_TOKEN or config profiles.");
             }
 
-            return new Client.RemoteMelodeeClient(options.GetApiBaseUrl(), options.Token);
+            return new Client.RemoteMelodeeClient(options.GetNormalizedBaseUrl(), options.Token);
         }
         else
         {
