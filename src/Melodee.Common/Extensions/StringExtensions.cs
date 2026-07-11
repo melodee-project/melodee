@@ -217,7 +217,7 @@ public static partial class StringExtensions
     }
 
     /// <summary>
-    ///     Updates irish Mac & Mc.
+    ///     Updates Irish Mac and Mc name prefixes.
     /// </summary>
     /// <param name="nameString"></param>
     /// <returns></returns>

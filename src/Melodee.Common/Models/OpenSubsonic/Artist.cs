@@ -14,6 +14,7 @@ namespace Melodee.Common.Models.OpenSubsonic;
 /// <param name="AlbumCount">Artist album count</param>
 /// <param name="UserStarred">Timestamp when user starred artist</param>
 /// <param name="ArtistImageUrl">Artist image url</param>
+/// <param name="Album">Albums associated with the artist.</param>
 public record Artist(
     string Id,
     string Name,

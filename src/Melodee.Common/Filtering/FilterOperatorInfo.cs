@@ -10,6 +10,7 @@ namespace Melodee.Common.Filtering;
 /// <param name="Value">Value to filter on.</param>
 /// <param name="JoinOperator">The Join condition when more than one filter, e.g. 'OR' or 'AND'</param>
 /// <param name="ColumnName">Optional column name to use when building SQL</param>
+/// <param name="OperatorOverride">Optional operator text to use instead of the mapped filter operator.</param>
 public record FilterOperatorInfo(
     string PropertyName,
     FilterOperator Operator,

@@ -184,7 +184,7 @@ public sealed class ImageProcessor : IImageProcessor
         var destRect = new SKRectI(x, y, x + newWidth, y + newHeight);
         var srcRect = new SKRectI(0, 0, sourceBitmap.Width, sourceBitmap.Height);
 
-        canvas.DrawBitmap(sourceBitmap, srcRect, destRect);
+        canvas.DrawBitmap(sourceBitmap, srcRect, destRect, SKSamplingOptions.Default);
         canvas.Flush();
 
         using var image = surface.Snapshot();

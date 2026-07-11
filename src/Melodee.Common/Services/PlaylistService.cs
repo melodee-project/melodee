@@ -1241,7 +1241,14 @@ public class PlaylistService(
     /// <summary>
     /// Create a new playlist with songs
     /// </summary>
+    /// <param name="name">The playlist name.</param>
+    /// <param name="userId">The identifier of the user who owns the playlist.</param>
+    /// <param name="comment">An optional playlist comment.</param>
+    /// <param name="isPublic">Whether the playlist is publicly visible.</param>
+    /// <param name="songApiKeys">Optional API keys of songs to add to the playlist.</param>
     /// <param name="returnPrefixedApiKey">When true, returns "playlist|{guid}" format for OpenSubsonic API; when false, returns raw GUID string for Melodee API.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>The created playlist API key when successful.</returns>
     public async Task<OperationResult<string?>> CreatePlaylistAsync(
         string name,
         int userId,

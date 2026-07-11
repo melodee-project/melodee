@@ -61,6 +61,7 @@
     <PackageReference Include="MailKit" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="PSC.Blazor.Components.MarkdownEditor" />
     <PackageReference Include="Radzen.Blazor" />

@@ -16,7 +16,7 @@ namespace Melodee.Common.Models.OpenSubsonic;
 /// <param name="UserRating">The user rating [1-5]</param>
 /// <param name="AverageRating">The average rating [1.0-5.0]</param>
 /// <param name="PlayCount">The play count</param>
-/// <para name="Played">Last played date [ISO 8601]</para>
+/// <param name="Played">Last played date [ISO 8601]</param>
 /// <param name="Child">The directory content (can be an album, can be a song)</param>
 public record Directory(
     string Id,

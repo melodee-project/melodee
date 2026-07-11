@@ -1,5 +1,7 @@
 <Project>
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 </Project>

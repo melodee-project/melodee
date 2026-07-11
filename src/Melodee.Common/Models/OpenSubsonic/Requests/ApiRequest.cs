@@ -5,9 +5,8 @@ namespace Melodee.Common.Models.OpenSubsonic.Requests;
 /// <summary>
 ///     Setup from Query/Post parameters for the Subsonic request.
 /// </summary>
-/// S
 /// <param name="RequestHeaders">All request headers for request.</param>
-/// <para name="RequiresAuthentication">If false then an internal request from the Blazor UI else an API call.</para>
+/// <param name="RequiresAuthentication">If false then an internal request from the Blazor UI else an API call.</param>
 /// <param name="Username">(u) The username.</param>
 /// <param name="Version">
 ///     (v) The protocol version implemented by the client, i.e., the version of the
