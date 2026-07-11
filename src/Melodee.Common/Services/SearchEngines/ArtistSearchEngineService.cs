@@ -87,7 +87,15 @@ public class ArtistSearchEngineService(
 
         await using (var scopedContext = await artistSearchEngineServiceDbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            await scopedContext.Database.MigrateAsync(cancellationToken);
+            if (scopedContext.Database.IsRelational())
+            {
+                await scopedContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await scopedContext.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             await BackfillLocalArtistAliasLookupAsync(scopedContext, cancellationToken).ConfigureAwait(false);
         }
 
