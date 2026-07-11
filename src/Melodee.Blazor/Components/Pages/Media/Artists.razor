@@ -1,14 +1,19 @@
 @page "/admin/mediaartists"
 @inherits MelodeeComponentBase
 @using Melodee.Common.Filtering
+@using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData
+@using Melodee.Common.Services
 @using Melodee.Common.Services.SearchEngines
+@using Microsoft.EntityFrameworkCore
 @using Artist = Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData.Artist;
 @using FilterOperator = Melodee.Common.Filtering.FilterOperator
 
 @inject MainLayoutProxyService MainLayoutProxyService
 @inject ILogger Logger
+@inject IJSRuntime JSRuntime
 @inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject ArtistSearchEngineService ArtistSearchEngineService
+@inject IDbContextFactory<ArtistSearchEngineServiceDbContext> ArtistSearchEngineDbContextFactory
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 @inject TooltipService TooltipService
@@ -34,6 +39,18 @@
                 <RadzenButton Icon="add_circle_outline" Text="Add"
                               Size="ButtonSize.Small"
                               Click="@AddButtonClick"/>
+                <RadzenButton Icon="download" Text="@L("MediaArtists.Export")"
+                              Size="ButtonSize.Small"
+                              Click="@ExportArtists"
+                              IsBusy="@_isExporting"
+                              ButtonStyle="ButtonStyle.Secondary"/>
+                <RadzenFileInput @bind-Value="_importFile"
+                                 ChooseText="@L("MediaArtists.Import")"
+                                 Accept=".json"
+                                 MaxFileSize="104857600"
+                                 Style="width: 200px;"
+                                 TValue="string"
+                                 Change="@OnImportFileChanged"/>
                 <RadzenButton Icon="refresh" Text="Refresh Albums"
                               Size="ButtonSize.Small"
                               Click="@RefreshAlbumsButtonClick"/>
@@ -44,6 +61,42 @@
             </RadzenStack>
         </RadzenColumn>
     </RadzenRow>
+    @if (!string.IsNullOrEmpty(_importMessage))
+    {
+        <RadzenRow>
+            <RadzenColumn Size="12">
+                <RadzenAlert Variant="@(_importSuccess ? Variant.Outlined : Variant.Filled)"
+                             AlertStyle="@(_importSuccess ? AlertStyle.Success : AlertStyle.Danger)"
+                             Icon="@(_importSuccess ? "check_circle" : "error")">
+                    <RadzenText Text="@_importMessage"/>
+                </RadzenAlert>
+            </RadzenColumn>
+        </RadzenRow>
+    }
+    @if (_importPreview != null)
+    {
+        <RadzenRow>
+            <RadzenColumn Size="12">
+                <RadzenCard Variant="Variant.Outlined">
+                    <RadzenText TextStyle="TextStyle.Subtitle2">@L("MediaArtists.ImportPreview")</RadzenText>
+                    <RadzenStack Gap="0.5rem" class="rz-mt-1">
+                        <RadzenText TextStyle="TextStyle.Caption">@L("MediaArtists.ArtistsCount", _importPreview.Artists.Count)</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">@L("MediaArtists.AlbumsCount", _importPreview.Artists.Sum(x => x.Albums.Count))</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">@L("MediaArtists.AliasesCount", _importPreview.Artists.Sum(x => x.Aliases.Count))</RadzenText>
+                    </RadzenStack>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mt-3">
+                        <RadzenCheckBox @bind-Value="_overwriteExisting" Name="OverwriteExisting"/>
+                        <RadzenLabel Text="@L("MediaArtists.OverwriteExisting")" Component="OverwriteExisting"/>
+                    </RadzenStack>
+                    <RadzenButton Icon="upload" Text="@L("MediaArtists.ApplyImport")"
+                                  Click="@ApplyImport"
+                                  IsBusy="@_isImporting"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  class="rz-mt-3"/>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+    }
     <DebounceInput class="rz-textbox rz-w-100"
                    autocomplete="off"
                    @bind-Value="@_debounceInputValue"
@@ -143,6 +196,14 @@
     IList<Artist> _selectedArtists = [];
 
     string _debounceInputValue = "";
+
+    string? _importFile;
+    string? _importMessage;
+    bool _importSuccess;
+    MediaArtistExportData? _importPreview;
+    bool _overwriteExisting;
+    bool _isExporting;
+    bool _isImporting;
 
     private enum ArtistMergeState
     {
@@ -289,6 +350,131 @@
         finally
         {
             MainLayoutProxyService.ToggleSpinnerVisible();
+        }
+    }
+
+    private async Task ExportArtists()
+    {
+        _isExporting = true;
+        try
+        {
+            var exportService = new MediaArtistExportService(Logger, ArtistSearchEngineDbContextFactory);
+            var result = await exportService.ExportAsync();
+
+            if (!result.Success)
+            {
+                _importMessage = result.ErrorMessage;
+                _importSuccess = false;
+                return;
+            }
+
+            var fileName = $"melodee-media-artists-{DateTime.UtcNow:yyyy-MM-dd}.json";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(result.Json!);
+            var base64 = Convert.ToBase64String(bytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, base64, "application/json");
+
+            _importMessage = $"Exported {result.ArtistsCount} artists, {result.AlbumsCount} albums, {result.AliasesCount} aliases";
+            _importSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            _importMessage = $"Export failed: {ex.Message}";
+            _importSuccess = false;
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    private void OnImportFileChanged(string value)
+    {
+        _importMessage = null;
+        _importSuccess = false;
+        _importPreview = null;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        try
+        {
+            var jsonBytes = Convert.FromBase64String(value);
+            var json = System.Text.Encoding.UTF8.GetString(jsonBytes);
+            _importPreview = System.Text.Json.JsonSerializer.Deserialize<MediaArtistExportData>(json, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (_importPreview != null)
+            {
+                if (_importPreview.SchemaVersion != "1.0")
+                {
+                    _importMessage = $"Schema version mismatch. Expected 1.0, got {_importPreview.SchemaVersion}";
+                    _importSuccess = false;
+                    _importPreview = null;
+                }
+                else
+                {
+                    _importSuccess = true;
+                    _importMessage = $"Ready to import {_importPreview.Artists.Count} artists";
+                }
+            }
+            else
+            {
+                _importMessage = "Invalid import file";
+                _importSuccess = false;
+            }
+        }
+        catch
+        {
+            _importMessage = "Invalid import file";
+            _importSuccess = false;
+            _importPreview = null;
+        }
+    }
+
+    private async Task ApplyImport()
+    {
+        if (_importPreview == null)
+        {
+            return;
+        }
+
+        _isImporting = true;
+        MainLayoutProxyService.ToggleSpinnerVisible();
+        try
+        {
+            var importService = new MediaArtistImportService(Logger, ArtistSearchEngineDbContextFactory);
+            var result = await importService.ImportAsync(
+                System.Text.Json.JsonSerializer.Serialize(_importPreview),
+                _overwriteExisting);
+
+            if (result.Success)
+            {
+                _importMessage = $"Imported {result.ArtistsImported} artists, updated {result.ArtistsUpdated}, skipped {result.ArtistsSkipped}";
+                _importSuccess = true;
+                _importPreview = null;
+                _importFile = null;
+                _overwriteExisting = false;
+                await _grid.RefreshDataAsync();
+            }
+            else
+            {
+                _importMessage = result.ErrorMessage;
+                _importSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _importMessage = $"Import failed: {ex.Message}";
+            _importSuccess = false;
+        }
+        finally
+        {
+            MainLayoutProxyService.ToggleSpinnerVisible();
+            _isImporting = false;
         }
     }
 

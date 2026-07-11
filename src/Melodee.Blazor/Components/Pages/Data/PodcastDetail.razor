@@ -1,4 +1,4 @@
-@page "/data/podcasts/{ChannelApiKey}"
+@page "/data/podcasts/{ChannelApiKey:guid}"
 @inherits MelodeeComponentBase
 @using Melodee.Common.Models.Collection
 @using Melodee.Common.Models
@@ -331,7 +331,7 @@
 
 @code {
     [Parameter]
-    public string ChannelApiKey { get; set; } = string.Empty;
+    public Guid ChannelApiKey { get; set; }
 
     private RadzenDataGrid<PodcastEpisodeDataInfo>? _grid;
     private PodcastChannelDataInfo? _channel;
@@ -349,7 +349,7 @@
 
     private async Task LoadChannel()
     {
-        if (CurrentUsersId == 0 || string.IsNullOrEmpty(ChannelApiKey))
+        if (CurrentUsersId == 0 || ChannelApiKey == Guid.Empty)
         {
             return;
         }
@@ -361,7 +361,7 @@
         {
             // Find channel by ApiKey
             var channelsResult = await PodcastService.ListChannelsAsync(new PagedRequest { PageSize = 1000 }, CurrentUsersId);
-            _channel = channelsResult.Data.FirstOrDefault(c => c.ApiKey.ToString() == ChannelApiKey);
+            _channel = channelsResult.Data.FirstOrDefault(c => c.ApiKey == ChannelApiKey);
             
             if (_channel != null)
             {

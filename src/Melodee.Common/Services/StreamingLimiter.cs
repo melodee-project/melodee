@@ -6,7 +6,7 @@ namespace Melodee.Common.Services;
 
 /// <summary>
 /// Simple in-memory limiter for concurrent streaming to prevent resource exhaustion.
-/// Limits are configurable via SettingRegistry and default to unlimited when unset or <= 0.
+/// Limits are configurable via SettingRegistry and default to unlimited when unset or &lt;= 0.
 /// </summary>
 public class StreamingLimiter
 {
@@ -86,4 +86,3 @@ public class StreamingLimiter
         }
     }
 }
-

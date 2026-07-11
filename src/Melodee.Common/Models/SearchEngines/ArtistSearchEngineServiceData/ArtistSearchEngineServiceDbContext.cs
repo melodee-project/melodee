@@ -17,8 +17,8 @@ public class ArtistSearchEngineServiceDbContext(DbContextOptions<ArtistSearchEng
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             var properties = entityType.ClrType.GetProperties().Where(p => p.PropertyType == typeof(DateTimeOffset)
-                                                                           || p.PropertyType ==
-                                                                           typeof(DateTimeOffset?));
+                                                                            || p.PropertyType ==
+                                                                            typeof(DateTimeOffset?));
             foreach (var property in properties)
             {
                 modelBuilder
@@ -35,6 +35,15 @@ public class ArtistSearchEngineServiceDbContext(DbContextOptions<ArtistSearchEng
                 .WithMany(x => x.Aliases)
                 .HasForeignKey(x => x.ArtistId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Artist>(entity =>
+        {
+            entity.Property(x => x.IsLocked)
+                .HasConversion<int?>(
+                    v => v.HasValue ? (v.Value ? 1 : 0) : null,
+                    v => v.HasValue ? (v.Value != 0) : null)
+                .HasColumnType("INTEGER");
         });
     }
 }

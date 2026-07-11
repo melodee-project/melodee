@@ -149,13 +149,9 @@ if [[ -f "$CHANGELOG" ]]; then
 
     # Check if [Unreleased] section exists
     if grep -q "^## \[Unreleased\]" "$CHANGELOG"; then
-      # Replace [Unreleased] header with versioned header + date
-      sed -i "s|^## \[Unreleased\]|## [${VERSION}] - ${today}|" "$CHANGELOG"
-
-      # Insert a fresh [Unreleased] section before the new version header
-      sed -i "1i\\
-## [Unreleased]\\
-" "$CHANGELOG"
+      # Keep the fresh Unreleased section at the existing content location so
+      # Jekyll front matter remains the first block in the document.
+      sed -i "s|^## \[Unreleased\]|## [Unreleased]\\n\\n## [${VERSION}] - ${today}|" "$CHANGELOG"
 
       log_update "$CHANGELOG" "promoted [Unreleased] → [$VERSION] - $today"
     else

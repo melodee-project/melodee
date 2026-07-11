@@ -46,6 +46,12 @@ namespace Melodee.Common.Models.OpenSubsonic;
 /// <param name="DisplayComposer"></param>
 /// <param name="Moods"></param>
 /// <param name="ReplayGain"></param>
+/// <param name="AverageRating"></param>
+/// <param name="UserRating"></param>
+/// <param name="Username"></param>
+/// <param name="MinutesAgo"></param>
+/// <param name="PlayerId"></param>
+/// <param name="PlayerName"></param>
 public record Child(
     string Id,
     string? Parent,

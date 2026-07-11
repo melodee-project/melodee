@@ -253,7 +253,7 @@
 
     void EditChart(Chart chart)
     {
-        NavigationManager.NavigateTo($"/charts/edit/{chart.Id}");
+        NavigationManager.NavigateTo($"/charts/edit/{chart.ApiKey}");
     }
 
     async Task DeleteChart(Chart chart)

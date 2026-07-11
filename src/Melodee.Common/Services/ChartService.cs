@@ -805,17 +805,21 @@ public sealed class ChartService(
             };
         }
 
-        var normalizedArtistName = artistName.ToUpperInvariant();
-        var normalizedAlbumTitle = albumTitle.ToUpperInvariant();
         var linkedStatus = (short)ChartItemLinkStatus.Linked;
 
-        var matchingItems = await scopedContext.ChartItems
+        var allUnlinkedItems = await scopedContext.ChartItems
             .Include(i => i.Chart)
-            .Where(i => i.ArtistName.ToUpper() == normalizedArtistName &&
-                        i.AlbumTitle.ToUpper() == normalizedAlbumTitle &&
-                        i.LinkStatus != linkedStatus)
+            .Where(i => i.LinkStatus != linkedStatus)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        var normalizedInputArtist = artistName.RemoveAccents();
+        var normalizedInputAlbum = albumTitle.RemoveAccents();
+
+        var matchingItems = allUnlinkedItems
+            .Where(i => string.Equals(i.ArtistName.RemoveAccents(), normalizedInputArtist, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(i.AlbumTitle.RemoveAccents(), normalizedInputAlbum, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         if (matchingItems.Count == 0)
         {

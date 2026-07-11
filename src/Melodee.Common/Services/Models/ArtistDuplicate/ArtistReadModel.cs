@@ -20,7 +20,7 @@ namespace Melodee.Common.Services.Models.ArtistDuplicate;
 /// <param name="AmgId">External AMG ID.</param>
 /// <param name="WikiDataId">External WikiData ID.</param>
 /// <param name="Albums">Lightweight album stubs for album overlap calculation.</param>
-/// <param name="CreatedAt">When the artist was created in the database.</param>
+/// <param name="CreatedAtTicks">The database creation timestamp represented as ticks.</param>
 public sealed record ArtistReadModel(
     int ArtistId,
     Guid ApiKey,

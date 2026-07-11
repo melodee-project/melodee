@@ -1,4 +1,4 @@
-@page "/usergroup/{ApiKey}"
+@page "/usergroup/{ApiKey:guid}"
 @using System.Globalization
 @using NodaTime
 @using Melodee.Common.Data
@@ -137,7 +137,7 @@
 
 @code {
     [Parameter]
-    public string ApiKey { get; set; } = string.Empty;
+    public Guid ApiKey { get; set; }
 
     UserGroup? _userGroup;
     List<UserGroupMember> _members = [];
@@ -150,22 +150,14 @@
 
         try
         {
-            if (string.IsNullOrWhiteSpace(ApiKey))
+            if (ApiKey == Guid.Empty)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.InvalidApiKeyFormat") });
                 _isLoading = false;
                 return;
             }
 
-            var apiKeyResult = ParseUserGroupApiKey(ApiKey);
-            if (!apiKeyResult.HasValue)
-            {
-                NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.InvalidApiKeyFormat") });
-                _isLoading = false;
-                return;
-            }
-
-            var userGroupResult = await UserGroupService.GetByApiKeyAsync(apiKeyResult.Value);
+            var userGroupResult = await UserGroupService.GetByApiKeyAsync(ApiKey);
             if (!userGroupResult.IsSuccess || userGroupResult.Data == null)
             {
                 NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = L("Status.Error"), Detail = L("UserDetail.UserNotFound") });
@@ -192,28 +184,4 @@
         }
     }
 
-    Guid? ParseUserGroupApiKey(string apiKeyInput)
-    {
-        if (string.IsNullOrWhiteSpace(apiKeyInput))
-        {
-            return null;
-        }
-
-        if (Guid.TryParse(apiKeyInput, out var directGuid))
-        {
-            return directGuid;
-        }
-
-        const string userGroupPrefix = "usergroup_";
-        if (apiKeyInput.StartsWith(userGroupPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            var guidPart = apiKeyInput.Substring(userGroupPrefix.Length);
-            if (Guid.TryParse(guidPart, out var parsedGuid))
-            {
-                return parsedGuid;
-            }
-        }
-
-        return null;
-    }
 }

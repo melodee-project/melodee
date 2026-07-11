@@ -23,6 +23,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-11
+
+### Added
+
+- Admin health checks now recognize DecentDB error 8 and automatically open a
+  migration dialog with the matching prebuilt release, configured source and
+  destination paths, copyable `decentdb-migrate` commands, verification steps,
+  safe replacement scripts, and links to the official DecentDB guidance.
+- Media Artist export/import: export all search-engine artist data (artists, albums,
+  aliases) as JSON via the `/admin/mediaartists` page; import JSON exports with optional
+  overwrite and full preview of artist/album/alias counts.
+- ArtistSearch database auto-creation in Blazor Doctor: when the `.ddb` file is missing
+  but the parent directory exists, the health check now creates it via EF Core migrations
+  instead of reporting an error.
+
+### Changed
+
+- Replaced the hand-rolled raw-SQL ArtistSearch initial migration with a proper
+  model-driven EF Core migration that uses `CREATE TABLE IF NOT EXISTS` for idempotent
+  application on both fresh and existing databases.
+- Added a second `SyncMusicBrainzUuidColumns` migration as a no-op to satisfy EF Core's
+  migration chain. DecentDB reports `Guid`/`byte[]` columns as `UUID` in the EF model but
+  stores them as `BLOB`, and `ALTER COLUMN TYPE` to `UUID` is unsupported by DecentDB
+  (only `INT64`, `FLOAT64`, `TEXT`, `BOOL`). The no-op migration records itself as applied
+  without attempting the unsupported `ALTER`, keeping `MigrateAsync` stable.
+- Updated the DecentDB providers to `2.16.1`, SkiaSharp managed and Linux native
+  assets to `4.150.0`, Radzen to `11.1.3`, and related runtime, UI, test, and
+  tooling dependencies.
+- Chart editing, user, user-group, and podcast detail routes now bind public
+  GUID API keys directly instead of internal numeric IDs or custom string
+  parsing.
+- Enabled solution-wide XML documentation output so build-time unused-using
+  analysis runs consistently, and corrected malformed API documentation and
+  formatter configuration.
+
+### Fixed
+
+- Resolved EF Core "pending model changes" error for `ArtistSearchEngineServiceDbContext`
+  by regenerating the model snapshot to match the `IsLocked` `INTEGER` column type
+  configured in the DbContext.
+- Resolved DecentDB `ALTER COLUMN TYPE supports only INT64, FLOAT64, TEXT, and BOOL` crash
+  during ArtistSearch migration by making the `SyncMusicBrainzUuidColumns` migration a no-op.
+- ArtistSearch database is now auto-created on first use when the `.ddb` file is absent,
+  eliminating the "database is empty or not initialized" error that previously required
+  manual intervention.
+- Paged ArtistSearch queries now retrieve the requested page before counting
+  results, preventing DecentDB positional parameters from carrying across
+  commands and causing missing-parameter failures.
+- Chart edit navigation now uses the chart API key, and missing chart album
+  matching is accent-insensitive.
+- Aligned the SkiaSharp managed and Linux native packages and moved image
+  drawing to the supported sampling API, preventing native `119.0` and managed
+  `150.0` incompatibility failures during image processing.
+- Solution Debug and CI analyzer builds now complete without dependency,
+  obsolete API, or XML documentation warnings.
+- Version bump automation now promotes release notes without moving the fresh
+  Unreleased heading above the changelog's Jekyll front matter.
+- ArtistSearch initialization now uses migrations for relational databases and
+  schema creation for non-relational providers, preventing OpenSubsonic
+  `getTopSongs` failures in in-memory hosts.
+
+### Security
+
+- Pinned `Microsoft.OpenApi` to patched version `2.7.5`, preventing crafted
+  circular schema references from terminating the process during OpenAPI
+  document parsing.
+
 ## [2.1.4] - 2026-06-16
 
 ### Added

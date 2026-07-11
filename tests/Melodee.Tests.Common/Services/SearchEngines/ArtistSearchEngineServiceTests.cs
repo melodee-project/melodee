@@ -7,6 +7,7 @@ using Melodee.Common.Enums;
 using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.SearchEngines;
+using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Services.SearchEngines;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -30,6 +31,28 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
 
         // Assert - no exception thrown means success
         Assert.True(true);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WithNonRelationalProvider_CreatesDatabaseWithoutMigrations()
+    {
+        var databaseName = $"artist-search-{Guid.NewGuid():N}";
+        var options = new DbContextOptionsBuilder<ArtistSearchEngineServiceDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .Options;
+        var contextFactory = new Mock<IDbContextFactory<ArtistSearchEngineServiceDbContext>>();
+        contextFactory
+            .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new ArtistSearchEngineServiceDbContext(options));
+        var service = CreateArtistSearchEngineService(
+            MockConfigurationFactory(),
+            MockHttpClientFactory(),
+            contextFactory.Object);
+
+        await service.InitializeAsync();
+
+        await using var context = new ArtistSearchEngineServiceDbContext(options);
+        Assert.True(await context.Database.CanConnectAsync());
     }
 
     [Fact]
@@ -603,7 +626,8 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
 
     private ArtistSearchEngineService CreateArtistSearchEngineService(
         IMelodeeConfigurationFactory configFactory,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IDbContextFactory<ArtistSearchEngineServiceDbContext>? artistSearchEngineContextFactory = null)
     {
         return new ArtistSearchEngineService(
             Logger,
@@ -612,7 +636,7 @@ public class ArtistSearchEngineServiceTests : ServiceTestBase
             MockSpotifyClientBuilder(),
             configFactory,
             MockFactory(),
-            MockArtistSearchEngineFactory(),
+            artistSearchEngineContextFactory ?? MockArtistSearchEngineFactory(),
             GetMusicBrainzRepository(),
             Serializer,
             httpClientFactory);

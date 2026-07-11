@@ -1,3 +1,5 @@
+using Melodee.Blazor.Components.Dialogs;
+using Melodee.Common.Services.Doctor;
 using Radzen;
 
 namespace Melodee.Blazor.Extensions;
@@ -27,5 +29,37 @@ public static class DialogServiceExtensions
             builder.CloseElement();
         }, title, options ?? new ConfirmOptions());
     }
-}
 
+    /// <summary>
+    /// Opens the DecentDB unsupported-format remediation dialog.
+    /// </summary>
+    /// <param name="dialogService">The dialog service.</param>
+    /// <param name="title">Localized dialog title.</param>
+    /// <param name="issues">Unsupported-format Doctor results for affected DecentDB databases.</param>
+    public static async Task OpenDecentDbMigrationDialogAsync(
+        this DialogService dialogService,
+        string title,
+        IReadOnlyList<DoctorCheckResult> issues)
+    {
+        ArgumentNullException.ThrowIfNull(dialogService);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentNullException.ThrowIfNull(issues);
+
+        await dialogService.OpenAsync<DecentDbMigrationDialog>(
+            title,
+            new Dictionary<string, object?>
+            {
+                { nameof(DecentDbMigrationDialog.Issues), issues.ToArray() }
+            },
+            new DialogOptions
+            {
+                Width = "900px",
+                Height = "auto",
+                Resizable = true,
+                Draggable = true,
+                ShowClose = true,
+                CloseDialogOnOverlayClick = false,
+                AriaLabel = title
+            });
+    }
+}

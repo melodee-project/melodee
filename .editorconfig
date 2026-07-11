@@ -23,6 +23,15 @@ indent_size = 2
 indent_size = 2
 generated_code = true
 
+# Preserve immutable generated migrations with their original byte encoding.
+[src/Melodee.Common/Migrations/ArtistSearchEngine/20260622224939_InitialArtistSearchEngineSchema.cs]
+charset = utf-8-bom
+insert_final_newline = false
+
+[src/Melodee.Common/Migrations/ArtistSearchEngine/20260622225002_SyncMusicBrainzUuidColumns.cs]
+charset = utf-8-bom
+insert_final_newline = false
+
 # JSON files
 [*.{json,json5}]
 indent_size = 2

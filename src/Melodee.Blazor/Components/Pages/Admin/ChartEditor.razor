@@ -1,5 +1,5 @@
 @page "/charts/create"
-@page "/charts/edit/{ChartId:int}"
+@page "/charts/edit/{ApiKey:guid}"
 
 @inherits MelodeeComponentBase
 @using Melodee.Common.Data.Models
@@ -115,7 +115,7 @@
                     <RadzenSwitch @bind-Value="@_isGeneratedPlaylistEnabled" Name="PlaylistEnabled"/>
                 </RadzenColumn>
             </RadzenRow>
-            
+
             @* CSV Input - Required for Create, shown inline *@
             @if (!_isEditMode)
             {
@@ -131,7 +131,7 @@
                             </RadzenText>
                             <RadzenTextArea @bind-Value="@_csvInput" Rows="8" class="rz-w-100" Name="CsvInput"
                                 Placeholder="1,The Beatles,Abbey Road,1969&#10;2,Pink Floyd,The Dark Side of the Moon,1973&#10;3,Led Zeppelin,IV,1971&#10;4,Fleetwood Mac,Rumours,1977&#10;5,Nirvana,Nevermind,1991"/>
-                            
+
                             @if (_csvErrors.Count > 0)
                             {
                                 <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false" Size="AlertSize.Small">
@@ -148,20 +148,20 @@
                                     </ul>
                                 </RadzenAlert>
                             }
-                            
+
                             @if (_previewItems.Count > 0 && _csvErrors.Count == 0)
                             {
                                 <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" AllowClose="false" Size="AlertSize.Small">
                                     <RadzenText TextStyle="TextStyle.Caption">@L("ChartEditor.ValidItemsReady", _previewItems.Count)</RadzenText>
                                 </RadzenAlert>
                             }
-                            
-                            <RadzenButton Text="@L("ChartEditor.ValidateCSV")" Icon="check_circle" Size="ButtonSize.Small" 
+
+                            <RadzenButton Text="@L("ChartEditor.ValidateCSV")" Icon="check_circle" Size="ButtonSize.Small"
                                 ButtonStyle="ButtonStyle.Secondary" Click="@PreviewCsvAsync"/>
                         </RadzenStack>
                     </RadzenColumn>
                 </RadzenRow>
-                
+
                 @* Chart Image - Optional for Create *@
                 <RadzenRow AlignItems="AlignItems.Start" RowGap="0.25rem">
                     <RadzenColumn Size="12" SizeMD="2" class="rz-text-align-start rz-text-align-md-end rz-pt-2">
@@ -179,7 +179,7 @@
                             @if (_createImageBytes != null)
                             {
                                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
-                                    <img style="width: 100px; height: auto; border-radius: 4px;" alt="@L("Actions.Preview")" 
+                                    <img style="width: 100px; height: auto; border-radius: 4px;" alt="@L("Actions.Preview")"
                                          src="data:image;base64,@Convert.ToBase64String(_createImageBytes)"/>
                                     <RadzenText TextStyle="TextStyle.Caption" class="rz-text-secondary-color">@L("ChartEditor.ImageSelectedWillUpload")</RadzenText>
                                     <RadzenButton Text="@L("Actions.Remove")" Icon="close" Click="@CancelCreateImageSelection" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"/>
@@ -189,7 +189,7 @@
                     </RadzenColumn>
                 </RadzenRow>
             }
-            
+
             <RadzenRow AlignItems="AlignItems.Center" class="rz-mt-4">
                 <RadzenColumn Size="12" Offset="0" SizeMD="10" OffsetMD="2">
                     <RadzenButton Text="@(_isEditMode ? L("Actions.SaveChanges") : L("ChartEditor.CreateChart"))" Icon="save" Click="@SaveMetadataAsync" ButtonStyle="ButtonStyle.Primary"/>
@@ -210,8 +210,8 @@
                     <RadzenColumn Size="12" SizeMD="4">
                         @if (_hasImage)
                         {
-                            <RadzenImage Path="@($"/api/v1/charts/{_chartApiKey}/image?v={_imageVersion}")" 
-                                         Style="width: 100%; max-width: 300px; height: auto; border-radius: 8px;" 
+                            <RadzenImage Path="@($"/api/v1/charts/{_chartApiKey}/image?v={_imageVersion}")"
+                                         Style="width: 100%; max-width: 300px; height: auto; border-radius: 8px;"
                                          AlternateText="@_title"/>
                         }
                         else
@@ -232,7 +232,7 @@
                             @if (_selectedImageBytes != null)
                             {
                                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
-                                    <img style="width: 100px; height: auto; border-radius: 4px;" alt="@L("Actions.Preview")" 
+                                    <img style="width: 100px; height: auto; border-radius: 4px;" alt="@L("Actions.Preview")"
                                          src="data:image;base64,@Convert.ToBase64String(_selectedImageBytes)"/>
                                     <RadzenButton Text="@L("Actions.Upload")" Icon="cloud_upload" Click="@UploadImageAsync" ButtonStyle="ButtonStyle.Primary"/>
                                     <RadzenButton Text="@L("Actions.Cancel")" Icon="close" Click="@CancelImageSelection" ButtonStyle="ButtonStyle.Light"/>
@@ -374,9 +374,9 @@
 </RadzenStack>
 
 @code {
-    [Parameter] public int ChartId { get; set; }
+    [Parameter] public Guid ApiKey { get; set; }
 
-    bool _isEditMode => ChartId > 0;
+    bool _isEditMode => ApiKey != Guid.Empty;
     int _chartId;
 
     string _title = "";
@@ -413,7 +413,7 @@
         await base.OnInitializedAsync();
         if (_isEditMode)
         {
-            _chartId = ChartId;
+            _chartApiKey = ApiKey;
             await LoadChartAsync();
         }
     }
@@ -423,7 +423,7 @@
         MainLayoutProxyService.ToggleSpinnerVisible();
         try
         {
-            var result = await ChartService.GetByIdAsync(_chartId);
+            var result = await ChartService.GetByApiKeyAsync(ApiKey);
             if (result.IsSuccess && result.Data != null)
             {
                 var chart = result.Data;
@@ -436,6 +436,7 @@
                 _tagsInput = chart.Tags?.Replace('|', ',') ?? "";
                 _isVisible = chart.IsVisible;
                 _isGeneratedPlaylistEnabled = chart.IsGeneratedPlaylistEnabled;
+                _chartId = chart.Id;
                 _chartItems = chart.Items.OrderBy(i => i.Rank).ToList();
                 _chartApiKey = chart.ApiKey;
 
@@ -500,7 +501,7 @@
                 });
                 return;
             }
-            
+
             // Validate CSV before creating
             var parseResult = await ChartService.ParseCsvAsync(_csvInput);
             if (parseResult.Data is null || parseResult.Data.Errors.Count > 0 || parseResult.Data.Items.Count == 0)
@@ -558,7 +559,7 @@
                     tags,
                     _isVisible,
                     _isGeneratedPlaylistEnabled);
-                
+
                 if (result.IsSuccess && result.Data != null)
                 {
                     // Now save the chart items
@@ -582,7 +583,7 @@
                             Duration = ToastTime
                         });
                     }
-                    
+
                     // Upload image if one was selected
                     if (_createImageBytes != null)
                     {
@@ -598,8 +599,8 @@
                             });
                         }
                     }
-                    
-                    NavigationManager.NavigateTo($"/charts/edit/{result.Data.Id}");
+
+                    NavigationManager.NavigateTo($"/charts/edit/{result.Data.ApiKey}");
                 }
                 else
                 {

@@ -317,7 +317,7 @@ public sealed class CliDoctorService : DoctorServiceBase
                     {
                         _logger.Information("[{JobName}] Creating new empty artist search engine database at [{Path}]", nameof(DoctorCommand), dataSource);
                         await using var db = await _artistSearchEngineDbContextFactory.CreateDbContextAsync(cancellationToken);
-                        await db.Database.EnsureCreatedAsync(cancellationToken);
+                        await db.Database.MigrateAsync(cancellationToken);
                         fileInfo = DescribeFileDatabasePath(cs);
                     }
 

@@ -1,6 +1,8 @@
 ---
 title: DecentDB Usage & Migration
-description: How Melodee uses DecentDB, how to diagnose compatibility issues, and how to rebuild generated DecentDB search databases.
+description: >-
+  How Melodee uses DecentDB, how to diagnose compatibility issues, and how to
+  upgrade or rebuild generated DecentDB search databases.
 permalink: /decentdb/
 tags:
   - decentdb
@@ -57,27 +59,66 @@ MusicBrainz DecentDB database uses a file format that is not supported by the cu
 Provider error: unsupported DecentDB file format version 11
 ```
 
-This means the current Melodee process cannot safely read that generated search
-database. Search and enrichment may continue in degraded mode, but the affected
-database should be rebuilt or the Melodee/DecentDB package version should be
-updated.
+This is DecentDB error 8 (`ERR_UNSUPPORTED_FORMAT_VERSION`). It means the
+current Melodee process cannot safely read that generated search database.
+Search and enrichment may continue in degraded mode, but the affected database
+must be upgraded with `decentdb-migrate` or rebuilt before it can be used.
 
 ## Migration Strategy
 
-For Melodee's generated DecentDB files, migration usually means rebuilding the
-affected generated database with the current Melodee version. This is safer than
-trying to manually edit a DecentDB file created by an incompatible provider.
+Use DecentDB's standalone `decentdb-migrate` utility first. The utility reads the
+old database and writes an upgraded copy to a new path; it does not overwrite the
+source database in place.
 
 Use this order:
 
-1. Upgrade Melodee to the intended version.
-2. Stop Melodee so no process is writing to the DecentDB files.
-3. Back up the affected `.ddb` file and any companion WAL or shared-memory
-   files.
-4. Move the incompatible generated database out of the active path.
-5. Start Melodee.
-6. Rebuild the affected database from Melodee.
-7. Run Doctor again and confirm the DecentDB checks pass.
+1. Note the DecentDB version shown in Melodee's migration dialog.
+2. Download and extract the matching archive from the
+   [DecentDB releases](https://github.com/sphildreth/decentdb/releases) page.
+   Release archives include `decentdb-migrate` and the `decentdb` CLI.
+3. Stop every Melodee instance that can access the affected file.
+4. Run `decentdb-migrate` with the configured database path as `--source` and a
+   new, nonexistent path as `--dest`.
+5. Verify the new file with the `decentdb` executable from the same release.
+6. Preserve the original database and its sidecars, then promote the migrated
+   database to the configured path.
+7. Restart Melodee and confirm the DecentDB checks pass in **Admin > Doctor**.
+
+See DecentDB's
+[official migration guide](https://decentdb.org/user-guide/migration/) for the
+tool's supported source formats and build-from-source alternative.
+
+### Migration Example
+
+The web migration dialog generates these commands with the active configured
+path. A MusicBrainz migration follows this shape:
+
+```bash
+./decentdb-migrate \
+  --source /path/to/musicbrainz.ddb \
+  --dest /path/to/musicbrainz_migrated.ddb
+```
+
+Do not continue until the utility reports:
+
+```text
+Migration complete! Your upgraded database is ready at: /path/to/musicbrainz_migrated.ddb
+```
+
+Verify the upgraded copy with the CLI from the same release:
+
+```bash
+./decentdb info --db /path/to/musicbrainz_migrated.ddb
+```
+
+Keep Melodee stopped while replacing the active file. Preserve the original
+`.ddb` file and any `.wal`, `.coord`, or `.wal-idx` sidecars until normal
+operation is verified. If Melodee runs in a container, translate the displayed
+container path to the corresponding host volume path when running the utility
+on the host.
+
+If the migration utility reports that the source format has no supported
+migration path, use the rebuild procedure below.
 
 ## Backup Before Rebuild
 
@@ -99,7 +140,7 @@ backup_decentdb_file() {
   local db_name
   db_name="$(basename "$db_path")"
 
-  for suffix in "" ".wal" "-wal" ".shm" "-shm"; do
+  for suffix in "" ".wal" ".coord" ".wal-idx" "-wal" ".shm" "-shm"; do
     if [ -f "${db_path}${suffix}" ]; then
       cp -a "${db_path}${suffix}" "$backup_root/${db_name}${suffix}"
     fi
@@ -132,7 +173,7 @@ artist_search_db="/path/to/search-engine-storage/artistSearchEngine.ddb"
 move_decentdb_file_aside() {
   local db_path="$1"
 
-  for suffix in "" ".wal" "-wal" ".shm" "-shm"; do
+  for suffix in "" ".wal" ".coord" ".wal-idx" "-wal" ".shm" "-shm"; do
     if [ -f "${db_path}${suffix}" ]; then
       mv "${db_path}${suffix}" "${db_path}${suffix}.unsupported-$stamp"
     fi
@@ -188,7 +229,7 @@ aside.
 
 ## Verify The Migration
 
-Run Doctor after rebuilding:
+Run Doctor after upgrading or rebuilding:
 
 ```bash
 ./mcli doctor --verbose
@@ -201,13 +242,12 @@ The following checks should pass:
 - `MusicBrainzDatabase`
 - `ArtistSearchEngineDatabase`
 
-If Doctor still reports an unsupported DecentDB file format after rebuilding,
-confirm that:
+If Doctor still reports an unsupported DecentDB file format, confirm that:
 
 - Melodee is running the version you expect.
 - The active connection strings point to the rebuilt files.
-- No old `.wal`, `-wal`, `.shm`, or `-shm` companion files remain beside the
-  rebuilt database.
+- No stale `.wal`, `.coord`, `.wal-idx`, `-wal`, `.shm`, or `-shm` companion
+  files remain beside the active database.
 - The app container or service was restarted after the rebuild.
 
 ## What Not To Delete
@@ -215,4 +255,3 @@ confirm that:
 Do not delete the primary PostgreSQL database when resolving DecentDB search
 cache compatibility issues. The unsupported DecentDB file-format warning applies
 to generated local search databases, not the primary Melodee database.
-

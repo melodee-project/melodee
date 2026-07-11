@@ -159,7 +159,9 @@ if (!skipDbRegistration)
 
     builder.Services.AddDbContextFactory<ArtistSearchEngineServiceDbContext>(options =>
     {
-        options.UseDecentDB(builder.Configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"), x => x.UseNodaTime());
+        options.UseDecentDB(
+            builder.Configuration.GetConnectionString("ArtistSearchEngineConnection") ?? throw new Exception("Invalid Connection String"),
+            x => x.UseNodaTime().MigrationsAssembly("Melodee.Common"));
     });
 
     builder.Services.AddDbContextFactory<MusicBrainzDbContext>(options =>

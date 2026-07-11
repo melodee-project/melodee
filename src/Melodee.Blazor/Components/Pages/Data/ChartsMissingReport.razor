@@ -229,7 +229,7 @@
 
                 foreach (var item in unlinked)
                 {
-                    var key = $"{item.ArtistName.ToUpperInvariant()}|{item.AlbumTitle.ToUpperInvariant()}";
+                    var key = $"{item.ArtistName.RemoveAccents()?.ToUpperInvariant() ?? item.ArtistName}|{item.AlbumTitle.RemoveAccents()?.ToUpperInvariant() ?? item.AlbumTitle}";
                     
                     if (!unlinkedItems.TryGetValue(key, out var missingAlbum))
                     {

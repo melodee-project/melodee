@@ -21,6 +21,7 @@
 @inject IDbContextFactory<MusicBrainzDbContext> MusicBrainzDbContextFactory
 @inject IConfiguration AppConfiguration
 @inject NotificationService NotificationService
+@inject DialogService DialogService
 @inject IWebHostEnvironment WebHostEnvironment
 @inject ISchedulerFactory SchedulerFactory
 @inject DoctorServiceInterface DoctorService
@@ -84,6 +85,23 @@
                 </RadzenStack>
             </RadzenStack>
         </RadzenCard>
+
+        @if (_decentDbMigrationIssues.Length > 0)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Outlined" Icon="upgrade">
+                <RadzenStack Orientation="Orientation.Horizontal"
+                             AlignItems="AlignItems.Center"
+                             JustifyContent="JustifyContent.SpaceBetween"
+                             Gap="1rem"
+                             Wrap="FlexWrap.Wrap">
+                    <RadzenText TextStyle="TextStyle.Body1">@L("DecentDbMigrationDialog.Intro")</RadzenText>
+                    <RadzenButton Text="@L("Dashboard.DecentDbMigrationGuide")"
+                                  Icon="upgrade"
+                                  Click="@OpenDecentDbMigrationDialogAsync"
+                                  ButtonStyle="ButtonStyle.Danger"/>
+                </RadzenStack>
+            </RadzenAlert>
+        }
 
         @* MusicBrainz Database Action Card - shown when DB is empty *@
         @if (_isMusicBrainzEmpty)
@@ -367,6 +385,9 @@
 @code {
     private bool _isLoading = true;
     private bool _allChecksPassed;
+    private DoctorCheckResult[] _decentDbMigrationIssues = [];
+    private bool _openDecentDbMigrationDialogAfterRender;
+    private bool _hasOpenedDecentDbMigrationDialog;
     private TimeSpan _totalDuration;
     private bool _isMusicBrainzEmpty;
     private bool _isMusicBrainzJobRunning;
@@ -387,6 +408,18 @@
     {
         await base.OnInitializedAsync();
         await RunDiagnosticsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (_openDecentDbMigrationDialogAfterRender && !_hasOpenedDecentDbMigrationDialog)
+        {
+            _openDecentDbMigrationDialogAfterRender = false;
+            _hasOpenedDecentDbMigrationDialog = true;
+            await OpenDecentDbMigrationDialogAsync();
+        }
     }
 
     private async Task TriggerMusicBrainzJobAsync()
@@ -429,6 +462,7 @@
     {
         _isLoading = true;
         _isMusicBrainzEmpty = false;
+        _openDecentDbMigrationDialogAfterRender = false;
         StateHasChanged();
 
         var stopwatch = Stopwatch.StartNew();
@@ -447,6 +481,12 @@
 
         // Run all checks via DoctorService
         var results = await DoctorService.RunAllChecksAsync();
+        _decentDbMigrationIssues = DashboardHealthWarningEvaluator
+            .GetUnsupportedDecentDbIssues(results.Checks)
+            .ToArray();
+        _openDecentDbMigrationDialogAfterRender =
+            !_hasOpenedDecentDbMigrationDialog &&
+            _decentDbMigrationIssues.Length > 0;
         
         // Map results to local types with localized names
         foreach (var check in results.Checks)
@@ -587,6 +627,15 @@
 
         _isLoading = false;
         StateHasChanged();
+    }
+
+    private Task OpenDecentDbMigrationDialogAsync()
+    {
+        return _decentDbMigrationIssues.Length == 0
+            ? Task.CompletedTask
+            : DialogService.OpenDecentDbMigrationDialogAsync(
+                L("DecentDbMigrationDialog.Title"),
+                _decentDbMigrationIssues);
     }
     
     private string GetLocalizedCheckName(string checkName) => checkName switch

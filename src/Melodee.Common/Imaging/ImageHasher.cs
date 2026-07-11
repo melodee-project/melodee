@@ -5,8 +5,8 @@ namespace Melodee.Common.Imaging;
 ///     and recognition.
 ///     Credit for the AverageHash implementation to David Oftedal of the University of Oslo.
 ///     
-///     NOTE: This class is now a thin wrapper around <see cref="IImageProcessor">.
-///     Prefer injecting <see cref="IImageProcessor"> directly for new code.
+///     NOTE: This class is now a thin wrapper around <see cref="IImageProcessor"/>.
+///     Prefer injecting <see cref="IImageProcessor"/> directly for new code.
 /// </summary>
 public static class ImageHasher
 {

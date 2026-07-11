@@ -1,0 +1,215 @@
+@using DecentDB.AdoNet
+@using Melodee.Blazor.Components.Pages
+@using Melodee.Common.Services.Doctor
+@inherits MelodeeComponentBase
+
+@inject IConfiguration AppConfiguration
+@inject DialogService DialogService
+@inject IJSRuntime JsRuntime
+@inject NotificationService NotificationService
+
+<RadzenStack Gap="1rem" class="decentdb-migration-dialog">
+    <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" AllowClose="false">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="0.75rem">
+            <RadzenIcon Icon="upgrade" Style="font-size: 2rem;"/>
+            <RadzenText TextStyle="TextStyle.Body1">@L("DecentDbMigrationDialog.Intro")</RadzenText>
+        </RadzenStack>
+    </RadzenAlert>
+
+    <ol class="migration-steps">
+        <li>
+            <RadzenText TextStyle="TextStyle.H6">@L("DecentDbMigrationDialog.DownloadTitle")</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">
+                @L("DecentDbMigrationDialog.DownloadStep", DecentDbVersionDisplay)
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mt-2">
+                <RadzenButton Text="@L("DecentDbMigrationDialog.DownloadRelease")"
+                              Icon="download"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Size="ButtonSize.Small"
+                              Click="@OpenReleases"/>
+                <RadzenButton Text="@L("DecentDbMigrationDialog.OfficialGuide")"
+                              Icon="open_in_new"
+                              ButtonStyle="ButtonStyle.Light"
+                              Size="ButtonSize.Small"
+                              Click="@OpenOfficialGuide"/>
+            </RadzenStack>
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
+                @L("DecentDbMigrationDialog.BuildAlternative")
+            </RadzenText>
+            @CommandBlock(
+                L("DecentDbMigrationDialog.BuildCommand"),
+                DecentDbMigrationInstructionsBuilder.BuildCommand)
+        </li>
+
+        <li>
+            <RadzenText TextStyle="TextStyle.H6">@L("DecentDbMigrationDialog.StopTitle")</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">@L("DecentDbMigrationDialog.StopStep")</RadzenText>
+        </li>
+
+        <li>
+            <RadzenText TextStyle="TextStyle.H6">@L("DecentDbMigrationDialog.MigrateTitle")</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">@L("DecentDbMigrationDialog.MigrateStep")</RadzenText>
+
+            @foreach (var target in _targets)
+            {
+                <RadzenFieldset Text="@L(target.DisplayNameKey)" class="rz-mt-3 migration-target">
+                    <RadzenStack Gap="0.75rem">
+                        <RadzenText TextStyle="TextStyle.Body2" class="error-details">
+                            <strong>@L("DecentDbMigrationDialog.DetectedError"):</strong> @target.ErrorDetails
+                        </RadzenText>
+
+                        @if (target.DatabasePath is null ||
+                             target.MigratedDatabasePath is null ||
+                             target.MigrationCommand is null ||
+                             target.VerificationCommand is null ||
+                             target.ReplacementCommand is null)
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Warning" Shade="Shade.Lighter" AllowClose="false">
+                                @L("DecentDbMigrationDialog.PathUnavailable")
+                            </RadzenAlert>
+                        }
+                        else
+                        {
+                            <dl class="migration-paths">
+                                <dt>@L("DecentDbMigrationDialog.DatabasePath")</dt>
+                                <dd><code>@target.DatabasePath</code></dd>
+                                <dt>@L("DecentDbMigrationDialog.DestinationPath")</dt>
+                                <dd><code>@target.MigratedDatabasePath</code></dd>
+                            </dl>
+
+                            @CommandBlock(L("DecentDbMigrationDialog.MigrationCommand"), target.MigrationCommand)
+
+                            <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mt-2">
+                                @L("DecentDbMigrationDialog.VerifyTitle")
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">@L("DecentDbMigrationDialog.VerifyStep")</RadzenText>
+                            @CommandBlock(L("DecentDbMigrationDialog.VerificationCommand"), target.VerificationCommand)
+
+                            <RadzenText TextStyle="TextStyle.Caption">
+                                @L("DecentDbMigrationDialog.ExpectedOutput")
+                            </RadzenText>
+                            <pre class="migration-output"><code>Migration complete! Your upgraded database is ready at: @target.MigratedDatabasePath</code></pre>
+
+                            <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mt-2">
+                                @L("DecentDbMigrationDialog.ReplaceTitle")
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">@L("DecentDbMigrationDialog.ReplaceStep")</RadzenText>
+                            @CommandBlock(L("DecentDbMigrationDialog.ReplacementCommand"), target.ReplacementCommand)
+                        }
+                    </RadzenStack>
+                </RadzenFieldset>
+            }
+        </li>
+
+        <li>
+            <RadzenText TextStyle="TextStyle.H6">@L("DecentDbMigrationDialog.RestartTitle")</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">@L("DecentDbMigrationDialog.RestartStep")</RadzenText>
+        </li>
+    </ol>
+
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Shade="Shade.Lighter" AllowClose="false">
+        @L("DecentDbMigrationDialog.UnsupportedSource")
+    </RadzenAlert>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+        <RadzenButton Text="@L("DecentDbMigrationDialog.SourceRepository")"
+                      Icon="code"
+                      ButtonStyle="ButtonStyle.Light"
+                      Click="@OpenSourceRepository"/>
+        <RadzenButton Text="@L("Actions.Close")" ButtonStyle="ButtonStyle.Secondary" Click="@Close"/>
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<DoctorCheckResult> Issues { get; set; } = [];
+
+    private IReadOnlyList<DecentDbMigrationTarget> _targets = [];
+    private string? _decentDbVersion;
+
+    private string DecentDbVersionDisplay => string.IsNullOrWhiteSpace(_decentDbVersion)
+        ? L("DecentDbMigrationDialog.BundledVersion")
+        : L("DecentDbMigrationDialog.EngineVersion", _decentDbVersion.TrimStart('v', 'V'));
+
+    private string DecentDbReleaseUrl => string.IsNullOrWhiteSpace(_decentDbVersion)
+        ? DecentDbMigrationInstructionsBuilder.ReleasesUrl
+        : $"{DecentDbMigrationInstructionsBuilder.ReleasesUrl}/tag/v{Uri.EscapeDataString(_decentDbVersion.TrimStart('v', 'V'))}";
+
+    protected override void OnParametersSet()
+    {
+        _targets = DecentDbMigrationInstructionsBuilder.Build(Issues, AppConfiguration, OperatingSystem.IsWindows());
+        _decentDbVersion = GetDecentDbVersion();
+        base.OnParametersSet();
+    }
+
+    private static string? GetDecentDbVersion()
+    {
+        try
+        {
+            return DecentDBConnection.EngineVersion();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private RenderFragment CommandBlock(string label, string command) => @<div class="decentdb-command-block">
+        <RadzenStack Orientation="Orientation.Horizontal"
+                     AlignItems="AlignItems.Center"
+                     JustifyContent="JustifyContent.SpaceBetween"
+                     Gap="0.5rem">
+            <RadzenText TextStyle="TextStyle.Caption"><strong>@label</strong></RadzenText>
+            <RadzenButton Text="@L("DecentDbMigrationDialog.CopyCommand")"
+                          Icon="content_copy"
+                          Size="ButtonSize.ExtraSmall"
+                          ButtonStyle="ButtonStyle.Light"
+                          Click="@(() => CopyCommandAsync(command))"/>
+        </RadzenStack>
+        <pre><code>@command</code></pre>
+    </div>;
+
+    private async Task CopyCommandAsync(string command)
+    {
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", command);
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Info,
+            Summary = L("DecentDbMigrationDialog.CommandCopied"),
+            Duration = ToastTime
+        });
+    }
+
+    private async Task OpenReleases()
+    {
+        await JsRuntime.InvokeVoidAsync(
+            "open",
+            DecentDbReleaseUrl,
+            "_blank",
+            "noopener,noreferrer");
+    }
+
+    private async Task OpenOfficialGuide()
+    {
+        await JsRuntime.InvokeVoidAsync(
+            "open",
+            DecentDbMigrationInstructionsBuilder.MigrationGuideUrl,
+            "_blank",
+            "noopener,noreferrer");
+    }
+
+    private async Task OpenSourceRepository()
+    {
+        await JsRuntime.InvokeVoidAsync(
+            "open",
+            DecentDbMigrationInstructionsBuilder.SourceRepositoryUrl,
+            "_blank",
+            "noopener,noreferrer");
+    }
+
+    private void Close()
+    {
+        DialogService.Close();
+    }
+}

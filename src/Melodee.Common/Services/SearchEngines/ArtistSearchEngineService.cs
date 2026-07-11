@@ -87,64 +87,19 @@ public class ArtistSearchEngineService(
 
         await using (var scopedContext = await artistSearchEngineServiceDbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
         {
-            await scopedContext.Database.EnsureCreatedAsync(cancellationToken);
-            await EnsureHousekeepingIndexesAsync(scopedContext, cancellationToken).ConfigureAwait(false);
-            await EnsureLocalArtistAliasLookupAsync(scopedContext, cancellationToken).ConfigureAwait(false);
+            if (scopedContext.Database.IsRelational())
+            {
+                await scopedContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await scopedContext.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await BackfillLocalArtistAliasLookupAsync(scopedContext, cancellationToken).ConfigureAwait(false);
         }
 
         _initialized = true;
-    }
-
-    private static async Task EnsureHousekeepingIndexesAsync(
-        ArtistSearchEngineServiceDbContext context,
-        CancellationToken cancellationToken)
-    {
-        if (!context.Database.IsRelational())
-        {
-            return;
-        }
-
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE INDEX IF NOT EXISTS "IX_Artists_IsLocked_LastRefreshed"
-            ON "Artists" ("IsLocked", "LastRefreshed")
-            """,
-            cancellationToken);
-    }
-
-    private static async Task EnsureLocalArtistAliasLookupAsync(
-        ArtistSearchEngineServiceDbContext context,
-        CancellationToken cancellationToken)
-    {
-        if (!context.Database.IsRelational())
-        {
-            return;
-        }
-
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE TABLE IF NOT EXISTS "ArtistAliases" (
-                "Id" INTEGER NOT NULL PRIMARY KEY,
-                "ArtistId" INTEGER NOT NULL,
-                "NameNormalized" TEXT NOT NULL,
-                FOREIGN KEY ("ArtistId") REFERENCES "Artists" ("Id") ON DELETE CASCADE
-            )
-            """,
-            cancellationToken);
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE INDEX IF NOT EXISTS "IX_ArtistAliases_NameNormalized"
-            ON "ArtistAliases" ("NameNormalized")
-            """,
-            cancellationToken);
-        await context.Database.ExecuteSqlRawAsync(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ArtistAliases_ArtistId_NameNormalized"
-            ON "ArtistAliases" ("ArtistId", "NameNormalized")
-            """,
-            cancellationToken);
-
-        await BackfillLocalArtistAliasLookupAsync(context, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task BackfillLocalArtistAliasLookupAsync(
@@ -475,7 +430,12 @@ public class ArtistSearchEngineService(
                 }
                 else
                 {
-                    var pageProbeSize = pagedRequest.TakeValue + 1;
+                    // Execute the paged query before the count query. DecentDB's ADO.NET provider
+                    // numbers positional parameters ($1, $2, ...) per connection and does not reset
+                    // the counter between sequential commands on the same DbContext. Running
+                    // CountAsync first (which may consume $1) leaves the LIMIT/OFFSET params of the
+                    // page query unbound ("missing value for parameter $2"). The count query carries
+                    // no LIMIT/OFFSET parameters, so executing it afterward is safe.
                     var page = await ApplyArtistListOrdering(query, pagedRequest)
                         .Select(x => new Artist
                         {
@@ -495,15 +455,13 @@ public class ArtistSearchEngineService(
                             LastRefreshed = x.LastRefreshed
                         })
                         .Skip(pagedRequest.SkipValue)
-                        .Take(pageProbeSize)
+                        .Take(pagedRequest.TakeValue)
                         .ToArrayAsync(cancellationToken)
                         .ConfigureAwait(false);
 
-                    var hasMoreRows = page.Length > pagedRequest.TakeValue;
-                    artists = page.Take(pagedRequest.TakeValue).ToArray();
-                    totalCount = artists.Length == 0 && pagedRequest.SkipValue == 0
-                        ? 0
-                        : pagedRequest.SkipValue + artists.Length + (hasMoreRows ? 1 : 0);
+                    artists = page;
+
+                    totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
 
                     var artistIds = artists.Select(x => x.Id).ToArray();
                     if (artistIds.Length > 0)

@@ -93,6 +93,51 @@ public class DashboardHealthWarningEvaluatorTests
     }
 
     [Fact]
+    public void HasUnsupportedDecentDbIssue_WhenProviderReturnsError8_ReturnsTrue()
+    {
+        var issues = new[]
+        {
+            new DoctorCheckResult(
+                "MusicBrainzDatabase",
+                false,
+                "DecentDB error 8: Unsupported database format version: 13",
+                TimeSpan.Zero)
+        };
+
+        var result = DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(issues);
+
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetUnsupportedDecentDbIssues_WithMixedResults_ReturnsOnlyAffectedDatabases()
+    {
+        var unsupportedMusicBrainz = new DoctorCheckResult(
+            "MusicBrainzDatabase",
+            false,
+            "DecentDB error 8: Unsupported database format version: 13",
+            TimeSpan.Zero);
+        var issues = new[]
+        {
+            unsupportedMusicBrainz,
+            new DoctorCheckResult(
+                "ArtistSearchEngineDatabase",
+                true,
+                "DecentDB error 8 from an earlier probe",
+                TimeSpan.Zero),
+            new DoctorCheckResult(
+                "PostgresDatabase",
+                false,
+                "ERR_UNSUPPORTED_FORMAT_VERSION",
+                TimeSpan.Zero)
+        };
+
+        var result = DashboardHealthWarningEvaluator.GetUnsupportedDecentDbIssues(issues);
+
+        result.Should().ContainSingle().Which.Should().Be(unsupportedMusicBrainz);
+    }
+
+    [Fact]
     public void HasUnsupportedDecentDbIssue_WhenDifferentDoctorIssue_ReturnsFalse()
     {
         var issues = new[]
