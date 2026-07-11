@@ -1,3 +1,4 @@
+using DecentDB.Native;
 using Melodee.Common.Data;
 using Melodee.Common.Models.SearchEngines.ArtistSearchEngineServiceData;
 using Melodee.Common.Plugins.SearchEngine.MusicBrainz.Data;
@@ -156,7 +157,12 @@ public class DoctorServiceTests
 
             _musicBrainzDbContextFactory
                 .Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new InvalidOperationException("unsupported DecentDB file format version 11"));
+                .ThrowsAsync(new InvalidOperationException(
+                    "Failed to open database",
+                    new DecentDBException(
+                        8,
+                        "Unsupported database format version: 13",
+                        "Open(ReadOnly)")));
 
             var configuration = CreateConfiguration(new Dictionary<string, string?>
             {
@@ -171,7 +177,8 @@ public class DoctorServiceTests
             var musicBrainzCheck = Assert.Single(results, x => x.Name == "MusicBrainzDatabase");
             Assert.False(musicBrainzCheck.Success);
             Assert.Contains("not supported by the current DecentDB provider", musicBrainzCheck.Details);
-            Assert.Contains("unsupported DecentDB file format version 11", musicBrainzCheck.Details);
+            Assert.Contains("Run decentdb-migrate to upgrade the database", musicBrainzCheck.Details);
+            Assert.Contains("DecentDB error 8: Unsupported database format version: 13", musicBrainzCheck.Details);
         }
         finally
         {
@@ -505,6 +512,7 @@ public class DoctorServiceTests
 
             var artistSearchCheck = results.Checks.Single(x => x.Name == "ArtistSearchEngineDatabase");
             Assert.False(artistSearchCheck.Success);
+            Assert.Contains("Run decentdb-migrate to upgrade the database", artistSearchCheck.Details);
             Assert.Contains("unsupported database format version: 3", artistSearchCheck.Details);
         }
         finally
@@ -677,6 +685,8 @@ public class DoctorServiceTests
     {
         DeleteFileIfExists(path);
         DeleteFileIfExists($"{path}.wal");
+        DeleteFileIfExists($"{path}.coord");
+        DeleteFileIfExists($"{path}.wal-idx");
         DeleteFileIfExists($"{path}-wal");
         DeleteFileIfExists($"{path}.shm");
         DeleteFileIfExists($"{path}-shm");

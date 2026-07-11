@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Admin health checks now recognize DecentDB error 8 and automatically open a
+  migration dialog with the matching prebuilt release, configured source and
+  destination paths, copyable `decentdb-migrate` commands, verification steps,
+  safe replacement scripts, and links to the official DecentDB guidance.
 - Media Artist export/import: export all search-engine artist data (artists, albums,
   aliases) as JSON via the `/admin/mediaartists` page; import JSON exports with optional
   overwrite and full preview of artist/album/alias counts.

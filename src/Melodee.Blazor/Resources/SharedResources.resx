@@ -6895,7 +6895,7 @@ Common fixes:
   </data>
 
   <data name="Dashboard.DecentDbMigrationGuide" xml:space="preserve">
-    <value>Open DecentDB migration guide</value>
+    <value>Show DecentDB upgrade steps</value>
   </data>
 
   <data name="MediaArtists.Export" xml:space="preserve">
@@ -6928,5 +6928,133 @@ Common fixes:
 
   <data name="MediaArtists.ApplyImport" xml:space="preserve">
     <value>Apply Import</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.Title" xml:space="preserve">
+    <value>Upgrade DecentDB database</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.Intro" xml:space="preserve">
+    <value>DecentDB error 8 (Unsupported database format) means Melodee cannot open one or more local DecentDB files. Follow these steps to create an upgraded copy and safely replace the incompatible file.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.DownloadTitle" xml:space="preserve">
+    <value>Download decentdb-migrate</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.DownloadStep" xml:space="preserve">
+    <value>Download and extract the release archive for {0} and this server's operating system and architecture. The release archive includes decentdb-migrate.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.DownloadRelease" xml:space="preserve">
+    <value>Download a DecentDB release</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.OfficialGuide" xml:space="preserve">
+    <value>Open the official migration guide</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.BuildAlternative" xml:space="preserve">
+    <value>A prebuilt release is recommended. If you prefer to build from source, run this command from the DecentDB repository root; the executable will be written to target/release/decentdb-migrate:</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.BuildCommand" xml:space="preserve">
+    <value>Optional source-build command</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.StopTitle" xml:space="preserve">
+    <value>Stop Melodee</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.StopStep" xml:space="preserve">
+    <value>Stop every Melodee instance or process that can access the affected database before continuing. For a container deployment, run the tool where the displayed path resolves to the same mounted file, or substitute the host volume path.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.MigrateTitle" xml:space="preserve">
+    <value>Create an upgraded copy</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.MigrateStep" xml:space="preserve">
+    <value>Open a terminal in the extracted release directory and run each migration command below. decentdb-migrate reads the source and writes a new destination; the destination file and its .wal sidecar must not already exist.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.DetectedError" xml:space="preserve">
+    <value>Detected error</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.PathUnavailable" xml:space="preserve">
+    <value>Melodee could not read a Data Source path from this database's connection string. Open Admin &gt; Doctor, find the connection string path, and substitute that path in the official migration command.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.DatabasePath" xml:space="preserve">
+    <value>Configured database path</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.DestinationPath" xml:space="preserve">
+    <value>Migration destination</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.MigrationCommand" xml:space="preserve">
+    <value>Migration command</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.VerifyTitle" xml:space="preserve">
+    <value>Verify the upgraded copy</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.VerifyStep" xml:space="preserve">
+    <value>Confirm that the migration reports success, then open the new file with the decentdb executable from the same release.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.VerificationCommand" xml:space="preserve">
+    <value>Verification command</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.ExpectedOutput" xml:space="preserve">
+    <value>Do not replace the active database until the migration output ends with this confirmation:</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.ReplaceTitle" xml:space="preserve">
+    <value>Back up and replace the active file</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.ReplaceStep" xml:space="preserve">
+    <value>Keep Melodee stopped. This script moves the original database and its DecentDB sidecars into a timestamped backup directory, promotes the migrated database to the configured path, and carries forward the migrated WAL when present.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.ReplacementCommand" xml:space="preserve">
+    <value>Backup and replacement script</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.RestartTitle" xml:space="preserve">
+    <value>Restart and confirm</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.RestartStep" xml:space="preserve">
+    <value>Restart Melodee, open Admin &gt; Doctor, and confirm the MusicBrainzDatabase and ArtistSearchEngineDatabase checks pass. Keep the timestamped backup until normal operation is verified.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.SourceRepository" xml:space="preserve">
+    <value>Open the DecentDB source repository</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.BundledVersion" xml:space="preserve">
+    <value>the DecentDB version bundled with Melodee</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.CopyCommand" xml:space="preserve">
+    <value>Copy command</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.CommandCopied" xml:space="preserve">
+    <value>Command copied to the clipboard</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.UnsupportedSource" xml:space="preserve">
+    <value>If decentdb-migrate reports that the source format is unsupported or newer than its target format, do not replace the active file. Upgrade Melodee and DecentDB to a compatible version or rebuild the affected generated database instead.</value>
+  </data>
+
+  <data name="DecentDbMigrationDialog.EngineVersion" xml:space="preserve">
+    <value>DecentDB v{0}</value>
   </data>
 </root>

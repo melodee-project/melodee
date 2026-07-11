@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
+using DecentDB.Native;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data;
@@ -58,6 +59,7 @@ public sealed class DoctorService(
     private const long MemoryPressureWarningBytes = 500L * 1024 * 1024; // 500 MB
     private const long MemoryPressureCriticalBytes = 100L * 1024 * 1024; // 100 MB available
     private const int JobStalenessHours = 48; // Jobs should run within this period
+    private const int DecentDbUnsupportedFormatErrorCode = 8;
 
     public async Task<bool> NeedsAttentionAsync(CancellationToken cancellationToken = default)
     {
@@ -274,7 +276,9 @@ public sealed class DoctorService(
             {
                 var details = string.IsNullOrWhiteSpace(error)
                     ? $"Unable to query; {fileInfo}"
-                    : $"{error}; {fileInfo}";
+                    : IsUnsupportedDecentDbFormat(error)
+                        ? FormatDecentDbOpenFailure("MusicBrainz", error, fileInfo)
+                        : $"{error}; {fileInfo}";
                 return (new DoctorCheckResult("MusicBrainzDatabase", false, details, sw.Elapsed), true);
             }
 
@@ -323,7 +327,9 @@ public sealed class DoctorService(
                 ? $"OK; {fileInfo}"
                 : string.IsNullOrWhiteSpace(error)
                     ? $"Unable to query; {fileInfo}"
-                    : $"{error}; {fileInfo}";
+                    : IsUnsupportedDecentDbFormat(error)
+                        ? FormatDecentDbOpenFailure("ArtistSearch", error, fileInfo)
+                        : $"{error}; {fileInfo}";
 
             return new DoctorCheckResult("ArtistSearchEngineDatabase", canQuery, details, sw.Elapsed);
         }
@@ -589,18 +595,53 @@ public sealed class DoctorService(
     private static string FormatDecentDbOpenFailure(string databaseName, Exception exception, string fileInfo)
     {
         var message = FirstMessageLine(exception);
-        if (IsUnsupportedDecentDbFormat(message))
+        if (IsUnsupportedDecentDbFormat(exception))
         {
-            return $"{databaseName} DecentDB database uses a file format that is not supported by the current DecentDB provider. Rebuild the database or upgrade Melodee/DecentDB. Provider error: {message}; {fileInfo}";
+            return FormatDecentDbOpenFailure(databaseName, message, fileInfo);
         }
 
         return $"Unable to open {databaseName} DecentDB database: {message}; {fileInfo}";
     }
 
-    private static bool IsUnsupportedDecentDbFormat(string message)
+    private static string FormatDecentDbOpenFailure(string databaseName, string message, string fileInfo)
     {
-        return message.Contains("unsupported", StringComparison.OrdinalIgnoreCase) &&
-               message.Contains("format", StringComparison.OrdinalIgnoreCase);
+        return $"{databaseName} DecentDB database uses a file format that is not supported by the current DecentDB provider. Run decentdb-migrate to upgrade the database. Provider error: {FirstMessageLine(message)}; {fileInfo}";
+    }
+
+    private static bool IsUnsupportedDecentDbFormat(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DecentDBException { ErrorCode: DecentDbUnsupportedFormatErrorCode })
+            {
+                return true;
+            }
+
+            if (current is DecentDBException decentDbException &&
+                string.Equals(
+                    decentDbException.Diagnostic?.Subcode,
+                    "format.unsupported_version",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (IsUnsupportedDecentDbFormat(current.Message))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsUnsupportedDecentDbFormat(string? message)
+    {
+        return !string.IsNullOrWhiteSpace(message) &&
+               (message.Contains("ERR_UNSUPPORTED_FORMAT_VERSION", StringComparison.OrdinalIgnoreCase) ||
+                ((message.Contains("unsupported", StringComparison.OrdinalIgnoreCase) ||
+                  message.Contains("not supported", StringComparison.OrdinalIgnoreCase)) &&
+                 message.Contains("format", StringComparison.OrdinalIgnoreCase)));
     }
 
     private static string FirstMessageLine(Exception exception)
@@ -608,7 +649,12 @@ public sealed class DoctorService(
         var message = exception.GetBaseException().Message;
         return string.IsNullOrWhiteSpace(message)
             ? exception.GetType().Name
-            : message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? message;
+            : FirstMessageLine(message);
+    }
+
+    private static string FirstMessageLine(string message)
+    {
+        return message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? message;
     }
 
     private async Task<bool> HasMusicBrainzConnectionIssuesAsync(CancellationToken cancellationToken)

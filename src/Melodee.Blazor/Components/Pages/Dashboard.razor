@@ -23,6 +23,7 @@
 @inject IMelodeeConfigurationFactory ConfigurationFactory
 @inject NavigationManager NavigationManager
 @inject IDoctorService DoctorService
+@inject DialogService DialogService
 @inject AuthenticationStateProvider DashboardAuthenticationStateProvider
 @inject MainLayoutProxyService MainLayoutProxyService
 
@@ -56,13 +57,14 @@
           }
           @if (DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_healthIssues))
           {
-            <a href="@DashboardHealthWarningEvaluator.DecentDbMigrationGuideUrl"
-               target="_blank"
-               rel="noopener noreferrer"
-               @onclick:stopPropagation="true"
-               style="color: var(--rz-danger-darker); font-weight: 600;">
-              @L("Dashboard.DecentDbMigrationGuide")
-            </a>
+            <div @onclick:stopPropagation="true">
+              <RadzenButton Text="@L("Dashboard.DecentDbMigrationGuide")"
+                            Icon="upgrade"
+                            Size="ButtonSize.Small"
+                            ButtonStyle="ButtonStyle.Danger"
+                            Variant="Variant.Outlined"
+                            Click="@OpenDecentDbMigrationDialogAsync"/>
+            </div>
           }
         </RadzenStack>
         <RadzenIcon Icon="arrow_forward" Style="font-size: 1.5rem; color: var(--rz-danger);"/>
@@ -369,6 +371,8 @@
     private Melodee.Common.Services.Doctor.DoctorCheckResult[] _healthIssues = [];
     private bool _showHealthWarning;
     private bool _isAdmin;
+    private bool _openDecentDbMigrationDialogAfterRender;
+    private bool _hasOpenedDecentDbMigrationDialog;
 
     private bool _healthLoading = true;
     private bool _pinsLoading = true;
@@ -426,6 +430,13 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         await base.OnAfterRenderAsync(firstRender);
+
+        if (_openDecentDbMigrationDialogAfterRender && !_hasOpenedDecentDbMigrationDialog)
+        {
+            _openDecentDbMigrationDialogAfterRender = false;
+            _hasOpenedDecentDbMigrationDialog = true;
+            await OpenDecentDbMigrationDialogAsync();
+        }
 
         if (!firstRender)
         {
@@ -490,11 +501,15 @@
         {
             _healthIssues = (await DashboardHealthWarningEvaluator.GetIssuesAsync(CurrentUser, DoctorService)).ToArray();
             _showHealthWarning = _healthIssues.Length > 0;
+            _openDecentDbMigrationDialogAfterRender =
+                !_hasOpenedDecentDbMigrationDialog &&
+                DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_healthIssues);
         }
         catch
         {
             _healthIssues = [];
             _showHealthWarning = false;
+            _openDecentDbMigrationDialogAfterRender = false;
         }
         finally
         {
@@ -723,8 +738,21 @@
             _isAdmin = authenticationState.User.IsAdmin();
             _healthIssues = (await DashboardHealthWarningEvaluator.GetIssuesAsync(authenticationState.User, DoctorService)).ToArray();
             _showHealthWarning = _healthIssues.Length > 0;
+            _openDecentDbMigrationDialogAfterRender =
+                !_hasOpenedDecentDbMigrationDialog &&
+                DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_healthIssues);
             StateHasChanged();
         });
+    }
+
+    private Task OpenDecentDbMigrationDialogAsync()
+    {
+        var issues = DashboardHealthWarningEvaluator.GetUnsupportedDecentDbIssues(_healthIssues);
+        return issues.Count == 0
+            ? Task.CompletedTask
+            : DialogService.OpenDecentDbMigrationDialogAsync(
+                L("DecentDbMigrationDialog.Title"),
+                issues);
     }
 
     private string FormatHealthIssue(Melodee.Common.Services.Doctor.DoctorCheckResult issue)

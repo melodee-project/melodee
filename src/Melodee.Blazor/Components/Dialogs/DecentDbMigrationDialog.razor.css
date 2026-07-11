@@ -1,0 +1,81 @@
+.decentdb-migration-dialog {
+    max-height: 76vh;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.migration-steps {
+    display: grid;
+    gap: 1.25rem;
+    margin: 0;
+    padding-inline-start: 1.5rem;
+}
+
+.migration-steps > li {
+    padding-inline-start: 0.35rem;
+}
+
+.migration-target {
+    min-width: 0;
+}
+
+.error-details {
+    overflow-wrap: anywhere;
+}
+
+.migration-paths {
+    display: grid;
+    gap: 0.35rem 0.75rem;
+    grid-template-columns: max-content minmax(0, 1fr);
+    margin: 0;
+}
+
+.migration-paths dt {
+    font-weight: 600;
+}
+
+.migration-paths dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.migration-paths code,
+.migration-output,
+.decentdb-command-block pre {
+    direction: ltr;
+    text-align: left;
+}
+
+.migration-output {
+    background: var(--rz-base-100);
+    border: 1px solid var(--rz-base-300);
+    border-radius: var(--rz-border-radius);
+    margin: 0;
+    overflow-x: auto;
+    padding: 0.75rem;
+    white-space: pre;
+}
+
+.decentdb-command-block {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.decentdb-command-block pre {
+    background: var(--rz-base-100);
+    border: 1px solid var(--rz-base-300);
+    border-radius: var(--rz-border-radius);
+    margin: 0;
+    max-height: 260px;
+    overflow: auto;
+    padding: 0.75rem;
+    white-space: pre;
+}
+
+@media (max-width: 600px) {
+    .migration-paths {
+        grid-template-columns: 1fr;
+    }
+}

@@ -29,6 +29,7 @@
 @inject ISchedulerFactory SchedulerFactory
 @inject NavigationManager NavigationManager
 @inject IDoctorService DoctorService
+@inject DialogService DialogService
 @inject IJSRuntime JSRuntime
 @inject Serilog.ILogger Logger
 
@@ -65,14 +66,14 @@
                         @FormatHealthIssue(issue)
                     </RadzenText>
                 }
-                @if (DashboardHealthWarningEvaluator.HasUnsupportedDecentDbIssue(_systemHealthIssues))
+                @if (_decentDbMigrationIssues.Length > 0)
                 {
-                    <a href="@DashboardHealthWarningEvaluator.DecentDbMigrationGuideUrl"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       style="font-weight: 600;">
-                        @L("Dashboard.DecentDbMigrationGuide")
-                    </a>
+                    <RadzenButton Text="@L("Dashboard.DecentDbMigrationGuide")"
+                                  Icon="upgrade"
+                                  Click="@OpenDecentDbMigrationDialogAsync"
+                                  Size="ButtonSize.Small"
+                                  ButtonStyle="ButtonStyle.Danger"
+                                  Variant="Variant.Outlined"/>
                 }
                 <RadzenButton Text="@L("Navigation.Doctor")"
                               Icon="health_and_safety"
@@ -532,8 +533,11 @@
     private string _apiVersion = "---";
     private string _osDescription = "---";
     private Melodee.Common.Services.Doctor.DoctorCheckResult[] _systemHealthIssues = [];
+    private Melodee.Common.Services.Doctor.DoctorCheckResult[] _decentDbMigrationIssues = [];
     private bool _systemHealthy = true;
     private bool _isCheckingHealth = true;
+    private bool _openDecentDbMigrationDialogAfterRender;
+    private bool _hasOpenedDecentDbMigrationDialog;
 
     private LocalDate _rangeStart;
     private LocalDate _rangeEnd;
@@ -546,6 +550,18 @@
         
         // Fire and forget health check - don't block dashboard rendering
         _ = CheckSystemHealthAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (_openDecentDbMigrationDialogAfterRender && !_hasOpenedDecentDbMigrationDialog)
+        {
+            _openDecentDbMigrationDialogAfterRender = false;
+            _hasOpenedDecentDbMigrationDialog = true;
+            await OpenDecentDbMigrationDialogAsync();
+        }
     }
 
     private async Task RefreshDashboard()
@@ -679,10 +695,18 @@
         {
             var results = await DoctorService.RunAllChecksAsync();
             _systemHealthIssues = results.Checks.Where(c => !c.Success).Take(5).ToArray();
+            _decentDbMigrationIssues = DashboardHealthWarningEvaluator
+                .GetUnsupportedDecentDbIssues(results.Checks)
+                .ToArray();
             _systemHealthy = _systemHealthIssues.Length == 0;
+            _openDecentDbMigrationDialogAfterRender =
+                !_hasOpenedDecentDbMigrationDialog &&
+                _decentDbMigrationIssues.Length > 0;
         }
         catch
         {
+            _decentDbMigrationIssues = [];
+            _openDecentDbMigrationDialogAfterRender = false;
             _systemHealthIssues =
             [
                 new Melodee.Common.Services.Doctor.DoctorCheckResult(
@@ -698,6 +722,15 @@
             _isCheckingHealth = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private Task OpenDecentDbMigrationDialogAsync()
+    {
+        return _decentDbMigrationIssues.Length == 0
+            ? Task.CompletedTask
+            : DialogService.OpenDecentDbMigrationDialogAsync(
+                L("DecentDbMigrationDialog.Title"),
+                _decentDbMigrationIssues);
     }
 
     private string FormatHealthIssue(Melodee.Common.Services.Doctor.DoctorCheckResult issue)

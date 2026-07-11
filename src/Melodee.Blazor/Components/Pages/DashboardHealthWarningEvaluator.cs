@@ -7,8 +7,6 @@ namespace Melodee.Blazor.Components.Pages;
 
 internal static class DashboardHealthWarningEvaluator
 {
-    public const string DecentDbMigrationGuideUrl = "https://melodee.org/decentdb/";
-
     public static Task<bool> ShouldShowAsync(ClaimsPrincipal? user, BlazorDoctorService doctorService, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(doctorService);
@@ -34,11 +32,36 @@ internal static class DashboardHealthWarningEvaluator
     {
         ArgumentNullException.ThrowIfNull(issues);
 
-        return issues.Any(issue =>
-            IsDecentDbCheck(issue.Name) &&
-            issue.Details.Contains("DecentDB", StringComparison.OrdinalIgnoreCase) &&
-            issue.Details.Contains("file format", StringComparison.OrdinalIgnoreCase) &&
-            issue.Details.Contains("not supported", StringComparison.OrdinalIgnoreCase));
+        return issues.Any(IsUnsupportedDecentDbIssue);
+    }
+
+    public static IReadOnlyList<DoctorCheckResult> GetUnsupportedDecentDbIssues(IEnumerable<DoctorCheckResult> issues)
+    {
+        ArgumentNullException.ThrowIfNull(issues);
+
+        return issues.Where(IsUnsupportedDecentDbIssue).ToArray();
+    }
+
+    private static bool IsUnsupportedDecentDbIssue(DoctorCheckResult issue)
+    {
+        if (issue.Success || !IsDecentDbCheck(issue.Name))
+        {
+            return false;
+        }
+
+        var details = issue.Details;
+        if (details.Contains("ERR_UNSUPPORTED_FORMAT_VERSION", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var describesUnsupportedFormat =
+            details.Contains("unsupported", StringComparison.OrdinalIgnoreCase) ||
+            details.Contains("not supported", StringComparison.OrdinalIgnoreCase);
+
+        return details.Contains("DecentDB", StringComparison.OrdinalIgnoreCase) &&
+               describesUnsupportedFormat &&
+               details.Contains("format", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsDecentDbCheck(string checkName)
