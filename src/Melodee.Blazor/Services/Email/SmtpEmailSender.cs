@@ -2,7 +2,6 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
-using Melodee.Common.Utility;
 using MimeKit;
 using ILogger = Serilog.ILogger;
 
@@ -99,27 +98,24 @@ public sealed class SmtpEmailSender : IEmailSender
                 await client.SendAsync(message, cancellationToken);
                 await client.DisconnectAsync(true, cancellationToken);
 
-                _logger.Information("Email sent successfully. Subject: {Subject}",
-                    LogSanitizer.Sanitize(subject));
+                _logger.Information("Email sent successfully.");
 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex,
-                    "SMTP error sending email. Host: {Host}, Port: {Port}, SSL: {SSL}, StartTLS: {StartTLS}, Exception: {ExceptionType}, Message: {Message}",
-                    smtpHost,
+                _logger.Error(
+                    "SMTP error sending email. Port: {Port}, SSL: {SSL}, StartTLS: {StartTLS}, Exception type: {ExceptionType}",
                     smtpPort,
                     smtpUseSsl,
                     smtpUseStartTls,
-                    ex.GetType().Name,
-                    ex.Message);
+                    ex.GetType().Name);
                 return false;
             }
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to send email. Exception: {ExceptionType}",
+            _logger.Error("Failed to send email. Exception type: {ExceptionType}",
                 ex.GetType().Name);
             return false;
         }

@@ -46,14 +46,48 @@ Examples:
 """
 
 import os
-import secrets
 import re
+import secrets
 import shutil
 import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+if __package__:
+    from .private_config import (
+        existing_private_file_message,
+        path_entry_exists,
+        path_entry_is_regular_file,
+        path_entry_is_symlink,
+        private_file_created_message,
+        secure_existing_private_file,
+        write_private_file,
+    )
+else:
+    _PRIVATE_CONFIG_PATH = Path(__file__).resolve().with_name("private_config.py")
+    _SCRIPT_DIRECTORY = str(_PRIVATE_CONFIG_PATH.parent)
+    if _SCRIPT_DIRECTORY not in sys.path:
+        sys.path.insert(0, _SCRIPT_DIRECTORY)
+    import private_config as _private_config_module
+
+    if Path(_private_config_module.__file__).resolve() != _PRIVATE_CONFIG_PATH:
+        raise ImportError(
+            f"Refusing non-sibling private_config module at "
+            f"{_private_config_module.__file__}"
+        )
+    from private_config import (
+        existing_private_file_message,
+        path_entry_exists,
+        path_entry_is_regular_file,
+        path_entry_is_symlink,
+        private_file_created_message,
+        secure_existing_private_file,
+        write_private_file,
+    )
+
+    del _private_config_module
 
 
 def print_help():
@@ -96,11 +130,13 @@ REQUIRED_FILES = ["Dockerfile", "compose.yml", "entrypoint.sh"]
 DEFAULT_PORT = 8080
 
 
-def check_disk_space(project_root: Path, min_gb: int = MIN_DISK_SPACE_GB) -> tuple[bool, str]:
+def check_disk_space(
+    project_root: Path, min_gb: int = MIN_DISK_SPACE_GB
+) -> tuple[bool, str]:
     """Check if there's enough disk space for containers."""
     try:
         stat = os.statvfs(project_root)
-        free_gb = (stat.f_bavail * stat.f_frsize) / (1024 ** 3)
+        free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
         if free_gb < min_gb:
             return False, f"Only {free_gb:.1f}GB free, need at least {min_gb}GB"
         return True, f"{free_gb:.1f}GB available"
@@ -115,9 +151,12 @@ def check_memory() -> tuple[bool, str]:
             for line in f:
                 if line.startswith("MemTotal:"):
                     kb = int(line.split()[1])
-                    gb = kb / (1024 ** 2)
+                    gb = kb / (1024**2)
                     if gb < MIN_MEMORY_GB:
-                        return False, f"Only {gb:.1f}GB RAM, need at least {MIN_MEMORY_GB}GB"
+                        return (
+                            False,
+                            f"Only {gb:.1f}GB RAM, need at least {MIN_MEMORY_GB}GB",
+                        )
                     return True, f"{gb:.1f}GB RAM available"
     except (OSError, ValueError):
         pass
@@ -130,7 +169,7 @@ def check_port_available(port: int) -> tuple[bool, str]:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1)
-            result = s.connect_ex(('localhost', port))
+            result = s.connect_ex(("localhost", port))
             if result == 0:
                 return False, f"Port {port} is already in use"
             return True, f"Port {port} is available"
@@ -183,7 +222,10 @@ def check_compose_valid(project_root: Path) -> tuple[bool, str]:
 
     # Check for localhost/ prefix (podman compatibility)
     if "image: melodee:latest" in content and "localhost/melodee:latest" not in content:
-        return False, "compose.yml should use 'localhost/melodee:latest' for Podman compatibility"
+        return (
+            False,
+            "compose.yml should use 'localhost/melodee:latest' for Podman compatibility",
+        )
 
     return True, "compose.yml looks valid"
 
@@ -242,7 +284,7 @@ def run_preflight_checks(project_root: Path, port: int = DEFAULT_PORT) -> bool:
         print_success(port_msg)
     else:
         print_warning(port_msg)
-        print_info(f"  You can change the port in .env file (MELODEE_PORT)")
+        print_info("  You can change the port in .env file (MELODEE_PORT)")
 
     print()
     return all_passed
@@ -385,7 +427,9 @@ def offer_install_podman() -> str | None:
         elif os_type == "windows":
             print_error("Automatic installation not supported on Windows")
             print_info("Please install Podman Desktop: https://podman-desktop.io")
-            print_info("Or Docker Desktop: https://www.docker.com/products/docker-desktop")
+            print_info(
+                "Or Docker Desktop: https://www.docker.com/products/docker-desktop"
+            )
         else:
             print_error(f"Automatic installation not supported for {os_id}")
             print_info("Please install podman or docker manually")
@@ -398,7 +442,7 @@ def offer_install_podman() -> str | None:
 
     response = input("  Would you like to install podman now? (y/N): ").strip().lower()
 
-    if response != 'y':
+    if response != "y":
         print_info("Installation cancelled")
         return None
 
@@ -423,13 +467,10 @@ def detect_container_runtime() -> str | None:
         if shutil.which(runtime):
             try:
                 result = subprocess.run(
-                    [runtime, "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
+                    [runtime, "--version"], capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0:
-                    version_info = result.stdout.strip().split('\n')[0]
+                    version_info = result.stdout.strip().split("\n")[0]
                     print_success(f"Found {runtime}: {version_info}")
                     return runtime
             except (subprocess.TimeoutExpired, OSError):
@@ -441,13 +482,10 @@ def check_compose_available(runtime: str) -> bool:
     """Check if compose is available for the detected runtime."""
     try:
         result = subprocess.run(
-            [runtime, "compose", "version"],
-            capture_output=True,
-            text=True,
-            timeout=10
+            [runtime, "compose", "version"], capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0:
-            version_info = result.stdout.strip().split('\n')[0]
+            version_info = result.stdout.strip().split("\n")[0]
             print_success(f"Found compose: {version_info}")
             return True
     except (subprocess.TimeoutExpired, OSError):
@@ -460,14 +498,14 @@ def check_compose_available(runtime: str) -> bool:
                 ["docker-compose", "--version"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             if result.returncode == 0:
                 print_success(f"Found docker-compose: {result.stdout.strip()}")
                 return True
         except (subprocess.TimeoutExpired, OSError):
             pass
-    
+
     # Try podman-compose as fallback for podman
     if runtime == "podman" and shutil.which("podman-compose"):
         try:
@@ -475,18 +513,16 @@ def check_compose_available(runtime: str) -> bool:
                 ["podman-compose", "--version"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             if result.returncode == 0:
-                version_info = result.stdout.strip().split('\n')[0]
+                version_info = result.stdout.strip().split("\n")[0]
                 print_success(f"Found podman-compose: {version_info}")
                 return True
         except (subprocess.TimeoutExpired, OSError):
             pass
 
     return False
-
-
 
 
 def parse_human_size_to_bytes(size_str: str) -> int:
@@ -507,10 +543,10 @@ def parse_human_size_to_bytes(size_str: str) -> int:
     multipliers = {
         "B": 1,
         "KB": 1024,
-        "MB": 1024 ** 2,
-        "GB": 1024 ** 3,
-        "TB": 1024 ** 4,
-        "PB": 1024 ** 5,
+        "MB": 1024**2,
+        "GB": 1024**3,
+        "TB": 1024**4,
+        "PB": 1024**5,
     }
     return int(val * multipliers.get(unit, 1))
 
@@ -520,7 +556,15 @@ def list_dangling_images(runtime: str) -> list[dict]:
     if runtime not in ("podman", "docker"):
         return []
 
-    cmd = [runtime, "images", "-a", "--filter", "dangling=true", "--format", "{{.ID}}\t{{.Size}}\t{{.CreatedSince}}"]
+    cmd = [
+        runtime,
+        "images",
+        "-a",
+        "--filter",
+        "dangling=true",
+        "--format",
+        "{{.ID}}\t{{.Size}}\t{{.CreatedSince}}",
+    ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if result.returncode != 0:
@@ -534,12 +578,14 @@ def list_dangling_images(runtime: str) -> list[dict]:
             size_str = parts[1].strip()
             created = parts[2].strip() if len(parts) > 2 else ""
             if img_id:
-                images.append({
-                    "id": img_id,
-                    "size_str": size_str,
-                    "size_bytes": parse_human_size_to_bytes(size_str),
-                    "created": created,
-                })
+                images.append(
+                    {
+                        "id": img_id,
+                        "size_str": size_str,
+                        "size_bytes": parse_human_size_to_bytes(size_str),
+                        "created": created,
+                    }
+                )
         return images
     except (subprocess.TimeoutExpired, OSError):
         return []
@@ -565,26 +611,36 @@ def prune_container_storage(runtime: str, prune_all: bool, skip_confirm: bool) -
     print("-" * 60 + "\n")
 
     if prune_all:
-        print_warning(f"{runtime}: Aggressive prune will remove ALL unused images/containers/networks (volumes are kept)")
+        print_warning(
+            f"{runtime}: Aggressive prune will remove ALL unused images/containers/networks (volumes are kept)"
+        )
     else:
         if dangling_count == 0:
             print_info(f"{runtime}: No dangling images found")
         else:
-            approx_gb = dangling_bytes / (1024 ** 3) if dangling_bytes else 0
+            approx_gb = dangling_bytes / (1024**3) if dangling_bytes else 0
             if approx_gb > 0:
-                print_info(f"{runtime}: Found {dangling_count} dangling images (≈ {approx_gb:.1f}GB)")
+                print_info(
+                    f"{runtime}: Found {dangling_count} dangling images (≈ {approx_gb:.1f}GB)"
+                )
             else:
                 print_info(f"{runtime}: Found {dangling_count} dangling images")
 
     if not skip_confirm:
         if prune_all:
-            response = input("  Prune unused images/containers now? (y/N): ").strip().lower()
-            if response != 'y':
+            response = (
+                input("  Prune unused images/containers now? (y/N): ").strip().lower()
+            )
+            if response != "y":
                 print_info("Cleanup skipped")
                 return True
         else:
-            response = input("  Prune dangling images/build cache now? (Y/n): ").strip().lower()
-            if response == 'n':
+            response = (
+                input("  Prune dangling images/build cache now? (Y/n): ")
+                .strip()
+                .lower()
+            )
+            if response == "n":
                 print_info("Cleanup skipped")
                 return True
     else:
@@ -628,14 +684,18 @@ def maybe_suggest_prune(runtime: str):
 
     dangling_count = len(dangling)
     dangling_bytes = sum(x.get("size_bytes", 0) for x in dangling)
-    approx_gb = dangling_bytes / (1024 ** 3) if dangling_bytes else 0
+    approx_gb = dangling_bytes / (1024**3) if dangling_bytes else 0
 
     # Heuristic: warn if more than a few images or > 1GB (approx)
     if dangling_count >= 5 or approx_gb >= 1.0:
         print()
-        print_warning("Container builds can accumulate untagged (dangling) images over time and consume disk space.")
+        print_warning(
+            "Container builds can accumulate untagged (dangling) images over time and consume disk space."
+        )
         if approx_gb > 0:
-            print_info(f"Detected {dangling_count} dangling images (≈ {approx_gb:.1f}GB).")
+            print_info(
+                f"Detected {dangling_count} dangling images (≈ {approx_gb:.1f}GB)."
+            )
 
         if runtime == "podman":
             print_info("To clean up safely:")
@@ -645,7 +705,10 @@ def maybe_suggest_prune(runtime: str):
             print_info("To clean up safely:")
             print("    docker image prune")
             print("    docker builder prune -a")
-        print_info("Or re-run this script with --prune (or --prune-all for a more aggressive cleanup).\n")
+        print_info(
+            "Or re-run this script with --prune (or --prune-all for a more aggressive cleanup).\n"
+        )
+
 
 def generate_secure_password(length: int = 32) -> str:
     """Generate a secure random password."""
@@ -664,16 +727,29 @@ def get_project_root() -> Path:
 
 
 def create_env_file(project_root: Path, overwrite: bool = False) -> bool:
-    """Create the .env file with generated secrets."""
+    """Securely create a .env file, using POSIX mode 0600."""
     env_file = project_root / ".env"
-    example_env = project_root / "example.env"
+    replace_existing = overwrite
 
-    if env_file.exists() and not overwrite:
-        print_info(f".env file already exists at {env_file}")
-        response = input("  Overwrite? (y/N): ").strip().lower()
-        if response != 'y':
-            print_info("Keeping existing .env file")
-            return True
+    if path_entry_exists(env_file):
+        if path_entry_is_symlink(env_file):
+            print_error("Refusing to use .env because it is a symbolic link")
+            return False
+        if not path_entry_is_regular_file(env_file):
+            print_error("Refusing to use .env because it is not a regular file")
+            return False
+        if not overwrite:
+            print_info(f".env file already exists at {env_file}")
+            response = input("  Overwrite? (y/N): ").strip().lower()
+            if response != "y":
+                try:
+                    secure_existing_private_file(env_file)
+                except (OSError, NotImplementedError) as error:
+                    print_error(f"Failed to secure existing .env file: {error}")
+                    return False
+                print_info(existing_private_file_message("existing .env file"))
+                return True
+            replace_existing = True
 
     # Generate secure values
     db_password = generate_secure_password()
@@ -709,10 +785,14 @@ BRAVE_SEARCH__IMAGESEARCHPATH=/res/v1/images/search
 """
 
     try:
-        env_file.write_text(env_content)
-        print_success(f"Created .env file at {env_file}")
+        write_private_file(
+            env_file,
+            env_content,
+            overwrite=replace_existing,
+        )
+        print_success(private_file_created_message(f".env file at {env_file}"))
         return True
-    except OSError as e:
+    except (OSError, ValueError) as e:
         print_error(f"Failed to create .env file: {e}")
         return False
 
@@ -742,7 +822,7 @@ def is_rootless_podman(runtime: str) -> bool:
             ["podman", "info", "--format", "{{.Host.Security.Rootless}}"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
         if result.returncode == 0:
             return result.stdout.strip().lower() == "true"
@@ -757,7 +837,8 @@ def check_melodee_user_exists() -> bool:
     """Check if melodee system user exists on the host."""
     try:
         import pwd
-        pwd.getpwnam('melodee')
+
+        pwd.getpwnam("melodee")
         return True
     except KeyError:
         return False
@@ -796,21 +877,35 @@ def offer_create_melodee_user() -> bool:
 
     if check_melodee_user_exists():
         print_success("Melodee user already exists on this system")
-        response = input("\n  Use melodee user instead of current user? (Y/n): ").strip().lower()
-        return response != 'n'
+        response = (
+            input("\n  Use melodee user instead of current user? (Y/n): ")
+            .strip()
+            .lower()
+        )
+        return response != "n"
 
-    response = input("\n  Create dedicated melodee system user? (y/N): ").strip().lower()
+    response = (
+        input("\n  Create dedicated melodee system user? (y/N): ").strip().lower()
+    )
 
-    if response == 'y':
+    if response == "y":
         print_info("\nCreating melodee system user...")
         print_info("You will be prompted for sudo password\n")
 
         try:
             # Create system user with home directory
             subprocess.run(
-                ["sudo", "useradd", "--system", "--create-home", "--shell", "/bin/bash", "melodee"],
+                [
+                    "sudo",
+                    "useradd",
+                    "--system",
+                    "--create-home",
+                    "--shell",
+                    "/bin/bash",
+                    "melodee",
+                ],
                 check=True,
-                timeout=30
+                timeout=30,
             )
             print_success("Created melodee system user")
 
@@ -818,11 +913,13 @@ def offer_create_melodee_user() -> bool:
             subprocess.run(
                 ["sudo", "usermod", "-aG", "melodee", current_user],
                 check=True,
-                timeout=10
+                timeout=10,
             )
             print_success(f"Added {current_user} to melodee group")
 
-            print_warning(f"\nYou need to log out and back in for group membership to take effect")
+            print_warning(
+                "\nYou need to log out and back in for group membership to take effect"
+            )
             print_info("Or run: newgrp melodee")
 
             return True
@@ -839,7 +936,9 @@ def offer_create_melodee_user() -> bool:
     return False
 
 
-def create_compose_override_for_rootless(project_root: Path, use_melodee_user: bool = False) -> bool:
+def create_compose_override_for_rootless(
+    project_root: Path, use_melodee_user: bool = False
+) -> bool:
     """
     Create compose.override.yml for rootless podman to fix permission issues.
 
@@ -860,7 +959,8 @@ def create_compose_override_for_rootless(project_root: Path, use_melodee_user: b
         # Get melodee user's UID and GID
         try:
             import pwd
-            melodee_user = pwd.getpwnam('melodee')
+
+            melodee_user = pwd.getpwnam("melodee")
             uid = melodee_user.pw_uid
             gid = melodee_user.pw_gid
             user_desc = "melodee system user"
@@ -892,7 +992,9 @@ services:
 
     try:
         override_file.write_text(override_content)
-        print_success(f"Created compose.override.yml for rootless podman (UID={uid}, GID={gid})")
+        print_success(
+            f"Created compose.override.yml for rootless podman (UID={uid}, GID={gid})"
+        )
         print_info(f"  Files in volumes will be owned by {user_desc}")
         return True
     except OSError as e:
@@ -911,7 +1013,9 @@ def ensure_gitignore_has_override(project_root: Path):
     if "compose.override.yml" not in content:
         print_info("Adding compose.override.yml to .gitignore")
         with gitignore.open("a") as f:
-            f.write("\n# Compose override (user-specific for rootless podman)\ncompose.override.yml\n")
+            f.write(
+                "\n# Compose override (user-specific for rootless podman)\ncompose.override.yml\n"
+            )
         print_success("Updated .gitignore")
 
 
@@ -921,9 +1025,7 @@ def get_compose_command(runtime: str) -> list[str]:
     if runtime == "podman":
         try:
             result = subprocess.run(
-                ["podman", "compose", "version"],
-                capture_output=True,
-                timeout=10
+                ["podman", "compose", "version"], capture_output=True, timeout=10
             )
             if result.returncode == 0:
                 return ["podman", "compose"]
@@ -948,7 +1050,7 @@ def start_containers(runtime: str, project_root: Path) -> bool:
         result = subprocess.run(
             [*compose_cmd, "build"],
             cwd=project_root,
-            timeout=900  # 15 minute timeout for build
+            timeout=900,  # 15 minute timeout for build
         )
         if result.returncode != 0:
             print_error("Failed to build container image")
@@ -969,7 +1071,7 @@ def start_containers(runtime: str, project_root: Path) -> bool:
         result = subprocess.run(
             [*compose_cmd, "up", "-d"],
             cwd=project_root,
-            timeout=600  # 10 minute timeout for start (slower boxes need more time)
+            timeout=600,  # 10 minute timeout for start (slower boxes need more time)
         )
         if result.returncode != 0:
             print_error("Failed to start containers")
@@ -1001,7 +1103,7 @@ def wait_for_healthy(runtime: str, project_root: Path, timeout: int = 600) -> bo
                     health_result = subprocess.run(
                         ["curl", "-fsS", "http://localhost:8080/health"],
                         capture_output=True,
-                        timeout=5
+                        timeout=5,
                     )
                     if health_result.returncode == 0:
                         if not app_healthy:
@@ -1009,7 +1111,7 @@ def wait_for_healthy(runtime: str, project_root: Path, timeout: int = 600) -> bo
                         app_healthy = True
                 except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
                     pass
-            
+
             # Check database health via podman/docker inspect
             if not db_healthy:
                 try:
@@ -1019,18 +1121,21 @@ def wait_for_healthy(runtime: str, project_root: Path, timeout: int = 600) -> bo
                         cwd=project_root,
                         capture_output=True,
                         text=True,
-                        timeout=10
+                        timeout=10,
                     )
                     if ps_result.returncode == 0 and ps_result.stdout.strip():
-                        container_id = ps_result.stdout.strip().split('\n')[0]
-                        
+                        container_id = ps_result.stdout.strip().split("\n")[0]
+
                         # Check health status with podman/docker inspect
-                        inspect_cmd = [compose_cmd[0], "inspect", "--format", "{{.State.Health.Status}}", container_id]
+                        inspect_cmd = [
+                            compose_cmd[0],
+                            "inspect",
+                            "--format",
+                            "{{.State.Health.Status}}",
+                            container_id,
+                        ]
                         inspect_result = subprocess.run(
-                            inspect_cmd,
-                            capture_output=True,
-                            text=True,
-                            timeout=10
+                            inspect_cmd, capture_output=True, text=True, timeout=10
                         )
                         if inspect_result.returncode == 0:
                             health_status = inspect_result.stdout.strip()
@@ -1040,7 +1145,7 @@ def wait_for_healthy(runtime: str, project_root: Path, timeout: int = 600) -> bo
                                 db_healthy = True
                 except (subprocess.TimeoutExpired, OSError):
                     pass
-            
+
             # If both are healthy, we're done
             if db_healthy and app_healthy:
                 return True
@@ -1077,9 +1182,7 @@ def show_container_logs(runtime: str, project_root: Path, lines: int = 50):
 
     try:
         subprocess.run(
-            [*compose_cmd, "logs", "--tail", str(lines)],
-            cwd=project_root,
-            timeout=30
+            [*compose_cmd, "logs", "--tail", str(lines)], cwd=project_root, timeout=30
         )
     except (subprocess.TimeoutExpired, OSError) as e:
         print_error(f"Failed to retrieve logs: {e}")
@@ -1088,21 +1191,22 @@ def show_container_logs(runtime: str, project_root: Path, lines: int = 50):
 def get_expected_version(project_root: Path) -> str | None:
     """Extract the version from Melodee.Blazor.csproj file."""
     csproj_path = project_root / "src" / "Melodee.Blazor" / "Melodee.Blazor.csproj"
-    
+
     if not csproj_path.exists():
         return None
-    
+
     try:
         import xml.etree.ElementTree as ET
+
         tree = ET.parse(csproj_path)
         root = tree.getroot()
-        
+
         # Find VersionPrefix element
-        for prop_group in root.findall('.//PropertyGroup'):
-            version_prefix = prop_group.find('VersionPrefix')
+        for prop_group in root.findall(".//PropertyGroup"):
+            version_prefix = prop_group.find("VersionPrefix")
             if version_prefix is not None and version_prefix.text:
                 return version_prefix.text.strip()
-        
+
         return None
     except Exception:
         return None
@@ -1115,28 +1219,29 @@ def get_container_version(runtime: str, container_name: str) -> str | None:
             [runtime, "exec", container_name, "cat", "/app/Melodee.Blazor.deps.json"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
-        
+
         if result.returncode != 0:
             return None
-        
+
         import json
+
         deps = json.loads(result.stdout)
-        
-        if 'targets' not in deps:
+
+        if "targets" not in deps:
             return None
-        
+
         # Find the Melodee.Blazor version in the targets
-        for target_value in deps['targets'].values():
+        for target_value in deps["targets"].values():
             for lib_key in target_value.keys():
-                if 'Melodee.Blazor/' in lib_key:
+                if "Melodee.Blazor/" in lib_key:
                     # Extract version from "Melodee.Blazor/1.7.2+build..." format
-                    version_with_build = lib_key.split('/')[1]
+                    version_with_build = lib_key.split("/")[1]
                     # Remove the build timestamp part (everything after +)
-                    version = version_with_build.split('+')[0]
+                    version = version_with_build.split("+")[0]
                     return version
-        
+
         return None
     except Exception:
         return None
@@ -1149,16 +1254,16 @@ def find_melodee_container(runtime: str) -> str | None:
             [runtime, "ps", "--filter", "name=melodee", "--format", "{{.Names}}"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
-        
+
         if result.returncode != 0 or not result.stdout.strip():
             return None
-        
-        for name in result.stdout.strip().split('\n'):
-            if 'blazor' in name.lower() or 'melodee' in name.lower():
+
+        for name in result.stdout.strip().split("\n"):
+            if "blazor" in name.lower() or "melodee" in name.lower():
                 return name
-        
+
         return None
     except Exception:
         return None
@@ -1175,7 +1280,7 @@ def check_existing_containers(runtime: str, project_root: Path) -> tuple[bool, s
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
 
         # Check if compose ps worked
@@ -1186,15 +1291,22 @@ def check_existing_containers(runtime: str, project_root: Path) -> tuple[bool, s
 
         # Fallback: Check using runtime directly (more reliable)
         result = subprocess.run(
-            [runtime, "ps", "--filter", "name=melodee", "--format", "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}"],
+            [
+                runtime,
+                "ps",
+                "--filter",
+                "name=melodee",
+                "--format",
+                "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}",
+            ],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
 
         if result.returncode == 0 and result.stdout.strip():
             # Look for any line with melodee in it (case insensitive)
-            lines = result.stdout.strip().split('\n')
+            lines = result.stdout.strip().split("\n")
             # Skip header line if present
             for line in lines[1:] if len(lines) > 1 else lines:
                 if line.strip() and "melodee" in line.lower():
@@ -1205,7 +1317,13 @@ def check_existing_containers(runtime: str, project_root: Path) -> tuple[bool, s
         return False, ""
 
 
-def update_containers(runtime: str, project_root: Path, skip_confirm: bool = False, prune: bool = False, prune_all: bool = False) -> bool:
+def update_containers(
+    runtime: str,
+    project_root: Path,
+    skip_confirm: bool = False,
+    prune: bool = False,
+    prune_all: bool = False,
+) -> bool:
     """
     Safely update running containers to latest code.
 
@@ -1240,20 +1358,24 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
     # Show current and expected versions
     expected_version = get_expected_version(project_root)
     container_name = find_melodee_container(runtime)
-    current_version = get_container_version(runtime, container_name) if container_name else None
-    
+    current_version = (
+        get_container_version(runtime, container_name) if container_name else None
+    )
+
     print_info("\nVersion information:")
     if expected_version:
         print_info(f"  Expected (from source): {expected_version}")
     if current_version:
         print_info(f"  Current (in container): {current_version}")
-        
+
         # Compare versions if both are available
         if expected_version and current_version:
             if expected_version == current_version:
                 print_success("  ✓ Container is running the expected version")
             else:
-                print_warning(f"  ⚠ Version mismatch! Update will upgrade {current_version} → {expected_version}")
+                print_warning(
+                    f"  ⚠ Version mismatch! Update will upgrade {current_version} → {expected_version}"
+                )
     else:
         print_warning("  Could not determine current container version")
 
@@ -1262,7 +1384,7 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
         print_warning("\nThis will rebuild and restart the Melodee containers.")
         print_info("Your data volumes will be preserved.")
         response = input("\n  Proceed with update? (y/N): ").strip().lower()
-        if response != 'y':
+        if response != "y":
             print_info("Update cancelled")
             return False
     else:
@@ -1275,15 +1397,15 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
         if result.returncode == 0 and result.stdout.strip():
             print_warning("\nUncommitted changes detected in repository:")
             # Show only relevant files
-            for line in result.stdout.strip().split('\n')[:10]:
+            for line in result.stdout.strip().split("\n")[:10]:
                 print(f"    {line}")
-            if result.stdout.strip().count('\n') > 10:
-                print(f"    ... and more")
+            if result.stdout.strip().count("\n") > 10:
+                print("    ... and more")
             print_info("These changes will be included in the build")
     except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
         pass  # Git not available or not a git repo, skip check
@@ -1295,7 +1417,7 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
         if result.returncode == 0:
             print_info(f"\nBuilding from commit: {result.stdout.strip()}")
@@ -1310,7 +1432,7 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
         result = subprocess.run(
             [*compose_cmd, "build", "--no-cache"],
             cwd=project_root,
-            timeout=900  # 15 minute timeout
+            timeout=900,  # 15 minute timeout
         )
         if result.returncode != 0:
             print_error("Failed to build new image")
@@ -1331,7 +1453,7 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
         result = subprocess.run(
             [*compose_cmd, "up", "-d"],
             cwd=project_root,
-            timeout=600  # 10 minute timeout for container recreation
+            timeout=600,  # 10 minute timeout for container recreation
         )
         if result.returncode != 0:
             print_error("Failed to update containers")
@@ -1358,7 +1480,7 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
                 cwd=project_root,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             if result.returncode == 0:
                 print_info(f"Built from commit: {result.stdout.strip()}")
@@ -1369,32 +1491,41 @@ def update_containers(runtime: str, project_root: Path, skip_confirm: bool = Fal
         print_info("\nVerifying running version...")
         expected_version = get_expected_version(project_root)
         container_name = find_melodee_container(runtime)
-        
+
         if container_name:
             # Give the app a moment to fully start
             time.sleep(2)
             actual_version = get_container_version(runtime, container_name)
-            
+
             if actual_version:
                 print_success(f"Container is now running: {actual_version}")
-                
+
                 # Verify it matches expected version
                 if expected_version and actual_version == expected_version:
-                    print_success(f"✓ Successfully updated to version {expected_version}")
+                    print_success(
+                        f"✓ Successfully updated to version {expected_version}"
+                    )
                 elif expected_version and actual_version != expected_version:
-                    print_error(f"✗ Version mismatch! Expected {expected_version} but container is running {actual_version}")
-                    print_warning("The container image may not have been rebuilt properly.")
-                    print_info("Try running: podman compose build --no-cache && podman compose up -d")
+                    print_error(
+                        f"✗ Version mismatch! Expected {expected_version} but container is running {actual_version}"
+                    )
+                    print_warning(
+                        "The container image may not have been rebuilt properly."
+                    )
+                    print_info(
+                        "Try running: podman compose build --no-cache && podman compose up -d"
+                    )
                     return False
             else:
                 print_warning("Could not verify container version")
         else:
             print_warning("Could not find Melodee container to verify version")
 
-
         # Optional cleanup: repeated builds can leave many dangling images/build cache
         if prune or prune_all:
-            prune_container_storage(runtime, prune_all=prune_all, skip_confirm=skip_confirm)
+            prune_container_storage(
+                runtime, prune_all=prune_all, skip_confirm=skip_confirm
+            )
         else:
             maybe_suggest_prune(runtime)
 
@@ -1418,7 +1549,7 @@ def print_next_steps(runtime: str, started: bool, healthy: bool = False):
         print_success("Melodee is up and running!")
         print_info("Access Melodee at: http://localhost:8080")
         print()
-        print_info(f"Useful commands:")
+        print_info("Useful commands:")
         print(f"    {compose_cmd} logs -f        # View logs")
         print(f"    {compose_cmd} ps             # Check status")
         print(f"    {compose_cmd} down           # Stop containers")
@@ -1429,7 +1560,7 @@ def print_next_steps(runtime: str, started: bool, healthy: bool = False):
         print_info("Access Melodee at: http://localhost:8080")
         print_info("(May take a minute for the application to fully start)")
         print()
-        print_info(f"Check status with:")
+        print_info("Check status with:")
         print(f"    {compose_cmd} ps")
         print(f"    {compose_cmd} logs -f")
     else:
@@ -1466,9 +1597,11 @@ def check_volume_permissions(runtime: str, project_root: Path) -> bool:
                 ["podman", "info", "--format", "{{.Host.Security.Rootless}}"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
-            is_rootless = result.returncode == 0 and result.stdout.strip().lower() == "true"
+            is_rootless = (
+                result.returncode == 0 and result.stdout.strip().lower() == "true"
+            )
 
             if is_rootless:
                 print_info("Running in rootless podman mode")
@@ -1506,7 +1639,7 @@ def check_volume_permissions(runtime: str, project_root: Path) -> bool:
         "melodee_inbound",
         "melodee_staging",
         "melodee_storage",
-        "melodee_logs"
+        "melodee_logs",
     ]
 
     db_volumes = ["melodee_db_data"]
@@ -1531,16 +1664,21 @@ def check_volume_permissions(runtime: str, project_root: Path) -> bool:
             # Check for sub-UID (typically in 100000+ range)
             if owner_uid > 65536:
                 print_error(f"{vol_name}: Owned by sub-UID {owner_uid}:{owner_gid}")
-                print_info(f"  ↳ This indicates user namespace mapping issue")
+                print_info("  ↳ This indicates user namespace mapping issue")
                 issues_found = True
             elif owner_uid == current_uid:
-                print_success(f"{vol_name}: Owned by current user ({owner_uid}:{owner_gid})")
+                print_success(
+                    f"{vol_name}: Owned by current user ({owner_uid}:{owner_gid})"
+                )
             else:
                 # Check if it's a known system user
                 try:
                     import pwd
+
                     user_info = pwd.getpwuid(owner_uid)
-                    print_info(f"{vol_name}: Owned by {user_info.pw_name} ({owner_uid}:{owner_gid})")
+                    print_info(
+                        f"{vol_name}: Owned by {user_info.pw_name} ({owner_uid}:{owner_gid})"
+                    )
                 except KeyError:
                     print_warning(f"{vol_name}: Owned by UID {owner_uid}:{owner_gid}")
 
@@ -1567,15 +1705,24 @@ def check_volume_permissions(runtime: str, project_root: Path) -> bool:
             owner_gid = stat_info.st_gid
 
             if owner_uid > 65536:
-                print_info(f"{vol_name}: Owned by sub-UID {owner_uid}:{owner_gid} (expected for database)")
-                print_info(f"  ↳ PostgreSQL uses default namespace mapping (this is correct)")
+                print_info(
+                    f"{vol_name}: Owned by sub-UID {owner_uid}:{owner_gid} (expected for database)"
+                )
+                print_info(
+                    "  ↳ PostgreSQL uses default namespace mapping (this is correct)"
+                )
             elif owner_uid == current_uid:
-                print_info(f"{vol_name}: Owned by current user ({owner_uid}:{owner_gid})")
+                print_info(
+                    f"{vol_name}: Owned by current user ({owner_uid}:{owner_gid})"
+                )
             else:
                 try:
                     import pwd
+
                     user_info = pwd.getpwuid(owner_uid)
-                    print_info(f"{vol_name}: Owned by {user_info.pw_name} ({owner_uid}:{owner_gid})")
+                    print_info(
+                        f"{vol_name}: Owned by {user_info.pw_name} ({owner_uid}:{owner_gid})"
+                    )
                 except KeyError:
                     print_info(f"{vol_name}: Owned by UID {owner_uid}:{owner_gid}")
         except (PermissionError, OSError) as e:
@@ -1597,9 +1744,12 @@ def check_volume_permissions(runtime: str, project_root: Path) -> bool:
 
             # Extract user setting
             import re
+
             user_match = re.search(r'user:\s*["\']?(\d+):(\d+)["\']?', content)
             if user_match:
-                print_info(f"  Container runs as UID:GID {user_match.group(1)}:{user_match.group(2)}")
+                print_info(
+                    f"  Container runs as UID:GID {user_match.group(1)}:{user_match.group(2)}"
+                )
         except Exception as e:
             print_error(f"  Error reading override file: {e}")
     else:
@@ -1705,12 +1855,20 @@ def main():
             print_info("Install podman-compose: pip install podman-compose")
             print_info("Or ensure podman-compose plugin is installed")
         else:
-            print_info("Install Docker Compose: https://docs.docker.com/compose/install/")
+            print_info(
+                "Install Docker Compose: https://docs.docker.com/compose/install/"
+            )
         sys.exit(1)
 
     # Handle update mode separately
     if update_mode:
-        success = update_containers(runtime, project_root, skip_confirm=skip_confirm, prune=prune_requested, prune_all=prune_all)
+        success = update_containers(
+            runtime,
+            project_root,
+            skip_confirm=skip_confirm,
+            prune=prune_requested,
+            prune_all=prune_all,
+        )
         sys.exit(0 if success else 1)
 
     # Check for existing containers
@@ -1722,14 +1880,18 @@ def main():
         print_info("  1. Use --update to safely update to latest code (preserves data)")
         print_info("  2. Continue below to remove and start fresh")
         print()
-        response = input("  Stop and remove existing containers? (y/N): ").strip().lower()
-        if response == 'y':
+        response = (
+            input("  Stop and remove existing containers? (y/N): ").strip().lower()
+        )
+        if response == "y":
             compose_cmd = get_compose_command(runtime)
             # Don't use -v flag here to preserve volumes by default
             print_warning("Remove volumes too? This will DELETE ALL DATA!")
             remove_volumes = input("  Remove volumes? (y/N): ").strip().lower()
-            if remove_volumes == 'y':
-                subprocess.run([*compose_cmd, "down", "-v"], cwd=project_root, timeout=60)
+            if remove_volumes == "y":
+                subprocess.run(
+                    [*compose_cmd, "down", "-v"], cwd=project_root, timeout=60
+                )
                 print_success("Existing containers and volumes removed")
             else:
                 subprocess.run([*compose_cmd, "down"], cwd=project_root, timeout=60)
@@ -1782,8 +1944,12 @@ def main():
 
                 permissions_ok = check_volume_permissions(runtime, project_root)
                 if not permissions_ok:
-                    print_warning("\nPermission issues detected but containers are running")
-                    print_info("Review the recommendations above to fix permission issues")
+                    print_warning(
+                        "\nPermission issues detected but containers are running"
+                    )
+                    print_info(
+                        "Review the recommendations above to fix permission issues"
+                    )
                 else:
                     print_success("\nVolume permissions verified - setup complete!")
         else:
@@ -1791,11 +1957,12 @@ def main():
             print_info("Showing recent logs for debugging:")
             show_container_logs(runtime, project_root, lines=50)
 
-
     # Optional cleanup / guidance: repeated builds can accumulate dangling images and cache
     if start_after_setup and started:
         if prune_requested:
-            prune_container_storage(runtime, prune_all=prune_all, skip_confirm=skip_confirm)
+            prune_container_storage(
+                runtime, prune_all=prune_all, skip_confirm=skip_confirm
+            )
         else:
             maybe_suggest_prune(runtime)
 

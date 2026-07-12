@@ -1,19 +1,21 @@
 ---
 layout: null
 permalink: /sitemap.xml
+sitemap: false
 ---
 
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{% for item in site.pages %}{% if item.sitemap != false and item.url %}
     <url>
-     <loc>/</loc>
-     <lastmod>{{ "now" | date: "%Y-%m-%d" }}</lastmod>
-     <changefreq>daily</changefreq>
+      <loc>{{ item.url | absolute_url }}</loc>
+      <lastmod>{{ site.time | date: "%Y-%m-%d" }}</lastmod>
     </url>
-{% for section in site.data.toc %}<url>
-     <loc>{{ site.baseurl }}{{ section.url }}/</loc>
-     <lastmod>{{ "now" | date: "%Y-%m-%d" }}</lastmod>
-     <changefreq>daily</changefreq>
+{% endif %}{% endfor %}
+{% for post in site.posts %}
+    <url>
+      <loc>{{ post.url | absolute_url }}</loc>
+      <lastmod>{{ post.date | date: "%Y-%m-%d" }}</lastmod>
     </url>
 {% endfor %}
 </urlset>

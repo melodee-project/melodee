@@ -1,6 +1,10 @@
 ---
 title: Changelog
+description: Release history and notable changes for Melodee.
 permalink: /changelog/
+tags:
+  - release
+  - changelog
 ---
 
 # Changelog
@@ -57,6 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enabled solution-wide XML documentation output so build-time unused-using
   analysis runs consistently, and corrected malformed API documentation and
   formatter configuration.
+- Updated the documentation site's default Release, version menu, and search
+  scope to `2.2.0`; future version bumps now synchronize these values
+  automatically.
+- Audited the complete public documentation set against the current source,
+  deployment files, CLI help, and API routes; corrected installation,
+  configuration, operations, feature-status, and compatibility guidance, and
+  refreshed site navigation, metadata, links, and release pages.
 
 ### Fixed
 
@@ -80,6 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   obsolete API, or XML documentation warnings.
 - Version bump automation now promotes release notes without moving the fresh
   Unreleased heading above the changelog's Jekyll front matter.
+- Remote `mcli` commands now pass the normalized server origin to the HTTP
+  client, preventing `/api/v1` from being appended twice to request URLs.
 - ArtistSearch initialization now uses migrations for relational databases and
   schema creation for non-relational providers, preventing OpenSubsonic
   `getTopSongs` failures in in-memory hosts.
@@ -89,6 +102,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pinned `Microsoft.OpenApi` to patched version `2.7.5`, preventing crafted
   circular schema references from terminating the process during OpenAPI
   document parsing.
+- Password-reset, SMTP, login, migration, profile-lookup, and blacklist logs no
+  longer persist email/user identifiers, reset URLs, template subjects,
+  configured SMTP hosts, tokens, or raw exception payloads. Reset links also
+  require a credential-free absolute HTTP(S) base URL without a query or
+  fragment.
+- Startup configuration diagnostics now redact passwords, tokens, API keys,
+  connection strings, credential-bearing URLs, and unknown environment values
+  by default while preserving sanitized operational metadata.
+- Both setup utilities now generate independent database and authentication
+  secrets without printing them and use one atomic writer with overwrite,
+  symlink, non-regular-file, and failure-cleanup protection. Secret files use
+  owner-only `0600` permissions on POSIX and the containing directory's ACL on
+  Windows.
+- Python maintenance tooling now parses GitHub Link headers with bounded linear
+  work and no longer prints demo passwords, generated API/public keys,
+  encrypted passwords, or secret-bearing exception payloads. The code-scanning
+  exporter also confines requests, pagination links, redirects, and downloads
+  to HTTPS on the exact configured GitHub API origin.
+- The destructive incoming cleanup tool now confines all reads and mutations to
+  a canonical cleanup root beneath an explicit trusted boundary, rejects
+  symlink/parent escapes, preflights ZIP members against Zip Slip, and prevents
+  SFV filenames from traversing outside the media root. Live cleanup uses pinned
+  no-follow descriptors and atomic no-replace quarantine moves on Linux and
+  fails closed when those primitives are unavailable. Extracted directories
+  and files are created privately as `0700` and `0600`. The boundary defaults to
+  the current working directory; use `--trusted-boundary` for an explicitly
+  authorized absolute media tree.
+- Consolidated GitHub Actions, C#, JavaScript/TypeScript, and Python under the
+  advanced CodeQL workflow, removed repository-wide rule exclusions, and
+  replaced the invalid sanitizer summary with an auto-discovered,
+  flow-specific barrier model. Source changes fix the six original C# alerts;
+  the Python setup alert is handled by a hardened necessary persistence boundary
+  and narrow documented suppression. Fresh local verification reduced C# from
+  eight findings to zero and reports zero Actions and JavaScript/TypeScript
+  findings. Fresh local-threat-model Python analysis reports zero findings and
+  no SARIF warning/error notifications across the complete 45-query default
+  suite, while the 52-query security-extended suite also reports zero findings.
+- Pinned all external actions across the six CI workflows to verified commits
+  (and the Gitleaks container to an immutable digest), and validated release
+  image digests before constructing multi-architecture manifests.
+- Updated the runtime image to the official .NET 10 Ubuntu 26.04 variant and
+  current FFmpeg 8 packages, removed unused vulnerable inherited tooling, and
+  made the application process PID 1 under the unprivileged `melodee` account.
+  Trivy 0.72.0 validation reduced raw image findings from 416 to 140, with no
+  critical, high, fixable, .NET-package, or application-package findings among
+  the remainder. The 140 remaining entries represent 41 CVEs: 124 medium and 16
+  low, a reduction of 276 findings (66.3%).
+- Corrected Trivy SARIF severity filtering so GitHub code scanning receives the
+  intended critical/high policy while CI retains a complete all-severity JSON
+  report for review.
+- Completed security verification includes a zero-warning solution build, 5,885
+  passing .NET tests (34 skipped), zero vulnerable NuGet dependencies, and
+  successful Jekyll, GitHub Actions, YAML, shell, and real PostgreSQL container
+  checks. The production integration runs non-root as PID 1, reaches healthy
+  status, and keeps configured secret values out of logs.
+- All 109 Python script tests pass with resource warnings treated as errors,
+  including 57 focused cleanup filesystem, ZIP, SFV, shutdown, and race
+  regressions.
 
 ## [2.1.4] - 2026-06-16
 
@@ -302,7 +373,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Podcast discovery, subscription, and playback.
 - Event scripting engine for custom automation.
 - MQL (Melodee Query Language) for advanced search and filtering.
-- Scrobbling support (Last.fm and compatible services).
+- Last.fm scrobbling support.
 - User sharing and playlist management.
 - Custom theming with Radzen theme support and custom CSS overrides.
 - Multi-library support (Inbound, Staging, Storage).
@@ -311,7 +382,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Onboarding wizard for first-time setup.
 - Request system for user-submitted metadata corrections.
 - Radio station management.
-- Chart generation and display.
+- Chart import, album linking, and display.
 - User device profiles.
 - Multi-language localization (en-US, de-DE, es-ES, fr-FR, it-IT, ja-JP, pt-BR, ru-RU, zh-CN, ar-SA).
 - Docker multi-arch images (linux/amd64, linux/arm64) via GitHub Container Registry.
@@ -325,7 +396,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Migrated to .NET 10 runtime.
-- Migrated from SQLite to [DecentDB](https://github.com/sphildreth/decentdb)
+- Continued using PostgreSQL as the primary application database and introduced
+  [DecentDB](https://github.com/sphildreth/decentdb) for generated MusicBrainz
+  and artist-search data stores.
 - Centralized configuration via `IMelodeeConfigurationFactory` with environment variable overrides.
 
 ### Fixed

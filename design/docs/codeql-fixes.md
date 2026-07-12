@@ -1,283 +1,223 @@
-# CodeQL Security Fixes
+<!-- markdownlint-disable-file -->
 
-**Date**: 2026-01-12 (Updated)
-**Status**: ✅ MITIGATIONS IN PLACE
+# CodeQL Security Remediation Record
 
-## Summary
+**Updated**: 2026-07-11
+**Status**: Local remediation verification complete; GitHub rescan pending
 
-This document tracks all CodeQL security alerts identified in the Melodee codebase and their remediation status.
+## Scope
 
-## Alert Inventory
+This document records high-confidence CodeQL remediations and justified
+compatibility exceptions. It is not a substitute for the live GitHub code
+scanning dashboard, and it does not claim that future scans will produce no new
+findings.
 
-### A. Weak Cryptography (cs/weak-crypto)
+## July 2026 Remediation
 
-| Status | File | Line | Root Cause | Fix Strategy |
-|--------|------|------|------------|--------------|
-| ✅ DOCUMENTED | HashHelper.cs | 24 | MD5 for external API compatibility | Required by OpenSubsonic/Last.fm APIs - cannot change |
-| ✅ DOCUMENTED | HashHelper.cs | 44 | MD5 for external API compatibility | Required by OpenSubsonic/Last.fm APIs - cannot change |
-| ✅ DOCUMENTED | UserService.cs | ~1064 | MD5 for OpenSubsonic token auth | Required by protocol spec - cannot change |
-| ✅ DOCUMENTED | ScrobbleController.cs | ~291 | MD5 for Last.fm API signature | Required by Last.fm API - cannot change |
-| ✅ DOCUMENTED | JellyfinControllerBase.cs | 58 | MD5 for server ID generation | Non-cryptographic GUID generation for Jellyfin API |
-| ✅ DOCUMENTED | ItemsController.cs | 1084 | MD5 for ETag computation | Non-cryptographic ETag generation for HTTP caching |
-| ✅ DOCUMENTED | PlaylistsController.cs | 506 | MD5 for ETag computation | Non-cryptographic ETag generation for HTTP caching |
-| ✅ DOCUMENTED | MusicGenresController.cs | 115, 122 | MD5 for genre GUID and ETags | Non-cryptographic ID generation for Jellyfin API |
-| ✅ DOCUMENTED | ArtistsController.cs | 299, 306 | MD5 for ETag computation | Non-cryptographic ETag generation for HTTP caching |
-| ✅ DOCUMENTED | UsersController.cs | 794 | MD5 for ETag computation | Non-cryptographic ETag generation for HTTP caching |
-| ✅ DOCUMENTED | GenresController.cs | 108, 115 | MD5 for genre GUID and ETags | Non-cryptographic ID generation for Jellyfin API |
-| ✅ DOCUMENTED | UserViewsController.cs | 104 | MD5 for ETag computation | Non-cryptographic ETag generation for HTTP caching |
-| ✅ DOCUMENTED | MelodeeDbContext.cs | 95 | MD5 for seed data GUIDs | Non-cryptographic deterministic GUID generation |
+The live baseline contained seven open CodeQL alerts:
 
-**Note**: MD5 usages are either required by external API specifications or used for non-cryptographic purposes (GUID/ETag generation). All are properly documented with `// lgtm[cs/weak-crypto]` comments explaining the justification.
+| Rule | Count | Severity | Location |
+|------|------:|----------|----------|
+| `cs/exposure-of-sensitive-information` | 6 | Medium | `ForgotPassword.razor` |
+| `py/clear-text-storage-sensitive-data` | 1 | High | `setup_melodee.py` |
 
-### B. Regex DoS (cs/regex-injection)
+### Password Reset Privacy
 
-| Status | File | Line | Root Cause | Fix Strategy |
-|--------|------|------|------------|--------------|
-| ✅ FIXED | ITunesSearchEngine.cs | 319, 325 | `new Regex()` without timeout | Added `TimeSpan.FromSeconds(5)` timeout |
-| ✅ FIXED | StringExtensions.cs | 930 | `new Regex()` without timeout | Added `TimeSpan.FromSeconds(5)` timeout |
-| ✅ FIXED | ConfigurationListCommand.cs | 34 | `new Regex()` without timeout | Added `TimeSpan.FromSeconds(5)` timeout |
+Six password-reset log events included an email passed through
+`LogSanitizer.MaskEmail`. The helper retained part of the local address and the
+complete domain, so the logs still persisted private user information.
 
-### C. Path Traversal (cs/path-traversal)
+The reset flow now logs generic operational events without the address, base
+URL, template subject, reset token, or exception payload. The configured reset
+base URL must be an absolute HTTP(S) URL with a host and no user information,
+query, or fragment. Rate limiting, token generation, email delivery, generic
+user responses, and account enumeration resistance are unchanged.
 
-| Status | File | Line | Root Cause | Fix Strategy |
-|--------|------|------|------------|--------------|
-| ✅ FIXED | AlbumDetail.razor | 712 | `file.Name` from upload used in Path.Combine | Use SafePath.ResolveUnderRoot() to sanitize and validate |
+The same privacy boundary now covers adjacent SMTP and authentication paths:
+SMTP logs omit message/configuration values and raw exceptions; login,
+migration, profile-lookup, and blacklist logs use generic outcomes or internal
+numeric user IDs rather than email addresses and usernames.
 
-### D. Cross-Site Scripting (cs/xss)
+### Startup Configuration Redaction
 
-| Status | File | Line | Root Cause | Fix Strategy |
-|--------|------|------|------------|--------------|
-| ✅ FIXED | Markdown.razor | 6 | MarkupString renders unsanitized HTML from user content | Added HtmlSanitizer with allowlist of safe tags/attributes |
+The startup configuration factory previously wrote every process environment
+variable value to `Trace`, including database passwords, authentication keys,
+tokens, and complete connection strings. All configuration diagnostics now use
+a centralized deny-by-default redactor. Sensitive and unrecognized keys emit
+only `[REDACTED]`; an explicit set of operational paths, ports, versions,
+environments, and limits remains visible after log-forging characters are
+escaped. Credential-bearing or parameterized URLs are also redacted.
 
-### E. Log Forging (cs/log-forging)
+Focused tests cover sensitive names, unknown values, safe operational values,
+URL credentials, and injected line endings.
 
-| Status | File | Lines | Root Cause | Fix Strategy |
-|--------|------|-------|------------|--------------|
-| ✅ MITIGATED | Multiple controllers | Various | User input logged without sanitization | LogSanitizer.Sanitize() wrapper + CodeQL model extension |
+### Protected Setup Secrets
 
-**Note**: The codebase uses `LogSanitizer.Sanitize()` from `Melodee.Common.Utility.LogSanitizer` to sanitize all user-controlled input before logging. This method replaces newlines (CR, LF, NEL, LS, PS) with safe placeholders to prevent log forging attacks. A CodeQL model extension file (`.github/codeql/extensions/log-sanitizer.model.yaml`) teaches CodeQL to recognize this as a sanitizer.
+Unattended Compose setup requires a stable database password and authentication
+key across restarts. Both supported setup utilities now use one shared writer
+that:
 
-Files affected (all using LogSanitizer):
-- `src/Melodee.Blazor/Controllers/Jellyfin/AudioController.cs`
-- `src/Melodee.Blazor/Controllers/Jellyfin/ImagesController.cs`
-- `src/Melodee.Blazor/Controllers/Jellyfin/ItemsController.cs`
-- `src/Melodee.Blazor/Controllers/Jellyfin/SessionsController.cs`
-- `src/Melodee.Blazor/Controllers/Jellyfin/UsersController.cs`
-- `src/Melodee.Blazor/Controllers/Melodee/AlbumsController.cs`
-- `src/Melodee.Blazor/Controllers/Melodee/ArtistLookupController.cs`
-- `src/Melodee.Blazor/Controllers/Melodee/ArtistsController.cs`
-- `src/Melodee.Blazor/Controllers/Melodee/SongsController.cs`
-- `src/Melodee.Blazor/Services/SmartPlaylistService.cs`
-- `src/Melodee.Common/Plugins/SearchEngine/MusicBrainz/Data/SQLiteMusicBrainzRepository.cs`
-- `src/Melodee.Common/Services/SearchEngines/ArtistSearchEngineService.cs`
-- `src/Melodee.Mql/Api/MqlController.cs`
+- generates independent URL-safe values from 32 and 64 random bytes;
+- replaces settings by exact key instead of matching example values;
+- never prints either generated value;
+- creates an unpredictable temporary file with `O_CREAT`, `O_EXCL`, and
+  `O_NOFOLLOW` where available;
+- applies mode `0600` through the open descriptor before writing on POSIX;
+- atomically publishes a new file without replacement, or replaces only an
+  explicitly approved and revalidated regular file;
+- removes partial and temporary files if writing or publication fails; and
+- refuses live/dangling symlinks and other non-regular destinations.
 
-### F. URL Redirection (cs/web/unvalidated-url-redirection)
+The ignored deployment file is the necessary persistence boundary. It is
+owner-only (`0600`) on POSIX; on Windows it inherits the containing directory's
+ACL. One narrow `codeql[py/clear-text-storage-sensitive-data]` suppression
+documents that unavoidable sink. The clear-text-storage query is not excluded
+globally. Existing regular secret files are opened without following links,
+revalidated by descriptor identity, and tightened to `0600` before they are
+preserved.
 
-| Status | File | Line | Root Cause | Fix Strategy |
-|--------|------|------|------------|--------------|
-| ✅ FIXED | UsersController.cs | 383 | Redirect URL used raw user input | Use validated GUID instead of raw user input |
+### Restored Python Coverage
 
-### G. Clear-Text Storage (py/clear-text-storage-sensitive-data)
+An initial local CodeQL 2.26.0 run after restoring Python to the advanced
+workflow surfaced 22 pre-existing findings that the stale server-side setup no
+longer updated:
 
-| Status | File | Line | Root Cause | Fix Strategy |
-|--------|------|------|------------|--------------|
-| ✅ FIXED | setup_melodee.py | 155 | String literal containing "DB_PASSWORD" | Construct string dynamically to avoid false positive |
+- one polynomial ReDoS path in GitHub Link-header parsing;
+- two clear-text demo password/API-key log paths; and
+- 19 filesystem path-injection paths in the destructive incoming cleanup tool.
 
-## Fix Progress
+The Link header now uses bounded linear parsing, and demo-user setup never
+prints credentials, generated key material, encrypted values, or raw failure
+payloads. The cleanup tool now validates a canonical cleanup root beneath an
+explicit trusted boundary and rejects filesystem-root authority. Live cleanup
+pins root and parent descriptors, uses no-follow descriptor-relative operations
+and `renameat2(RENAME_NOREPLACE)` quarantine publication, and fails closed when
+those Linux/POSIX primitives are unavailable. ZIP extraction preflights every
+member before writing, applies private `0700` directory and `0600` file modes,
+rolls back partial output, and rejects symlink, size, compression, duplicate,
+and traversal hazards. SFV verification and renaming cannot escape the media
+root. The default boundary is the current working directory; administrators
+targeting an absolute path outside it must explicitly provide
+`--trusted-boundary`.
 
-### Completed Fixes
+A subsequent local scan and exporter audit also found that pagination and
+redirect URLs needed an explicit network boundary. All API requests, Link
+destinations, redirects, and downloads now require HTTPS and the exact
+configured GitHub API origin, with a bounded redirect chain. This closes the
+same-origin SSRF paths without weakening GitHub Enterprise Server support.
 
-1. **Regex DoS Prevention** - Added timeouts to all runtime-constructed Regex instances (2025-12-21, 2026-01-02)
-2. **Path Traversal Prevention** - Created SafePath utility and used it in file upload handler (2025-12-21)
-3. **XSS Prevention** - Integrated HtmlSanitizer for Markdown component (2025-12-21)
-4. **MD5 Documentation** - Added comprehensive documentation for all MD5 usages in Jellyfin API controllers and database seeding (2026-01-02)
-5. **Log Forging Prevention** - Created LogSanitizer utility and CodeQL model extension (2026-01-12)
-6. **URL Redirection Fix** - Use validated GUID instead of raw input for redirect URLs (2026-01-12)
-7. **Python False Positive Fix** - Construct variable name dynamically to avoid CodeQL false positive (2026-01-12)
+A fresh workflow-equivalent Python database reports zero findings and no SARIF
+warning/error notifications across all 45 default queries under the local
+threat model. The 52-query security-extended suite also reports zero findings.
+The script suite passes all 109 tests with `ResourceWarning` promoted to an
+error, including 57 focused filesystem, ZIP, SFV, shutdown, and race
+regressions.
 
-### Files Modified
+### Fresh C# Findings
 
-**Original fixes (2025-12-21):**
-- `src/Melodee.Common/Plugins/SearchEngine/ITunes/ITunesSearchEngine.cs` - Added regex timeouts
-- `src/Melodee.Common/Extensions/StringExtensions.cs` - Added regex timeout
-- `src/Melodee.Blazor/Components/Pages/Data/AlbumDetail.razor` - Used SafePath for file uploads
-- `src/Melodee.Blazor/Components/Components/Markdown.razor` - Added HTML sanitization
-- `src/Melodee.Blazor/Melodee.Blazor.csproj` - Added HtmlSanitizer package reference
-- `Directory.Packages.props` - Added HtmlSanitizer version
+After removing broad query exclusions, a fresh C# database under the default
+remote threat model reported eight actionable findings. Six were log-forging
+flows through player client names, playlist names, script setting keys,
+configuration keys, provider names, and artist queries. Each field now passes
+through the narrowly modeled `LogSanitizer.Sanitize` boundary before logging.
 
-**Additional fixes (2026-01-02):**
-- `src/Melodee.Cli/Command/ConfigurationListCommand.cs` - Added regex timeout
-- `src/Melodee.Blazor/Controllers/Jellyfin/JellyfinControllerBase.cs` - Added MD5 documentation for server ID generation
-- `src/Melodee.Blazor/Controllers/Jellyfin/ItemsController.cs` - Added MD5 documentation for ETag computation
-- `src/Melodee.Blazor/Controllers/Jellyfin/PlaylistsController.cs` - Added MD5 documentation for ETag computation
-- `src/Melodee.Blazor/Controllers/Jellyfin/MusicGenresController.cs` - Added MD5 documentation for genre GUID and ETag generation
-- `src/Melodee.Blazor/Controllers/Jellyfin/ArtistsController.cs` - Added MD5 documentation for ETag computation
-- `src/Melodee.Blazor/Controllers/Jellyfin/UsersController.cs` - Added MD5 documentation for ETag computation
-- `src/Melodee.Blazor/Controllers/Jellyfin/GenresController.cs` - Added MD5 documentation for genre GUID and ETag generation
-- `src/Melodee.Blazor/Controllers/Jellyfin/UserViewsController.cs` - Added MD5 documentation for ETag computation
-- `src/Melodee.Common/Data/MelodeeDbContext.cs` - Added MD5 documentation for seed data GUID generation
-- `docs/codeql-fixes.md` - Updated with 2026-01-02 fixes
+The other two paths associated the MPD password wire command with diagnostic
+logs. The backend now carries separate wire and safe command representations:
+the credential is still sent to MPD, while only a constant credential-free
+description can reach a logger. Focused tests exercise both guarantees. A fresh
+default-remote C# scan reports zero findings (`8 -> 0`).
 
-**Additional fixes (2026-01-12):**
-- `.github/codeql/extensions/log-sanitizer.model.yaml` - Updated to use "value" kind instead of "taint" for sanitizer behavior
-- `src/Melodee.Blazor/Controllers/Jellyfin/UsersController.cs` - Fixed open redirect by using validated GUID instead of raw input
-- `scripts/setup_melodee.py` - Fixed false positive by constructing variable name dynamically
-- `design/docs/codeql-fixes.md` - Updated with 2026-01-12 fixes
+### CodeQL Workflow Coverage
 
-### Files Created (2025-12-21)
+The version-controlled advanced workflow analyzes GitHub Actions, C#,
+JavaScript/TypeScript, and Python. Compiled C# uses autobuild; interpreted
+languages use build mode `none`. Python has a dedicated local-threat-model
+configuration because command-line arguments, environment variables, local
+files, and databases are genuine inputs to maintenance utilities. C#,
+JavaScript/TypeScript, and Actions retain the default remote boundary so
+ordinary application-owned database and filesystem state is not incorrectly
+treated as remotely attacker-controlled. Workflow actions are pinned to
+verified full commit SHAs.
 
-- `src/Melodee.Common/Utility/SafePath.cs` - New security utility for path validation
-- `tests/Melodee.Tests.Common/Utility/SafePathTests.cs` - Unit tests for SafePath
+Fresh local databases report zero C#, GitHub Actions, and
+JavaScript/TypeScript findings. The fresh default and security-extended Python
+databases also report zero findings as described above.
 
-## Implementation Details
+GitHub's default setup is currently `not-configured`. The Python alert belongs
+to old `dynamic/github-code-scanning/codeql:analyze` and
+`dynamic/github-code-scanning/codeql:upload` configurations. After an advanced
+Python scan completes on `main`, an administrator must delete those stale
+dynamic configurations in **Code scanning > Tool status** while retaining the
+checked-in workflow configuration, so obsolete alert state no longer remains
+attached to the branch.
 
-### Fix B1 & B2: Regex with Timeout
+### Precise Security Models
 
-Added `TimeSpan.FromSeconds(5)` timeout to prevent ReDoS attacks:
+The prior configuration excluded entire C# security queries and used a
+value-preserving `summaryModel` as though it were a sanitizer. Those broad
+exclusions were removed.
 
-```csharp
-// Before
-var regex = new Regex(pattern);
+The auto-discovered local model pack marks only the return value of
+`LogSanitizer.Sanitize` as a `log-injection` barrier. It also marks the
+deny-by-default `ConfigurationLogRedactor.RedactValue` return as a
+`file-content-store` barrier so CodeQL recognizes that secret configuration
+values cannot reach diagnostic logs:
 
-// After
-var regex = new Regex(pattern, RegexOptions.None, TimeSpan.FromSeconds(5));
-```
-
-### Fix C1: Path Traversal Prevention
-
-Created `SafePath` utility class with:
-- `SanitizeFileName()` - Removes path separators and ".." sequences
-- `ResolveUnderRoot()` - Combines paths and validates result stays within base directory
-- `IsPathWithinBase()` - Checks if a path is confined to a base directory
-
-Usage in file upload:
-```csharp
-// Before
-var target = Path.Combine(dir, file.Name);
-
-// After
-var target = SafePath.ResolveUnderRoot(dir, file.Name);
-if (target == null) {
-    // Invalid filename - reject upload
-    continue;
-}
-```
-
-### Fix D1: XSS Prevention
-
-Added HtmlSanitizer with strict allowlist:
-
-```csharp
-private static readonly HtmlSanitizer Sanitizer = CreateSanitizer();
-
-private static HtmlSanitizer CreateSanitizer()
-{
-    var sanitizer = new HtmlSanitizer();
-    // Only allow safe HTML tags for markdown content
-    sanitizer.AllowedTags.Add("h1"); // headings
-    sanitizer.AllowedTags.Add("p");  // paragraphs
-    sanitizer.AllowedTags.Add("a");  // links
-    // ... other safe tags
-    
-    // Only allow safe URL schemes
-    sanitizer.AllowedSchemes.Add("https");
-    sanitizer.AllowedSchemes.Add("http");
-    sanitizer.AllowedSchemes.Add("mailto");
-    
-    return sanitizer;
-}
-```
-
-### Fix E: Log Forging Prevention
-
-Created `LogSanitizer` utility class with methods that sanitize user input before logging:
-
-```csharp
-public static class LogSanitizer
-{
-    public static string? Sanitize(string? input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        return input
-            .Replace("\r", "[CR]")
-            .Replace("\n", "[LF]")
-            .Replace("\u0085", "[NEL]")      // Next Line
-            .Replace("\u2028", "[LS]")       // Line Separator
-            .Replace("\u2029", "[PS]");      // Paragraph Separator
-    }
-}
-```
-
-Usage in controllers:
-```csharp
-// Before
-logger.LogWarning("Invalid request: {ItemId}", request.ItemId);
-
-// After
-var sanitizedItemId = LogSanitizer.Sanitize(request.ItemId);
-logger.LogWarning("Invalid request: {ItemId}", sanitizedItemId);
-```
-
-CodeQL model extension (`.github/codeql/extensions/log-sanitizer.model.yaml`):
 ```yaml
 extensions:
   - addsTo:
       pack: codeql/csharp-all
-      extensible: summaryModel
+      extensible: barrierModel
     data:
-      # Using "value" kind means data flows but taint is cleansed
-      - ["Melodee.Common.Utility", "LogSanitizer", False, "Sanitize", "(System.String)", "", "Argument[0]", "ReturnValue", "value", "manual"]
+      - ["Melodee.Common.Utility", "LogSanitizer", false, "Sanitize", "(System.String)", "", "ReturnValue", "log-injection", "manual"]
+      - ["Melodee.Common.Configuration", "ConfigurationLogRedactor", false, "RedactValue", "(System.String,System.Object)", "", "ReturnValue", "file-content-store", "manual"]
 ```
 
-### Fix F1: URL Redirection
+These models do not treat email or identifier masking as privacy sanitizers.
+Future real findings from the previously excluded queries must be fixed at the
+source or dismissed individually with evidence.
 
-Fixed open redirect by using validated GUID instead of raw user input:
+## Historical Remediation
 
-```csharp
-// Before
-if (!Guid.TryParse(itemId, out _))
-    return BadRequest(...);
-return RedirectPreserveMethod($"/Items/{itemId}");  // Uses raw user input
+| Category | Status | Approach |
+|----------|--------|----------|
+| Regex denial of service | Fixed | Runtime-constructed regular expressions use explicit timeouts. |
+| Path traversal | Fixed | Uploaded file paths are resolved beneath an approved root with `SafePath`. |
+| Markdown cross-site scripting | Fixed | Rendered Markdown passes through an HTML allowlist sanitizer. |
+| Log forging | Mitigated | User-controlled log fields use `LogSanitizer.Sanitize`; CodeQL has a precise barrier model. |
+| Unvalidated redirection | Fixed | Jellyfin redirects use parsed GUID values instead of raw input. |
+| Weak cryptography | Compatibility exception | MD5 remains only where required by OpenSubsonic/Last.fm protocols or for non-security ETags and deterministic identifiers. |
 
-// After
-if (!Guid.TryParse(itemId, out var validatedItemId))
-    return BadRequest(...);
-return RedirectPreserveMethod($"/Items/{validatedItemId}");  // Uses validated GUID
-```
+Weak algorithms must not be used for password storage, authentication designs,
+signatures outside required compatibility protocols, or new security-sensitive
+features.
 
-### Fix G1: Python False Positive
+## Verification
 
-Fixed CodeQL false positive by constructing variable name dynamically:
+- Complete solution build: zero warnings and errors.
+- Complete .NET suite: 5,885 passed, 34 skipped, zero failed.
+- NuGet vulnerability audit: zero vulnerable dependencies.
+- Fresh local CodeQL: C# `8 -> 0`, GitHub Actions zero, and
+  JavaScript/TypeScript zero.
+- Python compilation and Ruff pass. Black reports the exporter and its focused
+  tests unchanged; the two pre-existing legacy cleanup files remain outside the
+  repository's Black baseline. All 109 script tests pass with resource warnings
+  treated as errors.
+- Fresh Python CodeQL reports zero findings across the 45-query default suite
+  and the 52-query security-extended suite.
+- `actionlint`, YAML parsing, shell checks, and Jekyll validation pass.
+- A real PostgreSQL/production-container integration reached healthy status
+  with `melodee` running unprivileged as PID 1 and no configured secret values
+  present in logs.
 
-```python
-# Before
-print("   Please set DB_PASSWORD manually in .env")  # CodeQL flags "DB_PASSWORD" as sensitive
-
-# After
-db_cred_var = "DB_" + "PASSWORD"  # Split to avoid static analysis false positive
-print(f"   Please set {db_cred_var} manually in .env")
-```
-```
-
-## Testing
-
-- [x] Solution builds successfully
-- [x] All existing tests pass (175 tests)
-- [x] New SafePath tests pass (27 tests)
-- [x] No regressions in functionality
-- [x] LogSanitizer tests pass (included in existing test suite)
+Alert closure requires a successful GitHub scan after these changes reach a
+branch analyzed by the advanced workflow.
 
 ## References
 
-- [OWASP Path Traversal](https://owasp.org/www-community/attacks/Path_Traversal)
-- [OWASP XSS Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
-- [OWASP Log Injection](https://owasp.org/www-community/attacks/Log_Injection)
+- [Resolving code scanning alerts](https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts)
+- [Customizing CodeQL library models for C#](https://codeql.github.com/docs/codeql-language-guides/customizing-library-models-for-csharp/)
 - [CWE-117: Improper Output Neutralization for Logs](https://cwe.mitre.org/data/definitions/117.html)
-- [CWE-601: URL Redirection to Untrusted Site](https://cwe.mitre.org/data/definitions/601.html)
-- [.NET Regex Best Practices](https://docs.microsoft.com/en-us/dotnet/standard/base-types/best-practices)
-- [OpenSubsonic API Authentication](http://www.subsonic.org/pages/api.jsp#authentication)
-- [Last.fm API Authentication](https://www.last.fm/api/authentication)
-- [CodeQL Library Models for C#](https://codeql.github.com/docs/codeql-language-guides/customizing-library-models-for-csharp/)
+- [CWE-312: Cleartext Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/312.html)
+- [CWE-359: Exposure of Private Personal Information](https://cwe.mitre.org/data/definitions/359.html)
+- [OWASP Log Injection](https://owasp.org/www-community/attacks/Log_Injection)

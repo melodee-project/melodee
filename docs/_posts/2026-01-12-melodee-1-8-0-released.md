@@ -1,78 +1,33 @@
 ---
 title: "Melodee 1.8.0 Released"
+description: Historical release notes for Melodee 1.8.0.
 date: 2026-01-12
+tags:
+  - release
+  - 1.8.0
 badges:
   - type: info
     tag: release
 ---
 
-We're excited to announce the release of Melodee 1.8.0, packed with new features for an enhanced music streaming experience!
+Melodee 1.8.0 expanded playback, podcast, customization, and chart capabilities.
 
 <!--more-->
 
-## What's New in 1.8.0
+## Highlights
 
-### Party Mode
-Collaborative listening sessions with shared queues and synchronized playback control. Perfect for gatherings or remote listening parties with friends and family.
+- **Party Mode preview** added collaborative session, participant, queue, moderation, and playback-control foundations.
+- **Jukebox** added server-side playback adapters for separately installed MPV and MPD backends.
+- **Podcasts** added per-user RSS subscriptions, downloads, playback tracking, and OpenSubsonic podcast routes.
+- **Themes** added installable color, font, branding, and navigation customization.
+- **Charts** added curated ranked-list import, automatic local-album linking, reports, and optional generated playlists.
+- **API compatibility** expanded the OpenSubsonic, native, and Jellyfin-compatible music surfaces.
+- **Metadata and scrobbling** received additional search-provider and Last.fm improvements.
 
-- Create and manage party sessions
-- Shared queue management
-- Real-time playback synchronization
-- Participant roles and permissions
+Current behavior and limitations have evolved since this historical release. Use the current [Party Mode](/party-mode/), [Jukebox](/jukebox/), [Podcasts](/podcasts/), [Theming](/theming/), and [Charts](/charts/) guides when operating a recent server.
 
-### Jukebox Mode
-Server-side audio playback via MPV or MPD backends, enabling whole-home audio setups.
+## Upgrade
 
-- Control playback from any device
-- Support for MPV and MPD audio backends
-- Ideal for dedicated audio endpoints
+Follow the [Upgrade Guide](/upgrade/) and read every intervening changelog entry before upgrading an older installation.
 
-### Podcast Support
-Full podcast subscription and playback support with tracking.
-
-- Subscribe to podcasts via RSS or OPML import
-- Automatic episode downloads
-- Playback position tracking
-- Integration with OpenSubsonic podcast APIs
-
-### Custom Theming
-Personalize Melodee's appearance with custom themes.
-
-- Create custom color schemes
-- Custom fonts and branding
-- Hide/show navigation items
-- Theme pack import/export
-
-### Music Charts
-Curated album charts updated automatically.
-
-- Billboard chart integration
-- Multiple chart sources
-- Automatic updates via background jobs
-
-### Additional Improvements
-
-- **Jellyfin API compatibility** - Use Jellyfin clients with Melodee
-- **Deezer search engine** - Additional metadata source
-- **Enhanced scrobbling** - Improved Last.fm integration
-- **Performance improvements** - Faster library scanning and streaming
-
-## Upgrading
-
-To upgrade to 1.8.0, follow the [upgrade guide](/upgrade/).
-
-Database migrations will run automatically on startup.
-
-## Documentation
-
-- [Party Mode Guide](/party-mode/)
-- [Jukebox Setup](/jukebox/)
-- [Podcast Configuration](/podcasts/)
-- [Theming Guide](/theming/)
-- [Charts Configuration](/charts/)
-
-## Thank You
-
-Thanks to everyone who contributed to this release through bug reports, feature requests, and pull requests!
-
-Questions or feedback? Join our [Discord community](https://discord.gg/bfMnEUrvbp) or open an issue on [GitHub](https://github.com/melodee-project/melodee/issues).
+Questions or feedback are welcome on [GitHub](https://github.com/melodee-project/melodee/issues) and [Discord](https://discord.gg/bfMnEUrvbp).

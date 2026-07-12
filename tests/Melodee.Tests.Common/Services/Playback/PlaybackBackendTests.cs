@@ -1,8 +1,12 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Services.Playback;
 using Melodee.Common.Services.Playback.Backends;
 using Melodee.Common.Services.Playback.Factory;
+using Melodee.Tests.Common.TestHelpers;
 using Moq;
 using Serilog;
 
@@ -364,6 +368,56 @@ public class MpdPlaybackBackendTests
             enableDebugOutput: false);
 
         backend.Dispose();
+    }
+
+    [Fact]
+    public async Task MpdPlaybackBackend_InitializeWithPassword_SendsPasswordWithoutLoggingIt()
+    {
+        const string password = "never-log-this-password-a31f0ec8";
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        try
+        {
+            var serverTask = Task.Run(async () =>
+            {
+                using var client = await listener.AcceptTcpClientAsync();
+                await using var stream = client.GetStream();
+                await stream.WriteAsync(Encoding.UTF8.GetBytes("OK MPD 0.24.0\n"));
+
+                using var reader = new StreamReader(stream, Encoding.UTF8, false, 1024, leaveOpen: true);
+                var command = await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                await stream.WriteAsync(Encoding.UTF8.GetBytes("OK\n"));
+                return command;
+            });
+
+            var sink = new RecordingLogEventSink();
+            using var logger = new LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .WriteTo.Sink(sink)
+                .CreateLogger();
+            using var backend = new MpdPlaybackBackend(
+                logger,
+                instanceName: null,
+                host: IPAddress.Loopback.ToString(),
+                port: port,
+                password: password,
+                timeoutMs: 5000,
+                initialVolume: 0.8,
+                enableDebugOutput: true);
+
+            await backend.InitializeAsync();
+            var receivedCommand = await serverTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal($"password {password}", receivedCommand);
+            Assert.Contains("Authenticated with MPD", sink.Output);
+            Assert.DoesNotContain(password, sink.Output);
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 }
 

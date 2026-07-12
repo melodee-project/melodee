@@ -1,97 +1,80 @@
 ---
 title: About
+description: Melodee's purpose, architecture, companion clients, support channels, and license.
 permalink: /about/
+tags:
+  - about
+  - architecture
+  - community
 ---
 
 # About
 
-Melodee is an open source, high‑performance music management and streaming system designed for very large personal or organizational libraries (tens of millions of tracks). It combines a modern Blazor Server UI, a powerful media ingestion and normalization pipeline, and dual API surfaces (OpenSubsonic compatible + native Melodee REST) for broad client compatibility.
+Melodee is an open-source, self-hosted system for managing and streaming large music libraries. It combines a staged media-ingestion workflow, a Blazor Server web application, PostgreSQL metadata storage, generated DecentDB search stores, and OpenSubsonic, Jellyfin-compatible, and native REST interfaces.
 
-## Vision
+## Project goals
 
-Provide a self‑hosted, privacy‑respecting platform to: ingest messy music collections, enrich them with high‑quality metadata & artwork, curate and stage edits safely, and stream to any Subsonic / OpenSubsonic compatible client—or to custom integrations via a clean JSON REST API.
+Melodee is designed to:
 
-## Core Pillars
+- turn inconsistent incoming releases into a reviewed Storage library;
+- retain operator control over metadata, artwork, validation, and promotion;
+- serve music to the built-in browser player and compatible external clients;
+- support repeatable container deployment, backup, upgrade, and diagnostics;
+- scale through paged queries, background jobs, incremental work, and direct streaming where possible.
 
-- Scales to gigantic libraries through efficient background jobs and incremental scans.
-- Pluggable metadata & artwork enrichment (MusicBrainz, Last.FM, iTunes, Spotify, etc.).
-- Powerful inbound -> staging -> production workflow for clean, consistent libraries.
-- Real‑time transcoding and optimized streaming path (range requests, concurrency limits).
-- First‑class API contracts (OpenSubsonic + Melodee native) with versioning.
-- Configuration‑driven behavior (rules engine for tag cleanup, naming, validation).
+“Designed for large libraries” is an architectural goal, not a fixed capacity guarantee. Actual limits depend on PostgreSQL, filesystem latency, media format, concurrent users, transcoding, and host resources. See [Hardware & Performance](/hardware/) for measurement-based sizing guidance.
 
-## High‑Level Melodee Ecosystem
+## Server components
 
-Application Overview
+| Component | Responsibility | Technology |
+|---|---|---|
+| Melodee.Blazor | Web UI, authentication, APIs, streaming, and scheduled-job host | .NET 10, Blazor Server, Radzen |
+| Melodee.Common | Domain models, ingestion, metadata, services, persistence, and plug-ins | .NET class library, EF Core |
+| Melodee.Cli (`mcli`) | Local maintenance and a small remote command subset | .NET console application |
+| PostgreSQL | Primary users, catalog, settings, playlists, requests, and history database | PostgreSQL 17 in the supplied Compose deployment |
+| DecentDB files | Generated MusicBrainz and artist-search data | DecentDB |
 
-| Application/Component                                               | Purpose | Key Tech |
-|---------------------------------------------------------------------|---------|---------|
-| [Melodee Blazor](https://github.com/melodee-project/melodee)        | Administrative web UI + OpenSubsonic & native REST API host + streaming pipeline | .NET 10, Blazor Server, Radzen |
-| Melodee API (native / OpenSubsonic)                                 | Programmatic access layer consumed by external clients & integrations | ASP.NET Core, API Versioning |
-| Melodee.Cli                                                         | Operational & maintenance commands (jobs, migrations, utilities) | .NET Console |
-| [MeloAmp](https://github.com/melodee-project/meloamp)               | Cross‑platform desktop client (browse, play, queue mgmt, theming, equalizer, scrobbling) | Electron, React, Material‑UI, TypeScript |
-| [Melodee Player](https://github.com/melodee-project/melodee-player) | Native Android & Android Auto streaming client (voice, Media3 playback, clean architecture) | Kotlin, Jetpack Compose, Media3 |
+The primary application database is PostgreSQL. DecentDB does not replace it; see [DecentDB Usage & Migration](/decentdb/).
 
+## Interfaces
 
-### Application/Component Roles
+- The **native API** provides JWT-authenticated, versioned JSON routes under `/api/v1`.
+- The **OpenSubsonic API** provides compatibility routes under `/rest`.
+- The **Jellyfin-compatible API** implements a documented subset for music clients.
+- The **Blazor UI** covers administration, curation, browsing, playback, and operational status.
+- **mcli** provides local database/filesystem operations and a limited remote JWT mode.
 
-- **Melodee.Blazor**: Hosts APIs, runs background jobs, presents the administrative and power‑user interface (metadata editing, artwork, user/security settings, job dashboard).
-- **Melodee API**: Two faces—OpenSubsonic (compatibility for existing ecosystem clients) and Native JSON (clean, opinionated resource models). Both sit behind the same hosting process for efficiency.
-- **MeloAmp**: Electron desktop app offering fast browsing (artist / album / song / playlist), drag‑and‑drop queue, starring / favoriting, playlist saving, user theme + equalizer persistence, JWT auth, scrobbling. Ships cross‑platform packages (AppImage, DEB, RPM, Snap, Pacman, tar.gz; Windows & macOS builds planned/experimental). Ideal for desktop users wanting a richer UI than generic Subsonic clients.
-- **Melodee Player**: Kotlin/Compose Android + Android Auto app with Clean Architecture layers (data/domain/presentation/service). Provides automotive‑safe UI, voice commands, MediaSession integration, playlist browsing, search, pull‑to‑refresh, persistent now‑playing bar, and scrobbling. Targets API 21–35 with modern tooling (AGP 8.x, Kotlin 1.9+).
+Compatibility is endpoint-specific. Consult [API Overview](/apis/), the [OpenSubsonic matrix](/opensubsonic-matrix/), and the [Jellyfin guide](/api-jellyfin/) rather than assuming full protocol or client parity.
 
-Together these deliver an end‑to‑end ecosystem: ingestion & curation (server) → optimized APIs → native & desktop clients tuned for their platform capabilities (voice control in cars, system tray / desktop media keys on desktops—media key integration planned for MeloAmp).
+## Companion clients
 
-### Integration Notes
+- [MeloAmp](https://github.com/melodee-project/meloamp) is the Electron/React desktop client. Its repository documents current Linux, Windows, and macOS targets, features, packages, and releases.
+- [Melodee Player](https://github.com/melodee-project/melodee-player) is the Kotlin/Compose Android and Android Auto client. Its repository documents current Android requirements and automotive capabilities.
 
-- Both clients primarily consume the native Melodee API; OpenSubsonic layer remains available for legacy third‑party apps.
-- Scrobbling events originate client‑side and flow through the `Scrobble` native endpoint to update play history and forward to external scrobble services (if configured).
-- Equalizer & visual theming (MeloAmp) are client‑local preferences; server interaction limited to playback, metadata, and user actions (ratings, starring).
-- Android Auto voice intents are mapped to search + playback actions over the native API; resilience features (retry/backoff) included in player networking stack.
+These projects have independent release cycles. Use each repository's README and Releases page as the source of truth for installation and current client features.
 
-## Typical Use Cases
+Third-party OpenSubsonic and Jellyfin clients may also connect to the implemented compatibility surfaces. Their behavior varies by the routes and authentication patterns they use.
 
-- Replace aging Subsonic server with a modern, actively maintained alternative.
-- Consolidate multiple scattered music folders into a normalized library.
-- Run large private label streaming for a band/collective with editorial control.
-- Power analytics or recommendation engines via the structured REST endpoints.
-- Self-hosted music streaming in homelab environments for personal or family use.
-- Media center integration with support for various client types (desktop, mobile, automotive).
-- Large-scale music collection management with automated metadata enrichment.
+## Typical uses
 
-## Homelab Community
+- A private household or homelab music server
+- A staged workflow for cleaning and organizing incoming releases
+- Multiple Storage roots across local disks or NAS mounts
+- A server for desktop, mobile, and automotive clients
+- A music catalog exposed to trusted integrations through the native API
 
-Melodee has an active homelab community sharing experiences and solutions:
+Features marked **Preview** in their guides are not security or compatibility guarantees. In particular, review the current boundaries for [Party Mode](/party-mode/), [Shares](/shares/), [User Device Profiles](/user-device-profiles/), and [Event Scripting](/scripting/).
 
-- **Discord Server**: Join #homelab channel for homelab-specific discussions
-- **GitHub Discussions**: Share your setup and learn from others
-- **Community Showcase**: Share your homelab builds and configurations
-- **Hardware Recommendations**: Get advice on SBCs, NAS, and server builds
+## Support and contributions
 
-## Support
+- Use this documentation for installation, configuration, operation, and API behavior.
+- Open a [GitHub issue](https://github.com/melodee-project/melodee/issues) for a reproducible bug or documentation defect.
+- Use [GitHub Discussions](https://github.com/melodee-project/melodee/discussions) for design and deployment discussion.
+- Join the [Discord community](https://discord.gg/bfMnEUrvbp) for community conversation.
 
-Need help? Start with:
+Contributions are welcome. Review the repository's contributing guide, code of conduct, and local `AGENTS.md` before changing code.
 
-- Documentation site (this site) for setup & API reference.
-- Discord community for real‑time Q&A.
-- GitHub Issues for bugs and feature requests.
-- GitHub Discussions for design proposals & architecture questions.
+## License
 
-If something critical is missing from docs, please open an issue—contributions to documentation are highly valued.
-
-## Community & Contributions
-
-We welcome pull requests! Good first contributions include: fixing typos in docs, adding API usage examples, improving test coverage for services, or building new metadata plugins. Please review the Code of Conduct and contributing guidelines before starting.
-
-## Licensing
-
-Melodee is MIT licensed—permissive for both personal and commercial use. Attribution is appreciated but not required.
-
-## Acknowledgments
-
-Thanks to the wider open media ecosystem and the maintainers of libraries and specifications that make Melodee possible (OpenSubsonic, tag libraries, metadata providers, .NET OSS tooling, and UI component authors).
-
----
-
-Made with ❤️ by the Melodee community.
+Melodee is distributed under the MIT License. See the repository's `LICENSE` file for the authoritative terms.
 

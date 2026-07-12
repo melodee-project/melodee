@@ -17,8 +17,9 @@
 title: Melodee
 email: info@melodee.org
 author: Steven Hildreth
-description: > # this means to ignore newlines until "baseurl:"
-  Industrial grade self-hosted streaming music server.
+description: >-
+  Self-hosted music management, curation, and streaming with OpenSubsonic,
+  Jellyfin-compatible, and native APIs.
 
 # Add your baseurl here (your repository) but DO NOT CHANGE THE LINE NUMBER without editing .circleci/circle_urls.sh
 baseurl: "" # the subpath of your site, e.g. /blog
@@ -47,12 +48,14 @@ version_params:
 
   # Allow these versions to be searched
   search_versions:
+    - 2.2.0
     - 2.1.0
     - 2.0.0
     - 1.8.0
     - 1.7.0
-  latest: 2.1.0
+  latest: 2.2.0
   versions:
+    - 2.2.0
     - 2.1.0
     - 2.0.0
     - 1.8.0
@@ -75,6 +78,9 @@ color: "#30638e"
 # Build settings
 markdown: kramdown
 
+plugins:
+  - jekyll-feed
+
 # If you add tags to pages, define this variable to link them to some external search
 # If you want to link to tags locally on the site, leave this commented out
 # tag_search_endpoint: https://ask.cyberinfrastructure.org/search?q=
@@ -85,7 +91,6 @@ themeColor: red # purple, green, blue, orange, purple, grey
 fixedNav: 'true' # true or false
 
 permalink: /:year/:title/
-markdown: kramdown
 exclude: [_site, CHANGELOG.md, LICENSE, README.md, vendor]
 
 # Collections

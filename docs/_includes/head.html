@@ -3,11 +3,11 @@
 <!-- Copyright 2019-2021 Vanessa Sochat-->
 
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="generator" content="Hugo 0.55.6" />
+<meta name="generator" content="Jekyll {{ jekyll.version }}" />
 
 <META NAME="ROBOTS" CONTENT="INDEX, FOLLOW">
 
-<link rel="alternate" type="application/rss&#43;xml" href="/docs/index.xml">
+<link rel="alternate" type="application/rss+xml" href="{{ site.baseurl }}/feed.xml">
 
 <link rel="shortcut icon" href="{{ site.baseurl }}/assets/favicons/favicon.ico" >
 <link rel="apple-touch-icon" href="{{ site.baseurl }}/assets/favicons/apple-touch-icon-180x180.png" sizes="180x180">
@@ -24,8 +24,8 @@
 <meta property="og:title" content="{% if page.title %}{{ page.title }}{% else %}{{ site.title }}{% endif %}" />
 <meta property="og:description" content="{% if page.description %}{{ page.description }}{% else %}{{ site.description }}{% endif %}" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="{{ site.url }}" />
-<meta property="og:site_name" content="{{ site.url }}" />
+<meta property="og:url" content="{{ page.url | absolute_url }}" />
+<meta property="og:site_name" content="{{ site.title }}" />
 
 <meta itemprop="name" content="{% if page.title %}{{ page.title }}{% else %}{{ site.title }}{% endif %}">
 <meta itemprop="description" content="{% if page.description %}{{ page.description | strip_html | strip_newlines | truncate: 160 }}{% else %}{{ site.description }}{% endif %}">
@@ -45,8 +45,8 @@
   document.addEventListener("DOMContentLoaded", () => {
     mermaid.initialize({
       startOnLoad: true,
-      securityLevel: "loose",   // if you need links; else default
-      theme: "default"          // or 'dark', 'neutral'
+      securityLevel: "strict",
+      theme: "default"
     });
 
     // (Optional) Support fenced ```mermaid blocks if theme doesn’t auto-pick them

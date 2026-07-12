@@ -34,25 +34,41 @@ RUN dotnet publish "Melodee.Cli.csproj" -c Release -o /app/cli --self-contained 
 # Migration bundle stage - create a self-contained migration bundle
 FROM build AS migrations
 WORKDIR /src/src/Melodee.Blazor
-RUN dotnet tool install --global dotnet-ef --version 10.0.1
+RUN dotnet tool install --global dotnet-ef --version 10.0.9
 ENV PATH="$PATH:/root/.dotnet/tools"
 # Provide a dummy connection string for design-time DbContext creation
 ENV ConnectionStrings__DefaultConnection="Host=localhost;Database=melodee;Username=melodee;Password=melodee"
 RUN dotnet ef migrations bundle --context MelodeeDbContext --output /app/efbundle --self-contained --force --project ../Melodee.Common/Melodee.Common.csproj
 
-# Final runtime image - using aspnet for smaller image size
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+# Final runtime image - Ubuntu 26.04 provides current FFmpeg and OS packages.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS final
 WORKDIR /app
 EXPOSE 8080
 
-# Install required runtime dependencies
+# Install current security updates and required runtime dependencies.
+# Ubuntu 26.04 includes both GNU and Rust coreutils; select the GNU provider so
+# the unused Rust implementation is not retained in the production image.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        --allow-remove-essential \
+        coreutils-from-gnu \
+        coreutils-from-uutils- \
         ffmpeg \
         postgresql-client \
         curl \
         lbzip2 \
-        && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y rust-coreutils \
+    && rm -f /usr/bin/pebble \
+    && apt-get check \
+    && test -z "$(dpkg --audit)" \
+    && dpkg-query --status coreutils coreutils-from-gnu gnu-coreutils >/dev/null \
+    && ! dpkg-query --status rust-coreutils >/dev/null 2>&1 \
+    && for required_command in dotnet ffmpeg ffprobe pg_isready curl lbzip2 setpriv; do \
+        command -v "$required_command" >/dev/null || exit 1; \
+    done \
+    && test ! -e /usr/bin/pebble \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the published application
 COPY --from=publish /app/publish .
@@ -72,11 +88,24 @@ RUN groupadd -r melodee && useradd -r -g melodee -m melodee
 # Create volume directories
 # These serve as mount points; the actual volumes will overlay them
 # Note: podcasts and themes can be at /app/podcasts or /app/storage/podcasts depending on DB config
-RUN mkdir -p /app/storage /app/storage/podcasts /app/storage/themes /app/podcasts /app/themes /app/inbound /app/staging /app/user-images /app/playlists /app/templates /app/Logs \
-    && chown -R melodee:melodee /app
+RUN mkdir -p \
+        /app/storage \
+        /app/storage/podcasts \
+        /app/storage/themes \
+        /app/podcasts \
+        /app/themes \
+        /app/inbound \
+        /app/staging \
+        /app/user-images \
+        /app/playlists \
+        /app/templates \
+        /app/Logs \
+        /home/melodee/.aspnet/DataProtection-Keys \
+    && chown -R melodee:melodee /app /home/melodee/.aspnet
 
 # Set environment variables
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV HOME="/home/melodee"
 ENV MELODEE_STORAGE_PATH="/app/storage"
 ENV SEARCHENGINE_MUSICBRAINZ_STORAGEPATH="/app/storage/_search-engines/musicbrainz"
 ENV MELODEE_INBOUND_PATH="/app/inbound"
@@ -84,6 +113,10 @@ ENV MELODEE_STAGING_PATH="/app/staging"
 ENV MELODEE_USER_IMAGES_PATH="/app/user-images"
 ENV MELODEE_PLAYLISTS_PATH="/app/playlists"
 ENV MELODEE_TEMPLATES_PATH="/app/templates"
+
+# Compose overrides this to root only while repairing named-volume ownership;
+# direct image consumers run with least privilege by default.
+USER melodee
 
 # Use entrypoint script for proper startup
 ENTRYPOINT ["/entrypoint.sh"]

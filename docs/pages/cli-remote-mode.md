@@ -1,252 +1,152 @@
 ---
 title: CLI Remote Server Mode
-description: Use mcli to manage remote Melodee servers via REST API
+description: Use mcli's supported remote commands with a Melodee JWT bearer token.
+permalink: /cli-remote-mode/
 tags:
   - cli
   - remote
   - api
+  - security
 ---
 
 # CLI Remote Server Mode
 
-## Overview
+Remote mode calls the native REST API over HTTP or HTTPS. In Melodee 2.2.0 it
+supports exactly four operations:
 
-`mcli` supports **Remote Server Mode**, allowing you to manage Melodee servers remotely over HTTPS using the REST API. This enables administration from any workstation without needing access to the server filesystem.
+| Command | Required capability |
+|---------|---------------------|
+| `mcli system ... info` | None for server info; a token is still required by `mcli` |
+| `mcli user me ...` | Authenticated user |
+| `mcli user list ...` | Administrator |
+| `mcli search ...` | Authenticated user |
 
-## Quick Start
+Library processing, jobs, configuration, backups, and destructive data commands
+are local-only.
 
-### Basic Remote Command
+## Obtain a JWT
+
+Authenticate against the native API. Avoid placing the password in shell
+history; the example is suitable for an interactive test after substituting
+safe input handling:
 
 ```bash
-mcli --server https://demo.melodee.org --token YOUR_API_TOKEN system info
+curl --fail --silent --show-error \
+  --request POST https://music.example.com/api/v1/auth/authenticate \
+  --header 'Content-Type: application/json' \
+  --data '{"userName":"alice","email":null,"password":"replace-me"}'
 ```
 
-### Using Environment Variables
+The response's `token` is a JWT access token. Its default lifetime is 15
+minutes. A user's persistent GUID API key is not interchangeable with this JWT.
+
+Set the token in the environment rather than a command-line option:
 
 ```bash
-export MELODEE_SERVER=https://demo.melodee.org
-export MELODEE_TOKEN=YOUR_API_TOKEN
+export MELODEE_SERVER=https://music.example.com
+export MELODEE_TOKEN='eyJ...'
+```
 
-mcli system info
+## Commands
+
+```bash
 mcli user me
-mcli user list
+mcli user list --limit 25
+mcli search 'Miles Davis' --limit 10
+mcli system info
 ```
 
-### Using Configuration Profiles
+When using flags instead of environment variables, option placement follows
+the command settings:
 
-Create a config file at:
-- Linux/macOS: `~/.config/melodee/mcli.json`
+```bash
+mcli user me --server https://music.example.com --token 'eyJ...'
+mcli user list --server https://music.example.com --token 'eyJ...'
+mcli search 'Miles Davis' --server https://music.example.com --token 'eyJ...'
+mcli system --server https://music.example.com --token 'eyJ...' info
+```
+
+`--server` is not a top-level option, so placing it before `search`, `system`,
+or `user` produces a usage error.
+
+## Profiles
+
+The CLI loads profiles from:
+
+- Linux/macOS: `${XDG_CONFIG_HOME:-$HOME/.config}/melodee/mcli.json`
 - Windows: `%APPDATA%\melodee\mcli.json`
 
 ```json
 {
   "profiles": {
-    "demo": {
-      "server": "https://demo.melodee.org",
-      "token": "your-api-token-here"
-    },
-    "prod": {
-      "server": "https://melodee.example.com",
-      "token": "your-prod-token-here"
+    "home": {
+      "server": "https://music.example.com",
+      "token": "eyJ..."
     }
   },
   "defaults": {
-    "profile": "demo"
+    "profile": "home"
   }
 }
 ```
 
-Then use the profile:
+Use a named profile with the supported command:
 
 ```bash
-mcli --profile prod system info
-mcli --profile demo user me
+mcli user me --profile home
+mcli system --profile home info
 ```
 
-## Global Options
-
-| Option | Environment Variable | Description |
-|--------|---------------------|-------------|
-| `--server <URL>` | `MELODEE_SERVER` | Remote server URL (e.g., `https://demo.melodee.org`) |
-| `--token <TOKEN>` | `MELODEE_TOKEN` | API authentication token (Bearer token) |
-| `--profile <NAME>` | `MELODEE_PROFILE` | Profile name from config file |
-| `--json` | N/A | Output compact JSON (default: pretty-printed) |
-
-## Precedence Rules
-
-Options are resolved in this order (highest priority first):
-
-1. **Command line flags** (`--server`, `--token`, `--profile`)
-2. **Environment variables** (`MELODEE_SERVER`, `MELODEE_TOKEN`, `MELODEE_PROFILE`)
-3. **Config file profile** (from `defaults.profile` or explicit `--profile`)
-
-## Remote Mode Commands
-
-The following commands work in both local and remote mode:
-
-### System Information
+Profiles store tokens as clear text. Restrict the file to the owning user and
+remember that short-lived JWTs expire:
 
 ```bash
-mcli system info
-```
-
-Returns server version, name, and description.
-
-### Current User
-
-```bash
-mcli user me
-```
-
-Returns information about the authenticated user.
-
-### List Users (Admin Only)
-
-```bash
-mcli user list
-```
-
-Lists all users (requires admin privileges).
-
-### Search
-
-```bash
-mcli search "Pink Floyd"
-mcli search "Dark Side" --limit 10
-```
-
-Search for artists, albums, songs, and playlists.
-
-## Output Formats
-
-### Pretty JSON (Default)
-
-```bash
-mcli system info
-```
-
-Outputs formatted JSON with indentation.
-
-### Compact JSON
-
-```bash
-mcli --json system info
-```
-
-Outputs compact JSON on a single line.
-
-## Security
-
-### Token Safety
-
-**⚠️ SECURITY WARNING**: Never pass tokens on the command line in production scripts or shared environments. Tokens passed via `--token` are visible in shell history.
-
-**Recommended approaches** (in order of preference):
-
-1. **Use config file profiles** - Most secure for repeated use
-2. **Use environment variables** - Good for CI/CD and scripts
-3. **Use command line flags** - Only for one-off manual commands
-
-### Token Storage
-
-The config file (`mcli.json`) stores tokens in plain text. Ensure proper file permissions:
-
-```bash
-# Linux/macOS
 chmod 600 ~/.config/melodee/mcli.json
 ```
 
-## Error Codes
+## Precedence
 
-`mcli` uses deterministic exit codes for remote mode:
+Remote settings resolve from highest to lowest priority:
 
-| Exit Code | Meaning |
-|-----------|---------|
-| 0 | Success |
-| 2 | Usage/config error (missing server/token/profile) |
-| 10 | Network error (DNS, connection refused, TLS handshake) |
-| 11 | Timeout |
-| 12 | Unauthorized/Forbidden (HTTP 401/403) |
-| 13 | Not found (HTTP 404) |
-| 14 | Server error (HTTP 5xx) |
-| 15 | Unexpected/serialization error |
+1. `--server`, `--token`, and `--profile` on the applicable command
+2. `MELODEE_SERVER`, `MELODEE_TOKEN`, and `MELODEE_PROFILE`
+3. The selected profile, including `defaults.profile`
 
-## Examples
+Remote mode activates only when a server URL resolves. A server without a token
+returns a configuration error.
 
-### Get System Info from Demo Server
+## JSON Output
+
+The four remote-capable command settings expose `--json`. It selects compact
+JSON instead of indented JSON where supported:
 
 ```bash
-mcli --server https://demo.melodee.org --token demo-token system info
+mcli user me --json
+mcli search 'Miles Davis' --limit 5 --json
+mcli system --json info
 ```
 
-### List Users with Profile
+## Exit Codes
 
-```bash
-# First, create profile in ~/.config/melodee/mcli.json
-mcli --profile demo user list
-```
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `2` | Missing remote configuration or token |
+| `10` | DNS, connection, or TLS failure |
+| `11` | Timeout |
+| `12` | HTTP 401 or 403 |
+| `13` | HTTP 404 |
+| `14` | HTTP 5xx |
+| `15` | Unexpected response or serialization failure |
 
-### Search from Remote Server
+## Security
 
-```bash
-export MELODEE_SERVER=https://demo.melodee.org
-export MELODEE_TOKEN=your-token
+- Prefer HTTPS except on an isolated loopback connection.
+- Do not pass tokens through shared process listings or shell history.
+- Unset `MELODEE_TOKEN` after use on shared systems.
+- Do not commit `mcli.json`.
+- Use an administrator token only for `user list`; use a least-privileged user
+  for search and self-service commands.
 
-mcli search "Miles Davis" --limit 5 --json
-```
-
-### Admin Operations
-
-```bash
-# Requires admin token
-mcli --server https://melodee.example.com --token admin-token user list
-```
-
-## Troubleshooting
-
-### "ERROR: Missing API token"
-
-Ensure you provide a token via `--token`, `MELODEE_TOKEN`, or a config profile.
-
-### "ERROR (401 Unauthorized): API token invalid or expired"
-
-Your token is invalid or has expired. Obtain a new token from the Melodee web interface.
-
-### "ERROR (403 Forbidden): Token does not have permission"
-
-Your token doesn't have the required permissions (e.g., admin access for `user list`).
-
-### "ERROR (404 Not Found): Endpoint not available"
-
-The server version doesn't support the requested endpoint. Ensure server and client versions are compatible.
-
-## Local Mode vs Remote Mode
-
-| Feature | Local Mode | Remote Mode |
-|---------|-----------|-------------|
-| **Trigger** | No `--server` flag | `--server` flag provided |
-| **Access** | Direct database/filesystem access | REST API over HTTPS |
-| **Authentication** | Not required | API token required |
-| **Use Case** | Local administration | Remote administration |
-| **Speed** | Faster (direct access) | Slower (network latency) |
-
-## Getting an API Token
-
-1. Log in to the Melodee web interface
-2. Navigate to **User Settings → API Tokens**
-3. Click **Generate New Token**
-4. Copy the token and store it securely
-
-## Best Practices
-
-1. **Use profiles for frequent remote access** - Avoid typing server/token repeatedly
-2. **Set default profile** - Configure `defaults.profile` in config file
-3. **Rotate tokens regularly** - Generate new tokens periodically for security
-4. **Use descriptive profile names** - e.g., `prod`, `staging`, `demo`
-5. **Secure config file** - Ensure proper file permissions (chmod 600)
-
-## See Also
-
-- [CLI Command Reference](/cli-commands)
-- [API Documentation](/api/v1)
-- [Configuration Guide](/configuration)
+See [Native API authentication](/api/#authentication) and the
+[CLI command reference](/cli/).

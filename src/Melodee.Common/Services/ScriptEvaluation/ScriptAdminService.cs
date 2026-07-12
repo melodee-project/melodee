@@ -5,6 +5,7 @@ using Melodee.Common.Filtering;
 using Melodee.Common.Models;
 using Melodee.Common.Models.Scripting;
 using Melodee.Common.Serialization;
+using Melodee.Common.Utility;
 using NodaTime;
 using Serilog;
 
@@ -96,7 +97,7 @@ public sealed class ScriptAdminService : IScriptAdminService
         }
         catch (Exception ex)
         {
-            _logger.Warning(ex, "Failed to deserialize script config for {Key}", key);
+            _logger.Warning(ex, "Failed to deserialize script config for {Key}", LogSanitizer.Sanitize(key));
             config = new ScriptConfig();
         }
 

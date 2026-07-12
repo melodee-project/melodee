@@ -1,79 +1,75 @@
 ---
 layout: page
 title: Melodee
+description: Self-hosted music management, curation, and streaming with OpenSubsonic, Jellyfin-compatible, and native APIs.
 permalink: /
+tags:
+  - overview
+  - self-hosted
+  - music
 ---
+
 # Melodee Music System
 
-Melodee is a self‑hosted music management & streaming platform. It ingests disorganized audio files; cleans, normalizes & enriches metadata; stages human edits; then serves a pristine library over both the OpenSubsonic protocol and a native JSON REST API.
+Melodee is a self-hosted music-management and streaming server. It processes incoming audio through an Inbound → Staging → Storage workflow, stores the primary catalog in PostgreSQL, and serves the result through its web UI and multiple API surfaces.
 
-Think of it as a blend of:
+## Try the demo
 
-- A streaming server (e.g. [Navidrome](https://github.com/navidrome/navidrome))
-- A tag & artwork editor (e.g. [Mp3Tag](https://www.mp3tag.de/en/))
-- An automated metadata enrichment + library quality pipeline
+The project demo is at [demo.melodee.org](https://demo.melodee.org):
 
-## Demo Server
-Experience Melodee before installing! Our official demo server is available at:
+```text
+Username: demo
+Password: Mel0deeR0cks!
+```
 
-**🎧 [https://demo.melodee.org](https://demo.melodee.org)**
+The demo contains sample music and resets periodically. Availability and writable features may be limited.
 
-- **Username**: `demo`
-- **Password**: `melodee`
+## How media becomes playable
 
-This server has sample permissively licensed music files for testing purposes. The demo server resets periodically, and data resets every 24 hours.
+1. Drop a release directory into Inbound.
+2. The ingestion job reads supported audio tags, applies configured cleanup and validation, and creates Melodee metadata.
+3. Review the processed album in Staging.
+4. Approve it for promotion into a Storage library.
+5. Run library insertion so PostgreSQL and generated search data include the new catalog records.
+6. Browse or stream through the web player or a compatible client.
 
-## End‑to‑End Flow
+See [Libraries](/libraries/) and [Background Jobs](/jobs/) for the exact jobs and default schedules.
 
-1. Inbound scan detects new files in the inbound volume.
-2. Ingestion converts/transcodes (if needed), normalizes tags, applies regex cleanup & validation.
-3. Items move to Staging for optional manual metadata & artwork curation.
-4. Approved items are published into one or more Storage Libraries.
-5. Indexed metadata powers fast search, browsing & streaming via APIs.
+## Highlights
 
-## Feature Highlights
+- Staged ingestion, validation, metadata editing, artwork, and promotion
+- Multiple Storage roots
+- Direct streaming and configured FFmpeg transcoding
+- PostgreSQL primary persistence and generated DecentDB search databases
+- Blazor Server administration and browser playback
+- OpenSubsonic compatibility with a route-by-route [support matrix](/opensubsonic-matrix/)
+- A documented [Jellyfin-compatible subset](/api-jellyfin/)
+- JWT-authenticated [native API](/api/)
+- Local operations and limited remote commands through [mcli](/cli/)
+- [Podcasts](/podcasts/), [playlists](/playlists/), [charts](/charts/), requests, and Last.fm scrobbling
+- Custom [themes](/theming/) and [page blocks](/custom-blocks/)
+- Quartz background jobs, Doctor diagnostics, backup, and upgrade workflows
 
-- Media normalization & configurable tag rewrite rules
-- Regex driven cleanup (featuring/with removal, numbering fixes, stray tokens)
-- Multi‑stage pipeline (Inbound ➜ Staging ➜ Storage)
-- Pluggable metadata & artwork fetch (MusicBrainz local cache, Last.FM, Spotify, iTunes, Deezer)
-- Real‑time transcoding (MP3, Ogg, Opus, etc.) with range & partial streaming
-- Cron‑like job scheduler (scans, enrichment, cleanup, background sync)
-- Multi‑library federation (spread storage across NAS / mounts)
-- Blazor Server UI for metadata, artwork, users, config & monitoring
-- [Party Mode](/party-mode/) - Collaborative listening with shared queues
-- [Jukebox](/jukebox/) - Server-side audio playback via MPV/MPD
-- [Podcasts](/podcasts/) - Subscribe, download, and stream podcasts
-- [Custom Theming](/theming/) - Personalize colors, fonts, and branding
-- [Music Charts](/charts/) - Curated album charts from Billboard and more
-- [Scrobbling](/scrobbling/) - Last.fm integration for play tracking
-- OpenSubsonic & Jellyfin API compatibility
-- Native REST API (versioned) for custom integrations
-- User features: starring, ratings, playlists, play history
+Some newer surfaces are explicitly previews. Read their limitations before deployment:
 
-## Tested OpenSubsonic Clients
+- [Party Mode](/party-mode/)
+- [Shares](/shares/)
+- [Event Scripting](/scripting/)
+- [User Device Profiles](/user-device-profiles/)
 
-- Airsonic (refix)
-- Dsub
-- Feishin
-- Symphonium
-- Sublime Music
-- Supersonic
-- Ultrasonic
+[Jukebox](/jukebox/) requires an MPV or MPD executable that is not included in the standard image.
 
-## Quick Links
+## Start here
 
-- [Installation](/installing/) - Get Melodee up and running
-- [Configuration](/configuration/) - Tune settings for your environment
-- [Libraries](/libraries/) - Understand the library concept
-- [API Reference](/api/) - OpenSubsonic + Native API documentation
-- [News](/news/) - Changelog and announcements
-- [About](/about/) - Project direction and philosophy
+- [Quick Start](/quickstart/) — first container deployment
+- [Installation](/installing/) — supported deployment paths
+- [Configuration](/configuration/) — initial and ongoing settings
+- [Upgrade](/upgrade/) — version changes and verification
+- [Backup & Recovery](/backup/) — coordinated PostgreSQL and file backups
+- [API Overview](/apis/) — choose the correct interface
+- [About](/about/) — architecture, companion clients, and support
+- [Changelog](/changelog/) — release history
 
-## Contributing
+## Contribute
 
-Found a gap or want to propose an improvement? Open a discussion or issue: {{ site.repo }}/issues — Documentation PRs are especially welcome.
-
----
-
-Happy streaming! 🎵
+Report bugs and documentation gaps in the [Melodee GitHub repository](https://github.com/melodee-project/melodee). Focused documentation pull requests are welcome.

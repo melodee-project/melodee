@@ -1,0 +1,16 @@
+name: CodeQL Python configuration
+
+# Maintenance scripts accept files, command-line arguments, and environment
+# variables. Extend Python's default remote model so those local sources are
+# analyzed under the local threat model independently from the compiled web
+# application's remote request boundary.
+threat-models: local
+
+paths-ignore:
+  - "benchmarks/**"
+  - "docs/**"
+  - "tests/**"
+  - "**/tests/**"
+  - "**/*.min.js"
+  - "**/jquery*.js"
+  - "**/lunr*.js"

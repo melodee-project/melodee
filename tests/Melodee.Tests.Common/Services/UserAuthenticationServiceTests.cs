@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using FluentAssertions;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Data.Models;
@@ -10,6 +12,9 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using NodaTime;
 using Rebus.Bus;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace Melodee.Tests.Common.Services;
 
@@ -23,10 +28,11 @@ public class UserAuthenticationServiceTests : ServiceTestBase
         IMelodeeConfigurationFactory? configFactory = null,
         IBus? bus = null,
         IPasswordHashService? passwordHashService = null,
-        ISecretProtector? secretProtector = null)
+        ISecretProtector? secretProtector = null,
+        Serilog.ILogger? logger = null)
     {
         return new UserAuthenticationService(
-            Logger,
+            logger ?? Logger,
             passwordHashService ?? new Mock<IPasswordHashService>().Object,
             secretProtector ?? new Mock<ISecretProtector>().Object,
             bus ?? MockBus(),
@@ -247,7 +253,7 @@ public class UserAuthenticationServiceTests : ServiceTestBase
         var authService = CreateUserAuthenticationService(userProfileService: userProfileService);
 
         // Act
-        var result = await authService.CompleteLoginAsync(retrievedUser!, password, username, CancellationToken.None);
+        var result = await authService.CompleteLoginAsync(retrievedUser!, password, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -318,5 +324,140 @@ public class UserAuthenticationServiceTests : ServiceTestBase
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
         Assert.Equal(OperationResponseType.Unauthorized, result.Type);
+    }
+
+    [Fact]
+    public async Task CompleteLoginAsync_WithInvalidPassword_LogsOnlyInternalUserId()
+    {
+        const string username = "sensitive-username";
+        const string email = "sensitive.user@example.test";
+        const string password = "correct-password";
+        const string incorrectPassword = "incorrect-sensitive-password";
+        var user = CreateTestUserWithPassword(41, username, email, password);
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var authService = CreateUserAuthenticationService(logger: logger);
+
+        var result = await authService.CompleteLoginAsync(
+            user,
+            incorrectPassword,
+            CancellationToken.None);
+
+        result.Type.Should().Be(OperationResponseType.Unauthorized);
+        sink.Output.Should().Contain("user ID [41]");
+        sink.Output.Should().NotContainAny(username, email, password, incorrectPassword);
+    }
+
+    [Fact]
+    public async Task CompleteLoginAsync_WhenPasswordHashMigrates_LogsOnlyInternalUserId()
+    {
+        const string username = "sensitive-username";
+        const string email = "sensitive.user@example.test";
+        const string password = "sensitive-password";
+        var user = CreateTestUserWithPassword(42, username, email, password);
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+        }
+
+        var passwordHashService = new Mock<IPasswordHashService>();
+        passwordHashService.Setup(x => x.Hash(password)).Returns("$2a$10$migrated-hash");
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var authService = CreateUserAuthenticationService(
+            passwordHashService: passwordHashService.Object,
+            logger: logger);
+
+        var result = await authService.CompleteLoginAsync(
+            user,
+            password,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        sink.Output.Should().Contain("user ID [42]");
+        sink.Output.Should().Contain("BCrypt password hashing");
+        sink.Output.Should().NotContainAny(username, email, password);
+    }
+
+    [Fact]
+    public async Task ValidateTokenAsync_WithInvalidToken_LogsOnlyInternalUserId()
+    {
+        const string username = "sensitive-username";
+        const string email = "sensitive.user@example.test";
+        const string password = "sensitive-password";
+        const string invalidToken = "sensitive-invalid-token";
+        const string salt = "sensitive-salt";
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            context.Users.Add(CreateTestUserWithPassword(43, username, email, password));
+            await context.SaveChangesAsync();
+        }
+
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var authService = CreateUserAuthenticationService(logger: logger);
+
+        var result = await authService.ValidateTokenAsync(username, invalidToken, salt);
+
+        result.Type.Should().Be(OperationResponseType.Unauthorized);
+        sink.Output.Should().Contain("user ID [43]");
+        sink.Output.Should().NotContainAny(username, email, password, invalidToken, salt);
+    }
+
+    [Fact]
+    public async Task ValidateTokenAsync_WhenSecretMigrates_LogsOnlyInternalUserId()
+    {
+        const string username = "sensitive-username";
+        const string email = "sensitive.user@example.test";
+        const string password = "sensitive-password";
+        const string salt = "sensitive-salt";
+        await using (var context = await MockFactory().CreateDbContextAsync())
+        {
+            context.Users.Add(CreateTestUserWithPassword(44, username, email, password));
+            await context.SaveChangesAsync();
+        }
+
+        var secretProtector = new Mock<ISecretProtector>();
+        secretProtector.Setup(x => x.Protect(It.IsAny<string>())).Returns("protected-secret");
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var authService = CreateUserAuthenticationService(
+            secretProtector: secretProtector.Object,
+            logger: logger);
+        var token = HashHelper.CreateMd5($"{password}{salt}")!;
+
+        var result = await authService.ValidateTokenAsync(username, token, salt);
+
+        result.IsSuccess.Should().BeTrue();
+        sink.Output.Should().Contain("user ID [44]");
+        sink.Output.Should().Contain("OpenSubsonic secret protection");
+        sink.Output.Should().NotContainAny(username, email, password, token, salt, "protected-secret");
+    }
+
+    private sealed class RecordingLogEventSink : ILogEventSink
+    {
+        private readonly ConcurrentQueue<LogEvent> _events = new();
+
+        public string Output => string.Join(
+            Environment.NewLine,
+            _events.Select(x => $"{x.RenderMessage()} {x.Exception}"));
+
+        public void Emit(LogEvent logEvent)
+        {
+            _events.Enqueue(logEvent);
+        }
     }
 }

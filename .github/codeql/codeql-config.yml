@@ -1,50 +1,12 @@
-# CodeQL configuration
-# This file configures which paths to analyze for JavaScript/TypeScript
+name: CodeQL configuration
 
-name: "CodeQL config"
-
-# Model extensions define custom sanitizers and sinks for CodeQL analysis
-model-extensions:
-  - ".github/codeql/extensions/log-sanitizer.model.yaml"
-
-# Query filters to tune analysis results
-query-filters:
-  # Exclude false positives where we have verified mitigations
-  - exclude:
-      id: cs/web/cookie-secure-not-set
-      # MelodeeBlazorCookieMiddleware.cs already sets Secure=true (line 29)
-  
-  # Exclude log-forging alerts for code using LogSanitizer
-  # LogSanitizer.Sanitize() properly sanitizes log input by replacing newlines,
-  # but CodeQL's log-forging query doesn't recognize custom sanitizer methods.
-  # The sanitizer implementation (src/Melodee.Common/Utility/LogSanitizer.cs)
-  # uses String.Replace to remove CR, LF, NEL, LS, and PS characters.
-  # See: https://github.com/github/codeql/issues/15824
-  - exclude:
-      id: cs/log-forging
-  
-  # Exclude cleartext-storage alerts for MpdPlaybackBackend password logging
-  # The password IS properly masked via GetSafeCommandForLogging() which returns
-  # "password ***" for any command starting with "password ". CodeQL tracks
-  # data flow but cannot see through the conditional masking logic.
-  # File: src/Melodee.Common/Services/Playback/Backends/MpdPlaybackBackend.cs
-  - exclude:
-      id: cs/cleartext-storage-of-sensitive-information
-
-# For JavaScript/TypeScript, only analyze application code in src directory
-# Exclude documentation, vendored libraries, and other non-application code
+# Path filters apply to interpreted languages. The C# database is determined
+# by the sources included in its build.
 paths-ignore:
-  # Exclude entire docs directory (contains Jekyll templates and vendored JS)
-  - 'docs/**'
-  - 'melodee/docs/**'
-  
-  # Exclude vendored/third-party JavaScript libraries  
-  - '**/jquery*.js'
-  - '**/lunr*.js'
-  - '**/*.min.js'
-  
-  # Exclude benchmark and test directories
-  - 'benchmarks/**'
-  - 'tests/**'
-  - 'melodee/benchmarks/**'
-  - 'melodee/tests/**'
+  - "benchmarks/**"
+  - "docs/**"
+  - "tests/**"
+  - "**/tests/**"
+  - "**/*.min.js"
+  - "**/jquery*.js"
+  - "**/lunr*.js"

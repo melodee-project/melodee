@@ -1,211 +1,96 @@
 ---
-title: User Device Profiles
-description: Configure per-user and per-device transcoding profiles for automatic codec and bitrate selection
+title: User Device Profiles (Preview)
+description: Understand the current management-only status of per-user transcoding profiles in Melodee 2.2.0.
+permalink: /user-device-profiles/
 tags:
-  - configuration
   - transcoding
-  - streaming
+  - preview
   - profiles
 ---
 
-# User Device Profiles
+# User Device Profiles (Preview)
 
-User Device Profiles allow you to configure different transcoding settings for different devices and users. For example, you can automatically serve Opus at 96 kbps to mobile devices while providing lossless Direct Play to desktop clients—all without changing settings each time.
+User Device Profiles are a partially implemented transcoding-profile model in
+Melodee 2.2.0. Users can create and manage profile records in the web UI, and a
+service can resolve a per-player profile or user default. The streaming paths do
+not yet consume that resolved profile, so these records do not automatically
+change the codec, bitrate, or sample rate delivered to a client.
 
-## Overview
+Do not use this feature as evidence that bandwidth or format limits are being
+enforced.
 
-The device profile system provides:
+## What Is Available
 
-- **Per-Player Profiles**: Configure specific transcoding for individual devices (e.g., "My iPhone", "Living Room Desktop")
-- **Per-User Defaults**: Set a default transcoding profile for a user across all their devices
-- **Global Default**: Fall back to Direct Play (no transcoding) when no specific profile is set
-- **Automatic Device Identification**: Devices are automatically identified from OpenSubsonic, Jellyfin, and native API requests
+Open **Account > Profile > Device Profiles**. A signed-in user can create, edit,
+set as default, and delete their own profile records.
 
-## Profile Precedence
+Each record stores:
 
-When a stream request is made, Melodee applies profiles in this order (highest to lowest priority):
+| Field | Meaning |
+|-------|---------|
+| Name | User-facing description |
+| Direct Play | Intended to preserve the source stream |
+| Target Codec | Intended transcode format |
+| Maximum Bitrate | Intended limit in kbps |
+| Resample Rate | Intended output sample rate in Hz |
+| Priority | Reserved profile-selection value |
+| Default | Marks the user's fallback profile |
+| Player | Optional database association with a known client/player |
 
-1. **Per-Player Override** - If a profile exists for the specific player/device
-2. **Per-User Default** - If the user has set a default profile
-3. **Global Default** - Direct Play (no transcoding)
+The UI offers MP3, Opus, AAC, FLAC, and WAV. It accepts bitrates from 1 to 9999
+kbps, resample rates from 1,000 to 192,000 Hz, and priorities from 0 to 100.
+Those UI choices describe stored intent; actual encoder and client support is
+not validated by profile creation.
 
-This means you can set a user default of "MP3 192kbps" but override it for specific devices like "Mobile → Opus 96kbps" or "Desktop → Direct Play".
+The service enforces these consistency rules:
 
-## Enabling Device Profiles
+- a Direct Play profile must not specify a target codec or maximum bitrate;
+- a non-Direct-Play profile must specify a target codec;
+- selecting a new user default clears the previous default flag.
 
-Device profiles are enabled by default. To disable them system-wide:
+## Intended Precedence
 
-```bash
-# Via settings or configuration
-userDeviceProfile.enabled = false
-```
+The implemented resolver returns profiles in this order:
 
-When disabled:
-- The Device Profiles UI is hidden in Blazor
-- All transcoding decisions fall back to legacy behavior
-- Existing profiles are preserved but not used
+1. the profile assigned to the supplied user and player;
+2. the user's default profile;
+3. an in-memory Direct Play fallback named `Global Default - Direct Play`.
 
-## Configuration Options
+The 2.2.0 profile dialog does not expose a Player selector, so profiles created
+there are user-level records. Although player records are created elsewhere for
+client tracking, the UI does not currently bind a profile to one.
 
-### Direct Play
+## Current Boundaries
 
-Direct Play streams the original file without any transcoding—perfect for high-quality local playback or fast networks.
+The following claims from earlier documentation are not true for 2.2.0:
 
-**Profile Settings:**
-- **Name**: A descriptive name (e.g., "Desktop Lossless")
-- **Direct Play**: `true`
-- **Target Codec**: (not used)
-- **Max Bitrate**: (not used)
-- **Resample Rate**: (not used)
+- OpenSubsonic, Jellyfin, and native streaming do not call
+  `GetEffectiveProfileAsync` when selecting their output;
+- clients are not automatically mapped to these profiles for transcoding;
+- no `/api/v1/user-device-profiles` REST controller is registered;
+- no `X-Transcoding-Profile` response header is emitted;
+- no fallback based on User-Agent and IP is created by this feature;
+- changing `userDeviceProfile.enabled` does not currently hide the profile tab
+  or connect/disconnect profile resolution from streaming.
 
-### Transcoding Profiles
+`userDeviceProfile.enabled` is seeded to `true`, but no 2.2.0 consumer reads it.
+Existing profile records are preserved if the setting is changed.
 
-Transcoding profiles convert audio to a different format and/or bitrate.
+## Evaluation and Troubleshooting
 
-**Supported Codecs:**
-- **mp3** - MP3 (MPEG Audio Layer 3)
-- **opus** - Opus (modern, efficient codec)
-- **aac** - AAC (Advanced Audio Coding)
+Profile records are useful for UI and service-development testing, but an
+administrator should continue configuring client-requested transcoding and the
+existing streaming settings for production behavior. Confirm delivered content
+from response headers and the media stream itself rather than from the profile
+row.
 
-**Profile Settings:**
-- **Name**: A descriptive name (e.g., "Mobile - Opus 96k")
-- **Direct Play**: `false`
-- **Target Codec**: `mp3`, `opus`, or `aac`
-- **Max Bitrate**: Bitrate in kbps (e.g., 96, 128, 192, 320)
-- **Resample Rate** (optional): Resample rate in Hz (e.g., 44100, 48000)
+If profile creation fails, ensure Direct Play fields are consistent, a
+transcoding codec is selected, and the values fit the UI ranges. If a default
+does not appear first, reload the Profile page; the service invalidates its
+default cache after changes.
 
-## Device Identification
-
-Melodee automatically identifies devices from different API clients:
-
-### OpenSubsonic Clients
-
-Uses the `c` parameter (client name) from the API request:
-- **Ultrasonic**: `c=Ultrasonic`
-- **Symfonium**: `c=Symfonium`
-- **Sublime Music**: `c=Sublime%20Music`
-
-Devices are auto-registered when first seen. Each unique client name becomes a Player that can have a profile assigned.
-
-### Jellyfin Clients
-
-Uses the following headers:
-- **X-Emby-Client**: Client application name
-- **X-Emby-Device-Id**: Stable device identifier
-- **X-Emby-Device-Name**: Human-readable device name
-
-The combination of client and device ID creates a stable player identity.
-
-### Native Melodee API / Web Player
-
-Uses the custom header:
-- **X-Melodee-Device-Id**: Custom device identifier
-
-If no device ID is provided, Melodee generates a stable identifier based on User-Agent and IP address.
-
-## Example Usage
-
-### Example 1: Mobile and Desktop Profiles
-
-**Scenario**: You want mobile devices to save bandwidth with Opus 96kbps, but desktop to play losslessly.
-
-**Setup:**
-1. Create a user default profile: "User Default - Opus 96kbps"
-2. Create a per-player override for your desktop: "Desktop - Direct Play"
-
-**Result:**
-- Your phone (no specific profile) gets Opus 96kbps
-- Your desktop gets Direct Play
-- Any new device defaults to Opus 96kbps
-
-### Example 2: Quality Tiers
-
-**Setup:**
-1. User default: "MP3 192kbps"
-2. Player "Office Desktop": "Direct Play"
-3. Player "Car Stereo": "MP3 128kbps"
-4. Player "Mobile": "Opus 96kbps"
-
-**Result:**
-- Each device gets the appropriate quality for its use case
-- Unknown devices fall back to MP3 192kbps
-
-## API Management
-
-Device profiles can be managed via the Melodee REST API:
-
-### List Profiles for User
-
-```http
-GET /api/v1/user-device-profiles?userId=123
-```
-
-### Create Profile
-
-```http
-POST /api/v1/user-device-profiles
-Content-Type: application/json
-
-{
-  "userId": 123,
-  "playerId": 456,
-  "name": "Mobile - Opus 96k",
-  "directPlay": false,
-  "targetCodec": "opus",
-  "maxBitrate": 96,
-  "isDefaultProfile": false
-}
-```
-
-### Update Profile
-
-```http
-PUT /api/v1/user-device-profiles/789
-Content-Type: application/json
-
-{
-  "id": 789,
-  "name": "Updated Name",
-  "directPlay": true
-}
-```
-
-### Delete Profile
-
-```http
-DELETE /api/v1/user-device-profiles/789
-```
-
-## Logging and Troubleshooting
-
-Melodee logs transcoding decisions for each stream request:
-
-```
-[UserDeviceProfileService] Using per-player profile [Mobile - Opus 96k] for user [123], player [456]
-[UserDeviceProfileService] Using user default profile [MP3 192k] for user [123]
-[UserDeviceProfileService] Using global default (direct play) for user [123]
-```
-
-To see which profile is being applied, check the logs or look for the `X-Transcoding-Profile` response header (if enabled).
-
-## Best Practices
-
-1. **Start with a sensible user default** - Set a reasonable quality that works for most devices
-2. **Override selectively** - Only create per-player profiles when needed
-3. **Test with real devices** - Verify transcoding settings work as expected
-4. **Monitor bandwidth** - Higher bitrates = more bandwidth usage
-5. **Use Opus for mobile** - Opus provides excellent quality at low bitrates
-6. **Use Direct Play for local** - No transcoding overhead for same-network playback
-
-## Limitations
-
-- Device identification relies on client cooperation (sending correct parameters)
-- Transcoding requires CPU resources; high concurrency may impact performance
-- Not all codecs are supported on all platforms
-- Fallback behavior when player is unknown is deterministic but may not match expectations
-
-## See Also
-
-- [Configuration Reference](configuration-reference) - All configuration settings
-- [OpenSubsonic API](api-opensubsonic) - OpenSubsonic compatibility
-- [Jellyfin API](api-jellyfin) - Jellyfin compatibility
+Treat the database schema and service as preview implementation detail until a
+release explicitly connects them to streaming controllers and publishes API
+contracts. See [Configuration Reference](/configuration-reference/),
+[OpenSubsonic API](/api-opensubsonic/), and [Jellyfin Compatibility
+API](/api-jellyfin/) for currently effective streaming interfaces.

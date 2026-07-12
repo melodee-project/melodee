@@ -1,193 +1,165 @@
 ---
 title: Configuration
+description: Configure Melodee host settings, persistent application settings, libraries, providers, jobs, and security.
 permalink: /configuration/
+tags:
+  - configuration
+  - administration
+  - security
 ---
 
 # Configuration
 
-Melodee exposes configuration through environment variables, the web UI, and (internally) a dynamic settings registry. This page outlines common areas to tune.
+Melodee has two configuration layers:
 
-For a comprehensive reference of all configuration options, see the [Configuration Reference](/configuration-reference/) page.
+1. **Host configuration** controls startup concerns such as connection strings,
+   JWT signing, CORS, rate limiting, and logging. It comes from
+   `appsettings.json` and standard .NET environment variables.
+2. **Application settings** control runtime behavior such as ingestion,
+   providers, jobs, streaming, podcasts, Jukebox, themes, and scripting. They
+   are stored in PostgreSQL and managed under **Admin > Settings**.
 
-## Configuration Sources
+Environment variables take precedence in both layers. A setting supplied by an
+environment variable appears read-only in normal administration workflows and
+requires a container or service restart to change.
 
-Priority (highest wins):
+## First-Run Checklist
 
-1. Environment variables (.env / container env)
-2. UI overrides (persisted in database)
-3. Default appsettings & internal defaults
+After registering the initial administrator:
 
-## Core Categories
+1. Set `system.baseUrl` to the origin clients use, including `https://` and any
+   non-default port.
+2. Verify every path under **Admin > Libraries**.
+3. Run **Admin > Doctor** and resolve failed required checks.
+4. Review registration, download, streaming, and sharing settings before
+   exposing the server outside your LAN.
+5. Configure only the metadata providers you intend to use and supply their
+   credentials.
+6. Review job schedules before importing a large library.
 
-### Server & Network
+## Libraries and Paths
 
-- MELODEE_PORT: External port to expose web & API.
-- BASE_URL (planned): Canonical base URL for reverse proxy setups.
+The default container installation creates Inbound, Staging, Storage, User
+Images, Playlist, Templates, Podcasts, and Themes libraries. The tracked
+Compose file mounts their default `/app/...` paths.
 
-### Database
+You can override these library paths at startup by passing the following
+variables into the application container:
 
-Provided via compose. Ensure DB_PASSWORD is strong. For external Postgres, set connection string variables (coming doc expansion).
+| Variable | Library |
+|----------|---------|
+| `MELODEE_INBOUND_PATH` | Inbound |
+| `MELODEE_STAGING_PATH` | Staging |
+| `MELODEE_STORAGE_PATH` | First Storage library |
+| `MELODEE_USER_IMAGES_PATH` | User Images |
+| `MELODEE_PLAYLISTS_PATH` | Playlist Data |
+| `MELODEE_TEMPLATES_PATH` | Templates |
 
-### Libraries
+The default `compose.yml` does not pass these optional variables. Add them to a
+Compose override's `environment` section and ensure matching volume mounts
+exist. Paths inside the container—not host paths—belong in these variables.
 
-Three logical areas:
+## Application Settings
 
-- Inbound: Raw, unprocessed files.
-- Staging: Processed, awaiting review & metadata edits.
-- Storage: Published canonical library (served to users / APIs).
+Use **Admin > Settings** for interactive changes. The CLI provides an auditable
+alternative:
 
-Ensure sufficient disk and backup strategy, especially for storage volume.
+```bash
+# Find settings by wildcard
+./mcli configuration list --filter 'streaming.*'
 
-### Metadata & Enrichment
+# Read one setting
+./mcli configuration get system.baseUrl
 
-Providers: MusicBrainz (local cache), Last.FM, Spotify, iTunes, Brave Search.
-
-Typical options (UI section):
-
-- Enable/disable provider.
-- API keys / tokens (Spotify, Last.FM, Brave Search).
-- Artwork size preferences.
-- Local MusicBrainz database refresh interval.
-
-#### Brave Search API Configuration
-
-To enable image search via Brave Search API, you'll need to:
-
-1. Get a free API key from [Brave Search API](https://brave.com/search/api/)
-2. Set the following environment variables:
-   ```
-   BRAVE_SEARCH__ENABLED=true
-   BRAVE_SEARCH__APIKEY=your_brave_api_key_here
-   ```
-3. Optionally configure base URL and search path (defaults are usually fine):
-   ```
-   BRAVE_SEARCH__BASEURL=https://api.search.brave.com
-   BRAVE_SEARCH__IMAGESEARCHPATH=/res/v1/images/search
-   ```
-
-Brave Search provides high-quality image results for both artist portraits and album covers.
-
-### Ingestion Rules
-
-Rule engine applies deterministic transformations:
-
-- Remove "(feat. X)" from title -> moves featured artist into artist metadata fields.
-- Normalize numbering (track 1 -> 01 or 1 based on style).
-- Strip stray unicode punctuation / marketing phrases.
-- Enforce required tags (Album, Artist, Title, Track, Duration) else item stays in staging.
-
-### Transcoding & Streaming
-
-Settings (some forthcoming in UI):
-
-- Preferred output format (Opus / MP3) for constrained bandwidth clients.
-- Max concurrent streams per user (enforced by streaming limiter service).
-- Buffered vs direct streaming (SettingRegistry.StreamingUseBufferedResponses). Buffered is safer for some reverse proxies; direct is lower latency.
-
-### Jobs & Scheduling
-
-Jobs run on cron‑like schedules (scan inbound, stage promotion, metadata refresh). Adjust intervals balancing freshness vs resource usage.
-
-### Security
-
-- First user is admin—create additional non‑admin accounts for daily use.
-- API keys are GUIDs associated with users; rotate by regenerating user key if compromised.
-- Blacklist service can deny by email or IP (used to mitigate abuse).
-
-### Logging
-
-Structured logging via Serilog. Configure sinks (console, file, etc.) in appsettings or environment overrides (documentation forthcoming for custom sinks).
-
-## Environment Variable Examples
-
-```
-DB_PASSWORD=supersecret
-MELODEE_PORT=8080
-# FUTURE (illustrative):
-# STREAMING_USE_BUFFERED=true
-# MAX_CONCURRENT_STREAMS=3
+# Change one setting
+./mcli configuration set system.baseUrl https://music.example.com
 ```
 
-## Observability & Metrics
+The live Settings page and `mcli configuration list` are the authoritative list
+for the installed version. Major categories include:
 
-System statistics endpoint (native API) surfaces counts (songs, albums, artists, etc.) — see /api/ for details. Future metrics (transcoding time, cache hit rates) planned.
+| Prefix | Purpose |
+|--------|---------|
+| `conversion.*`, `transcoding.*` | Ingestion conversion and stream output |
+| `imaging.*` | Artwork sizes, limits, and embedded images |
+| `jobs.*` | Quartz cron schedules |
+| `jukebox.*`, `mpv.*`, `mpd.*` | Server-side playback |
+| `magic.*`, `processing.*`, `validation.*` | Ingestion cleanup and validation |
+| `podcast.*` | Feed security, download limits, quotas, and retention |
+| `scrobbling.*` | Internal and Last.fm scrobbling |
+| `scripting.*` | Event-script enablement and assignments |
+| `searchEngine.*` | Metadata providers and local search databases |
+| `security.*`, `register.*` | Secrets, password reset, registration, and blacklists |
+| `streaming.*` | Response buffering and concurrency limits |
+| `system.*` | Public URL, site name, downloads, and uploads |
+| `theme.*` | Theme library behavior and validation |
 
-## Homelab Security & Optimization
+Quote cron expressions and JSON-like values in the shell. Before bulk changes,
+create a redacted export:
 
-### Reverse Proxy Setup
-
-For homelab deployments, it's strongly recommended to put Melodee behind a reverse proxy:
-
-**Nginx Example:**
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name music.yourdomain.com;
-
-    ssl_certificate /path/to/certificate.crt;
-    ssl_certificate_key /path/to/private.key;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Increase buffer sizes for media streaming
-        proxy_buffer_size 128k;
-        proxy_buffers 4 256k;
-        proxy_busy_buffers_size 256k;
-    }
-}
+```bash
+./mcli backup export --output melodee-settings.json --redact-secrets
 ```
 
-**Traefik Example:**
+## Environment Overrides for Application Settings
+
+For database-backed application settings, Melodee maps underscores in an
+environment-variable name to periods and compares keys without case
+sensitivity. Examples:
+
+```text
+SYSTEM_BASEURL=https://music.example.com
+STREAMING_MAXCONCURRENTSTREAMS_PERUSER=3
+SEARCHENGINE_BRAVE_ENABLED=true
+SEARCHENGINE_BRAVE_APIKEY=replace-with-secret
+```
+
+Compose only sends variables explicitly listed under a service's `environment`
+or `env_file`. Values present in the host `.env` are available for Compose
+substitution but are not automatically injected into the container.
+
+Example override:
+
 ```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.melodee.rule=Host(`music.yourdomain.com`)"
-  - "traefik.http.routers.melodee.tls=true"
-  - "traefik.http.routers.melodee.entrypoints=websecure"
-  - "traefik.http.services.melodee.loadbalancer.server.port=8080"
+services:
+  melodee.blazor:
+    environment:
+      - SYSTEM_BASEURL=https://music.example.com
+      - STREAMING_MAXCONCURRENTSTREAMS_PERUSER=3
+      - SEARCHENGINE_BRAVE_ENABLED=true
+      - SEARCHENGINE_BRAVE_APIKEY=${BRAVE_API_KEY}
 ```
 
-### Performance Tuning for Homelabs
+Keep secrets out of tracked YAML. Use a protected `.env`, container secret
+facility, or external secret manager appropriate to the deployment.
 
-**Database Connection Pool:**
+## Reverse Proxy
+
+When TLS terminates at a reverse proxy:
+
+- Set `system.baseUrl` to the external HTTPS origin.
+- Preserve `Host`, `X-Forwarded-For`, and `X-Forwarded-Proto`.
+- Support connection upgrades for Blazor Server and Party Mode.
+- Disable response buffering for long audio streams if the proxy buffers by
+  default.
+- Restrict direct access to the backend port when trusting forwarded headers.
+
+See [Homelab Deployment](/homelab/) for Nginx and Traefik examples.
+
+## Apply and Validate Changes
+
+Database-backed settings generally reset Melodee's configuration cache when
+saved. Host settings and environment overrides require a restart:
+
+```bash
+docker compose restart melodee.blazor
+docker compose logs --tail=100 melodee.blazor
+curl --fail http://localhost:8080/health
 ```
-DB_MIN_POOL_SIZE=10
-DB_MAX_POOL_SIZE=50
-```
 
-**Media Processing:**
-- Adjust `MaxConcurrentStreams` based on your hardware capabilities
-- Configure transcoding quality settings based on your network bandwidth
-- Set appropriate scan intervals to balance freshness with system load
+Run **Admin > Doctor** after changing paths, connection strings, credentials, or
+external tools. Test a representative browse and stream request after changing
+authentication, proxy, streaming, or transcoding settings.
 
-**Storage Optimization:**
-- Mount media volumes to separate drives for performance
-- Use SSDs for the database volume
-- Consider separate volumes for different library types (lossless vs lossy)
-
-### Hardening Checklist
-
-- Put behind a reverse proxy (nginx / Caddy) with TLS.
-- Restrict inbound port to proxy layer only.
-- Regularly export DB & storage backups.
-- Monitor log volume for anomalous access.
-
-## Updating Configuration
-
-1. Change value in UI or env.
-2. Restart service if an env var (some dynamic settings reload automatically).
-3. Observe logs for validation warnings.
-
-## Coming Soon
-
-- Editable YAML/JSON advanced config export/import.
-- Live reload for transcoding profiles.
-- Per‑user bandwidth caps.
-
-Have a config use‑case not covered? Open an issue so we can expand this section.
-
+See the [Configuration Reference](/configuration-reference/) for startup keys
+and defaults.

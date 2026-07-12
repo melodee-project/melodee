@@ -5,6 +5,7 @@ using Melodee.Common.Data.Models;
 using Melodee.Common.Extensions;
 using Melodee.Common.Filtering;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Serilog;
@@ -375,7 +376,7 @@ public class SettingService : ServiceBase
         }
         catch (Exception e)
         {
-            Logger.Error(e, "Failed to get setting [{0}]", key);
+            Logger.Error(e, "Failed to get setting [{0}]", LogSanitizer.Sanitize(key));
         }
 
         return new MelodeeModels.OperationResult<Setting?>

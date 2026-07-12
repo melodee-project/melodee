@@ -1,231 +1,177 @@
 ---
 title: Theming
+description: Select built-in themes or create, validate, import, and administer custom Melodee theme packs.
 permalink: /theming/
+tags:
+  - themes
+  - customization
+  - administration
 ---
 
 # Theming Melodee
 
-Melodee supports a powerful theming system that allows users to customize the visual appearance of the application. Themes can control colors, typography, and even the visibility of navigation menu items.
+Melodee includes built-in Light and Dark themes and can load custom CSS theme
+packs from its Themes library. Administrators manage packs and the system
+default under **Administration > Themes**. Users select an available theme in
+**Account > Profile**; the preference is stored on the user and applied through
+the `melodee_ui_theme` cookie.
 
-## Built-in Themes
+If no system/user selection can be resolved, Melodee falls back to Dark.
 
-Melodee includes two built-in themes that work out of the box without any configuration:
+## Themes Library
 
-| Theme | Description |
-|-------|-------------|
-| **Dark** | Easy on the eyes for low-light environments (default) |
-| **Light** | Clean, bright theme for daytime use |
+A new 2.2.0 database seeds the Themes library at `/app/themes/`. The published
+Compose file mounts the `melodee_themes` volume there. If an installation uses a
+different library path, the database library record is authoritative.
 
-These built-in themes use Radzen's standard theme CSS and require no Theme library setup.
+The two built-in themes do not need this directory. Custom themes are discovered
+one directory below it:
 
-## Custom Themes
+```text
+/app/themes/
+└── my-theme/
+    ├── theme.json
+    ├── theme.css
+    └── optional-assets...
+```
 
-Custom themes allow you to personalize Melodee's appearance beyond the built-in options. Custom themes require a **Theme library** to be configured.
+The administration page can create a missing Themes library, but its suggested
+path may not match a container's mounts. Use `/app/themes/` for the repository's
+Compose deployment unless you intentionally added another mount.
 
-### Setting Up the Theme Library
+## Import and Administration
 
-1. Go to **Admin > Libraries**
-2. Ensure a Theme library exists (one is created by default at `/storage/themes/`)
-3. If needed, update the library path to your preferred location
+**Administration > Themes** can rescan, import, export, and delete custom
+themes, show validation warnings, and set `system.defaultTheme`. Built-in Light
+and Dark cannot be deleted.
 
-### Available Custom Themes
+For UI import, the ZIP root must directly contain `theme.json` and `theme.css`:
 
-Pre-built custom theme packs are available in the [Melodee repository's `/themes` directory](https://github.com/melodee-project/melodee/tree/main/themes):
+```text
+my-theme.zip
+├── theme.json
+├── theme.css
+└── preview.png
+```
 
-| Theme | Base | Description |
-|-------|------|-------------|
-| **Melodee** | light | White/gray backgrounds with purple/magenta accents and gradient buttons |
-| **Melodee Dark** | dark | Dark backgrounds with purple/magenta accents and gradient buttons |
-| Synthwave | dark | Retro 80s neon aesthetic with magenta and cyan |
-| Midnight Galaxy | dark | Deep space purple theme |
-| Ocean Breeze | light | Calming blue ocean colors |
-| Forest | light | Natural green earth tones |
-| Sunset Vibes | light | Warm orange and coral sunset colors |
+A ZIP whose only root entry is a `my-theme/` directory does not match the 2.2.0
+importer's expected layout. Either repackage that directory's contents at the
+ZIP root or extract its top-level theme directory directly beneath the Themes
+library and rescan. The ready-made archives in the repository use a top-level
+directory and are therefore suited to direct extraction unless repackaged.
 
-Download any theme zip and import it via **Admin > Themes** in your Melodee instance.
+Pre-built packs are in the [repository themes
+directory](https://github.com/melodee-project/melodee/tree/main/themes). The
+published set includes Melodee Light, Melodee Dark, Forest, Midnight Galaxy,
+Ocean Breeze, Sunset Vibes, and Synthwave.
 
-### Additional Radzen Themes
+The service defaults to a 50 MiB maximum archive size when
+`theme.maxUploadSizeMb` is absent or nonpositive. The browser accepts at most
+100 MiB, but the smaller service limit still wins. Create the database setting
+to choose a lower operational limit.
 
-When a Theme library is configured, you can also use these additional Radzen themes by creating appropriate theme packs:
+## `theme.json`
 
-- standard, standard-dark
-- humanistic, humanistic-dark  
-- software, software-dark
-- material, material-dark
-
-## Default Theme Behavior
-
-- **System Default**: Radzen Dark theme
-- **No Theme Library**: Application uses built-in Light and Dark themes only
-- **Theme Not Found**: Falls back to Radzen Dark theme
-- **User Preference**: Stored in a browser cookie and persists across sessions
-
-Users can select their preferred theme from the theme selector in the application header.
-
-## Creating Custom Themes
-
-### Theme Structure
-
-A custom theme is packaged as a folder containing at least two files:
-
-1. `theme.json`: Metadata and configuration
-2. `theme.css`: CSS variables defining the design tokens
-
-### theme.json
+Only `id` and `name` are required by the metadata parser; `theme.css` is also a
+required file. A complete example is:
 
 ```json
 {
-  "id": "my-custom-theme",
-  "name": "My Custom Theme",
-  "description": "A beautiful custom theme for Melodee.",
-  "author": "Your Name",
+  "id": "my-theme",
+  "name": "My Theme",
+  "description": "A custom dark theme.",
+  "author": "Example Admin",
   "version": "1.0.0",
   "baseTheme": "dark",
+  "previewImage": "preview.png",
   "branding": {
     "logoImage": "logo.png",
     "favicon": "favicon.ico"
   },
   "fonts": {
     "base": "Inter, sans-serif",
-    "heading": "Outfit, sans-serif",
-    "mono": "Fira Code, monospace"
+    "heading": "Inter, sans-serif",
+    "mono": "monospace"
   },
   "navMenu": {
-    "hidden": ["jukebox", "podcasts"]
+    "hidden": ["jukebox", "party"]
   }
 }
 ```
 
-- `baseTheme`: Either `light` or `dark`. This determines which Radzen base theme CSS is loaded before your custom CSS.
-- `branding`: Optional customizations for the logo and favicon.
-- `fonts`: Custom font families.
-- `navMenu.hidden`: List of navigation item IDs to hide. Available IDs: `dashboard`, `stats`, `artists`, `albums`, `charts`, `libraries`, `nowplaying`, `jukebox`, `party`, `playlists`, `podcasts`, `radiostations`, `requests`, `songs`, `shares`, `users`, `admin`, `about`.
+`baseTheme` selects Radzen's `dark` base only when its value is exactly `dark`;
+all other values use the default/light base. Relative preview, logo, favicon,
+font, CSS, and image files are served through the theme API.
 
-### theme.css
+Navigation IDs currently rendered by the main menu include `dashboard`,
+`stats`, `artists`, `albums`, `charts`, `libraries`, `nowplaying`, `jukebox`,
+`party`, `playlists`, `podcasts`, `radiostations`, `requests`, `songs`, `shares`,
+`users`, `admin`, `themes`, and `about`.
 
-The CSS file defines design tokens as CSS variables. Your theme CSS loads **after** the Radzen base theme, so you only need to override the variables you want to change.
+Hiding navigation is visual customization only. It does not revoke a role,
+protect a route, or replace server-side authorization.
 
-#### Melodee Design Tokens
+## `theme.css`
+
+Custom CSS loads after the chosen Radzen base. A valid imported pack must define
+these Melodee tokens:
 
 ```css
 :root {
-  /* Surface colors */
   --md-surface-0: #121212;
   --md-surface-1: #1e1e1e;
   --md-surface-2: #2c2c2c;
-
-  /* Text colors */
   --md-text-1: #ffffff;
-  --md-text-2: #b3b3b3;
+  --md-text-2: #c7c7c7;
   --md-text-inverse: #000000;
-  --md-muted: #737373;
-
-  /* Accent colors */
-  --md-primary: #1db954;
+  --md-muted: #8a8a8a;
+  --md-border: #3a3a3a;
+  --md-divider: #303030;
+  --md-primary: #9c6ade;
   --md-primary-contrast: #ffffff;
-  --md-accent: #1ed760;
+  --md-accent: #42c7b9;
   --md-accent-contrast: #000000;
-
-  /* Status colors */
-  --md-success: #1db954;
-  --md-warning: #ffa500;
-  --md-error: #f15555;
-  --md-info: #2196f3;
-
-  /* UI Elements */
-  --md-border: #333333;
-  --md-divider: #282828;
   --md-focus: #ffffff;
-  --md-table-header-bg: #282828;
-  --md-table-header-text: #ffffff;
-  --md-chip-bg: #3e3e3e;
-  --md-chip-text: #ffffff;
-
-  /* Fonts */
-  --md-font-family-base: 'Inter', sans-serif;
-  --md-font-family-heading: 'Outfit', sans-serif;
-  --md-font-family-mono: 'monospace';
+  --md-success: #43a047;
+  --md-warning: #f9a825;
+  --md-error: #e53935;
+  --md-info: #1e88e5;
 }
 ```
 
-#### Radzen Compatibility Variables
+Table, chip, and font-family `--md-*` tokens are optional in 2.2.0. Radzen
+`--rz-*` variables and component selectors can be overridden after the required
+tokens to customize parts of the UI that do not yet consume Melodee tokens.
 
-For full theme control, you should also override Radzen's CSS variables:
+## Validation and Contrast
 
-```css
-:root {
-  /* Primary color scheme */
-  --rz-primary: #E040FB;
-  --rz-primary-light: #F06EFF;
-  --rz-primary-lighter: rgba(224, 64, 251, 0.16);
-  --rz-primary-dark: #C020DB;
-  --rz-primary-darker: #9C00B7;
+Import rejects a missing/invalid `theme.json`, missing `theme.css`, missing
+required tokens, a duplicate theme ID, an oversized archive, or ZIP path
+traversal. Theme discovery records warnings for packs placed directly on disk.
 
-  /* Secondary color scheme */
-  --rz-secondary: #FF7043;
-  --rz-secondary-light: #FF9A76;
-  --rz-secondary-dark: #F4511E;
+Melodee checks a 4.5:1 contrast ratio for:
 
-  /* Status colors */
-  --rz-success: #4DB6AC;
-  --rz-warning: #FFCA28;
-  --rz-danger: #FF5252;
-  --rz-info: #FFA726;
+- `--md-text-1` on each of `--md-surface-0` and `--md-surface-1`;
+- `--md-text-inverse` on `--md-primary`.
 
-  /* Background colors */
-  --rz-base-background-color: #FFFFFF;
-  --rz-body-background-color: #FFFFFF;
+With `theme.enforceContrastValidation=true`, an insufficient tested ratio makes
+an import invalid. Otherwise it is a warning. Contrast parsing understands
+hexadecimal and `rgb(r,g,b)` colors; variables, named colors, and more complex
+CSS values may not validate as intended.
 
-  /* Text colors */
-  --rz-text-color: #1a1a2e;
-  --rz-text-secondary-color: #4a4a5a;
+## Security and Recovery
 
-  /* Border colors */
-  --rz-border-color: #E0E0E0;
-  --rz-border-color-hover: #E040FB;
-}
-```
+Import only trusted packs. Custom CSS and publicly served SVG/font/image assets
+can alter what users see, make remote requests, obscure controls, and imitate
+application UI. Review every file before import. Restrict filesystem write
+access to administrators, and do not place credentials or private URLs in CSS
+or metadata.
 
-#### Custom Styling Example
+Theme assets are customization, not executable JavaScript: `.js` and arbitrary
+file types are not served by the theme file endpoint. A theme cannot grant
+permissions by revealing a hidden menu item.
 
-You can also add component-specific CSS after the variables:
-
-```css
-/* Gradient primary buttons */
-.rz-button.rz-primary {
-  background: linear-gradient(135deg, #E040FB 0%, #FF7043 50%, #FFA726 100%);
-  border: none;
-}
-
-/* Focus states */
-.rz-textbox:focus {
-  border-color: #E040FB;
-  box-shadow: 0 0 0 3px rgba(224, 64, 251, 0.2);
-}
-```
-
-## Creating a Theme Pack
-
-To create a theme pack for distribution:
-
-1. Create a folder named after your theme ID (e.g., `my-theme`)
-2. Add `theme.json` with your theme metadata
-3. Add `theme.css` with your design tokens and custom styles
-4. (Optional) Add assets like logos or favicons
-5. Zip the folder
-
-## Importing Themes
-
-Administrators can import theme packs via **Admin > Themes** in the web interface, or by placing the theme folder directly into the Themes library directory (configured in **Admin > Libraries**).
-
-## Accessibility (Contrast Ratio)
-
-Melodee enforces WCAG AA standards for contrast. When a theme is loaded, the system validates the contrast ratio of key color pairs (e.g., text vs. background). If the contrast is insufficient, a warning will be displayed in the logs or during import.
-
-Standard pairs checked:
-
-- Primary Text over Surface Level 0/1/2
-- Primary Contrast over Primary
-- Accent Contrast over Accent
-- Table Header Text over Table Header BG
-- Chip Text over Chip BG
+Back up the `melodee_themes` volume. If a theme breaks the UI, remove the
+`melodee_ui_theme` cookie or select `dark`, set `system.defaultTheme` to `dark`,
+and then remove or correct the custom theme directory. See [Backup and
+Restore](/backup/) for volume backup procedures.

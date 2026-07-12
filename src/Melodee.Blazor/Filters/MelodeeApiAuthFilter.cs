@@ -81,7 +81,7 @@ public sealed class MelodeeApiAuthFilter(
         if (await blacklistService.IsEmailBlacklistedAsync(user.Email).ConfigureAwait(false) ||
             await blacklistService.IsIpBlacklistedAsync(clientIp).ConfigureAwait(false))
         {
-            logger.LogWarning("Blocked request for blacklisted user {Email} from {Ip}", user.Email, clientIp);
+            logger.LogWarning("Blocked request for blacklisted user ID {UserId}", user.Id);
             context.Result = new ObjectResult(
                 new ApiError(ApiError.Codes.Blacklisted, "User is blacklisted", correlationId))
             {

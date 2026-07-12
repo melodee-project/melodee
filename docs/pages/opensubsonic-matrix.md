@@ -1,460 +1,146 @@
 ---
 title: OpenSubsonic Compatibility Matrix
+description: Endpoint-by-endpoint status for Melodee 2.2.0's OpenSubsonic compatibility API.
 permalink: /opensubsonic-matrix/
 tags:
   - opensubsonic
   - api
   - compatibility
-  - client
 ---
 
 # OpenSubsonic Compatibility Matrix
 
-**Last updated:** January 13, 2026  
-**Applies to:** Melodee 1.8.0+
+**Last updated:** July 11, 2026
 
-> **Compliance Status:** Melodee implements OpenSubsonic API response structures that conform to published XSD schema specifications.
-> - **311 tests** validate response schema structure for all implementable JSON endpoints
-> - **50+ response elements** defined with full attribute validation
-> - **8 error codes** (10-80) validated with proper format
-> - All tests pass (100% pass rate)
-> - Binary content endpoints return correct content types
+**Applies to:** Melodee 2.2.0
 
-This document provides a detailed compatibility matrix for Melodee's OpenSubsonic API implementation. Use this guide to verify which endpoints and features work with your preferred Subsonic/OpenSubsonic client.
-
-## Quick Reference
+This matrix is based on the routes implemented by the 2.2.0 server. Supported
+means that Melodee has a handler for the endpoint; it does not promise every
+optional field or every third-party client workflow.
 
 | Status | Meaning |
 |--------|---------|
-| ✅ Supported | Endpoint is implemented and returns expected response structure |
-| ⚠️ Partial | Endpoint works but may have limitations or need manual verification |
-| ❌ Not Supported | Endpoint is not implemented |
-| 🔄 Planned | On roadmap but not yet implemented |
-
-### What "✅ Supported" Means
-
-An endpoint marked as "✅ Supported" means:
-1. The endpoint is implemented in the codebase
-2. For endpoints with "Schema Validation" tests: Response structure is verified against XSD
-3. For endpoints with "Manual" tests: Functionality has been verified by a person
-
-**It does NOT guarantee:**
-- Full protocol compliance in all edge cases
-- Error handling matches specification
-- Performance meets expectations
-- All client features work correctly
-
----
-
-## Core Endpoints
-
-### System
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `ping` | ✅ Supported | Test connectivity and authentication | Schema Validation |
-| `getLicense` | ✅ Supported | Returns valid license data | Schema Validation |
-| `getOpenSubsonicExtensions` | ✅ Supported | Lists supported OpenSubsonic extensions | Schema Validation |
-
-### Browsing
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getMusicFolders` | ✅ Supported | Returns storage libraries | Schema Validation |
-| `getIndexes` | ✅ Supported | Artist index (A-Z listing) | Schema Validation |
-| `getArtists` | ✅ Supported | Full artist listing with pagination | Manual |
-| `getArtist` | ✅ Supported | Artist details with albums | Schema Validation |
-| `getAlbum` | ✅ Supported | Album details with songs | Schema Validation |
-| `getSong` | ✅ Supported | Song metadata | Schema Validation |
-| `getGenres` | ✅ Supported | Genre listing with counts | Schema Validation |
-| `getMusicDirectory` | ✅ Supported | Directory contents | Schema Validation |
-
-### Album/Song Lists
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getAlbumList` | ✅ Supported | Albums by various criteria | Schema Validation |
-| `getAlbumList2` | ✅ Supported | Albums (ID3 tag based) | Schema Validation |
-| `getRandomSongs` | ✅ Supported | Random song selection | Schema Validation |
-| `getSongsByGenre` | ✅ Supported | Songs filtered by genre | Schema Validation |
-| `getNowPlaying` | ✅ Supported | Currently playing songs | Schema Validation |
-| `getStarred` | ✅ Supported | Starred items (original format) | Schema Validation |
-| `getStarred2` | ✅ Supported | Starred items (ID3 based) | Schema Validation |
-
-### Searching
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `search2` | ✅ Supported | Search artists, albums, songs | Manual |
-| `search3` | ✅ Supported | Search (ID3 tag based) | Manual |
-
-### Playlists
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getPlaylists` | ✅ Supported | User playlists listing | Schema Validation |
-| `getPlaylist` | ✅ Supported | Playlist details with songs | Schema Validation |
-| `createPlaylist` | ✅ Supported | Create new playlist | Schema Validation |
-| `updatePlaylist` | ✅ Supported | Update playlist (name, songs) | Manual |
-| `deletePlaylist` | ✅ Supported | Delete playlist | Manual |
-
-### Media Retrieval
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `stream` | ✅ Supported | Stream audio with transcoding | Manual |
-| `download` | ✅ Supported | Download audio file | Manual |
-| `getCoverArt` | ✅ Supported | Album/artist artwork | Manual |
-| `getLyrics` | ✅ Supported | Song lyrics | Schema Validation |
-| `getAvatar` | ✅ Supported | User avatar images | Manual |
-
-### User Data
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `star` | ✅ Supported | Star an item | Manual |
-| `unstar` | ✅ Supported | Unstar an item | Manual |
-| `setRating` | ✅ Supported | Set item rating (1-5) | Manual |
-| `scrobble` | ✅ Supported | Submit scrobble to Last.fm | Manual |
-| `getUser` | ✅ Supported | Get user information | Schema Validation |
-
-### Media Annotation
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getSimilarSongs` | ✅ Supported | Similar songs | Schema Validation |
-| `getSimilarSongs2` | ✅ Supported | Similar songs (ID3 based) | Schema Validation |
-| `getTopSongs` | ✅ Supported | Top songs for artist | Schema Validation |
-
-### Bookmarks
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getBookmarks` | ✅ Supported | User bookmarks | Schema Validation |
-| `createBookmark` | ✅ Supported | Create bookmark | Manual |
-| `deleteBookmark` | ✅ Supported | Delete bookmark | Manual |
-| `getPlayQueue` | ✅ Supported | Get play queue | Schema Validation |
-| `savePlayQueue` | ✅ Supported | Save play queue | Manual |
-
-### Media Library Scanning
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `startScan` | ✅ Supported | Start library scan | Manual |
-| `getScanStatus` | ✅ Supported | Get scan status | Schema Validation |
-
-### Jukebox
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `jukeboxControl` | ✅ Supported | Server-side playback control | Manual |
-
-### Podcasts
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getPodcasts` | ✅ Supported | Podcast channels listing | Manual |
-| `getNewestPodcasts` | ✅ Supported | Newest episodes | Manual |
-| `refreshPodcasts` | ✅ Supported | Refresh podcast feeds | Manual |
-| `createPodcastChannel` | ✅ Supported | Subscribe to channel | Manual |
-| `deletePodcastChannel` | ✅ Supported | Unsubscribe from channel | Manual |
-| `deletePodcastEpisode` | ✅ Supported | Delete episode | Manual |
-| `downloadPodcastEpisode` | ✅ Supported | Download episode | Manual |
-| `streamPodcastEpisode` | ✅ Supported | Stream podcast episode | Manual |
-
-### Shares
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getShares` | ✅ Supported | User shares listing | Schema Validation |
-| `createShare` | ✅ Supported | Create share | Manual |
-| `updateShare` | ✅ Supported | Update share | Manual |
-| `deleteShare` | ✅ Supported | Delete share | Manual |
-
-### Internet Radio
-
-| Endpoint | Status | Notes | Test Coverage |
-|----------|--------|-------|---------------|
-| `getInternetRadioStations` | ✅ Supported | List radio stations | Schema Validation |
-| `createInternetRadioStation` | ✅ Supported | Add radio station | Manual |
-| `updateInternetRadioStation` | ✅ Supported | Update radio station | Manual |
-| `deleteInternetRadioStation` | ✅ Supported | Delete radio station | Manual |
-
----
-
-## OpenSubsonic Extensions
-
-Melodee supports the following OpenSubsonic extensions:
-
-| Extension | Status | Notes |
-|-----------|--------|-------|
-| `apiKeyAuthentication` | ✅ Supported | Authenticate using API keys |
-| `formPost` | ✅ Supported | Form-encoded POST requests |
-| `songLyrics` | ✅ Supported | Enhanced lyrics with timing |
-| `transcodeOffset` | ✅ Supported | Start transcoding from offset |
-| `melodeeExtensions` | ✅ Supported | Melodee-specific extensions |
-
----
-
-## Known Limitations and Differences
-
-Compared to other popular Subsonic servers (Navidrome, Airsonic):
-
-| Feature | Behavior | Notes |
-|---------|----------|-------|
-| Schema Validation | ✅ Supported | 97 tests validate response structure for all endpoints |
-| Streaming | ✅ Implemented | Not yet verified with automated tests |
-| Transcoding | ✅ Implemented | Not yet verified with automated tests |
-| Authentication | ✅ Implemented | Token-based, legacy deprecated |
-| User avatars | ✅ Implemented | Uses Gravatar fallback |
-| Chat messages | ❌ Not Implemented | Deprecated in OpenSubsonic spec |
-| Video streaming | Not applicable | Music-only server |
-| Video podcasts | Not supported | Audio podcasts only |
-| Multiple music folders | ✅ Supported | Full support via libraries |
-| Album artist tag | ✅ Supported | Uses AlbumArtist when present |
-| Compilation albums | ✅ Supported | Full support via isCompilation flag |
-| ReplayGain | ⚠️ Partial | Metadata-based, not file-based |
-
----
-
-## Client Behavior Notes
-
-### Symfonium (Android)
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Login | ✅ Works | Token auth works correctly |
-| Browse | ✅ Works | Full browsing support |
-| Stream | ✅ Works | All formats supported |
-| Playlists | ✅ Works | Create/update/delete works |
-| Search | ✅ Works | Full search support |
-| Favorites | ✅ Works | Stars and ratings work |
-| Scrobble | ✅ Works | Last.fm scrobbling works |
-| Offline | ✅ Works | Full offline support |
-| Chromecast | ✅ Works | DLNA also supported |
-
-### Feishin (Desktop)
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Login | ✅ Works | Token auth works correctly |
-| Browse | ✅ Works | Full browsing support |
-| Stream | ✅ Works | All formats supported |
-| Playlists | ✅ Works | Create/update/delete works |
-| Search | ✅ Works | Full search support |
-| Favorites | ✅ Works | Stars and ratings work |
-| Scrobble | ✅ Works | Last.fm scrobbling works |
-| Lyrics | ✅ Works | Embedded lyrics display |
-| Theme | ✅ Works | Multiple themes supported |
-
-### DSub / Ultrasonic (Android)
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Login | ✅ Works | Token auth works correctly |
-| Browse | ✅ Works | Full browsing support |
-| Stream | ✅ Works | All formats supported |
-| Playlists | ✅ Works | Create/update/delete works |
-| Search | ✅ Works | Full search support |
-| Favorites | ✅ Works | Stars and ratings work |
-| Scrobble | ✅ Works | Last.fm scrobbling works |
-| Offline | ✅ Works | Full offline support |
-| Gapless | ✅ Works | Gapless playback works |
-
-### Supersonic (Desktop)
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Login | ✅ Works | Token auth works correctly |
-| Browse | ✅ Works | Full browsing support |
-| Stream | ✅ Works | All formats supported |
-| Playlists | ✅ Works | Create/update/delete works |
-| Search | ✅ Works | Full search support |
-| Favorites | ✅ Works | Stars and ratings work |
-| Scrobble | ✅ Works | Last.fm scrobbling works |
-| Caching | ✅ Works | Offline caching supported |
-
----
-
-## Client Verification
-
-| Client | Platform | Melodee Version | Date Tested | Verified By |
-|--------|----------|-----------------|-------------|-------------|
-| Symfonium | Android | 1.8.0 | 2026-01-12 | Community |
-| Feishin | Desktop (Linux) | 1.8.0 | 2026-01-12 | Community |
-| DSub | Android | 1.8.0 | 2026-01-12 | Community |
-| Ultrasonic | Android | 1.8.0 | 2026-01-12 | Community |
-| Supersonic | Desktop (Linux) | 1.8.0 | 2026-01-12 | Community |
-
----
-
-## Testing
-
-### Automated Tests
-
-Melodee includes an automated test suite that validates OpenSubsonic API compliance. Run tests with:
-
-```bash
-# Run schema validation tests
-dotnet test tests/Melodee.Tests.Common -v --filter "FullyQualifiedName~OpenSubsonicApiSchemaValidationTests"
-
-# Run all common tests
-dotnet test tests/Melodee.Tests.Common
-```
-
-**Test Coverage (311 tests total):**
-
-| Endpoint Category | Tests | Status |
-|-------------------|-------|--------|
-| System (ping, getLicense, getOpenSubsonicExtensions) | 3 | ✅ All Passing |
-| Browsing (getMusicFolders, getIndexes, getArtists, getGenres, getMusicDirectory) | 5 | ✅ All Passing |
-| Playlists (getPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist) | 5 | ✅ All Passing |
-| User Data (getStarred, getStarred2, getNowPlaying, getUser) | 4 | ✅ All Passing |
-| Album Lists (getAlbumList, getAlbumList2, getRandomSongs) | 3 | ✅ All Passing |
-| Song/Album/Artist (getSong, getAlbum, getArtist) | 3 | ✅ All Passing |
-| Lyrics (getLyricsListForSongId, getLyricsForArtistAndTitle) | 2 | ✅ All Passing |
-| Genre (getSongsByGenre) | 1 | ✅ All Passing |
-| Artist/Album Info (getArtistInfo, getAlbumInfo) | 2 | ✅ All Passing |
-| Annotation (getTopSongs, getSimilarSongs) | 2 | ✅ All Passing |
-| Annotation Actions (toggleStar, setRating, scrobble) | 3 | ✅ All Passing |
-| Bookmarks (getBookmarks, createBookmark, deleteBookmark) | 3 | ✅ All Passing |
-| Play Queue (getPlayQueue, savePlayQueue) | 2 | ✅ All Passing |
-| Shares (getShares, createShare, updateShare, deleteShare) | 4 | ✅ All Passing |
-| Media Library Scanning (getScanStatus, startScan) | 2 | ✅ All Passing |
-| Internet Radio (getInternetRadioStations, create/update/delete station) | 4 | ✅ All Passing |
-| Search (search2, search3) | 2 | ✅ All Passing |
-| Media Retrieval (getAvatar, getCoverArt) | 2 | ✅ All Passing |
-| User Management (createUser) | 1 | ✅ All Passing |
-| **Nested Child Element Validation** | 6 | ✅ All Passing |
-| **Response Format Compliance** | 2 | ✅ All Passing |
-| **Version Format Compliance** | 1 | ✅ All Passing |
-| **Error Response Validation (all codes 10-80)** | 10 | ✅ All Passing |
-| **Podcast Response Schema Validation** | 6 | ✅ All Passing |
-| **Jukebox Response Schema Validation** | 5 | ✅ All Passing |
-| **Share/Bookmark Element Validation** | 3 | ✅ All Passing |
-| **AlbumChild/NowPlayingEntry Validation** | 2 | ✅ All Passing |
-| **Podcast HTTP Endpoints** | 6 | ✅ All Passing |
-| **Jukebox HTTP Endpoints** | 11 | ✅ All Passing |
-| **Streaming Behavior Tests** | 7 | ✅ All Passing |
-| **Request Validation Tests** | 25 | ✅ All Passing |
-| **Authentication Flow Tests** | 11 | ✅ All Passing |
-| **Authentication Error Tests** | 10 | ✅ All Passing |
-| **Comprehensive Schema Validation Tests** | 44 | ✅ All Passing |
-
-**Schema Validator Coverage:**
-
-The schema validator validates response elements against Subsonic XSD types (50+ elements defined):
-
-| Element | Type | Attributes/Children Validated |
-|---------|------|-------------------------------|
-| `musicFolders` | MusicFolders | musicFolder[] children |
-| `indexes` | Indexes | lastModified (long), ignoredArticles |
-| `index` | Index | artist[] children |
-| `artist` | Artist | id (required), name, albumCount |
-| `artists` | ArtistsID3 | index[] with artist[] children |
-| `album` | AlbumWithSongsID3 | id, name, artist, year, genre, songCount, duration, etc. |
-| `song` / `child` | Child | 24+ attributes including id, title, artist, album, duration |
-| `albumList` | AlbumList | album[] children (AlbumChild type) |
-| `albumList2` | AlbumList2 | album[] children (AlbumChild type) |
-| `AlbumChild` | AlbumChild | 13+ attributes for album list responses |
-| `genres` | Genres | genre[] children with name, songCount, albumCount |
-| `directory` | Directory | id, name, parent, path, child[] children |
-| `playlists` | Playlists | playlist[] children |
-| `playlist` | PlaylistWithSongs | id, name, owner, songCount, duration, song[] children |
-| `starred` | Starred | artist[], album[], song[] children |
-| `starred2` | Starred2 | artist[], album[], song[] children |
-| `nowPlaying` | NowPlaying | entry[] (NowPlayingEntry) children |
-| `NowPlayingEntry` | NowPlayingEntry | 25+ attributes including username, playerName |
-| `user` | User | username (required), email, all role booleans |
-| `lyrics` | Lyrics | artist, title, verse[] children |
-| `LyricsVerse` | LyricsVerse | nr, value (required) |
-| `license` | License | valid (required), email, key, expires, trial |
-| `randomSongs` | Songs | song[] children |
-| `searchResult2` | SearchResult2 | totalHits, offset, artist[], album[], song[] |
-| `searchResult3` | SearchResult3 | totalHits, offset, artist[], album[], song[] |
-| `songsByGenre` | Songs | song[] children |
-| `artistInfo` | ArtistInfo | name, bio, musicBrainzId, lastFmUrl, similarArtist[] |
-| `albumInfo` | AlbumInfo | title, artist, coverArt, notes, musicBrainzId, lastFmUrl |
-| `similarSongs2` | SimilarSongs2 | song[] children |
-| `topSongs` | TopSongs | song[] children |
-| `internetRadioStations` | InternetRadioStations | internetRadioStation[] children |
-| `InternetRadioStation` | InternetRadioStation | id (required), name (required), streamUrl (required) |
-| `shares` | Shares | share[] children |
-| `Share` | Share | id (required), url (required), entry[] children |
-| `bookmarks` | Bookmarks | bookmark[] children |
-| `Bookmark` | Bookmark | position (required), entry[] children |
-| `playQueue` | PlayQueue | username, current, position, entry[] |
-| `scanStatus` | ScanStatus | scanning, count, currentCount, totalCount, percent |
-| `jukeboxStatus` | JukeboxStatus | currentIndex (required), playing (required), gain, position, jukeboxPlaylist |
-| `jukeboxPlaylist` | JukeboxPlaylist | changeCount (required), entry[] children |
-| `jukeboxEntry` | JukeboxEntry | id (required), title, artist, album, duration, 18+ attributes |
-| `podcasts` | Podcasts | channel[] children |
-| `podcast` | PodcastChannel | id (required), url (required), title, description, episode[] |
-| `episode` | PodcastEpisode | id (required), channelId (required), title, duration, publishDate |
-| `newestPodcasts` | NewestPodcasts | episode[] children |
-| `error` | Error | code (required), message (required) |
-
-**Test Results (January 13, 2026):**
-- Total Tests: 311 (implementation complete)
-- Passing: 311 (100%)
-- Failed: 0
-- Skipped: 0
-- Schema Elements Validated: 50+
-- Error Codes Validated: 8 (10, 20, 30, 40, 50, 60, 70, 80)
-
-### Schema Validation Testing
-
-Melodee includes an automated test suite that validates OpenSubsonic API response structures against published XSD specifications. These tests verify that JSON responses conform to expected schema patterns, including:
-
-- **Response Structure:** Element hierarchy and child relationships
-- **Required Attributes:** Presence of mandatory fields (id, name, etc.)
-- **Field Types:** Correct data types for all attributes
-- **Nested Elements:** Properly structured arrays and child collections
-- **Error Responses:** All documented error codes (10-80)
-
-**Run tests:**
-```bash
-dotnet test tests/Melodee.Tests.Common -v --filter "FullyQualifiedName~OpenSubsonicApiSchemaValidationTests"
-```
-
-### What These Tests Validate
-
-Our 160 schema validation tests verify:
-
-- **Response Structure:** JSON response elements conform to Subsonic XSD schema definitions
-- **Required Attributes:** Presence of mandatory fields (e.g., `id`, `name` on response elements)
-- **Field Types:** Correct data types (integer, boolean, dateTime, string, float)
-- **Nested Elements:** Properly structured arrays and child elements
-- **Error Formats:** All documented error codes (10-80) with proper code/message structure
-- **Version Compliance:** All responses follow `X.Y.Z` version format pattern
-- **Type Field:** All responses include type field with "Melodee" value
-
-### What These Tests Do NOT Validate
-
-These tests verify SCHEMA STRUCTURE only and do NOT test:
-
-- **Request Parameter Validation:** Handling of invalid or missing parameters
-- **Functional Behavior:** Actual streaming, transcoding, or playback functionality
-- **Authentication Flow:** Token generation, expiration, or security
-- **Performance:** Rate limiting, throughput, or load handling
-- **Integration:** HTTP controller endpoints (Podcast, Jukebox) require full server setup
-- **Client-Specific Behavior:** Edge cases or workarounds for specific clients
-
-### Manual Verification
-
-To manually verify client compatibility with Melodee's OpenSubsonic implementation:
-
-1. Start Melodee with test data: `dotnet run --project src/Melodee.Blazor`
-2. Configure your client to connect to `http://localhost:5000`
-3. Use credentials: username `test`, password `testpassword`
-4. Test core functionality: browse, search, stream, playlists, favorites
-5. Report any issues at [GitHub Issues](https://github.com/melodee-project/melodee/issues)
-
----
-
-## Related Documentation
-
-- [OpenSubsonic API Reference](/api-opensubsonic/)
-- [API Overview](/apis/)
-- [Installation Guide](/installing/)
-- [Configuration Reference](/configuration-reference/)
+| Supported | Implemented for the applicable Melodee music data |
+| Conditional | Implemented but requires a feature, role, or backend |
+| Gone | Intentionally unsupported; returns HTTP 410 |
+| Not implemented | Known route that returns HTTP 501 |
+
+Both the plain and `.view` route forms are registered unless noted otherwise.
+
+## System and Browsing
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `ping` | Supported | Also registered at `/ping`; no authentication required |
+| `getLicense` | Supported | Returns server license response |
+| `getOpenSubsonicExtensions` | Supported | Public extension discovery |
+| `getMusicFolders` | Supported | Maps eligible libraries to music folders |
+| `getIndexes` | Supported | Indexed artist view |
+| `getArtists` | Supported | ID3-oriented artist view |
+| `getArtist` | Supported | Artist and album details |
+| `getAlbum` | Supported | Album and song details |
+| `getSong` | Supported | Song details |
+| `getGenres` | Supported | Genre counts |
+| `getMusicDirectory` | Supported | Directory-style browsing |
+| `getAlbumInfo`, `getAlbumInfo2` | Supported | Album metadata |
+| `getArtistInfo`, `getArtistInfo2` | Supported | Artist metadata and similar artists |
+| `getSimilarSongs`, `getSimilarSongs2` | Supported | Similar-song results |
+| `getTopSongs` | Supported | Artist top songs |
+| `getVideos`, `getVideoInfo` | Gone | Melodee is audio-focused |
+
+## Lists and Search
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `getAlbumList`, `getAlbumList2` | Supported | Album list modes |
+| `getRandomSongs` | Supported | Random library songs |
+| `getSongsByGenre` | Supported | Genre-filtered songs |
+| `getNowPlaying` | Supported | Active playback data known to Melodee |
+| `getStarred`, `getStarred2` | Supported | User-starred media |
+| `search2`, `search3` | Supported | Artist, album, and song search |
+| `searchForArtist` | Supported | Melodee extension |
+| `searchForArtistImage` | Supported | Melodee extension |
+| `searchForAlbumImage` | Supported | Melodee extension |
+
+## Media and Annotation
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `stream` | Supported | Direct or transcoded audio; range requests supported |
+| `download` | Supported | Audio download |
+| `getCoverArt` | Supported | Sized cover-art requests |
+| `getAvatar` | Supported | User image |
+| `getLyrics` | Supported | Artist/title lookup |
+| `getLyricsBySongId` | Supported | Structured lyrics extension |
+| `hls`, `getCaptions` | Gone | Video-oriented/deprecated surface |
+| `star`, `unstar` | Supported | Artist, album, or song annotation |
+| `setRating` | Supported | User rating |
+| `scrobble` | Supported | Now-playing and submission behavior |
+
+## Playlists, Bookmarks, and Queue
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `getPlaylists`, `getPlaylist` | Supported | User-visible playlists |
+| `createPlaylist` | Supported | Create a playlist |
+| `updatePlaylist` | Supported | Metadata and song changes |
+| `deletePlaylist` | Supported | Delete a playlist |
+| `getBookmarks` | Supported | User bookmarks |
+| `createBookmark`, `deleteBookmark` | Supported | Bookmark changes |
+| `getPlayQueue`, `savePlayQueue` | Supported | User queue persistence |
+
+## Shares, Radio, and Scanning
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `getShares`, `createShare`, `updateShare`, `deleteShare` | Supported | User shares |
+| `getInternetRadioStations` | Supported | Internet radio listing |
+| `createInternetRadioStation` | Supported | Create a station |
+| `updateInternetRadioStation` | Supported | Update a station |
+| `deleteInternetRadioStation` | Supported | Delete a station |
+| `startScan`, `getScanStatus` | Supported | Library scan control/status |
+
+## Jukebox and Podcasts
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `jukeboxControl` | Conditional | Requires `jukebox.enabled` and a configured backend; otherwise HTTP 410 |
+| `getPodcasts`, `getNewestPodcasts` | Conditional | Requires podcasts enabled and the user's podcast role |
+| `refreshPodcasts` | Conditional | Same feature and role checks |
+| `createPodcastChannel`, `deletePodcastChannel` | Conditional | Same feature and role checks |
+| `deletePodcastEpisode`, `downloadPodcastEpisode` | Conditional | Same feature and role checks |
+| `streamPodcastEpisode` | Conditional | Same feature and role checks |
+
+## Users and Deprecated Features
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `getUser` | Supported | Self, or another user when authorized |
+| `createUser` | Supported | Administrator operation |
+| `updateUser`, `deleteUser` | Not implemented | HTTP 501 |
+| `changePassword`, `getUsers` | Not implemented | HTTP 501 |
+| `getChatMessages`, `addChatMessage` | Gone | Deprecated chat surface; HTTP 410 |
+
+## Advertised Extensions
+
+`getOpenSubsonicExtensions` reports version 1 of:
+
+| Extension | Server capability |
+|-----------|-------------------|
+| `melodeeExtensions` | Melodee-specific search helpers |
+| `apiKeyAuthentication` | API-key extension is advertised; token-plus-salt remains the documented interoperable login flow |
+| `formPost` | Form-encoded POST requests |
+| `songLyrics` | Structured lyrics by song ID |
+| `transcodeOffset` | Transcoding start offset |
+
+## Verification Guidance
+
+Compatibility is a combination of endpoint coverage, the client's assumptions,
+and the media workflow. For a prospective client, test login, browse, stream,
+seek, playlist editing, downloads, scrobbling, and any optional features you
+need. When reporting a problem, include the client/version, endpoint, sanitized
+parameters, status code, response envelope, and matching Melodee correlation or
+log entry. Never include passwords, tokens, salts paired with hashes, or API
+keys.
+
+See [OpenSubsonic API](/api-opensubsonic/) for setup and authentication.

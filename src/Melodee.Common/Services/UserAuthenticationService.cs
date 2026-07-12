@@ -62,7 +62,7 @@ public sealed class UserAuthenticationService(
             };
         }
 
-        return await CompleteLoginAsync(userResult.Data, passwordValue, userName, cancellationToken).ConfigureAwait(false);
+        return await CompleteLoginAsync(userResult.Data, passwordValue, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public sealed class UserAuthenticationService(
             };
         }
 
-        return await CompleteLoginAsync(userResult.Data, passwordValue, emailAddress, cancellationToken).ConfigureAwait(false);
+        return await CompleteLoginAsync(userResult.Data, passwordValue, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -104,7 +104,6 @@ public sealed class UserAuthenticationService(
     public async Task<MelodeeModels.OperationResult<User?>> CompleteLoginAsync(
         User user,
         string password,
-        string identifier,
         CancellationToken cancellationToken)
     {
         var authenticated = false;
@@ -137,7 +136,7 @@ public sealed class UserAuthenticationService(
 
         if (!authenticated)
         {
-            Log.Warning("[{ServiceName}] LoginUserAsync [{Identifier}] failed", nameof(UserAuthenticationService), identifier);
+            _logger.Warning("[{ServiceName}] Login failed for user ID [{UserId}]", nameof(UserAuthenticationService), user.Id);
             return new MelodeeModels.OperationResult<User?>
             {
                 Data = null,
@@ -158,8 +157,8 @@ public sealed class UserAuthenticationService(
             await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             user.PasswordHash = dbUser.PasswordHash;
             user.PasswordHashAlgorithm = dbUser.PasswordHashAlgorithm;
-            Log.Information("[{ServiceName}] Migrated user [{EmailAddress}] to BCrypt password hashing", nameof(UserAuthenticationService),
-                user.Email ?? identifier);
+            _logger.Information("[{ServiceName}] Migrated user ID [{UserId}] to BCrypt password hashing",
+                nameof(UserAuthenticationService), user.Id);
         }
 
         user.LastActivityAt = now;
@@ -231,7 +230,8 @@ public sealed class UserAuthenticationService(
 
         if (!isAuthenticated)
         {
-            Log.Warning("[{ServiceName}] ValidateTokenAsync [{Username}] failed token validation", nameof(UserAuthenticationService), username);
+            _logger.Warning("[{ServiceName}] Token validation failed for user ID [{UserId}]",
+                nameof(UserAuthenticationService), user.Id);
             return new MelodeeModels.OperationResult<User?>
             {
                 Data = null,
@@ -247,7 +247,8 @@ public sealed class UserAuthenticationService(
             dbUser.OpenSubsonicSecretProtected = _secretProtector.Protect(newSecret);
             await scopedContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             user.OpenSubsonicSecretProtected = dbUser.OpenSubsonicSecretProtected;
-            Log.Information("[{ServiceName}] Migrated user [{Username}] to OpenSubsonic secret protection", nameof(UserAuthenticationService), username);
+            _logger.Information("[{ServiceName}] Migrated user ID [{UserId}] to OpenSubsonic secret protection",
+                nameof(UserAuthenticationService), user.Id);
         }
 
         var now = Instant.FromDateTimeUtc(DateTime.UtcNow);

@@ -2,6 +2,7 @@ using Melodee.Common.Data;
 using Melodee.Common.Data.Models;
 using Melodee.Common.Models.OpenSubsonic.Requests;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Utility;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -114,7 +115,7 @@ public class DeviceIdentificationService(
             await scopedContext.SaveChangesAsync(cancellationToken);
 
             Logger.Debug("[{ServiceName}] Updated player [{PlayerId}] [{Client}] for user [{UserId}]",
-                nameof(DeviceIdentificationService), player.Id, client, userId);
+                nameof(DeviceIdentificationService), player.Id, LogSanitizer.Sanitize(client), userId);
         }
         else
         {
@@ -135,7 +136,7 @@ public class DeviceIdentificationService(
             await scopedContext.SaveChangesAsync(cancellationToken);
 
             Logger.Information("[{ServiceName}] Created new player [{PlayerId}] [{Client}] for user [{UserId}]",
-                nameof(DeviceIdentificationService), player.Id, client, userId);
+                nameof(DeviceIdentificationService), player.Id, LogSanitizer.Sanitize(client), userId);
         }
 
         return player;

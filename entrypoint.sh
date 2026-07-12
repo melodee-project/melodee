@@ -12,15 +12,25 @@ if [ "$(id -u)" -ne 0 ]; then
     # These will be created in the volumes with the current user's ownership
     echo "Creating required directories..."
     mkdir -p /app/storage/_search-engines/musicbrainz
-    mkdir -p /app/inbound /app/staging /app/user-images /app/playlists /app/templates /app/Logs
+    mkdir -p \
+        /app/podcasts \
+        /app/themes \
+        /app/inbound \
+        /app/staging \
+        /app/user-images \
+        /app/playlists \
+        /app/templates \
+        /app/Logs
     mkdir -p ~/.aspnet/DataProtection-Keys
     
     # Ensure we can write to these directories
     # In rootless mode, these are mounted volumes and should already be writable
     # But create subdirectories as needed
-    touch /app/storage/.melodee_test 2>/dev/null && rm -f /app/storage/.melodee_test || {
+    if touch /app/storage/.melodee_test 2>/dev/null; then
+        rm -f /app/storage/.melodee_test
+    else
         echo "WARNING: Cannot write to /app/storage - volume may have permission issues"
-    }
+    fi
     
     # Wait for database
     echo "Waiting for database..."
@@ -48,8 +58,27 @@ else
     
     # Fix volume permissions (runs as root initially)
     echo "Fixing volume permissions..."
-    chown -R melodee:melodee /app/storage /app/inbound /app/staging /app/user-images /app/playlists /app/templates /app/Logs 2>/dev/null || true
-    chmod -R 755 /app/storage /app/inbound /app/staging /app/user-images /app/playlists /app/templates 2>/dev/null || true
+    chown -R melodee:melodee \
+        /app/storage \
+        /app/podcasts \
+        /app/themes \
+        /app/inbound \
+        /app/staging \
+        /app/user-images \
+        /app/playlists \
+        /app/templates \
+        /app/Logs \
+        2>/dev/null || true
+    chmod -R 755 \
+        /app/storage \
+        /app/podcasts \
+        /app/themes \
+        /app/inbound \
+        /app/staging \
+        /app/user-images \
+        /app/playlists \
+        /app/templates \
+        2>/dev/null || true
     
     # Fix DataProtection keys directory permissions
     echo "Fixing DataProtection keys directory permissions..."
@@ -80,7 +109,12 @@ else
         echo "Warning: Migration bundle not found, skipping migrations"
     fi
     
-    # Switch to melodee user and start the application
+    # Drop privileges and replace PID 1 with the application process.
     echo "Starting Melodee server as melodee user..."
-    exec su melodee -c 'cd /app && exec dotnet server.dll'
+    cd /app
+    exec /usr/bin/setpriv \
+        --reuid=melodee \
+        --regid=melodee \
+        --init-groups \
+        dotnet server.dll
 fi

@@ -70,15 +70,17 @@ public sealed class MelodeeConfigurationFactory(IDbContextFactory<MelodeeDbConte
         foreach (var (key, value) in allEnvVars)
         {
             var kk = key.Replace("_", ".");
+            var keyForLogging = ConfigurationLogRedactor.SanitizeKey(kk);
+            var valueForLogging = ConfigurationLogRedactor.RedactValue(key, value);
             if (settings.ContainsKey(kk) && settings[kk] != value)
             {
                 settings[kk] = value;
-                Trace.WriteLine($"[{nameof(MelodeeConfigurationFactory)}] Overriding setting [{kk}] with environment variable value [{value}]");
+                Trace.WriteLine($"[{nameof(MelodeeConfigurationFactory)}] Overriding setting [{keyForLogging}] with environment variable value [{valueForLogging}]");
             }
             else
             {
                 settings.Add(kk, value);
-                Trace.WriteLine($"[{nameof(MelodeeConfigurationFactory)}] Added setting [{kk}] with environment variable value [{value}]");
+                Trace.WriteLine($"[{nameof(MelodeeConfigurationFactory)}] Added setting [{keyForLogging}] with environment variable value [{valueForLogging}]");
             }
         }
 

@@ -7,6 +7,7 @@ using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Serialization;
 using Melodee.Common.Services.Caching;
+using Melodee.Common.Utility;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Serilog;
@@ -134,7 +135,7 @@ public class PlaylistImportService(
 
         Logger.Information(
             "Imported playlist [{PlaylistName}] for user [{UserId}]: {TotalEntries} entries, {MatchedCount} matched, {MissingCount} missing",
-            name, userId, parsedLines.Count, matchResults.MatchedSongs.Count, matchResults.MissingCount);
+            LogSanitizer.Sanitize(name), userId, parsedLines.Count, matchResults.MatchedSongs.Count, matchResults.MissingCount);
 
         return new OperationResult<PlaylistImportResult>
         {

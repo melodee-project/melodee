@@ -1,7 +1,11 @@
+using System.Collections.Concurrent;
+using FluentAssertions;
 using Melodee.Blazor.Services.Email;
 using Melodee.Common.Constants;
 using Moq;
 using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace Melodee.Tests.Blazor.Services;
 
@@ -105,6 +109,86 @@ public class SmtpEmailSenderTests
         _mockLogger.Verify(
             l => l.Warning(It.Is<string>(s => !s.Contains(sensitiveEmail))),
             Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task SendAsync_WhenConfigurationThrows_DoesNotLogSensitiveExceptionPayload()
+    {
+        const string sensitiveEmail = "sensitive.user@example.test";
+        const string sensitiveSubject = "Sensitive configured reset subject";
+        const string sensitiveToken = "sensitive-reset-token-123456";
+        var sensitiveException = new InvalidOperationException(
+            $"{sensitiveEmail} {sensitiveSubject} {sensitiveToken}");
+        var configFactory = new Mock<IMelodeeConfigurationFactory>();
+        configFactory.Setup(x => x.GetConfigurationAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(sensitiveException);
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var sender = new SmtpEmailSender(logger, configFactory.Object);
+
+        var result = await sender.SendAsync(
+            sensitiveEmail,
+            sensitiveSubject,
+            $"Reset URL token: {sensitiveToken}");
+
+        result.Should().BeFalse();
+        sink.Output.Should().Contain("Failed to send email");
+        sink.Output.Should().Contain("InvalidOperationException");
+        sink.Output.Should().NotContainAny(sensitiveEmail, sensitiveSubject, sensitiveToken);
+    }
+
+    [Fact]
+    public async Task SendAsync_WhenSmtpConnectionThrows_DoesNotLogConfiguredHostOrMessagePayload()
+    {
+        const string sensitiveEmail = "sensitive.user@example.test";
+        const string sensitiveSubject = "Sensitive configured reset subject";
+        const string sensitiveToken = "sensitive-reset-token-123456";
+        const string sensitiveHost = "sensitive.internal.example.test";
+        _mockConfig.Setup(c => c.GetValue<bool?>(SettingRegistry.EmailEnabled)).Returns(true);
+        _mockConfig.Setup(c => c.GetValue<string>(SettingRegistry.EmailFromEmail)).Returns("sender@example.test");
+        _mockConfig.Setup(c => c.GetValue<string>(SettingRegistry.EmailSmtpHost)).Returns($"\0{sensitiveHost}");
+        _mockConfig.Setup(c => c.GetValue<int?>(SettingRegistry.EmailSmtpPort)).Returns(587);
+        _mockConfig.Setup(c => c.GetValue<bool?>(SettingRegistry.EmailSmtpUseSsl)).Returns(false);
+        _mockConfig.Setup(c => c.GetValue<bool?>(SettingRegistry.EmailSmtpUseStartTls)).Returns(false);
+        var sink = new RecordingLogEventSink();
+        using var logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var sender = new SmtpEmailSender(logger, _mockConfigFactory.Object);
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+        var result = await sender.SendAsync(
+            sensitiveEmail,
+            sensitiveSubject,
+            $"Reset URL token: {sensitiveToken}",
+            cancellationToken: cancellationTokenSource.Token);
+
+        result.Should().BeFalse();
+        sink.Output.Should().Contain("SMTP error sending email");
+        sink.Output.Should().Contain("Exception type");
+        sink.Output.Should().NotContainAny(
+            sensitiveEmail,
+            sensitiveSubject,
+            sensitiveToken,
+            sensitiveHost);
+    }
+
+    private sealed class RecordingLogEventSink : ILogEventSink
+    {
+        private readonly ConcurrentQueue<LogEvent> _events = new();
+
+        public string Output => string.Join(
+            Environment.NewLine,
+            _events.Select(x => $"{x.RenderMessage()} {x.Exception}"));
+
+        public void Emit(LogEvent logEvent)
+        {
+            _events.Enqueue(logEvent);
+        }
     }
 }
 
