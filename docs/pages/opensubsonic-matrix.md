@@ -10,6 +10,8 @@ tags:
 
 # OpenSubsonic Compatibility Matrix
 
+**Last updated:** July 11, 2026
+
 **Applies to:** Melodee 2.2.0
 
 This matrix is based on the routes implemented by the 2.2.0 server. Supported
