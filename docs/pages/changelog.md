@@ -117,17 +117,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Windows.
 - Python maintenance tooling now parses GitHub Link headers with bounded linear
   work and no longer prints demo passwords, generated API/public keys,
-  encrypted passwords, or secret-bearing exception payloads.
+  encrypted passwords, or secret-bearing exception payloads. The code-scanning
+  exporter also confines requests, pagination links, redirects, and downloads
+  to HTTPS on the exact configured GitHub API origin.
 - The destructive incoming cleanup tool now confines all reads and mutations to
   a canonical cleanup root beneath an explicit trusted boundary, rejects
   symlink/parent escapes, preflights ZIP members against Zip Slip, and prevents
-  SFV filenames from traversing outside the media root. The boundary defaults
-  to the current working directory; use `--trusted-boundary` for an explicitly
+  SFV filenames from traversing outside the media root. Live cleanup uses pinned
+  no-follow descriptors and atomic no-replace quarantine moves on Linux and
+  fails closed when those primitives are unavailable. Extracted directories
+  and files are created privately as `0700` and `0600`. The boundary defaults to
+  the current working directory; use `--trusted-boundary` for an explicitly
   authorized absolute media tree.
 - Consolidated GitHub Actions, C#, JavaScript/TypeScript, and Python under the
   advanced CodeQL workflow, removed repository-wide rule exclusions, and
   replaced the invalid sanitizer summary with an auto-discovered,
-  flow-specific barrier model.
+  flow-specific barrier model. Source changes fix the six original C# alerts;
+  the Python setup alert is handled by a hardened necessary persistence boundary
+  and narrow documented suppression. Fresh local verification reduced C# from
+  eight findings to zero and reports zero Actions and JavaScript/TypeScript
+  findings. Fresh local-threat-model Python analysis reports zero findings and
+  no SARIF warning/error notifications across the complete 45-query default
+  suite, while the 52-query security-extended suite also reports zero findings.
 - Pinned all external actions across the six CI workflows to verified commits
   (and the Gitleaks container to an immutable digest), and validated release
   image digests before constructing multi-architecture manifests.
@@ -135,10 +146,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   current FFmpeg 8 packages, removed unused vulnerable inherited tooling, and
   made the application process PID 1 under the unprivileged `melodee` account.
   Trivy 0.72.0 validation reduced raw image findings from 416 to 140, with no
-  critical or high findings and no available fixes among the remainder.
+  critical, high, fixable, .NET-package, or application-package findings among
+  the remainder. The 140 remaining entries represent 41 CVEs: 124 medium and 16
+  low, a reduction of 276 findings (66.3%).
 - Corrected Trivy SARIF severity filtering so GitHub code scanning receives the
   intended critical/high policy while CI retains a complete all-severity JSON
   report for review.
+- Completed security verification includes a zero-warning solution build, 5,885
+  passing .NET tests (34 skipped), zero vulnerable NuGet dependencies, and
+  successful Jekyll, GitHub Actions, YAML, shell, and real PostgreSQL container
+  checks. The production integration runs non-root as PID 1, reaches healthy
+  status, and keeps configured secret values out of logs.
+- All 109 Python script tests pass with resource warnings treated as errors,
+  including 57 focused cleanup filesystem, ZIP, SFV, shutdown, and race
+  regressions.
 
 ## [2.1.4] - 2026-06-16
 

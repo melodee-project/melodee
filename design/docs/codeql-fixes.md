@@ -3,7 +3,7 @@
 # CodeQL Security Remediation Record
 
 **Updated**: 2026-07-11
-**Status**: Source fixes complete; GitHub rescan pending
+**Status**: Local remediation verification complete; GitHub rescan pending
 
 ## Scope
 
@@ -72,13 +72,15 @@ The ignored deployment file is the necessary persistence boundary. It is
 owner-only (`0600`) on POSIX; on Windows it inherits the containing directory's
 ACL. One narrow `codeql[py/clear-text-storage-sensitive-data]` suppression
 documents that unavoidable sink. The clear-text-storage query is not excluded
-globally.
+globally. Existing regular secret files are opened without following links,
+revalidated by descriptor identity, and tightened to `0600` before they are
+preserved.
 
 ### Restored Python Coverage
 
-A local CodeQL 2.26.0 run after restoring Python to the advanced workflow
-surfaced 22 pre-existing findings that the stale server-side setup no longer
-updated:
+An initial local CodeQL 2.26.0 run after restoring Python to the advanced
+workflow surfaced 22 pre-existing findings that the stale server-side setup no
+longer updated:
 
 - one polynomial ReDoS path in GitHub Link-header parsing;
 - two clear-text demo password/API-key log paths; and
@@ -87,22 +89,59 @@ updated:
 The Link header now uses bounded linear parsing, and demo-user setup never
 prints credentials, generated key material, encrypted values, or raw failure
 payloads. The cleanup tool now validates a canonical cleanup root beneath an
-explicit trusted boundary, rejects filesystem-root authority and symlink
-escapes, revalidates every read/mutation, preflights all ZIP members before
-extracting any content, and rejects absolute or parent-traversing SFV entries.
-Its default boundary is the current working directory; administrators targeting
-an absolute path outside it must explicitly provide `--trusted-boundary`.
+explicit trusted boundary and rejects filesystem-root authority. Live cleanup
+pins root and parent descriptors, uses no-follow descriptor-relative operations
+and `renameat2(RENAME_NOREPLACE)` quarantine publication, and fails closed when
+those Linux/POSIX primitives are unavailable. ZIP extraction preflights every
+member before writing, applies private `0700` directory and `0600` file modes,
+rolls back partial output, and rejects symlink, size, compression, duplicate,
+and traversal hazards. SFV verification and renaming cannot escape the media
+root. The default boundary is the current working directory; administrators
+targeting an absolute path outside it must explicitly provide
+`--trusted-boundary`.
 
-A fresh Python database reports zero findings for all 22 rules/paths.
+A subsequent local scan and exporter audit also found that pagination and
+redirect URLs needed an explicit network boundary. All API requests, Link
+destinations, redirects, and downloads now require HTTPS and the exact
+configured GitHub API origin, with a bounded redirect chain. This closes the
+same-origin SSRF paths without weakening GitHub Enterprise Server support.
+
+A fresh workflow-equivalent Python database reports zero findings and no SARIF
+warning/error notifications across all 45 default queries under the local
+threat model. The 52-query security-extended suite also reports zero findings.
+The script suite passes all 109 tests with `ResourceWarning` promoted to an
+error, including 57 focused filesystem, ZIP, SFV, shutdown, and race
+regressions.
+
+### Fresh C# Findings
+
+After removing broad query exclusions, a fresh C# database under the default
+remote threat model reported eight actionable findings. Six were log-forging
+flows through player client names, playlist names, script setting keys,
+configuration keys, provider names, and artist queries. Each field now passes
+through the narrowly modeled `LogSanitizer.Sanitize` boundary before logging.
+
+The other two paths associated the MPD password wire command with diagnostic
+logs. The backend now carries separate wire and safe command representations:
+the credential is still sent to MPD, while only a constant credential-free
+description can reach a logger. Focused tests exercise both guarantees. A fresh
+default-remote C# scan reports zero findings (`8 -> 0`).
 
 ### CodeQL Workflow Coverage
 
 The version-controlled advanced workflow analyzes GitHub Actions, C#,
 JavaScript/TypeScript, and Python. Compiled C# uses autobuild; interpreted
 languages use build mode `none`. Python has a dedicated local-threat-model
-configuration for command-line and filesystem maintenance utilities; the web
-application languages use the default remote boundary. Workflow actions are
-pinned to verified full commit SHAs.
+configuration because command-line arguments, environment variables, local
+files, and databases are genuine inputs to maintenance utilities. C#,
+JavaScript/TypeScript, and Actions retain the default remote boundary so
+ordinary application-owned database and filesystem state is not incorrectly
+treated as remotely attacker-controlled. Workflow actions are pinned to
+verified full commit SHAs.
+
+Fresh local databases report zero C#, GitHub Actions, and
+JavaScript/TypeScript findings. The fresh default and security-extended Python
+databases also report zero findings as described above.
 
 GitHub's default setup is currently `not-configured`. The Python alert belongs
 to old `dynamic/github-code-scanning/codeql:analyze` and
@@ -155,12 +194,21 @@ features.
 
 ## Verification
 
-- Forgot-password Blazor project build: zero warnings and errors.
-- Blazor tests: 1,213 passed, 14 skipped, zero failed.
-- Setup security tests: five passed.
-- Python compilation, Ruff, formatting, and Compose interpolation checks passed.
-- `actionlint` and YAML parsing pass for the advanced CodeQL workflow and
-  configuration.
+- Complete solution build: zero warnings and errors.
+- Complete .NET suite: 5,885 passed, 34 skipped, zero failed.
+- NuGet vulnerability audit: zero vulnerable dependencies.
+- Fresh local CodeQL: C# `8 -> 0`, GitHub Actions zero, and
+  JavaScript/TypeScript zero.
+- Python compilation and Ruff pass. Black reports the exporter and its focused
+  tests unchanged; the two pre-existing legacy cleanup files remain outside the
+  repository's Black baseline. All 109 script tests pass with resource warnings
+  treated as errors.
+- Fresh Python CodeQL reports zero findings across the 45-query default suite
+  and the 52-query security-extended suite.
+- `actionlint`, YAML parsing, shell checks, and Jekyll validation pass.
+- A real PostgreSQL/production-container integration reached healthy status
+  with `melodee` running unprivileged as PID 1 and no configured secret values
+  present in logs.
 
 Alert closure requires a successful GitHub scan after these changes reach a
 branch analyzed by the advanced workflow.

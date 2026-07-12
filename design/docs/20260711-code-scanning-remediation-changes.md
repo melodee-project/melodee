@@ -7,8 +7,15 @@
 
 ## Summary
 
-This work reduces GitHub CodeQL and Trivy findings through source-level privacy
-fixes, setup-secret hardening, and container dependency remediation.
+This work addresses the 423-alert baseline (416 Trivy and seven CodeQL) through
+source-level privacy fixes, setup-secret and filesystem hardening, workflow
+supply-chain controls, and production-container dependency remediation. The
+verified image inventory is 140 non-fixable medium/low findings. Six original
+C# alerts and the fresh C# findings have source fixes; the Python setup alert is
+handled by a hardened, necessary persistence boundary and narrow documented
+suppression. Fresh Actions and JavaScript/TypeScript scans report zero
+findings. Fresh workflow-equivalent default and security-extended Python scans
+also report zero findings under the local threat model.
 
 ## Changes
 
@@ -47,11 +54,19 @@ fixes, setup-secret hardening, and container dependency remediation.
   explicit overwrite, POSIX permissions, symlink refusal, and non-regular
   destination handling for the interactive container setup path.
 - `scripts/tests/test_code_scanning_security.py` - Covers bounded Link-header
-  parsing under adversarial input and secret-free demo-user success/failure
-  output.
+  parsing under adversarial input, exact-origin HTTPS request and redirect
+  enforcement, bounded redirect behavior, and secret-free demo-user
+  success/failure output.
 - `scripts/tests/test_incoming_clean_up.py` - Covers canonical root boundaries,
   symlink and outside-root refusal, Zip Slip/symlink-member rejection, SFV
-  traversal, safe encoding repair, pretend mode, and contained live deletion.
+  traversal, private extraction permissions, descriptor-relative race defense,
+  safe encoding repair, pretend mode, and contained live deletion.
+- `tests/Melodee.Tests.Common/Services/SecurityLogSanitizationTests.cs` - Covers
+  the untrusted player, playlist, script setting, configuration key, provider,
+  and artist values reported by the fresh C# CodeQL scan.
+- `tests/Melodee.Tests.Common/TestHelpers/RecordingLogEventSink.cs` - Captures
+  rendered security-sensitive log events for assertions without external
+  logging infrastructure.
 
 ### Modified
 
@@ -83,14 +98,18 @@ fixes, setup-secret hardening, and container dependency remediation.
 - `scripts/run-container-setup.py` - Uses the same secure writer for normal,
   confirmed-overwrite, and forced setup paths.
 - `scripts/create_code_scanning_combined_serif.py` - Replaces a polynomial
-  backtracking Link-header expression with a bounded linear parser while
-  preserving GitHub pagination relations.
+  backtracking Link-header expression with a bounded linear parser and confines
+  API requests, pagination, redirects, and downloads to the configured exact
+  HTTPS origin.
 - `scripts/create-demo-user.py` - Stops printing the demo password, generated
   API/public keys, encrypted password, and secret-bearing exception payloads.
 - `scripts/incoming_clean_up.py` - Adds an explicit trusted filesystem boundary,
-  canonical containment before every access/mutation, symlink-safe destructive
-  operations, full ZIP-member preflight/extraction, and traversal-safe SFV
-  verification and renaming.
+  canonical containment before every access/mutation, pinned descriptor-relative
+  no-follow operations, `renameat2(RENAME_NOREPLACE)` quarantine publication,
+  full ZIP-member preflight/extraction, and traversal-safe SFV verification and
+  renaming. Live cleanup fails closed where the required Linux/POSIX primitives
+  are unavailable; extracted directories and files are private `0700` and
+  `0600` objects respectively.
 - `scripts/tests/test_setup_melodee.py` - Covers secret generation, POSIX
   permissions, existing-file preservation, malformed templates, symlink
   refusal, and non-regular destinations.
@@ -103,6 +122,19 @@ fixes, setup-secret hardening, and container dependency remediation.
 - `.github/codeql/codeql-config.yml` - Removes invalid model configuration and
   broad rule exclusions while retaining the default remote threat model for
   the compiled web application.
+- `src/Melodee.Common/Services/DeviceIdentificationService.cs`,
+  `src/Melodee.Common/Services/PlaylistImportService.cs`,
+  `src/Melodee.Common/Services/ScriptEvaluation/ScriptAdminService.cs`,
+  `src/Melodee.Common/Services/SearchEngines/ArtistSearchEngineService.cs`, and
+  `src/Melodee.Common/Services/SettingService.cs` - Sanitize the six
+  attacker-controlled fields found by the fresh default-remote C# log-forging
+  scan.
+- `src/Melodee.Common/Services/Playback/Backends/MpdPlaybackBackend.cs` - Keeps
+  the MPD password command on the wire while passing only a credential-free
+  command representation to every log path.
+- `tests/Melodee.Tests.Common/Services/Playback/PlaybackBackendTests.cs` -
+  Verifies that password authentication still reaches MPD and never reaches
+  application logs.
 - `.github/CODEQL-WORKFLOW.md` - Documents the single advanced setup, model
   behavior, verification, and stale GitHub configuration cleanup.
 - `Dockerfile` - Moves the shipped runtime to the official .NET 10 Ubuntu 26.04
@@ -136,3 +168,75 @@ fixes, setup-secret hardening, and container dependency remediation.
   pack.
 - `.github/docker/Dockerfile.container-scan` - Removed the reduced scan image
   so CI analyzes the same final image that releases publish.
+
+## Verified Results
+
+### CodeQL
+
+- The six live baseline C# password-reset privacy flows have source fixes. The
+  Python setup-secret alert is handled by atomic owner-only persistence,
+  regression coverage, and one narrow documented suppression for the necessary
+  `.env` sink.
+- A fresh C# database using the default remote threat model moved from eight
+  findings to zero after fixing six log-forging paths and two MPD
+  password-to-log flows.
+- Fresh GitHub Actions and JavaScript/TypeScript databases each report zero
+  findings.
+- Restored local Python analysis identified the setup persistence boundary,
+  polynomial Link parsing, secret-bearing output, filesystem/ZIP/SFV paths, and
+  same-origin exporter request handling. A fresh workflow-equivalent database
+  reports zero findings and no SARIF warning/error notifications across all 45
+  default queries. The 52-query security-extended suite also reports zero
+  findings.
+
+The shared configuration keeps the compiled C# application, JavaScript, and
+Actions on CodeQL's default remote trust boundary. Python alone enables the
+local threat model because maintenance scripts intentionally consume command
+line arguments, environment variables, and local files. This avoids treating
+ordinary application-owned database and filesystem state as remotely
+attacker-controlled while preserving the stricter model where it represents
+the Python tools' real inputs.
+
+### Container and Dependency Inventory
+
+- Trivy 0.72.0 reduced raw production-image findings from 416 to 140: 276
+  removed (66.3%). The remaining inventory represents 41 CVEs, split into 124
+  medium and 16 low findings.
+- The remaining image inventory contains zero critical, high, fixable,
+  .NET-package, or application-package findings.
+- GitHub receives only the intended critical/high SARIF policy. CI retains the
+  complete all-severity JSON report for review and future fix-availability
+  changes.
+- NuGet reports zero vulnerable dependencies.
+
+### Build and Runtime Verification
+
+- The complete solution builds with zero warnings and errors.
+- The full .NET suite passes 5,885 tests with 34 skipped and zero failed.
+- All 109 Python script tests pass with `ResourceWarning` promoted to an error,
+  including 57 focused incoming-cleanup security and race regressions.
+- Jekyll, `actionlint`, YAML parsing, shell syntax/static analysis, and Docker
+  configuration checks pass.
+- A real PostgreSQL integration starts the production image with the
+  unprivileged `melodee` process as PID 1, reaches healthy status, and confirms
+  that configured database/authentication secrets are absent from container
+  logs.
+
+## Release Summary
+
+The local release gate is complete: all four CodeQL languages report zero fresh
+findings, the production image contains no critical, high, or currently fixable
+inventory, the .NET and Python suites pass, and the production container passes
+its real-database non-root integration. The remaining 140 raw image findings
+are quantified medium/low Ubuntu-package issues without available fixes.
+
+## Post-Merge Verification
+
+- The final pre-merge API query still reports the 423-alert `main` baseline.
+  This is expected because GitHub has not analyzed this branch; no server-side
+  alert closure is claimed by the local results.
+- After the checked-in Python job completes successfully on `main`, delete the
+  stale `dynamic/github-code-scanning/codeql:analyze` and
+  `dynamic/github-code-scanning/codeql:upload` Python configurations from
+  **Security and quality > Code scanning > Tool status**. Retain
+  `.github/workflows/codeql.yml:analyze`.

@@ -6,30 +6,129 @@ Why this shape?
 - Alerts are per-rule findings; SARIF is per-analysis/run.
 - So we export all alerts, then download SARIF for the analyses that produced them.
 
-Docs (GitHub REST API):
-- List alerts endpoint includes most_recent_instance with ref/analysis_key/category/commit_sha, etc. :contentReference[oaicite:2]{index=2}
-- List analyses returns analysis ids + matching metadata. :contentReference[oaicite:3]{index=3}
-- Get analysis supports custom media type application/sarif+json to return SARIF subset. :contentReference[oaicite:4]{index=4}
+GitHub REST API documentation:
+- https://docs.github.com/en/rest/code-scanning/code-scanning
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import ipaddress
 import json
 import os
+import re
 import sys
 import time
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 import requests
 
 MAX_LINK_HEADER_LENGTH = 16_384
 MAX_LINK_HEADER_ENTRIES = 32
 MAX_RELATIONS_PER_LINK = 8
+MAX_REDIRECTS = 5
+REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+GITHUB_OWNER_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
+GITHUB_REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,100}\Z")
+DNS_LABEL_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
+
+
+@dataclass(frozen=True)
+class HttpsOrigin:
+    """Identify the HTTPS origin that is allowed to receive credentials."""
+
+    hostname: str
+    port: int
+
+
+def _reject_ambiguous_url_text(value: str, description: str) -> None:
+    """Reject URL spellings that different parsers may interpret differently."""
+    if not value or value != value.strip():
+        raise ValueError(f"{description} must not be empty or contain outer whitespace")
+    if "\\" in value or any(ord(character) <= 0x20 for character in value):
+        raise ValueError(f"{description} contains an unsafe URL character")
+
+
+def _canonical_hostname(hostname: Optional[str], description: str) -> str:
+    """Return a canonical ASCII IP address or DNS hostname."""
+    if not hostname:
+        raise ValueError(f"{description} must include a hostname")
+    if hostname.endswith(".") or "%" in hostname:
+        raise ValueError(f"{description} contains an ambiguous hostname")
+
+    try:
+        return ipaddress.ip_address(hostname).compressed.casefold()
+    except ValueError:
+        pass
+
+    try:
+        ascii_hostname = hostname.encode("idna").decode("ascii").casefold()
+    except UnicodeError as error:
+        raise ValueError(f"{description} contains an invalid hostname") from error
+
+    if len(ascii_hostname) > 253 or any(
+        not DNS_LABEL_PATTERN.fullmatch(label) for label in ascii_hostname.split(".")
+    ):
+        raise ValueError(f"{description} contains an invalid hostname")
+    return ascii_hostname
+
+
+def _https_origin_and_netloc(url: str, description: str) -> Tuple[HttpsOrigin, str]:
+    """Validate an absolute HTTPS URL and return its origin and netloc."""
+    _reject_ambiguous_url_text(url, description)
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError(f"{description} is not a valid URL") from error
+
+    if parsed.scheme.casefold() != "https" or not parsed.netloc:
+        raise ValueError(f"{description} must be an absolute HTTPS URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"{description} must not include credentials")
+    if "#" in url:
+        raise ValueError(f"{description} must not include a fragment")
+
+    hostname = _canonical_hostname(parsed.hostname, description)
+    effective_port = port or 443
+    if not 1 <= effective_port <= 65_535:
+        raise ValueError(f"{description} contains an invalid port")
+
+    host_for_netloc = f"[{hostname}]" if ":" in hostname else hostname
+    netloc = (
+        f"{host_for_netloc}:{effective_port}"
+        if effective_port != 443
+        else host_for_netloc
+    )
+    return HttpsOrigin(hostname, effective_port), netloc
+
+
+def validate_api_base_url(api_url: str) -> Tuple[str, HttpsOrigin]:
+    """Validate and canonicalize the one origin permitted for API requests."""
+    origin, netloc = _https_origin_and_netloc(api_url, "GitHub API URL")
+    parsed = urlsplit(api_url)
+    if parsed.query:
+        raise ValueError("GitHub API URL must not include a query string")
+
+    path = parsed.path.rstrip("/") + "/"
+    canonical_url = urlunsplit(("https", netloc, path, "", ""))
+    return canonical_url, origin
+
+
+def validate_repository_coordinates(owner: str, repo: str) -> Tuple[str, str]:
+    """Validate repository path segments before adding them to API URLs."""
+    if not GITHUB_OWNER_PATTERN.fullmatch(owner):
+        raise ValueError("Repository owner is not a valid GitHub owner name")
+    if not GITHUB_REPOSITORY_PATTERN.fullmatch(repo) or repo in {".", ".."}:
+        raise ValueError("Repository name is not a valid GitHub repository name")
+
+    # Quoting makes the path-segment boundary explicit even if the allow-list is
+    # expanded in the future.
+    return quote(owner, safe=""), quote(repo, safe="")
 
 
 def _split_link_header_values(link_header: str) -> List[str]:
@@ -187,23 +286,113 @@ class AlertKey:
 @dataclass
 class GitHubClient:
     api_url: str
-    token: str
+    token: str = field(repr=False)
     api_version: str = "2022-11-28"
     timeout_seconds: int = 60
 
     def __post_init__(self) -> None:
-        self.api_url = self.api_url.rstrip("/") + "/"
+        self.api_url, self._allowed_origin = validate_api_base_url(self.api_url)
 
         self.session = requests.Session()
         self.session.headers.update(
             {
-                "Authorization": f"Bearer {self.token}",
                 # Recommended default media type for REST API responses:
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": self.api_version,
                 "User-Agent": "code-scanning-exporter/1.0",
             }
         )
+
+    def _same_origin_url(
+        self,
+        path_or_url: str,
+        *,
+        relative_to: Optional[str] = None,
+    ) -> str:
+        """Resolve a URL and require the client's exact configured origin."""
+        _reject_ambiguous_url_text(path_or_url, "GitHub API request URL")
+        parsed_input = urlsplit(path_or_url)
+        if parsed_input.netloc and not parsed_input.scheme:
+            raise ValueError("Protocol-relative GitHub API URLs are not allowed")
+
+        if parsed_input.scheme or parsed_input.netloc:
+            candidate = path_or_url
+        elif relative_to is not None:
+            candidate = urljoin(relative_to, path_or_url)
+        else:
+            candidate = urljoin(self.api_url, path_or_url.lstrip("/"))
+
+        origin, netloc = _https_origin_and_netloc(
+            candidate,
+            "GitHub API request URL",
+        )
+        if origin != self._allowed_origin:
+            raise ValueError("GitHub API request URL changed origin")
+
+        parsed_candidate = urlsplit(candidate)
+        return urlunsplit(
+            (
+                "https",
+                netloc,
+                parsed_candidate.path,
+                parsed_candidate.query,
+                "",
+            )
+        )
+
+    def _request_with_safe_redirects(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Optional[Dict[str, Any]],
+        headers: Dict[str, str],
+        stream: bool,
+    ) -> requests.Response:
+        """Follow only a bounded chain of same-origin HTTPS redirects."""
+        current_method = method.upper()
+        current_url = self._same_origin_url(url)
+        current_params = params
+
+        for redirect_count in range(MAX_REDIRECTS + 1):
+            response = self.session.request(
+                method=current_method,
+                url=current_url,
+                params=current_params,
+                headers=headers,
+                timeout=self.timeout_seconds,
+                stream=stream,
+                allow_redirects=False,
+            )
+            if response.status_code not in REDIRECT_STATUS_CODES:
+                return response
+
+            location = response.headers.get("Location")
+            if not location:
+                return response
+            if redirect_count == MAX_REDIRECTS:
+                response.close()
+                raise RuntimeError("GitHub API returned too many redirects")
+
+            response_url = getattr(response, "url", current_url) or current_url
+            try:
+                current_url = self._same_origin_url(
+                    location,
+                    relative_to=response_url,
+                )
+            except ValueError:
+                response.close()
+                raise
+
+            response.close()
+            current_params = None
+            if response.status_code == 303 or (
+                response.status_code in (301, 302)
+                and current_method not in ("GET", "HEAD")
+            ):
+                current_method = "GET"
+
+        raise RuntimeError("GitHub API returned too many redirects")
 
     def request_json(
         self,
@@ -215,21 +404,19 @@ class GitHubClient:
         expected_status: Iterable[int] = (200,),
         stream: bool = False,
     ) -> Tuple[Any, requests.Response]:
-        url = path_or_url
-        if not url.startswith("http"):
-            url = urljoin(self.api_url, path_or_url.lstrip("/"))
+        url = self._same_origin_url(path_or_url)
 
         req_headers = dict(self.session.headers)
         if headers:
             req_headers.update(headers)
+        req_headers["Authorization"] = f"Bearer {self.token}"
 
         for attempt in range(1, 6):
-            resp = self.session.request(
-                method=method,
-                url=url,
+            resp = self._request_with_safe_redirects(
+                method,
+                url,
                 params=params,
                 headers=req_headers,
-                timeout=self.timeout_seconds,
                 stream=stream,
             )
 
@@ -246,6 +433,7 @@ class GitHubClient:
                             f"[rate-limit] Sleeping {sleep_for}s until reset...",
                             file=sys.stderr,
                         )
+                        resp.close()
                         time.sleep(sleep_for)
                         continue
                     except ValueError:
@@ -254,7 +442,11 @@ class GitHubClient:
             if resp.status_code in expected_status:
                 if stream:
                     return resp, resp
-                return resp.json(), resp
+                try:
+                    response_data = resp.json()
+                finally:
+                    resp.close()
+                return response_data, resp
 
             # Retry some transient failures
             if resp.status_code in (500, 502, 503, 504):
@@ -263,11 +455,15 @@ class GitHubClient:
                     f"[retry] {resp.status_code} from {url} (attempt {attempt}/5), sleeping {backoff}s...",
                     file=sys.stderr,
                 )
+                resp.close()
                 time.sleep(backoff)
                 continue
 
             # Not retriable or final failure
-            text = resp.text[:2000]
+            try:
+                text = resp.text[:2000]
+            finally:
+                resp.close()
             raise RuntimeError(
                 f"GitHub API error {resp.status_code} calling {url}\n"
                 f"Response (first 2000 chars):\n{text}"
@@ -284,11 +480,24 @@ class GitHubClient:
         items: List[Any] = []
         url = urljoin(self.api_url, path.lstrip("/"))
         local_params = dict(params or {})
+        visited_page_urls: set[str] = set()
 
         while True:
             data, resp = self.request_json(
                 "GET", url, params=local_params, expected_status=(200,)
             )
+
+            response_url = getattr(resp, "url", url) or url
+            try:
+                current_page_url = self._same_origin_url(response_url)
+            except ValueError:
+                resp.close()
+                raise
+            if current_page_url in visited_page_urls:
+                resp.close()
+                raise RuntimeError("GitHub API pagination cycle detected")
+            visited_page_urls.add(current_page_url)
+
             if isinstance(data, list):
                 items.extend(data)
             else:
@@ -297,10 +506,13 @@ class GitHubClient:
 
             links = parse_link_header(resp.headers.get("Link", ""))
             next_url = links.get("next")
+            resp.close()
             if not next_url:
                 break
 
-            url = next_url
+            url = self._same_origin_url(next_url)
+            if url in visited_page_urls:
+                raise RuntimeError("GitHub API pagination cycle detected")
             # Once we follow next_url, params are already embedded in the URL.
             local_params = {}
 
@@ -346,7 +558,10 @@ def main() -> int:
     parser.add_argument(
         "--token",
         default=os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN"),
-        help="GitHub token (or set GH_TOKEN/GITHUB_TOKEN env var). Needs code scanning read perms. :contentReference[oaicite:5]{index=5}",
+        help=(
+            "GitHub token (or set GH_TOKEN/GITHUB_TOKEN env var). "
+            "Needs code scanning read permissions."
+        ),
     )
     parser.add_argument(
         "--api-url",
@@ -382,20 +597,22 @@ def main() -> int:
         )
         return 2
 
-    api_url = args.api_url.rstrip("/") + "/"
-    client = GitHubClient(api_url=api_url, token=args.token)
-
-    owner, repo = args.owner, args.repo
+    try:
+        owner, repo = validate_repository_coordinates(args.owner, args.repo)
+        client = GitHubClient(api_url=args.api_url, token=args.token)
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
 
     # 1) Download alerts across states, de-dupe by alert number.
-    # States supported: open/closed/dismissed/fixed. :contentReference[oaicite:6]{index=6}
+    # States supported by the repository alerts endpoint.
     states = ["open", "dismissed", "fixed", "closed"]
     alerts_by_number: Dict[int, Dict[str, Any]] = {}
 
     for st in states:
         print(f"[alerts] Fetching state={st} ...", file=sys.stderr)
         path = f"/repos/{owner}/{repo}/code-scanning/alerts"
-        # per_page max 100 :contentReference[oaicite:7]{index=7}
+        # The endpoint accepts at most 100 alerts per page.
         items = client.paginate(path, params={"per_page": 100, "state": st})
         for a in items:
             num = a.get("number")
@@ -419,7 +636,7 @@ def main() -> int:
     )
 
     # 3) Download analyses and match to those keys.
-    # Analyses list returns id/ref/analysis_key/category/commit_sha/tool/sarif_id, etc. :contentReference[oaicite:8]{index=8}
+    # Analyses include IDs and the metadata used by analysis_matches_key.
     print("[analyses] Fetching analyses list ...", file=sys.stderr)
     analyses_path = f"/repos/{owner}/{repo}/code-scanning/analyses"
     analyses_all = client.paginate(analyses_path, params={"per_page": 100})
@@ -465,7 +682,7 @@ def main() -> int:
         file=sys.stderr,
     )
 
-    # 4) Download SARIF for each selected analysis id using custom media type application/sarif+json. :contentReference[oaicite:9]{index=9}
+    # 4) Download SARIF for each selected analysis using its custom media type.
     sarif_by_analysis_id: Dict[str, Any] = {}
     for idx, analysis_id in enumerate(analysis_ids, start=1):
         print(

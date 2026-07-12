@@ -23,6 +23,14 @@ local files, command-line arguments, environment variables, and other local
 sources used by maintenance scripts. Neither configuration excludes C#
 findings by rule.
 
+This split is deliberate. The compiled web application has a remote request
+boundary, and treating all application-owned database and filesystem state as
+attacker-controlled creates unactionable C# flows. Python maintenance tools
+really do accept local files, environment variables, and command-line values
+from an administrator, so the local threat model accurately represents their
+trust boundary. Do not enable `threat-models: local` globally to make the two
+very different execution models look uniform.
+
 The local models are intentionally narrow. They identify
 `LogSanitizer.Sanitize` as a barrier only for the `log-injection` flow kind and
 `ConfigurationLogRedactor.RedactValue` as a barrier only when values would be
@@ -82,7 +90,29 @@ This administrative cleanup is required for findings that exist only in the
 former default-setup configuration; a repository commit cannot delete that
 server-side configuration.
 
+The stale Python configurations must not be removed before the checked-in
+Python matrix job succeeds on `main`. Otherwise, the repository can temporarily
+lose active Python coverage rather than transferring it to the advanced
+workflow.
+
 ## Verification
+
+The July 2026 local verification reports:
+
+- the six original C# alerts have source fixes and regression coverage, while
+  the Python setup alert has a hardened necessary sink and narrow documented
+  suppression;
+- a fresh default-remote C# database moved from eight findings to zero;
+- fresh GitHub Actions and JavaScript/TypeScript databases report zero
+  findings;
+- a fresh workflow-equivalent Python database ran all 45 default queries with
+  the local threat model and reported zero findings and no SARIF warning/error
+  notifications; and
+- the 52-query Python security-extended suite also reported zero findings.
+
+The Python filesystem audit passes 57 focused tests, and all 109 script tests
+pass with `ResourceWarning` promoted to an error. These complete-suite results,
+not an earlier targeted-query result, form the local release gate.
 
 After changing the workflow or CodeQL configuration:
 

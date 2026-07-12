@@ -5,6 +5,7 @@ import importlib.util
 import io
 import os
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -128,6 +129,10 @@ class CleanupPathGuardTests(unittest.TestCase):
 
                 self.assertEqual("outside", outside_file.read_text(encoding="utf-8"))
 
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
     def test_live_cli_withholds_canonical_root_and_trusted_boundary(self):
         """CLI output confirms validation without disclosing supplied paths."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -160,7 +165,10 @@ class CleanupPathGuardTests(unittest.TestCase):
             self.assertNotIn(os.fspath(root.resolve()), result.stdout)
             self.assertNotIn(os.fspath(boundary.resolve()), result.stdout)
 
-    @unittest.skipUnless(os.name == "posix", "POSIX descriptors required")
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
     def test_unlink_uses_pinned_parent_during_ancestor_swap(self):
         """A swapped lexical ancestor cannot redirect unlink outside root."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -212,7 +220,10 @@ class CleanupPathGuardTests(unittest.TestCase):
             )
             self.assertFalse((root / "album-original" / "victim.txt").exists())
 
-    @unittest.skipUnless(os.name == "posix", "POSIX descriptors required")
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
     def test_rmtree_uses_pinned_parent_during_ancestor_swap(self):
         """A swapped lexical ancestor cannot redirect recursive deletion."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -388,6 +399,303 @@ class CleanupPathGuardTests(unittest.TestCase):
                 ),
             )
 
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_live_mutation_rejects_an_unprotected_quarantine_parent(self):
+        """Live cleanup fails closed when other principals can swap root entries."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            original_mode = stat.S_IMODE(root.stat().st_mode)
+            root.chmod(0o777)
+            try:
+                guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+                with self.assertRaises(cleanup.UnsafeCleanupPathError):
+                    guard.require_secure_mutation()
+            finally:
+                root.chmod(original_mode)
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_quarantine_bootstrap_preserves_a_preopen_name_replacement(self):
+        """A directory swapped in before quarantine open is never accepted or removed."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            original_stat = os.stat
+            swapped_names = {}
+
+            def swap_before_first_stat(path, *args, **kwargs):
+                if (
+                    not swapped_names
+                    and kwargs.get("dir_fd") == guard._root_descriptor
+                    and os.fspath(path).startswith(
+                        ".melodee-cleanup-quarantine-"
+                    )
+                ):
+                    quarantine_name = os.fspath(path)
+                    original_name = quarantine_name + "-created-aside"
+                    os.rename(
+                        quarantine_name,
+                        original_name,
+                        src_dir_fd=guard._root_descriptor,
+                        dst_dir_fd=guard._root_descriptor,
+                    )
+                    os.mkdir(
+                        quarantine_name,
+                        mode=0o700,
+                        dir_fd=guard._root_descriptor,
+                    )
+                    os.chmod(
+                        quarantine_name,
+                        0o755,
+                        dir_fd=guard._root_descriptor,
+                    )
+                    marker_parent = os.open(
+                        quarantine_name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=guard._root_descriptor,
+                    )
+                    marker = os.open(
+                        "replacement.txt",
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                        0o600,
+                        dir_fd=marker_parent,
+                    )
+                    os.write(marker, b"replacement")
+                    os.close(marker)
+                    os.close(marker_parent)
+                    swapped_names.update(
+                        replacement=quarantine_name,
+                        original=original_name,
+                    )
+                return original_stat(path, *args, **kwargs)
+
+            with mock.patch.object(
+                cleanup.os,
+                "stat",
+                side_effect=swap_before_first_stat,
+            ):
+                with self.assertRaises(cleanup.UnsafeCleanupPathError):
+                    guard._ensure_quarantine()
+
+            replacement = root / swapped_names["replacement"]
+            self.assertEqual(
+                "replacement",
+                (replacement / "replacement.txt").read_text(
+                    encoding="utf-8"
+                ),
+            )
+            self.assertTrue((root / swapped_names["original"]).is_dir())
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_quarantine_release_preserves_a_public_name_replacement(self):
+        """Teardown never rmdirs a replacement swapped under the public name."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            guard._ensure_quarantine()
+            quarantine_name = guard._quarantine_name
+            original_rename = guard._rename_noreplace
+            swapped = False
+
+            def swap_before_release(
+                source_parent,
+                source_name,
+                destination_parent,
+                destination_name,
+            ):
+                nonlocal swapped
+                if (
+                    not swapped
+                    and source_parent == guard._root_descriptor
+                    and source_name == quarantine_name
+                    and destination_name.startswith(
+                        ".melodee-cleanup-release-"
+                    )
+                ):
+                    os.rename(
+                        source_name,
+                        source_name + "-created-aside",
+                        src_dir_fd=source_parent,
+                        dst_dir_fd=source_parent,
+                    )
+                    os.mkdir(source_name, mode=0o700, dir_fd=source_parent)
+                    replacement_parent = os.open(
+                        source_name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=source_parent,
+                    )
+                    marker = os.open(
+                        "replacement.txt",
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                        0o600,
+                        dir_fd=replacement_parent,
+                    )
+                    os.write(marker, b"replacement")
+                    os.close(marker)
+                    os.close(replacement_parent)
+                    swapped = True
+                return original_rename(
+                    source_parent,
+                    source_name,
+                    destination_parent,
+                    destination_name,
+                )
+
+            with mock.patch.object(
+                guard,
+                "_rename_noreplace",
+                side_effect=swap_before_release,
+            ):
+                guard._release_empty_quarantine()
+
+            self.assertTrue(swapped)
+            self.assertEqual(
+                "replacement",
+                (root / quarantine_name / "replacement.txt").read_text(
+                    encoding="utf-8"
+                ),
+            )
+            self.assertTrue(
+                (root / f"{quarantine_name}-created-aside").is_dir()
+            )
+            self.assertFalse(
+                any(
+                    path.name.startswith(".melodee-cleanup-release-")
+                    for path in root.iterdir()
+                )
+            )
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_published_directory_replacement_is_not_recorded_for_rollback(self):
+        """Rollback never removes a directory swapped in after publication."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            original_rename = guard._rename_noreplace
+            swapped = False
+
+            def publish_then_swap(
+                source_parent,
+                source_name,
+                destination_parent,
+                destination_name,
+            ):
+                nonlocal swapped
+                result = original_rename(
+                    source_parent,
+                    source_name,
+                    destination_parent,
+                    destination_name,
+                )
+                if not swapped and destination_name == "album":
+                    os.rename(
+                        destination_name,
+                        "album-created-aside",
+                        src_dir_fd=destination_parent,
+                        dst_dir_fd=destination_parent,
+                    )
+                    os.mkdir(
+                        destination_name,
+                        mode=0o700,
+                        dir_fd=destination_parent,
+                    )
+                    replacement_parent = os.open(
+                        destination_name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=destination_parent,
+                    )
+                    marker = os.open(
+                        "replacement.txt",
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                        0o600,
+                        dir_fd=replacement_parent,
+                    )
+                    os.write(marker, b"replacement")
+                    os.close(marker)
+                    os.close(replacement_parent)
+                    swapped = True
+                return result
+
+            created_entries = []
+            with mock.patch.object(
+                guard,
+                "_rename_noreplace",
+                side_effect=publish_then_swap,
+            ):
+                guard.ensure_directory(root / "album", created_entries)
+                guard.rollback_created_entries(created_entries)
+
+            self.assertTrue(swapped)
+            self.assertEqual(
+                "replacement",
+                (root / "album" / "replacement.txt").read_text(
+                    encoding="utf-8"
+                ),
+            )
+            self.assertTrue((root / "album-created-aside").is_dir())
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_shutdown_at_isolated_delete_commit_restores_target(self):
+        """A shutdown arriving during final identity validation cancels deletion."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            (album / "track.txt").write_text("preserve", encoding="utf-8")
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            identity = guard.directory_identity(album)
+            original_stat = os.stat
+            slot_stats = 0
+
+            def interrupt_on_final_slot_stat(path, *args, **kwargs):
+                nonlocal slot_stats
+                result = original_stat(path, *args, **kwargs)
+                if (
+                    kwargs.get("dir_fd") == guard._quarantine_descriptor
+                    and os.fspath(path).startswith("entry-")
+                ):
+                    slot_stats += 1
+                    if slot_stats == 2:
+                        cleanup.shutdown_requested = True
+                return result
+
+            decision = None
+            try:
+                with mock.patch.object(
+                    cleanup.os,
+                    "stat",
+                    side_effect=interrupt_on_final_slot_stat,
+                ):
+                    with guard.isolated_directory_decision(
+                        album,
+                        identity,
+                    ) as (_, decision):
+                        decision["delete"] = True
+            finally:
+                cleanup.shutdown_requested = False
+
+            self.assertEqual(2, slot_stats)
+            self.assertFalse(decision["deleted"])
+            self.assertEqual(
+                "preserve",
+                (album / "track.txt").read_text(encoding="utf-8"),
+            )
+
     def test_live_mutation_fails_closed_without_descriptor_primitives(self):
         """Unsupported platforms may inspect but never mutate the tree."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -481,6 +789,93 @@ class ZipExtractionSecurityTests(unittest.TestCase):
             self.assertTrue(archive.exists())
             self.assertEqual("preserve", existing.read_text(encoding="utf-8"))
             self.assertIn("Error processing ZIP archive", output.getvalue())
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure descriptor traversal required",
+    )
+    def test_pretend_remains_available_on_a_world_writable_root(self):
+        """Read-only archive inspection does not require live isolation policy."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            archive = root / "release.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("track.txt", "audio")
+            original_mode = stat.S_IMODE(root.stat().st_mode)
+            root.chmod(0o777)
+            try:
+                guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+                output = io.StringIO()
+
+                with contextlib.redirect_stdout(output):
+                    cleanup.unzip_files_in_directory(root, guard, pretend=True)
+
+                self.assertIn("Would unzip ZIP archive", output.getvalue())
+                self.assertTrue(archive.exists())
+                self.assertFalse((root / "track.txt").exists())
+            finally:
+                root.chmod(original_mode)
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_nested_destination_swap_cannot_redirect_zip_output(self):
+        """Archive output stays with the exact directory opened for processing."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            archive = album / "release.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("track.txt", "audio")
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            original_create = (
+                cleanup.CleanupPathGuard.create_regular_file_exclusive
+            )
+            swapped = False
+
+            def swap_then_create(pinned_guard, candidate, created_entries):
+                nonlocal swapped
+                if not swapped:
+                    album.rename(root / "album-authorized-aside")
+                    album.mkdir()
+                    (album / "replacement.txt").write_text(
+                        "replacement",
+                        encoding="utf-8",
+                    )
+                    swapped = True
+                return original_create(
+                    pinned_guard,
+                    candidate,
+                    created_entries,
+                )
+
+            with mock.patch.object(
+                cleanup.CleanupPathGuard,
+                "create_regular_file_exclusive",
+                autospec=True,
+                side_effect=swap_then_create,
+            ):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.unzip_files_in_directory(
+                        album,
+                        guard,
+                        pretend=False,
+                    )
+
+            self.assertTrue(swapped)
+            self.assertFalse((album / "track.txt").exists())
+            self.assertEqual(
+                "replacement",
+                (album / "replacement.txt").read_text(encoding="utf-8"),
+            )
+            authorized_aside = root / "album-authorized-aside"
+            self.assertEqual(
+                "audio",
+                (authorized_aside / "track.txt").read_text(encoding="utf-8"),
+            )
+            self.assertFalse((authorized_aside / "release.zip").exists())
 
     def test_zip_slip_is_rejected_before_any_member_is_extracted(self):
         """A traversal member prevents even earlier safe members from being written."""
@@ -743,6 +1138,8 @@ class ZipExtractionSecurityTests(unittest.TestCase):
             {"MAX_ZIP_MEMBER_BYTES": 3},
             {"MAX_ZIP_TOTAL_BYTES": 6},
             {"MAX_ZIP_COMPRESSION_RATIO": 1},
+            {"MAX_ZIP_ARCHIVE_BYTES": 32},
+            {"MAX_ZIP_CENTRAL_DIRECTORY_BYTES": 1},
         )
         for overrides in quota_overrides:
             with self.subTest(overrides=overrides):
@@ -778,6 +1175,84 @@ class ZipExtractionSecurityTests(unittest.TestCase):
                     self.assertFalse((root / "first.txt").exists())
                     self.assertFalse((root / "second.txt").exists())
 
+    def test_eocd_count_and_central_directory_are_bounded_before_parse(self):
+        """Raw ZIP metadata limits run before ZipFile loads member records."""
+        cases = (
+            ("MAX_ZIP_MEMBERS", 1),
+            ("MAX_ZIP_CENTRAL_DIRECTORY_BYTES", 1),
+        )
+        for setting, limit in cases:
+            with self.subTest(setting=setting):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    root = Path(temporary_directory)
+                    archive = root / "metadata.zip"
+                    with zipfile.ZipFile(archive, "w") as zip_file:
+                        zip_file.writestr("first.txt", "first")
+                        zip_file.writestr("second.txt", "second")
+                    guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+                    with mock.patch.object(cleanup, setting, limit):
+                        with guard.open_regular_file(archive) as archive_handle:
+                            with self.assertRaises(cleanup.UnsafeArchiveError):
+                                cleanup.preflight_zip_container(archive_handle)
+
+    def test_zip64_end_record_is_preflighted_without_rejecting_zip64(self):
+        """Bounded ZIP64 metadata remains compatible with normal extraction."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            archive = root / "zip64.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("track.txt", "audio")
+            content = archive.read_bytes()
+            eocd_offset = content.rfind(b"PK\x05\x06")
+            eocd = struct.unpack_from("<4s4H2LH", content, eocd_offset)
+            entry_count = eocd[4]
+            central_size = eocd[5]
+            central_offset = eocd[6]
+            zip64_record = struct.pack(
+                "<4sQ2H2L4Q",
+                b"PK\x06\x06",
+                44,
+                45,
+                45,
+                0,
+                0,
+                entry_count,
+                entry_count,
+                central_size,
+                central_offset,
+            )
+            locator = struct.pack(
+                "<4sLQL",
+                b"PK\x06\x07",
+                0,
+                eocd_offset,
+                1,
+            )
+            sentinel_eocd = struct.pack(
+                "<4s4H2LH",
+                b"PK\x05\x06",
+                0,
+                0,
+                0xFFFF,
+                0xFFFF,
+                0xFFFFFFFF,
+                0xFFFFFFFF,
+                0,
+            )
+            archive.write_bytes(
+                content[:eocd_offset]
+                + zip64_record
+                + locator
+                + sentinel_eocd
+            )
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+            with guard.open_regular_file(archive) as archive_handle:
+                cleanup.preflight_zip_container(archive_handle)
+                with zipfile.ZipFile(archive_handle) as zip_file:
+                    self.assertEqual(["track.txt"], zip_file.namelist())
+
     def test_reserved_windows_names_are_rejected_portably(self):
         """Windows devices, streams, and normalized aliases are never targets."""
         reserved_names = (
@@ -788,6 +1263,8 @@ class ZipExtractionSecurityTests(unittest.TestCase):
             "trailing ",
             "COM1 .txt",
             "wild?.txt",
+            ".melodee-cleanup-quarantine-" + "a" * 32,
+            "nested/.melodee-cleanup-release-" + "b" * 32,
         )
         for filename in reserved_names:
             with self.subTest(filename=filename):
@@ -882,6 +1359,31 @@ class SfvPathSecurityTests(unittest.TestCase):
                         results["<unsafe-sfv-entry>"]["status"],
                     )
 
+    def test_portable_duplicate_sfv_entries_are_rejected(self):
+        """Case and Unicode aliases cannot hash one target repeatedly."""
+        aliases = (
+            ("Track.mp3", "track.mp3"),
+            ("café.mp3", "cafe\u0301.mp3"),
+        )
+        for first, second in aliases:
+            with self.subTest(first=first, second=second):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    root = Path(temporary_directory)
+                    sfv = root / "release.sfv"
+                    sfv.write_text(
+                        f"{first} 00000000\n{second} 00000000\n",
+                        encoding="utf-8",
+                    )
+                    guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+                    passed, results = cleanup.verify_sfv_file(sfv, guard)
+
+                    self.assertFalse(passed)
+                    self.assertEqual(
+                        "UNSAFE",
+                        results["<unsafe-sfv-entry>"]["status"],
+                    )
+
     def test_sfv_encoding_rename_respects_pretend_and_live_modes(self):
         """A valid encoding repair is reported in pretend mode and applied live."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -962,6 +1464,244 @@ class SfvPathSecurityTests(unittest.TestCase):
                         "UNSAFE",
                         results["<unsafe-sfv-entry>"]["status"],
                     )
+
+    def test_missing_normal_sfv_member_remains_a_verification_failure(self):
+        """A missing listed file is a failed SFV, not an operational read error."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            (album / "release.sfv").write_text(
+                "missing.mp3 00000000\n",
+                encoding="utf-8",
+            )
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+            should_delete, _, _, target, identity = (
+                cleanup.check_sfv_integrity(album, guard, pretend=True)
+            )
+
+            self.assertTrue(should_delete)
+            self.assertEqual(album, target)
+            self.assertEqual(guard.directory_identity(album), identity)
+
+    def test_sfv_member_total_and_directory_limits_are_non_destructive(self):
+        """Checksum work stops at configured file, aggregate, and index bounds."""
+        cases = (
+            {"MAX_SFV_MEMBER_BYTES": 3},
+            {"MAX_SFV_TOTAL_VERIFIED_BYTES": 5},
+            {"MAX_SFV_DIRECTORY_ENTRIES": 1},
+        )
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    root = Path(temporary_directory)
+                    first = root / "first.mp3"
+                    second = root / "second.mp3"
+                    first.write_bytes(b"four")
+                    second.write_bytes(b"four")
+                    first_crc = f"{zlib.crc32(b'four') & 0xFFFFFFFF:08X}"
+                    sfv = root / "release.sfv"
+                    sfv.write_text(
+                        f"first.mp3 {first_crc}\nsecond.mp3 {first_crc}\n",
+                        encoding="utf-8",
+                    )
+                    guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+                    with contextlib.ExitStack() as stack:
+                        for name, value in overrides.items():
+                            stack.enter_context(
+                                mock.patch.object(cleanup, name, value)
+                            )
+                        passed, results = cleanup.verify_sfv_file(sfv, guard)
+
+                    self.assertIsNone(passed)
+                    self.assertTrue(first.exists())
+                    self.assertTrue(second.exists())
+                    self.assertTrue(
+                        any(
+                            result["status"] == "ERROR"
+                            for result in results.values()
+                        )
+                    )
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_sfv_shutdown_restores_an_isolated_failed_target(self):
+        """Interruption overrides an earlier failure before transactional deletion."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            content = b"track"
+            (album / "track.mp3").write_bytes(content)
+            checksum = f"{zlib.crc32(content) & 0xFFFFFFFF:08X}"
+            (album / "release.sfv").write_text(
+                f"missing.mp3 00000000\ntrack.mp3 {checksum}\n",
+                encoding="utf-8",
+            )
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            original_crc = cleanup.calculate_crc32_details
+
+            def interrupt_crc(*args, **kwargs):
+                cleanup.shutdown_requested = True
+                return original_crc(*args, **kwargs)
+
+            try:
+                with mock.patch.object(
+                    cleanup,
+                    "calculate_crc32_details",
+                    side_effect=interrupt_crc,
+                ), mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        cleanup.delete_matching_dirs(
+                            guard,
+                            pretend=False,
+                            check_sfv=True,
+                            delete_dash_one=False,
+                        )
+            finally:
+                cleanup.shutdown_requested = False
+
+            self.assertTrue(album.is_dir())
+            self.assertEqual(content, (album / "track.mp3").read_bytes())
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_sfv_target_replacement_is_not_deleted(self):
+        """The deletion decision remains bound to the verified directory inode."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            (album / "release.sfv").write_text(
+                "missing.mp3 00000000\n",
+                encoding="utf-8",
+            )
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            original_check = cleanup.check_sfv_integrity
+            swapped = False
+
+            def check_then_replace(*args, **kwargs):
+                nonlocal swapped
+                result = original_check(*args, **kwargs)
+                if result[0] and not swapped:
+                    album.mkdir()
+                    (album / "replacement.txt").write_text(
+                        "replacement",
+                        encoding="utf-8",
+                    )
+                    swapped = True
+                return result
+
+            cleanup.stats.clear()
+            with mock.patch.object(
+                cleanup,
+                "check_sfv_integrity",
+                side_effect=check_then_replace,
+            ), mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.delete_matching_dirs(
+                        guard,
+                        pretend=False,
+                        check_sfv=True,
+                        delete_dash_one=False,
+                    )
+
+            self.assertTrue(swapped)
+            self.assertEqual(
+                "replacement",
+                (album / "replacement.txt").read_text(encoding="utf-8"),
+            )
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_live_failed_sfv_deletes_the_isolated_album(self):
+        """A normal failed verification deletes exactly its isolated target."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            (album / "release.sfv").write_text(
+                "missing.mp3 00000000\n",
+                encoding="utf-8",
+            )
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            cleanup.stats.clear()
+
+            with mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.delete_matching_dirs(
+                        guard,
+                        pretend=False,
+                        check_sfv=True,
+                        delete_dash_one=False,
+                    )
+
+            self.assertFalse(album.exists())
+            self.assertEqual(
+                1,
+                cleanup.stats["sfv_failed_directories_deleted"],
+            )
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_sfv_decision_aba_verifies_the_isolated_original(self):
+        """A temporary failing replacement cannot condemn a restored valid album."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            album = root / "album"
+            album.mkdir()
+            content = b"valid track"
+            (album / "track.mp3").write_bytes(content)
+            checksum = f"{zlib.crc32(content) & 0xFFFFFFFF:08X}"
+            (album / "release.sfv").write_text(
+                f"track.mp3 {checksum}\n",
+                encoding="utf-8",
+            )
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+            original_verify = cleanup.verify_sfv_file
+            swapped = False
+
+            def verify_while_replacement_is_public(*args, **kwargs):
+                nonlocal swapped
+                if not swapped:
+                    album.mkdir()
+                    (album / "release.sfv").write_text(
+                        "missing.mp3 00000000\n",
+                        encoding="utf-8",
+                    )
+                    result = original_verify(*args, **kwargs)
+                    album.rename(root / "album-failing-aside")
+                    swapped = True
+                    return result
+                return original_verify(*args, **kwargs)
+
+            cleanup.stats.clear()
+            with mock.patch.object(
+                cleanup,
+                "verify_sfv_file",
+                side_effect=verify_while_replacement_is_public,
+            ), mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.delete_matching_dirs(
+                        guard,
+                        pretend=False,
+                        check_sfv=True,
+                        delete_dash_one=False,
+                    )
+
+            self.assertTrue(swapped)
+            self.assertEqual(content, (album / "track.mp3").read_bytes())
+            self.assertTrue((root / "album-failing-aside").is_dir())
 
     @unittest.skipUnless(
         cleanup._RENAMEAT2 is not None,
@@ -1151,6 +1891,140 @@ class DestructiveContainmentTests(unittest.TestCase):
             self.assertNotIn("\x1b[31mLEAK", output.getvalue())
             self.assertNotIn("\r\nINJECTED", output.getvalue())
             self.assertIn(".other: 1", output.getvalue())
+
+    @unittest.skipUnless(
+        cleanup.PIL_AVAILABLE
+        and cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Pillow and secure Linux mutation primitives required",
+    )
+    def test_image_inspection_aba_does_not_delete_the_original(self):
+        """Image deletion uses the identity of the exact inspected file."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            boundary = Path(temporary_directory)
+            root = boundary / "incoming"
+            root.mkdir()
+            image = root / "cover.jpg"
+            small_source = boundary / "small.jpg"
+            cleanup.Image.new("RGB", (400, 400)).save(image)
+            cleanup.Image.new("RGB", (10, 10)).save(small_source)
+            guard = cleanup.CleanupPathGuard.from_cli(root, boundary)
+            original_dimensions = cleanup.get_image_dimensions
+            swapped = False
+
+            def inspect_temporary_replacement(file_path, path_guard):
+                nonlocal swapped
+                if not swapped:
+                    image.rename(root / "cover-authorized-aside.jpg")
+                    small_source.rename(image)
+                    result = original_dimensions(file_path, path_guard)
+                    image.rename(small_source)
+                    (root / "cover-authorized-aside.jpg").rename(image)
+                    swapped = True
+                    return result
+                return original_dimensions(file_path, path_guard)
+
+            with mock.patch.object(
+                cleanup,
+                "get_image_dimensions",
+                side_effect=inspect_temporary_replacement,
+            ), mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.delete_matching_dirs(
+                        guard,
+                        pretend=False,
+                        check_sfv=False,
+                        delete_dash_one=False,
+                    )
+
+            self.assertTrue(swapped)
+            self.assertTrue(image.exists())
+            with cleanup.Image.open(image) as preserved_image:
+                self.assertEqual((400, 400), preserved_image.size)
+
+    @unittest.skipUnless(cleanup.PIL_AVAILABLE, "Pillow required")
+    def test_pillow_decompression_bomb_is_a_local_image_failure(self):
+        """An oversized image header cannot abort the cleanup run."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            image = root / "cover.jpg"
+            image.write_bytes(b"image")
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+            with mock.patch.object(
+                cleanup.Image,
+                "open",
+                side_effect=cleanup.Image.DecompressionBombError("oversized"),
+            ):
+                dimensions, identity = cleanup.get_image_dimensions(
+                    image,
+                    guard,
+                )
+
+            self.assertIsNone(dimensions)
+            self.assertIsNone(identity)
+            self.assertTrue(image.exists())
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_retained_quarantine_state_is_opaque_to_later_runs(self):
+        """A later cleanup never traverses preserved internal state."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            quarantine = root / (
+                ".melodee-cleanup-quarantine-" + "a" * 32
+            )
+            matched = quarantine / "Greatest Hits"
+            matched.mkdir(parents=True)
+            quarantine.chmod(0o700)
+            proof = quarantine / "proof.jpg"
+            proof.write_bytes(b"preserve")
+            archive = quarantine / "release.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("track.txt", "preserve")
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+            with mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.delete_matching_dirs(
+                        guard,
+                        pretend=False,
+                        check_sfv=False,
+                        delete_dash_one=False,
+                    )
+
+            self.assertTrue(matched.is_dir())
+            self.assertTrue(proof.exists())
+            self.assertTrue(archive.exists())
+            self.assertFalse((quarantine / "track.txt").exists())
+
+    @unittest.skipUnless(
+        cleanup.CleanupPathGuard._secure_mutation_primitives_available(),
+        "Secure Linux mutation primitives required",
+    )
+    def test_untrusted_reserved_shape_is_not_opaque(self):
+        """An exact internal-looking name without private metadata is processed."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            impostor = root / (
+                ".melodee-cleanup-quarantine-" + "b" * 32
+            )
+            matched = impostor / "Greatest Hits"
+            matched.mkdir(parents=True)
+            impostor.chmod(0o755)
+            guard = cleanup.CleanupPathGuard.from_cli(root, root.parent)
+
+            with mock.patch.object(cleanup, "TQDM_AVAILABLE", False):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    cleanup.delete_matching_dirs(
+                        guard,
+                        pretend=False,
+                        check_sfv=False,
+                        delete_dash_one=False,
+                    )
+
+            self.assertFalse(matched.exists())
 
 
 if __name__ == "__main__":

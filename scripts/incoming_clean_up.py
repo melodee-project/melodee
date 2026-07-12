@@ -15,6 +15,7 @@ from collections import defaultdict
 import time
 import math
 import signal
+import struct
 import unicodedata
 import zlib
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -76,9 +77,21 @@ MAX_ZIP_MEMBERS = 10_000
 MAX_ZIP_MEMBER_BYTES = 16 * 1024 * 1024 * 1024
 MAX_ZIP_TOTAL_BYTES = 128 * 1024 * 1024 * 1024
 MAX_ZIP_COMPRESSION_RATIO = 1_000
+MAX_ZIP_ARCHIVE_BYTES = 128 * 1024 * 1024 * 1024
+MAX_ZIP_CENTRAL_DIRECTORY_BYTES = 256 * 1024 * 1024
 ZIP_COPY_CHUNK_BYTES = 1024 * 1024
 MAX_SFV_BYTES = 8 * 1024 * 1024
 MAX_SFV_LINES = 100_000
+MAX_SFV_MEMBER_BYTES = 16 * 1024 * 1024 * 1024
+MAX_SFV_TOTAL_VERIFIED_BYTES = 128 * 1024 * 1024 * 1024
+MAX_SFV_DIRECTORY_ENTRIES = 200_000
+INTERNAL_CLEANUP_PREFIXES = (
+    ".melodee-cleanup-quarantine-",
+    ".melodee-cleanup-release-",
+)
+INTERNAL_CLEANUP_NAME_PATTERN = re.compile(
+    r"^\.melodee-cleanup-(?:quarantine|release)-[0-9a-f]{32}$"
+)
 
 SUPPORTED_ZIP_COMPRESSION = {
     zipfile.ZIP_STORED,
@@ -137,39 +150,47 @@ class CleanupPathGuard:
         self._root_identity = None
         self._quarantine_descriptor = None
         self._quarantine_name = None
+        self._quarantine_identity = None
 
         if self._secure_mutation_primitives_available():
             flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
             descriptor = os.open(self.root, flags)
-            root_stat = os.fstat(descriptor)
-            if not stat.S_ISDIR(root_stat.st_mode):
+            try:
+                root_stat = os.fstat(descriptor)
+                if not stat.S_ISDIR(root_stat.st_mode):
+                    raise UnsafeCleanupPathError(
+                        "Cleanup root is not a stable directory."
+                    )
+            except BaseException:
                 os.close(descriptor)
-                raise UnsafeCleanupPathError(
-                    "Cleanup root is not a stable directory."
-                )
+                raise
             self._root_descriptor = descriptor
             self._root_identity = (root_stat.st_dev, root_stat.st_ino)
 
     def __del__(self):
         """Release the pinned root descriptor when the guard is collected."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def close(self):
+        """Release pinned descriptors without deleting unverified names."""
+        try:
+            self._release_empty_quarantine()
+        except (AttributeError, OSError, UnsafeCleanupPathError, TypeError):
+            pass
         quarantine_descriptor = getattr(
             self,
             "_quarantine_descriptor",
             None,
         )
-        root_descriptor = getattr(self, "_root_descriptor", None)
-        quarantine_name = getattr(self, "_quarantine_name", None)
         if quarantine_descriptor is not None:
             try:
                 os.close(quarantine_descriptor)
             except OSError:
                 pass
             self._quarantine_descriptor = None
-            if root_descriptor is not None and quarantine_name is not None:
-                try:
-                    os.rmdir(quarantine_name, dir_fd=root_descriptor)
-                except OSError:
-                    pass
         descriptor = getattr(self, "_root_descriptor", None)
         if descriptor is not None:
             try:
@@ -177,6 +198,125 @@ class CleanupPathGuard:
             except OSError:
                 pass
             self._root_descriptor = None
+
+    @contextlib.contextmanager
+    def pinned_subdirectory_guard(self, candidate):
+        """Yield a guard whose root is the exact opened directory inode."""
+        lexical, authorized_stat = self.directory_details(
+            candidate,
+            allow_root=True,
+        )
+        authorized_identity = self._identity(authorized_stat)
+        with self._open_directory_descriptor(lexical) as descriptor:
+            opened_stat = os.fstat(descriptor)
+            if self._identity(opened_stat) != authorized_identity:
+                raise UnsafeCleanupPathError(
+                    "Directory changed while it was being pinned."
+                )
+            pinned = object.__new__(CleanupPathGuard)
+            pinned.trusted_boundary = self.trusted_boundary
+            pinned.root = lexical
+            pinned._root_descriptor = os.dup(descriptor)
+            try:
+                pinned_stat = os.fstat(pinned._root_descriptor)
+            except BaseException:
+                os.close(pinned._root_descriptor)
+                pinned._root_descriptor = None
+                raise
+            pinned._root_identity = self._identity(pinned_stat)
+            pinned._quarantine_descriptor = None
+            pinned._quarantine_name = None
+            pinned._quarantine_identity = None
+        try:
+            yield pinned
+        finally:
+            pinned.close()
+
+    @contextlib.contextmanager
+    def isolated_directory_decision(self, candidate, expected_identity):
+        """Isolate one directory while a destructive content decision is made."""
+        self.require_secure_mutation()
+        lexical = self._lexical_within_root(candidate)
+        with self._open_parent_descriptor(lexical) as (parent, name):
+            quarantine, slot = self._move_expected_entry_to_quarantine(
+                parent,
+                name,
+                stat.S_ISDIR,
+                expected_identity,
+            )
+            isolated_descriptor = os.open(
+                slot,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=quarantine,
+            )
+            try:
+                isolated_stat = os.fstat(isolated_descriptor)
+            except BaseException:
+                os.close(isolated_descriptor)
+                self._restore_quarantined_entry(slot, parent, name)
+                self._release_empty_quarantine()
+                raise
+            if self._identity(isolated_stat) != tuple(expected_identity):
+                os.close(isolated_descriptor)
+                self._restore_quarantined_entry(slot, parent, name)
+                self._release_empty_quarantine()
+                raise UnsafeCleanupPathError(
+                    "Isolated decision target changed before verification."
+                )
+
+            pinned = object.__new__(CleanupPathGuard)
+            pinned.trusted_boundary = self.trusted_boundary
+            pinned.root = lexical
+            pinned._root_descriptor = isolated_descriptor
+            pinned._root_identity = self._identity(isolated_stat)
+            pinned._quarantine_descriptor = None
+            pinned._quarantine_name = None
+            pinned._quarantine_identity = None
+            decision = {"delete": False, "deleted": False}
+            try:
+                yield pinned, decision
+            finally:
+                pinned.close()
+                if decision["delete"] and shutdown_requested:
+                    decision["delete"] = False
+                if decision["delete"]:
+                    current = os.stat(
+                        slot,
+                        dir_fd=quarantine,
+                        follow_symlinks=False,
+                    )
+                    if self._identity(current) != tuple(expected_identity):
+                        self._restore_quarantined_entry(slot, parent, name)
+                        self._release_empty_quarantine()
+                        raise UnsafeCleanupPathError(
+                            "Isolated decision target changed before deletion."
+                        )
+                    if shutdown_requested:
+                        decision["delete"] = False
+                        if not self._restore_quarantined_entry(
+                            slot,
+                            parent,
+                            name,
+                        ):
+                            raise UnsafeCleanupPathError(
+                                "Interrupted decision target could not be "
+                                "restored; it remains in quarantine."
+                            )
+                    else:
+                        try:
+                            shutil.rmtree(slot, dir_fd=quarantine)
+                            decision["deleted"] = True
+                        except OSError:
+                            self._restore_quarantined_entry(slot, parent, name)
+                            raise
+                else:
+                    if not self._restore_quarantined_entry(slot, parent, name):
+                        self._release_empty_quarantine()
+                        raise UnsafeCleanupPathError(
+                            "Isolated decision target could not be restored; "
+                            "it remains recoverable in quarantine."
+                        )
+                self._release_empty_quarantine()
 
     @staticmethod
     def _secure_mutation_primitives_available():
@@ -204,12 +344,29 @@ class CleanupPathGuard:
         """Return whether this guard has a pinned secure root descriptor."""
         return self._root_descriptor is not None
 
+    @property
+    def secure_mutation_authorized(self):
+        """Return whether live mutation also has safe quarantine isolation."""
+        if not self.secure_mutation_supported:
+            return False
+        try:
+            return self._trusted_quarantine_parent(
+                os.fstat(self._root_descriptor)
+            )
+        except OSError:
+            return False
+
     def require_secure_mutation(self):
         """Fail closed when live mutation cannot use stable descriptors."""
         if not self.secure_mutation_supported:
             raise UnsafeCleanupPathError(
                 "Live cleanup requires POSIX descriptor-relative no-follow "
                 "filesystem operations; use pretend mode on this platform."
+            )
+        if not self.secure_mutation_authorized:
+            raise UnsafeCleanupPathError(
+                "Live cleanup requires an owner-controlled cleanup root or "
+                "a trusted sticky cleanup root."
             )
 
     @classmethod
@@ -323,7 +480,12 @@ class CleanupPathGuard:
         created_entries=None,
     ):
         """Open a contained directory by walking pinned no-follow handles."""
-        self.require_secure_mutation()
+        if create:
+            self.require_secure_mutation()
+        elif not self.secure_mutation_supported:
+            raise UnsafeCleanupPathError(
+                "Descriptor-relative traversal is unavailable."
+            )
         descriptor = os.dup(self._root_descriptor)
         traversed = []
         try:
@@ -341,13 +503,30 @@ class CleanupPathGuard:
                         raise UnsafeCleanupPathError(
                             "Required directory no longer exists."
                         ) from None
-                    os.mkdir(part, mode=0o700, dir_fd=descriptor)
+                    published = self._publish_private_directory(
+                        descriptor,
+                        part,
+                    )
+                    if published is not None:
+                        child, after = published
+                        created = True
+                        os.close(descriptor)
+                        descriptor = child
+                        if created_entries is not None:
+                            created_entries.append(
+                                (
+                                    "directory",
+                                    self.root.joinpath(*traversed),
+                                    self._identity(after),
+                                )
+                            )
+                        self._release_empty_quarantine()
+                        continue
                     before = os.stat(
                         part,
                         dir_fd=descriptor,
                         follow_symlinks=False,
                     )
-                    created = True
 
                 if not stat.S_ISDIR(before.st_mode):
                     raise UnsafeCleanupPathError(
@@ -382,6 +561,49 @@ class CleanupPathGuard:
             yield descriptor
         finally:
             os.close(descriptor)
+
+    def _publish_private_directory(self, destination_parent, destination_name):
+        """Publish a process-created directory atomically, or report a collision."""
+        quarantine = self._ensure_quarantine()
+        stage_name = self._new_quarantine_slot()
+        os.mkdir(stage_name, mode=0o700, dir_fd=quarantine)
+        stage_descriptor = None
+        try:
+            stage_descriptor = os.open(
+                stage_name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=quarantine,
+            )
+            stage_stat = os.fstat(stage_descriptor)
+            if not self._private_quarantine(stage_stat):
+                raise UnsafeCleanupPathError(
+                    "Staged archive directory is not private."
+                )
+            try:
+                self._rename_noreplace(
+                    quarantine,
+                    stage_name,
+                    destination_parent,
+                    destination_name,
+                )
+            except OSError as error:
+                os.close(stage_descriptor)
+                stage_descriptor = None
+                os.rmdir(stage_name, dir_fd=quarantine)
+                self._release_empty_quarantine()
+                if error.errno == errno.EEXIST:
+                    return None
+                raise
+            return stage_descriptor, stage_stat
+        except BaseException:
+            if stage_descriptor is not None:
+                os.close(stage_descriptor)
+            try:
+                os.rmdir(stage_name, dir_fd=quarantine)
+            except OSError:
+                pass
+            self._release_empty_quarantine()
+            raise
 
     @contextlib.contextmanager
     def _open_parent_descriptor(
@@ -493,6 +715,34 @@ class CleanupPathGuard:
         lexical, _ = self._candidate(candidate, stat.S_ISREG)
         return lexical
 
+    def directory_entries(self, candidate, limit=None):
+        """Return bounded lexical entries from the exact opened directory."""
+        directory, authorized_stat = self.directory_details(
+            candidate,
+            allow_root=True,
+        )
+        authorized_identity = self._identity(authorized_stat)
+        entries = []
+        if self.secure_mutation_supported:
+            context = self._open_directory_descriptor(directory)
+        else:
+            context = contextlib.nullcontext(os.fspath(directory))
+        with context as directory_source:
+            if isinstance(directory_source, int):
+                opened_stat = os.fstat(directory_source)
+                if self._identity(opened_stat) != authorized_identity:
+                    raise UnsafeCleanupPathError(
+                        "Directory changed while entries were being opened."
+                    )
+            with os.scandir(directory_source) as iterator:
+                for entry_count, entry in enumerate(iterator, 1):
+                    if limit is not None and entry_count > limit:
+                        raise UnsafeCleanupPathError(
+                            "Directory exceeds the permitted entry limit."
+                        )
+                    entries.append(directory / entry.name)
+        return entries
+
     def file_details(self, candidate):
         """Return a lexical regular file and its stable stat metadata."""
         return self._candidate(candidate, stat.S_ISREG)
@@ -522,12 +772,17 @@ class CleanupPathGuard:
                     os.O_RDONLY | os.O_NOFOLLOW,
                     dir_fd=parent,
                 )
-            candidate_stat = os.fstat(descriptor)
-            if not stat.S_ISREG(candidate_stat.st_mode):
-                os.close(descriptor)
-                raise UnsafeCleanupPathError("Expected a regular file.")
-            with os.fdopen(descriptor, "rb") as file_handle:
-                yield file_handle
+            try:
+                candidate_stat = os.fstat(descriptor)
+                if not stat.S_ISREG(candidate_stat.st_mode):
+                    raise UnsafeCleanupPathError("Expected a regular file.")
+                file_handle = os.fdopen(descriptor, "rb")
+                descriptor = -1
+                with file_handle:
+                    yield file_handle
+            finally:
+                if descriptor >= 0:
+                    os.close(descriptor)
             return
 
         lexical, before = self._portable_candidate(
@@ -538,22 +793,53 @@ class CleanupPathGuard:
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         descriptor = os.open(lexical, flags)
-        after = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(after.st_mode)
-            or self._identity(after) != self._identity(before)
-        ):
-            os.close(descriptor)
-            raise UnsafeCleanupPathError(
-                "File changed during portable no-follow validation."
-            )
-        with os.fdopen(descriptor, "rb") as file_handle:
-            yield file_handle
+        try:
+            after = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(after.st_mode)
+                or self._identity(after) != self._identity(before)
+            ):
+                raise UnsafeCleanupPathError(
+                    "File changed during portable no-follow validation."
+                )
+            file_handle = os.fdopen(descriptor, "rb")
+            descriptor = -1
+            with file_handle:
+                yield file_handle
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
 
     @staticmethod
     def _identity(candidate_stat):
         """Return the comparison identity for a stat result."""
         return candidate_stat.st_dev, candidate_stat.st_ino
+
+    @staticmethod
+    def _trusted_quarantine_parent(candidate_stat):
+        """Return whether other principals cannot replace root-local entries."""
+        # A same-euid process already owns the authorized tree; this policy
+        # isolates cleanup state from different filesystem principals.
+        if not stat.S_ISDIR(candidate_stat.st_mode) or candidate_stat.st_nlink < 1:
+            return False
+        trusted_owners = {0, os.geteuid()}
+        if candidate_stat.st_uid not in trusted_owners:
+            return False
+        mode = stat.S_IMODE(candidate_stat.st_mode)
+        other_principals_can_write = bool(mode & 0o022)
+        return not other_principals_can_write or bool(
+            candidate_stat.st_mode & stat.S_ISVTX
+        )
+
+    @staticmethod
+    def _private_quarantine(candidate_stat):
+        """Return whether a quarantine inode is private and process-owned."""
+        return (
+            stat.S_ISDIR(candidate_stat.st_mode)
+            and candidate_stat.st_uid == os.geteuid()
+            and candidate_stat.st_nlink >= 1
+            and stat.S_IMODE(candidate_stat.st_mode) & 0o077 == 0
+        )
 
     @staticmethod
     def _rename_noreplace(
@@ -601,40 +887,123 @@ class CleanupPathGuard:
                 dir_fd=self._root_descriptor,
                 follow_symlinks=False,
             )
+            if not self._private_quarantine(before):
+                raise UnsafeCleanupPathError(
+                    "Quarantine was replaced before it could be opened."
+                )
             descriptor = os.open(
                 quarantine_name,
                 os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
                 dir_fd=self._root_descriptor,
             )
-            after = os.fstat(descriptor)
-            if (
-                not stat.S_ISDIR(after.st_mode)
-                or self._identity(before) != self._identity(after)
-            ):
+            try:
+                after = os.fstat(descriptor)
+                if (
+                    not self._private_quarantine(after)
+                    or self._identity(before) != self._identity(after)
+                ):
+                    raise UnsafeCleanupPathError(
+                        "Quarantine changed while it was being opened."
+                    )
+                os.fchmod(descriptor, 0o700)
+                after = os.fstat(descriptor)
+                if (
+                    not self._private_quarantine(after)
+                    or self._identity(before) != self._identity(after)
+                ):
+                    raise UnsafeCleanupPathError(
+                        "Quarantine permissions changed while it was pinned."
+                    )
+            except BaseException:
                 os.close(descriptor)
-                raise UnsafeCleanupPathError(
-                    "Quarantine changed while it was being opened."
-                )
+                raise
             self._quarantine_name = quarantine_name
             self._quarantine_descriptor = descriptor
+            self._quarantine_identity = self._identity(after)
             return descriptor
         raise UnsafeCleanupPathError("Unable to create a private quarantine.")
 
     def _release_empty_quarantine(self):
-        """Remove the private quarantine as soon as it becomes empty."""
+        """Atomically isolate and remove only the pinned empty quarantine."""
         descriptor = self._quarantine_descriptor
         quarantine_name = self._quarantine_name
-        if descriptor is None or quarantine_name is None:
+        quarantine_identity = self._quarantine_identity
+        root_descriptor = self._root_descriptor
+        if (
+            descriptor is None
+            or quarantine_name is None
+            or quarantine_identity is None
+            or root_descriptor is None
+        ):
             return
         try:
+            pinned_stat = os.fstat(descriptor)
+            if (
+                not self._private_quarantine(pinned_stat)
+                or self._identity(pinned_stat) != quarantine_identity
+            ):
+                return
             if os.listdir(descriptor):
                 return
-            os.rmdir(quarantine_name, dir_fd=self._root_descriptor)
+            if not self._trusted_quarantine_parent(os.fstat(root_descriptor)):
+                return
         except OSError:
             return
+
+        release_name = (
+            ".melodee-cleanup-release-" + secrets.token_hex(16)
+        )
+        try:
+            self._rename_noreplace(
+                root_descriptor,
+                quarantine_name,
+                root_descriptor,
+                release_name,
+            )
+            self._quarantine_name = release_name
+            released_stat = os.stat(
+                release_name,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError:
+            return
+
+        if (
+            not self._private_quarantine(released_stat)
+            or self._identity(released_stat) != quarantine_identity
+        ):
+            try:
+                self._rename_noreplace(
+                    root_descriptor,
+                    release_name,
+                    root_descriptor,
+                    quarantine_name,
+                )
+            except OSError:
+                pass
+            self._quarantine_name = None
+            return
+
+        try:
+            os.rmdir(release_name, dir_fd=root_descriptor)
+        except OSError:
+            try:
+                self._rename_noreplace(
+                    root_descriptor,
+                    release_name,
+                    root_descriptor,
+                    quarantine_name,
+                )
+                self._quarantine_name = quarantine_name
+            except OSError:
+                self._quarantine_name = release_name
+            return
+
         os.close(descriptor)
         self._quarantine_descriptor = None
         self._quarantine_name = None
+        self._quarantine_identity = None
 
     def _new_quarantine_slot(self):
         """Return an unpredictable quarantine entry name."""
@@ -683,17 +1052,30 @@ class CleanupPathGuard:
 
         quarantine = self._ensure_quarantine()
         quarantine_slot = self._new_quarantine_slot()
-        self._rename_noreplace(
-            source_parent,
-            source_name,
-            quarantine,
-            quarantine_slot,
-        )
-        quarantined_stat = os.stat(
-            quarantine_slot,
-            dir_fd=quarantine,
-            follow_symlinks=False,
-        )
+        try:
+            self._rename_noreplace(
+                source_parent,
+                source_name,
+                quarantine,
+                quarantine_slot,
+            )
+        except OSError:
+            self._release_empty_quarantine()
+            raise
+        try:
+            quarantined_stat = os.stat(
+                quarantine_slot,
+                dir_fd=quarantine,
+                follow_symlinks=False,
+            )
+        except OSError:
+            self._restore_quarantined_entry(
+                quarantine_slot,
+                source_parent,
+                source_name,
+            )
+            self._release_empty_quarantine()
+            raise
         if (
             not expected_type(quarantined_stat.st_mode)
             or self._identity(quarantined_stat) != identity
@@ -900,23 +1282,60 @@ class CleanupPathGuard:
             create=True,
             created_entries=created_entries,
         ) as (parent, name):
+            quarantine = self._ensure_quarantine()
+            stage_name = self._new_quarantine_slot()
             descriptor = os.open(
-                name,
+                stage_name,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                 0o600,
-                dir_fd=parent,
+                dir_fd=quarantine,
             )
-        candidate_stat = os.fstat(descriptor)
-        if not stat.S_ISREG(candidate_stat.st_mode):
-            os.close(descriptor)
-            raise UnsafeArchiveError("Archive output is not a regular file.")
-        created_entries.append(
-            (
-                "file",
-                self._lexical_within_root(candidate),
-                self._identity(candidate_stat),
+            try:
+                candidate_stat = os.fstat(descriptor)
+                if (
+                    not stat.S_ISREG(candidate_stat.st_mode)
+                    or candidate_stat.st_uid != os.geteuid()
+                    or candidate_stat.st_nlink != 1
+                    or stat.S_IMODE(candidate_stat.st_mode) & 0o077
+                ):
+                    raise UnsafeArchiveError(
+                        "Archive output is not a private regular file."
+                    )
+                os.fchmod(descriptor, 0o600)
+                after = os.fstat(descriptor)
+                if (
+                    not stat.S_ISREG(after.st_mode)
+                    or self._identity(after) != self._identity(candidate_stat)
+                    or after.st_uid != os.geteuid()
+                    or after.st_nlink != 1
+                    or stat.S_IMODE(after.st_mode) != 0o600
+                ):
+                    raise UnsafeArchiveError(
+                        "Archive output changed while it was staged."
+                    )
+                candidate_stat = after
+                self._rename_noreplace(
+                    quarantine,
+                    stage_name,
+                    parent,
+                    name,
+                )
+            except BaseException:
+                os.close(descriptor)
+                try:
+                    os.unlink(stage_name, dir_fd=quarantine)
+                except OSError:
+                    pass
+                self._release_empty_quarantine()
+                raise
+            created_entries.append(
+                (
+                    "file",
+                    self._lexical_within_root(candidate),
+                    self._identity(candidate_stat),
+                )
             )
-        )
+            self._release_empty_quarantine()
         return descriptor
 
     def rollback_created_entries(self, created_entries):
@@ -968,6 +1387,10 @@ def validate_relative_member(filename, source_name):
     }
     reserved_characters = set('<>:"|?*')
     for part in raw_parts:
+        if part.startswith(INTERNAL_CLEANUP_PREFIXES):
+            raise UnsafeCleanupPathError(
+                "Reserved cleanup filename is not allowed."
+            )
         base_name = part.split(".", 1)[0].rstrip(" .").upper()
         if (
             part.startswith(" ")
@@ -1012,6 +1435,97 @@ def _portable_path_key(path_guard, candidate):
     )
 
 
+def preflight_zip_container(archive_handle):
+    """Bound EOCD and ZIP64 metadata before ZipFile parses the central directory."""
+    archive_size = os.fstat(archive_handle.fileno()).st_size
+    if archive_size < 22 or archive_size > MAX_ZIP_ARCHIVE_BYTES:
+        raise UnsafeArchiveError("ZIP archive exceeds the container-size policy.")
+
+    original_position = archive_handle.tell()
+    try:
+        tail_size = min(archive_size, 22 + 65_535)
+        archive_handle.seek(archive_size - tail_size)
+        tail = archive_handle.read(tail_size)
+        eocd_index = tail.rfind(b"PK\x05\x06")
+        if eocd_index < 0 or len(tail) - eocd_index < 22:
+            raise UnsafeArchiveError("ZIP end-of-directory record is missing.")
+        (
+            _,
+            disk_number,
+            central_disk,
+            disk_entries,
+            total_entries,
+            central_size,
+            central_offset,
+            comment_size,
+        ) = struct.unpack_from("<4s4H2LH", tail, eocd_index)
+        if disk_number != 0 or central_disk != 0 or disk_entries != total_entries:
+            raise UnsafeArchiveError("Multi-disk ZIP archives are not supported.")
+        if comment_size > len(tail) - eocd_index - 22:
+            raise UnsafeArchiveError("ZIP end record has an invalid comment size.")
+
+        uses_zip64 = (
+            total_entries == 0xFFFF
+            or central_size == 0xFFFFFFFF
+            or central_offset == 0xFFFFFFFF
+        )
+        if uses_zip64:
+            eocd_absolute = archive_size - tail_size + eocd_index
+            locator_offset = eocd_absolute - 20
+            if locator_offset < 0:
+                raise UnsafeArchiveError("ZIP64 locator is missing.")
+            archive_handle.seek(locator_offset)
+            locator = archive_handle.read(20)
+            if len(locator) != 20 or locator[:4] != b"PK\x06\x07":
+                raise UnsafeArchiveError("ZIP64 locator is missing.")
+            _, locator_disk, zip64_offset, disk_count = struct.unpack(
+                "<4sLQL",
+                locator,
+            )
+            if locator_disk != 0 or disk_count != 1:
+                raise UnsafeArchiveError(
+                    "Multi-disk ZIP64 archives are not supported."
+                )
+            archive_handle.seek(zip64_offset)
+            zip64_record = archive_handle.read(56)
+            if len(zip64_record) != 56 or zip64_record[:4] != b"PK\x06\x06":
+                raise UnsafeArchiveError("ZIP64 end record is missing.")
+            (
+                _,
+                record_size,
+                _,
+                _,
+                zip64_disk,
+                zip64_central_disk,
+                zip64_disk_entries,
+                total_entries,
+                central_size,
+                central_offset,
+            ) = struct.unpack("<4sQ2H2L4Q", zip64_record)
+            if (
+                record_size < 44
+                or zip64_disk != 0
+                or zip64_central_disk != 0
+                or zip64_disk_entries != total_entries
+            ):
+                raise UnsafeArchiveError("ZIP64 end record is invalid.")
+
+        if total_entries > MAX_ZIP_MEMBERS:
+            raise UnsafeArchiveError("Archive contains too many members.")
+        if central_size > MAX_ZIP_CENTRAL_DIRECTORY_BYTES:
+            raise UnsafeArchiveError(
+                "ZIP central directory exceeds the metadata-size limit."
+            )
+        if (
+            central_offset > archive_size
+            or central_size > archive_size
+            or central_offset + central_size > archive_size
+        ):
+            raise UnsafeArchiveError("ZIP central directory bounds are invalid.")
+    finally:
+        archive_handle.seek(original_position)
+
+
 def validated_zip_members(
     zip_ref,
     destination,
@@ -1029,6 +1543,7 @@ def validated_zip_members(
 
     validated_members = []
     known_paths = {}
+    known_prefixes = set()
     total_size = 0
     protected_keys = {
         _portable_path_key(path_guard, archive)
@@ -1078,11 +1593,7 @@ def validated_zip_members(
                     "ZIP member conflicts with an archive file parent."
                 )
         is_directory = member.is_dir()
-        if not is_directory and any(
-            existing_key[: len(target_key)] == target_key
-            for existing_key in known_paths
-            if len(existing_key) > len(target_key)
-        ):
+        if not is_directory and target_key in known_prefixes:
             raise UnsafeArchiveError(
                 "ZIP file conflicts with an archive directory prefix."
             )
@@ -1090,6 +1601,8 @@ def validated_zip_members(
         if check_filesystem_targets:
             path_guard.check_zip_target_available(target, is_directory)
         known_paths[target_key] = "directory" if is_directory else "file"
+        for index in range(1, len(target_key)):
+            known_prefixes.add(target_key[:index])
         validated_members.append((member, target, is_directory))
     return validated_members
 
@@ -1149,11 +1662,26 @@ def unzip_files_in_directory(dir_path, path_guard, pretend=True):
     if not pretend:
         path_guard.require_secure_mutation()
     directory = path_guard.existing_directory(dir_path)
+    if path_guard.secure_mutation_supported:
+        with path_guard.pinned_subdirectory_guard(directory) as directory_guard:
+            _unzip_files_in_pinned_directory(directory_guard, pretend)
+    else:
+        _unzip_files_in_pinned_directory(path_guard, pretend, directory)
+
+
+def _unzip_files_in_pinned_directory(path_guard, pretend, directory=None):
+    """Process archives relative to one pinned destination directory."""
+    directory = directory or path_guard.root
     zip_files = []
+    if path_guard.secure_mutation_supported:
+        names = os.listdir(path_guard._root_descriptor)
+    else:
+        names = [item.name for item in directory.iterdir()]
+    names = [name for name in names if not is_internal_cleanup_name(name)]
     protected_archives = [
-        item
-        for item in directory.iterdir()
-        if item.name.lower().endswith(".zip")
+        directory / name
+        for name in names
+        if name.lower().endswith(".zip")
     ]
     for item in protected_archives:
         if not item.name.lower().endswith(".zip"):
@@ -1170,6 +1698,7 @@ def unzip_files_in_directory(dir_path, path_guard, pretend=True):
             with path_guard.open_regular_file(zip_file) as archive_handle:
                 archive_stat = os.fstat(archive_handle.fileno())
                 archive_identity = (archive_stat.st_dev, archive_stat.st_ino)
+                preflight_zip_container(archive_handle)
                 with zipfile.ZipFile(archive_handle, "r") as zip_ref:
                     if pretend:
                         validated_zip_members(
@@ -1179,7 +1708,7 @@ def unzip_files_in_directory(dir_path, path_guard, pretend=True):
                             source_archive=zip_file,
                             protected_archives=protected_archives,
                             check_filesystem_targets=(
-                                path_guard.secure_mutation_supported
+                                path_guard.secure_mutation_authorized
                             ),
                         )
                         print(
@@ -1251,6 +1780,40 @@ def safe_extension_bucket(filename):
         return extension
     return "other"
 
+
+def is_internal_cleanup_name(name):
+    """Return whether a reserved cleanup entry must remain opaque."""
+    return INTERNAL_CLEANUP_NAME_PATTERN.fullmatch(name) is not None
+
+
+def is_trusted_internal_directory(path_guard, candidate):
+    """Return whether an internal name has trusted private directory metadata."""
+    candidate = Path(candidate)
+    if not is_internal_cleanup_name(candidate.name):
+        return False
+    try:
+        _, candidate_stat = path_guard.directory_details(candidate)
+    except (OSError, UnsafeCleanupPathError):
+        return False
+    return (
+        candidate_stat.st_uid == os.geteuid()
+        and candidate_stat.st_nlink >= 1
+        and stat.S_IMODE(candidate_stat.st_mode) & 0o077 == 0
+    )
+
+
+def is_internal_cleanup_path(path_guard, candidate):
+    """Return whether a contained path descends from reserved cleanup state."""
+    traversed = []
+    for part in path_guard.relative_parts(candidate):
+        traversed.append(part)
+        if is_trusted_internal_directory(
+            path_guard,
+            path_guard.root.joinpath(*traversed),
+        ):
+            return True
+    return False
+
 def get_directory_size(dir_path, path_guard, chunk_size=1000):
     """
     Calculate total size of directory with memory-efficient chunked processing.
@@ -1271,6 +1834,14 @@ def get_directory_size(dir_path, path_guard, chunk_size=1000):
         for dirpath, dirnames, filenames in os.walk(contained_directory):
             if shutdown_requested:
                 break
+
+            dirnames[:] = [
+                name for name in dirnames
+                if not is_trusted_internal_directory(
+                    path_guard,
+                    Path(dirpath) / name,
+                )
+            ]
 
             try:
                 path_guard.existing_directory(dirpath)
@@ -1392,6 +1963,13 @@ def delete_matching_dirs(
         for dirpath, dirnames, filenames in os.walk(root_dir):
             if shutdown_requested:
                 return deleted
+            dirnames[:] = [
+                name for name in dirnames
+                if not is_trusted_internal_directory(
+                    path_guard,
+                    Path(dirpath) / name,
+                )
+            ]
             try:
                 path_guard.existing_directory(dirpath)
             except UnsafeCleanupPathError:
@@ -1416,6 +1994,16 @@ def delete_matching_dirs(
             if shutdown_requested:
                 print(f"\n{Colors.YELLOW}🛑 Operation interrupted by user{Colors.RESET}")
                 break
+
+            if is_internal_cleanup_path(path_guard, dirpath):
+                continue
+            dirnames[:] = [
+                name for name in dirnames
+                if not is_trusted_internal_directory(
+                    path_guard,
+                    Path(dirpath) / name,
+                )
+            ]
 
             try:
                 contained_dirpath = path_guard.existing_directory(dirpath)
@@ -1445,9 +2033,14 @@ def delete_matching_dirs(
                     
                     # Check if this is an image file that should be deleted
                     if ext in IMAGE_EXTENSIONS:
-                        should_delete_img, _reason = should_delete_image(
+                        (
+                            should_delete_img,
+                            _reason,
+                            inspected_identity,
+                        ) = should_delete_image(
                             file_path, filename, path_guard
                         )
+                        deletion_identity = inspected_identity or file_identity
                         if should_delete_img:
                             if pretend:
                                 print(f"  {Colors.YELLOW}🖼️  Would delete image matched by policy{Colors.RESET}")
@@ -1460,7 +2053,7 @@ def delete_matching_dirs(
                                 try:
                                     path_guard.unlink_regular_file(
                                         file_path,
-                                        file_identity,
+                                        deletion_identity,
                                     )
                                     stats['images_deleted'] += 1
                                     stats['total_size_deleted_bytes'] += file_size
@@ -1538,13 +2131,47 @@ def delete_matching_dirs(
                             f"{Colors.RESET}"
                         )
                         continue
-                    should_delete_sfv, _sfv_reason, sfv_details, sfv_target_path = check_sfv_integrity(
-                        full_path, path_guard, pretend=pretend
-                    )
+                    try:
+                        (
+                            sfv_result,
+                            transactionally_deleted,
+                            transaction_size,
+                        ) = process_sfv_integrity_for_cleanup(
+                            full_path,
+                            path_guard,
+                            pretend=pretend,
+                        )
+                    except (OSError, UnsafeCleanupPathError):
+                        print(
+                            f"  {Colors.RED}❌ SFV decision could not be "
+                            f"completed safely{Colors.RESET}"
+                        )
+                        continue
+                    (
+                        should_delete_sfv,
+                        _sfv_reason,
+                        sfv_details,
+                        sfv_target_path,
+                        sfv_target_identity,
+                    ) = sfv_result
                     if should_delete_sfv:
-                        # Use the target path (might be parent directory if SFV is in 'extr')
+                        if transactionally_deleted:
+                            print(f"  {Colors.RED}🗑️  Deleting directory whose SFV failed{Colors.RESET}")
+                            print(
+                                f"    {Colors.CYAN}Size:{Colors.RESET} "
+                                f"{format_size(transaction_size)}"
+                            )
+                            print(f"    {Colors.CYAN}[Reason: SFV verification failed]{Colors.RESET}")
+                            if sfv_details:
+                                print_sfv_details(sfv_details, dirname)
+                            stats['sfv_failed_directories_deleted'] += 1
+                            deleted += 1
+                            stats['total_size_deleted_bytes'] += transaction_size
+                            continue
+                        # Use the exact target identity selected before SFV
+                        # verification, which might be the parent of 'extr'.
                         try:
-                            sfv_target_path, sfv_target_stat = (
+                            sfv_target_path, current_target_stat = (
                                 path_guard.directory_details(sfv_target_path)
                             )
                         except UnsafeCleanupPathError:
@@ -1553,10 +2180,19 @@ def delete_matching_dirs(
                                 f"deletion target{Colors.RESET}"
                             )
                             continue
-                        sfv_target_identity = (
-                            sfv_target_stat.st_dev,
-                            sfv_target_stat.st_ino,
-                        )
+                        if (
+                            sfv_target_identity is None
+                            or (
+                                current_target_stat.st_dev,
+                                current_target_stat.st_ino,
+                            )
+                            != tuple(sfv_target_identity)
+                        ):
+                            print(
+                                f"  {Colors.RED}❌ SFV deletion target "
+                                f"changed during verification{Colors.RESET}"
+                            )
+                            continue
                         dir_size = get_directory_size(sfv_target_path, path_guard)
                         
                         if pretend:
@@ -1569,21 +2205,10 @@ def delete_matching_dirs(
                             deleted += 1
                             stats['total_size_deleted_bytes'] += dir_size
                         else:
-                            print(f"  {Colors.RED}🗑️  Deleting directory whose SFV failed{Colors.RESET}")
-                            print(f"    {Colors.CYAN}Size:{Colors.RESET} {format_size(dir_size)}")
-                            print(f"    {Colors.CYAN}[Reason: SFV verification failed]{Colors.RESET}")
-                            if sfv_details:
-                                print_sfv_details(sfv_details, dirname)
-                            try:
-                                path_guard.remove_tree(
-                                    sfv_target_path,
-                                    sfv_target_identity,
-                                )
-                                stats['sfv_failed_directories_deleted'] += 1
-                                deleted += 1
-                                stats['total_size_deleted_bytes'] += dir_size
-                            except (OSError, UnsafeCleanupPathError):
-                                print(f"    {Colors.RED}❌ Error deleting directory{Colors.RESET}")
+                            print(
+                                f"  {Colors.RED}❌ Refusing non-transactional "
+                                f"SFV deletion{Colors.RESET}"
+                            )
                         continue
                 
                 # Check if directory is empty and delete it (only if not already matched above)
@@ -1702,22 +2327,24 @@ def get_image_dimensions(file_path, path_guard):
         file_path: Path to image file
     
     Returns:
-        Tuple of (width, height) or None if unable to read
+        Tuple of ((width, height), file_identity), or (None, None)
     """
     if not PIL_AVAILABLE:
-        return None
+        return None, None
     
     try:
         with path_guard.open_regular_file(file_path) as image_handle:
+            image_stat = os.fstat(image_handle.fileno())
             with Image.open(image_handle) as img:
-                return img.size
+                return img.size, path_guard._identity(image_stat)
     except (
         OSError,
         IOError,
+        Image.DecompressionBombError,
         Image.UnidentifiedImageError,
         UnsafeCleanupPathError,
     ):
-        return None
+        return None, None
 
 def should_delete_image(file_path, filename, path_guard):
     """
@@ -1732,17 +2359,24 @@ def should_delete_image(file_path, filename, path_guard):
     """
     # Check if filename contains "proof"
     if PROOF_PATTERN.search(filename):
-        return True, "contains 'proof'"
+        return True, "contains 'proof'", None
     
     # Check image dimensions if PIL is available
     if PIL_AVAILABLE:
-        dimensions = get_image_dimensions(file_path, path_guard)
+        dimensions, inspected_identity = get_image_dimensions(
+            file_path,
+            path_guard,
+        )
         if dimensions:
             width, height = dimensions
             if width < 300 or height < 300:
-                return True, f"small resolution ({width}x{height})"
+                return (
+                    True,
+                    f"small resolution ({width}x{height})",
+                    inspected_identity,
+                )
     
-    return False, ""
+    return False, "", None
 
 def calculate_crc32(file_path, path_guard):
     """
@@ -1760,21 +2394,41 @@ def calculate_crc32(file_path, path_guard):
 
 def calculate_crc32_with_identity(file_path, path_guard):
     """Calculate CRC32 and return the identity of the exact opened file."""
+    checksum, identity, _ = calculate_crc32_details(
+        file_path,
+        path_guard,
+        MAX_SFV_MEMBER_BYTES,
+    )
+    return checksum, identity
+
+
+def calculate_crc32_details(file_path, path_guard, byte_limit):
+    """Calculate a bounded CRC32 with exact identity and bytes consumed."""
     try:
         crc = 0
+        bytes_read = 0
         with path_guard.open_regular_file(file_path) as file_handle:
             file_stat = os.fstat(file_handle.fileno())
+            identity = (file_stat.st_dev, file_stat.st_ino)
+            if file_stat.st_size > byte_limit:
+                return None, identity, 0
             while True:
+                if shutdown_requested:
+                    return None, identity, bytes_read
                 chunk = file_handle.read(65536)
                 if not chunk:
                     break
+                bytes_read += len(chunk)
+                if bytes_read > byte_limit:
+                    return None, identity, bytes_read
                 crc = zlib.crc32(chunk, crc)
         return (
             f"{crc & 0xffffffff:08X}",
-            (file_stat.st_dev, file_stat.st_ino),
+            identity,
+            bytes_read,
         )
     except (OSError, IOError, UnsafeCleanupPathError):
-        return None, None
+        return None, None, 0
 
 def parse_sfv_file(sfv_path, path_guard):
     """
@@ -1788,6 +2442,7 @@ def parse_sfv_file(sfv_path, path_guard):
         Dictionary mapping relative filenames to expected CRC32 checksums
     """
     file_checksums = {}
+    portable_filenames = set()
     encodings = ["utf-8", "latin1", "cp1252", "ascii"]
 
     with path_guard.open_regular_file(sfv_path) as file_handle:
@@ -1858,6 +2513,15 @@ def parse_sfv_file(sfv_path, path_guard):
                 # Validate CRC32 format
                 if len(crc32) == 8 and all(c in '0123456789ABCDEF' for c in crc32):
                     safe_filename = validate_relative_member(filename, "SFV")
+                    portable_key = tuple(
+                        unicodedata.normalize("NFC", part).casefold()
+                        for part in safe_filename.parts
+                    )
+                    if portable_key in portable_filenames:
+                        raise UnsafeCleanupPathError(
+                            "SFV contains duplicate portable filenames."
+                        )
+                    portable_filenames.add(portable_key)
                     file_checksums[os.fspath(safe_filename)] = crc32
                 else:
                     print(
@@ -1866,6 +2530,56 @@ def parse_sfv_file(sfv_path, path_guard):
                     )
     
     return file_checksums
+
+
+def _normalized_sfv_base(filename):
+    """Return strict lookup keys for an SFV filename base."""
+    base = os.path.splitext(filename)[0]
+    ascii_base = (
+        unicodedata.normalize("NFKD", base)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    return {base.casefold(), ascii_base.casefold()}
+
+
+def _sfv_search_indexes(search_dirs, path_guard):
+    """Build bounded directory indexes once for all SFV member lookups."""
+    indexes = []
+    suffixes = (
+        " (invalid encoding).mp3",
+        "(invalid encoding).mp3",
+        " (invalid encoding)",
+        "(invalid encoding)",
+    )
+    for search_dir in search_dirs:
+        try:
+            directory = path_guard.existing_directory(search_dir)
+            casefold_index = defaultdict(list)
+            encoding_index = defaultdict(list)
+            for entry in path_guard.directory_entries(
+                directory,
+                limit=MAX_SFV_DIRECTORY_ENTRIES,
+            ):
+                if is_internal_cleanup_name(entry.name):
+                    continue
+                casefold_index[entry.name.casefold()].append(entry)
+                lowered = entry.name.casefold()
+                if "(invalid encoding)" not in lowered:
+                    continue
+                base_name = entry.name
+                for suffix in suffixes:
+                    if lowered.endswith(suffix.casefold()):
+                        base_name = base_name[:-len(suffix)]
+                        break
+                for key in _normalized_sfv_base(base_name):
+                    encoding_index[key].append(entry)
+            indexes.append(
+                (directory, casefold_index, encoding_index, False)
+            )
+        except (OSError, UnsafeCleanupPathError):
+            indexes.append((None, {}, {}, True))
+    return indexes
 
 def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
     """
@@ -1882,9 +2596,9 @@ def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
     """
     global shutdown_requested
     
-    sfv_path = path_guard.existing_file(sfv_path)
-    sfv_dir = sfv_path.parent
     try:
+        sfv_path = path_guard.existing_file(sfv_path)
+        sfv_dir = sfv_path.parent
         file_checksums = parse_sfv_file(sfv_path, path_guard)
     except UnsafeCleanupPathError:
         return False, {
@@ -1897,12 +2611,25 @@ def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
                 "error": "Unsafe SFV entry",
             }
         }
+    except OSError:
+        return None, {
+            "<sfv-read-error>": {
+                "expected": None,
+                "actual": None,
+                "status": "ERROR",
+                "actual_filename": None,
+                "rename_needed": False,
+                "error": "SFV read failed",
+            }
+        }
     
     if not file_checksums:
         return False, {}
     
     results = {}
     all_passed = True
+    operational_error = False
+    total_verified_bytes = 0
     
     # Use provided search_dirs or determine them automatically
     if search_dirs is None:
@@ -1914,9 +2641,11 @@ def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
             parent_dir = sfv_dir.parent
             search_dirs.append(parent_dir)
             print(f"    {Colors.BLUE}📁 SFV in 'extr' directory - will also search parent directory{Colors.RESET}")
+    search_indexes = _sfv_search_indexes(search_dirs, path_guard)
     
     for filename, expected_crc in file_checksums.items():
         if shutdown_requested:
+            operational_error = True
             break
         
         # Skip files with "proof" in the filename - these are optional
@@ -1928,125 +2657,72 @@ def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
         file_found = False
         file_path = None
         actual_filename = None
+        lookup_error = False
         
-        for search_dir in search_dirs:
-            try:
-                search_dir = path_guard.existing_directory(search_dir)
-            except UnsafeCleanupPathError:
+        for search_dir, casefold_index, encoding_index, index_error in search_indexes:
+            if index_error:
+                lookup_error = True
                 continue
-
             # First try exact match
             try:
                 potential_path = path_guard.existing_file(search_dir / filename)
             except UnsafeCleanupPathError:
+                potential_path = None
+            except OSError:
+                lookup_error = True
                 potential_path = None
             if potential_path is not None:
                 file_path = potential_path
                 actual_filename = filename
                 file_found = True
                 break
-            
-            # If exact match fails, try case-insensitive search and encoding variants
-            try:
-                dir_files = list(search_dir.iterdir())
-                for dir_file_path in dir_files:
-                    dir_file = dir_file_path.name
-                    # Case-insensitive exact match
-                    if dir_file.lower() == filename.lower():
-                        file_path = path_guard.existing_file(dir_file_path)
-                        actual_filename = dir_file
-                        file_found = True
-                        break
-                    # Check for files with encoding corruption suffix
-                    elif '(invalid encoding)' in dir_file.lower():
-                        # Extract the base filename without the encoding suffix
-                        base_name = dir_file
-                        
-                        # Remove various encoding suffixes
-                        for suffix in [' (invalid encoding).mp3', '(invalid encoding).mp3', ' (invalid encoding)', '(invalid encoding)']:
-                            if base_name.lower().endswith(suffix.lower()):
-                                base_name = base_name[:-len(suffix)]
-                                break
-                        
-                        # For encoding-corrupted files, we need to be more flexible in matching
-                        # Remove file extension from both for comparison
-                        target_base = os.path.splitext(filename)[0]
-                        actual_base = os.path.splitext(base_name)[0]
-                        
-                        # Try different approaches to match corrupted encoding
-                        # 1. Direct comparison (ignoring case)
-                        if actual_base.lower() == target_base.lower():
-                            file_path = path_guard.existing_file(dir_file_path)
-                            actual_filename = dir_file
-                            file_found = True
-                            break
-                        
-                        # 2. Try to match by normalizing both strings and removing special characters
-                        try:
-                            # Normalize and remove special characters from target
-                            normalized_target = unicodedata.normalize('NFKD', target_base).encode('ascii', 'ignore').decode('ascii')
-                            
-                            # For actual filename, replace common corruption characters and normalize
-                            cleaned_actual = actual_base.replace('�', '').replace('?', '')
-                            normalized_actual = unicodedata.normalize('NFKD', cleaned_actual).encode('ascii', 'ignore').decode('ascii')
-                            
-                            # Also try removing the corrupted character entirely and seeing if strings match
-                            if len(normalized_actual) > 0 and len(normalized_target) > 0:
-                                # Compare similarity - if they're very close, consider it a match
-                                if abs(len(normalized_target) - len(normalized_actual)) <= 2:
-                                    # Simple substring match approach
-                                    shorter = normalized_actual if len(normalized_actual) < len(normalized_target) else normalized_target
-                                    longer = normalized_target if len(normalized_actual) < len(normalized_target) else normalized_actual
-                                    
-                                    if shorter.lower() in longer.lower() and len(shorter) > 5:  # Reasonable minimum length
-                                        file_path = path_guard.existing_file(
-                                            dir_file_path
-                                        )
-                                        actual_filename = dir_file
-                                        file_found = True
-                                        break
-                        except (UnicodeError, ValueError):
-                            pass
-                        
-                        # 3. Try character-by-character comparison, ignoring corruption characters
-                        try:
-                            target_chars = [c for c in target_base.lower()]
-                            actual_chars = [c for c in actual_base.lower() if ord(c) != 65533]  # Skip replacement character
-                            
-                            # More lenient heuristic: if 75% of characters match in order, consider it a match
-                            matches = 0
-                            min_len = min(len(target_chars), len(actual_chars))
-                            for i in range(min_len):
-                                if target_chars[i] == actual_chars[i]:
-                                    matches += 1
-                            
-                            if min_len > 0 and matches / min_len >= 0.75:
-                                file_path = path_guard.existing_file(dir_file_path)
-                                actual_filename = dir_file
-                                file_found = True
-                                break
-                        except (TypeError, ValueError):
-                            pass
-                if file_found:
-                    break
-            except (OSError, UnsafeCleanupPathError):
+
+            candidates = list(casefold_index.get(filename.casefold(), ()))
+            if not candidates:
+                seen_candidates = set()
+                for key in _normalized_sfv_base(filename):
+                    for candidate in encoding_index.get(key, ()):
+                        if candidate not in seen_candidates:
+                            seen_candidates.add(candidate)
+                            candidates.append(candidate)
+            if len(candidates) > 1:
+                lookup_error = True
                 continue
+            if not candidates:
+                continue
+            try:
+                file_path = path_guard.existing_file(candidates[0])
+            except (OSError, UnsafeCleanupPathError):
+                lookup_error = True
+                continue
+            actual_filename = candidates[0].name
+            file_found = True
+            break
         
         if not file_found:
             results[filename] = {
                 'expected': expected_crc,
                 'actual': None,
-                'status': 'MISSING',
+                'status': 'ERROR' if lookup_error else 'MISSING',
                 'actual_filename': None,
                 'rename_needed': False
             }
-            all_passed = False
+            if lookup_error:
+                operational_error = True
+            else:
+                all_passed = False
             continue
         
-        actual_crc, file_identity = calculate_crc32_with_identity(
+        remaining_bytes = (
+            MAX_SFV_TOTAL_VERIFIED_BYTES - total_verified_bytes
+        )
+        byte_limit = min(MAX_SFV_MEMBER_BYTES, max(remaining_bytes, 0))
+        actual_crc, file_identity, verified_bytes = calculate_crc32_details(
             file_path,
             path_guard,
+            byte_limit,
         )
+        total_verified_bytes += verified_bytes
         
         if actual_crc is None:
             results[filename] = {
@@ -2056,7 +2732,7 @@ def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
                 'actual_filename': actual_filename,
                 'rename_needed': False
             }
-            all_passed = False
+            operational_error = True
             continue
         
         status = 'PASS' if actual_crc == expected_crc else 'FAIL'
@@ -2080,7 +2756,7 @@ def verify_sfv_file(sfv_path, path_guard, search_dirs=None):
         if status != 'PASS':
             all_passed = False
     
-    return all_passed, results
+    return (None if operational_error else all_passed), results
 
 def rename_encoding_files(sfv_results, search_dirs, path_guard, pretend=True):
     """
@@ -2153,24 +2829,36 @@ def check_sfv_integrity(directory_path, path_guard, pretend=True):
         directory_path: Path to directory to check
     
     Returns:
-        Tuple of (should_delete: bool, reason: str, details: dict, target_path: str)
+        Tuple of (should_delete, reason, details, target_path, target_identity)
         target_path: The actual directory that should be deleted (might be parent if SFV is in 'extr')
     """
     global shutdown_requested
     
     if shutdown_requested:
-        return False, "", {}, directory_path
+        return False, "", {}, directory_path, None
     
     try:
-        directory_path = path_guard.existing_directory(directory_path)
-        files = list(directory_path.iterdir())
+        directory_path, directory_stat = path_guard.directory_details(
+            directory_path,
+            allow_root=True,
+        )
+        files = path_guard.directory_entries(
+            directory_path,
+            limit=MAX_SFV_DIRECTORY_ENTRIES,
+        )
     except (OSError, UnsafeCleanupPathError):
-        return False, "", {}, directory_path
+        return False, "", {}, directory_path, None
     
     sfv_files = [path for path in files if path.name.lower().endswith('.sfv')]
     
     if not sfv_files:
-        return False, "", {}, directory_path  # No SFV files to verify
+        return (
+            False,
+            "",
+            {},
+            directory_path,
+            path_guard._identity(directory_stat),
+        )
     
     failed_sfv_files = []
     all_results = {}
@@ -2178,9 +2866,21 @@ def check_sfv_integrity(directory_path, path_guard, pretend=True):
     # Check if this is an 'extr' directory
     dir_name = directory_path.name.lower()
     is_extr_dir = dir_name == 'extr'
+    target_path = directory_path.parent if is_extr_dir else directory_path
+    if target_path == path_guard.root:
+        target_identity = None
+    else:
+        try:
+            target_path, target_stat = path_guard.directory_details(target_path)
+        except UnsafeCleanupPathError:
+            return False, "Unsafe SFV deletion target", {}, target_path, None
+        target_identity = path_guard._identity(target_stat)
+    operational_error = False
+    interrupted = False
     
     for sfv_file in sfv_files:
         if shutdown_requested:
+            interrupted = True
             break
 
         try:
@@ -2190,7 +2890,13 @@ def check_sfv_integrity(directory_path, path_guard, pretend=True):
                 f"    {Colors.RED}🛑 Refusing unsafe SFV path"
                 f"{Colors.RESET}"
             )
-            return False, "Unsafe SFV path", all_results, directory_path
+            return (
+                False,
+                "Unsafe SFV path",
+                all_results,
+                target_path,
+                target_identity,
+            )
         
         # Search in SFV file directory first, then in parent directory (for "extr" case)
         search_dirs = [directory_path]
@@ -2206,9 +2912,11 @@ def check_sfv_integrity(directory_path, path_guard, pretend=True):
         all_passed, results = verify_sfv_file(
             sfv_path, path_guard, search_dirs
         )
+        if all_passed is None:
+            operational_error = True
         
         # Handle file renaming for encoding issues if SFV passed
-        if all_passed:
+        if all_passed is True:
             rename_encoding_files(
                 results, search_dirs, path_guard, pretend=pretend
             )
@@ -2218,19 +2926,87 @@ def check_sfv_integrity(directory_path, path_guard, pretend=True):
             'results': results
         }
         
-        if not all_passed:
+        if all_passed is False:
             failed_sfv_files.append(sfv_file.name)
+
+    if shutdown_requested:
+        interrupted = True
+    if operational_error or interrupted:
+        return (
+            False,
+            "SFV verification unavailable",
+            all_results,
+            target_path,
+            target_identity,
+        )
     
     if failed_sfv_files:
         # If SFV is in 'extr' directory and failed, suggest deleting parent directory
-        target_path = directory_path.parent if is_extr_dir else directory_path
-        target_path = path_guard.existing_directory(target_path)
         reason = "SFV verification failed"
         if is_extr_dir:
             reason += " (in 'extr' subdirectory)"
-        return True, reason, all_results, target_path
+        return True, reason, all_results, target_path, target_identity
     
-    return False, "", all_results, directory_path
+    return False, "", all_results, target_path, target_identity
+
+
+def process_sfv_integrity_for_cleanup(directory_path, path_guard, pretend=True):
+    """Bind a live SFV decision to one atomically isolated directory."""
+    directory_path = path_guard.existing_directory(directory_path)
+    try:
+        has_sfv = any(
+            entry.name.lower().endswith(".sfv")
+            for entry in path_guard.directory_entries(
+                directory_path,
+                limit=MAX_SFV_DIRECTORY_ENTRIES,
+            )
+            if not is_internal_cleanup_name(entry.name)
+        )
+    except OSError:
+        result = (False, "SFV scan unavailable", {}, directory_path, None)
+        return result, False, 0
+    if not has_sfv or pretend:
+        result = check_sfv_integrity(
+            directory_path,
+            path_guard,
+            pretend=pretend,
+        )
+        return result, False, 0
+
+    target_path = (
+        directory_path.parent
+        if directory_path.name.casefold() == "extr"
+        else directory_path
+    )
+    if target_path == path_guard.root:
+        result = check_sfv_integrity(
+            directory_path,
+            path_guard,
+            pretend=False,
+        )
+        return result, False, 0
+
+    target_path, target_stat = path_guard.directory_details(target_path)
+    target_identity = path_guard._identity(target_stat)
+    relative_directory = directory_path.relative_to(target_path)
+    target_size = 0
+    with path_guard.isolated_directory_decision(
+        target_path,
+        target_identity,
+    ) as (decision_guard, decision):
+        pinned_directory = decision_guard.root / relative_directory
+        result = check_sfv_integrity(
+            pinned_directory,
+            decision_guard,
+            pretend=False,
+        )
+        if result[0] and not shutdown_requested:
+            target_size = get_directory_size(
+                decision_guard.root,
+                decision_guard,
+            )
+            decision["delete"] = True
+    return result, decision["deleted"], target_size
 
 def print_sfv_details(sfv_results, _directory_name):
     """
