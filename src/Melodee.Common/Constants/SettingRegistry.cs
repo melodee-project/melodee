@@ -105,6 +105,7 @@ public static class SettingRegistry
     public const string ProcessingDoContinueOnDirectoryProcessingErrors = "processing.doContinueOnDirectoryProcessingErrors";
     public const string ProcessingDoDeleteComments = "processing.doDeleteComments";
     public const string ProcessingDoDeleteOriginal = "processing.doDeleteOriginal";
+    public const string ProcessingDeleteSourceResidueAfterIngest = "processing.deleteSourceResidueAfterIngest";
     public const string ProcessingDontDeleteExistingMelodeeDataFiles = "processing.dontDeleteExisitingMelodeeDataFiles";
     public const string ProcessingFileExtensionsToDelete = "processing.fileExtensionsToDelete";
     public const string ProcessingDoOverrideExistingMelodeeDataFiles = "processing.doOverrideExistingMelodeeDataFiles";

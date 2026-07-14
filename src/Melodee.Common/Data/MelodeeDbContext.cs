@@ -767,6 +767,17 @@ public class MelodeeDbContext(DbContextOptions<MelodeeDbContext> options) : DbCo
                 },
                 new Setting
                 {
+                    Id = 55,
+                    ApiKey = SeedGuid("Setting", 55),
+                    Key = SettingRegistry.ProcessingDeleteSourceResidueAfterIngest,
+                    Comment =
+                        "Delete leftover residue (logs, sidecars, images, failed transcodes) from media-free release " +
+                        "directories after ingest, even when keeping the original media (copy mode). Defaults on.",
+                    Value = "true",
+                    CreatedAt = seedDataTimestamp
+                },
+                new Setting
+                {
                     Id = 902,
                     ApiKey = SeedGuid("Setting", 902),
                     Category = (int)SettingCategory.SearchEngine,

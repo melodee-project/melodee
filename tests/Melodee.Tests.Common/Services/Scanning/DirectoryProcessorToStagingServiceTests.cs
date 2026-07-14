@@ -531,6 +531,203 @@ public class DirectoryProcessorToStagingServiceTests : ServiceTestBase
     }
 
     [Fact]
+    public void IsSourceResidueFile_WithProvenanceArtifacts_RecognizesAsResidue()
+    {
+        var names = new[] { "rip.log", "album.accurip", "disc.toc", "checksum.md5", "info.html", "link.url" };
+
+        foreach (var name in names)
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}", name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            try
+            {
+                File.WriteAllText(path, "x");
+                DirectoryProcessorToStagingService.IsSourceResidueFile(new FileInfo(path))
+                    .Should().BeTrue($"'{name}' is a rip/verification provenance artifact");
+            }
+            finally
+            {
+                Directory.Delete(Path.GetDirectoryName(path)!, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueFile_WithKnownExtensionlessLeftoverName_RecognizesAsResidue()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}", "about_album");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            File.WriteAllText(path, "x");
+            DirectoryProcessorToStagingService.IsSourceResidueFile(new FileInfo(path)).Should().BeTrue();
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, true);
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueFile_WithNonMediaNonResidueFile_ReturnsFalse()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}", "book.epub");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            File.WriteAllText(path, "x");
+            // epub is non-music content and must not be silently classified as residue.
+            DirectoryProcessorToStagingService.IsSourceResidueFile(new FileInfo(path)).Should().BeFalse();
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, true);
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueFile_WithZeroByteMedia_TreatsAsResidue()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}", "01-failed.mp3");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            File.WriteAllBytes(path, []);
+            DirectoryProcessorToStagingService.IsSourceResidueFile(new FileInfo(path)).Should().BeTrue();
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, true);
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueFile_WithAdditionalConfiguredExtension_RecognizesAsResidue()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}", "notes.lrc");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            File.WriteAllText(path, "x");
+            DirectoryProcessorToStagingService
+                .IsSourceResidueFile(new FileInfo(path), new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "lrc" })
+                .Should().BeTrue();
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, true);
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueOnlyDirectory_WithZeroByteMediaButNoRealMedia_ReturnsTrue()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.log"), "log");
+            File.WriteAllBytes(Path.Combine(releasePath, "0003-failed.mp3"), []);
+
+            var result = DirectoryProcessorToStagingService.IsSourceResidueOnlyDirectory(
+                new FileSystemDirectoryInfo { Path = releasePath, Name = Path.GetFileName(releasePath) });
+
+            result.Should().BeTrue("a directory with only residue and failed (zero-byte) transcodes is residue-only");
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IsSourceResidueOnlyDirectory_WithNonZeroMedia_ReturnsFalse()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "release.log"), "log");
+            File.WriteAllText(Path.Combine(releasePath, "01-track.mp3"), "media");
+
+            var result = DirectoryProcessorToStagingService.IsSourceResidueOnlyDirectory(
+                new FileSystemDirectoryInfo { Path = releasePath, Name = Path.GetFileName(releasePath) });
+
+            result.Should().BeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteSourceResidueFiles_DeletesProvenanceTextImagesAndZeroByteMedia()
+    {
+        var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-residue-{Guid.NewGuid():N}");
+        var keepPath = Path.Combine(releasePath, "keep.epub");
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "rip.log"), "log");
+            File.WriteAllText(Path.Combine(releasePath, "report.accurip"), "ar");
+            File.WriteAllText(Path.Combine(releasePath, "DR6.txt"), "dr");
+            File.WriteAllText(Path.Combine(releasePath, "cover.jpg"), "img");
+            File.WriteAllText(Path.Combine(releasePath, "about_album"), "about");
+            File.WriteAllBytes(Path.Combine(releasePath, "0009-failed.mp3"), []);
+            File.WriteAllText(keepPath, "book");
+
+            var deletedCount = DirectoryProcessorToStagingService.DeleteSourceResidueFiles(
+                new FileSystemDirectoryInfo { Path = releasePath, Name = Path.GetFileName(releasePath) },
+                Logger);
+
+            deletedCount.Should().Be(6);
+            File.Exists(keepPath).Should().BeTrue("non-music content is not auto-deleted");
+        }
+        finally
+        {
+            if (Directory.Exists(releasePath))
+            {
+                Directory.Delete(releasePath, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteSourceResidueOnlyDirectoryFiles_WithLogAndAccurip_CleansResidueDirectories()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"melodee-residue-root-{Guid.NewGuid():N}");
+        var releasePath = Path.Combine(rootPath, "Artist - Album (2026)");
+        try
+        {
+            Directory.CreateDirectory(releasePath);
+            File.WriteAllText(Path.Combine(releasePath, "rip.log"), "log");
+            File.WriteAllText(Path.Combine(releasePath, "disc.accurip"), "ar");
+
+            var deletedCount = DirectoryProcessorToStagingService.DeleteSourceResidueOnlyDirectoryFiles(
+                new FileSystemDirectoryInfo { Path = rootPath, Name = Path.GetFileName(rootPath) },
+                Logger);
+
+            deletedCount.Should().Be(2);
+            Directory.Exists(releasePath).Should().BeFalse();
+            Directory.Exists(rootPath).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task FindUnstableSourceFileAsync_WhenFileChanges_ReturnsFilePath()
     {
         var releasePath = Path.Combine(Path.GetTempPath(), $"melodee-unstable-{Guid.NewGuid():N}");

@@ -70,12 +70,44 @@ public sealed class DirectoryProcessorToStagingService(
         "txt"
     };
 
+    /// <summary>
+    ///     Rip/verification provenance artifacts left behind after the media was extracted. These are regenerable
+    ///     transient reports (EAC logs, AccurateRip, cuetools TOC/checksum) and are safe to remove once a release
+    ///     has been processed.
+    /// </summary>
+    private static readonly HashSet<string> SourceResidueProvenanceExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "log",
+        "accurip",
+        "toc",
+        "md5",
+        "html",
+        "htm",
+        "url"
+    };
+
+    /// <summary>
+    ///     Known extensionless release-note/provenance files dropped by rippers that have no usable extension to
+    ///     classify them by. Matched by exact file name.
+    /// </summary>
+    private static readonly HashSet<string> SourceResidueKnownFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "about_album",
+        "descript.ion"
+    };
+
     private readonly SemaphoreSlim _processingThrottle = new(Environment.ProcessorCount);
     private readonly SemaphoreSlim _conversionThrottle = new(CalculateMaxConcurrentConversions(Environment.ProcessorCount));
     private bool _disposed;
     private IAlbumNamesInDirectoryPlugin _albumNamesInDirectoryPlugin = null!;
     private IAlbumValidator _albumValidator = new AlbumValidator(new MelodeeConfiguration([]));
     private IMelodeeConfiguration _configuration = new MelodeeConfiguration([]);
+
+    /// <summary>
+    ///     Extensions (without dots) configured via <see cref="SettingRegistry.ProcessingFileExtensionsToDelete" />
+    ///     that are treated as source residue and deleted during processing.
+    /// </summary>
+    private HashSet<string> _configuredResidueExtensions = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     ///     These plugins convert media from various formats into configured formats.
@@ -146,6 +178,14 @@ public sealed class DirectoryProcessorToStagingService(
 
         _duplicateThreshold = _configuration.GetValue<int?>(SettingRegistry.ImagingDuplicateThreshold) ??
                               MelodeeConfiguration.DefaultImagingDuplicateThreshold;
+
+        _configuredResidueExtensions = MelodeeConfiguration
+            .FromSerializedJsonArray(
+                _configuration.GetValue<string>(SettingRegistry.ProcessingFileExtensionsToDelete),
+                serializer)
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.TrimStart('.').ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         _directoryStaging = stagingPathOverride ?? (await libraryService.GetStagingLibraryAsync(token).ConfigureAwait(false)).Data.Path;
 
@@ -480,9 +520,12 @@ public sealed class DirectoryProcessorToStagingService(
             }
         }
 
-        if (_configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal))
+        // Remove residue from media-free directories once a release's media has been staged/ingested. This is gated on
+        // either move mode (doDeleteOriginal) or the copy-mode residue-after-ingest flag, which defaults on so leftover
+        // junk (logs, sidecars, images, failed transcodes) is cleaned even when the original media is preserved.
+        if (ShouldDeleteSourceResidueAfterIngest())
         {
-            DeleteSourceResidueOnlyDirectoryFiles(fileSystemDirectoryInfo, Logger);
+            DeleteSourceResidueOnlyDirectoryFiles(fileSystemDirectoryInfo, Logger, _configuredResidueExtensions);
         }
 
         fileSystemDirectoryInfo.DeleteAllEmptyDirectories();
@@ -1352,6 +1395,25 @@ public sealed class DirectoryProcessorToStagingService(
         return new ValueTuple<int, int>(numberOfAlbumsProcessed, numberOfValidAlbumsProcessed);
     }
 
+    /// <summary>
+    ///     Whether residue should be deleted from media-free directories after ingest. On in move mode
+    ///     (<see cref="SettingRegistry.ProcessingDoDeleteOriginal" />) and also in copy mode when
+    ///     <see cref="SettingRegistry.ProcessingDeleteSourceResidueAfterIngest" /> is enabled. The latter defaults to
+    ///     enabled when unconfigured so leftovers are cleaned even while preserving the original media.
+    /// </summary>
+    private bool ShouldDeleteSourceResidueAfterIngest()
+    {
+        if (_configuration.GetValue<bool>(SettingRegistry.ProcessingDoDeleteOriginal))
+        {
+            return true;
+        }
+
+        return _configuration.Configuration.TryGetValue(
+                SettingRegistry.ProcessingDeleteSourceResidueAfterIngest, out var flagValue)
+            ? SafeParser.ToBoolean(flagValue)
+            : true;
+    }
+
     public static bool IsSourceSidecarMetadataFile(FileInfo fileInfo)
     {
         if (fileInfo.Name.DoStringsMatch(Blackbeard.HandlesFileName))
@@ -1363,7 +1425,17 @@ public sealed class DirectoryProcessorToStagingService(
         return SourceSidecarMetadataExtensions.Contains(extension);
     }
 
-    public static bool IsSourceResidueFile(FileInfo fileInfo)
+    /// <summary>
+    ///     Determines whether a file is source residue: leftover junk safe to remove once a release's media has been
+    ///     processed. This covers sidecar metadata, images, text reports, provenance artifacts, known extensionless
+    ///     release-note files, zero-byte (failed transcode) media, and any additionally configured extensions.
+    /// </summary>
+    /// <param name="fileInfo">The file to evaluate.</param>
+    /// <param name="additionalResidueExtensions">
+    ///     Optional extra extensions (without dots, case-insensitive) sourced from
+    ///     <see cref="SettingRegistry.ProcessingFileExtensionsToDelete" />; files with these extensions are also residue.
+    /// </param>
+    public static bool IsSourceResidueFile(FileInfo fileInfo, HashSet<string>? additionalResidueExtensions = null)
     {
         if (IsSourceSidecarMetadataFile(fileInfo))
         {
@@ -1371,8 +1443,19 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         var extension = fileInfo.Extension.TrimStart('.');
-        return FileHelper.IsFileImageType(extension) ||
-               SourceResidueTextExtensions.Contains(extension);
+
+        if (FileHelper.IsFileImageType(extension) ||
+            SourceResidueTextExtensions.Contains(extension) ||
+            SourceResidueProvenanceExtensions.Contains(extension) ||
+            (additionalResidueExtensions is not null && additionalResidueExtensions.Contains(extension)) ||
+            SourceResidueKnownFileNames.Contains(fileInfo.Name))
+        {
+            return true;
+        }
+
+        // A zero-byte file with a media extension is a failed transcode artifact, not usable media. Treat it as
+        // residue so it does not keep a directory from being recognized as residue-only and cleaned up.
+        return fileInfo.Length == 0 && FileHelper.IsFileMediaType(extension);
     }
 
     public static async Task<string?> FindUnstableSourceFileAsync(
@@ -1469,7 +1552,8 @@ public sealed class DirectoryProcessorToStagingService(
         return files.Length > 0 && files.All(IsSourceSidecarMetadataFile);
     }
 
-    public static bool IsSourceResidueOnlyDirectory(FileSystemDirectoryInfo directoryInfo)
+    public static bool IsSourceResidueOnlyDirectory(FileSystemDirectoryInfo directoryInfo,
+        HashSet<string>? additionalResidueExtensions = null)
     {
         var dirInfo = directoryInfo.ToDirectoryInfo();
         if (!dirInfo.Exists || dirInfo.EnumerateDirectories("*", SearchOption.TopDirectoryOnly).Any())
@@ -1478,9 +1562,10 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         var files = dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly).ToArray();
+        // A directory is residue-only when it holds files, has no usable (non-zero-byte) media, and every file is residue.
         return files.Length > 0 &&
-               !files.Any(file => FileHelper.IsFileMediaType(file.Extension)) &&
-               files.All(IsSourceResidueFile);
+               !files.Any(file => FileHelper.IsFileMediaType(file.Extension) && file.Length > 0) &&
+               files.All(file => IsSourceResidueFile(file, additionalResidueExtensions));
     }
 
     public static int DeleteSourceSidecarMetadataFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
@@ -1509,7 +1594,8 @@ public sealed class DirectoryProcessorToStagingService(
         return deletedCount;
     }
 
-    public static int DeleteSourceResidueFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null)
+    public static int DeleteSourceResidueFiles(FileSystemDirectoryInfo directoryInfo, ILogger? logger = null,
+        HashSet<string>? additionalResidueExtensions = null)
     {
         var dirInfo = directoryInfo.ToDirectoryInfo();
         if (!dirInfo.Exists)
@@ -1519,7 +1605,7 @@ public sealed class DirectoryProcessorToStagingService(
 
         var deletedCount = 0;
         foreach (var fileInfo in dirInfo.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
-                     .Where(IsSourceResidueFile))
+                     .Where(file => IsSourceResidueFile(file, additionalResidueExtensions)))
         {
             try
             {
@@ -1535,7 +1621,8 @@ public sealed class DirectoryProcessorToStagingService(
         return deletedCount;
     }
 
-    public static int DeleteSourceResidueOnlyDirectoryFiles(FileSystemDirectoryInfo rootDirectory, ILogger logger)
+    public static int DeleteSourceResidueOnlyDirectoryFiles(FileSystemDirectoryInfo rootDirectory, ILogger logger,
+        HashSet<string>? additionalResidueExtensions = null)
     {
         var rootDirectoryInfo = rootDirectory.ToDirectoryInfo();
         if (!rootDirectoryInfo.Exists)
@@ -1548,12 +1635,12 @@ public sealed class DirectoryProcessorToStagingService(
                      .OrderByDescending(x => x.FullName.Length)
                      .Select(x => x.ToDirectorySystemInfo()))
         {
-            if (!IsSourceResidueOnlyDirectory(directoryInfo))
+            if (!IsSourceResidueOnlyDirectory(directoryInfo, additionalResidueExtensions))
             {
                 continue;
             }
 
-            deletedCount += DeleteSourceResidueFiles(directoryInfo, logger);
+            deletedCount += DeleteSourceResidueFiles(directoryInfo, logger, additionalResidueExtensions);
             TryDeleteDirectoryIfEmpty(directoryInfo, logger);
         }
 

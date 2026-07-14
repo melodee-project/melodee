@@ -186,13 +186,10 @@ public class Mp3Files(
                                     Value = genre.Key?.ToString()?.CleanStringAsIs(),
                                     SortOrder = 5 + i
                                 }));
-                            var artistName = newAlbumTags.FirstOrDefault(x =>
-                                    x.Identifier is MetaTagIdentifier.Artist or MetaTagIdentifier.AlbumArtist)?.Value
-                                ?.ToString();
+                            var artistName = ResolveArtistName(newAlbumTags, songsGroupedByAlbum, fileSystemDirectoryInfo);
                             var newAlbum = new Album
                             {
-                                Artist = Artist.NewArtistFromName(artistName ??
-                                                                  throw new Exception("Invalid artist name")),
+                                Artist = Artist.NewArtistFromName(artistName),
                                 AlbumType = song.AlbumTitle().TryToDetectAlbumType(),
                                 Images = songsGroupedByAlbum.Where(x => x.Images != null)
                                     .SelectMany(x => x.Images!)
@@ -351,5 +348,52 @@ public class Mp3Files(
     public override bool DoesHandleFile(FileSystemDirectoryInfo directoryInfo, FileSystemFileInfo fileSystemInfo)
     {
         return fileSystemInfo.Extension(directoryInfo).DoStringsMatch(HandlesExtension);
+    }
+
+    /// <summary>
+    ///     Resolves the album artist name using a graceful fallback chain so a missing tag never aborts processing of
+    ///     the whole directory. Order: AlbumArtist/Artist tags from the album, then the per-song Artist tag, then the
+    ///     artist segment of the directory name, finally "Unknown Artist". A resolved-but-unknown name lets the
+    ///     AlbumValidator flag the album as needing attention instead of throwing and dropping the directory.
+    /// </summary>
+    internal static string ResolveArtistName(
+        List<MetaTag<object?>> albumTags,
+        IGrouping<long?, Common.Models.Song> songsGroupedByAlbum,
+        FileSystemDirectoryInfo directoryInfo)
+    {
+        var fromTags = albumTags
+            .FirstOrDefault(x => x.Identifier is MetaTagIdentifier.Artist or MetaTagIdentifier.AlbumArtist)
+            ?.Value?.ToString().Nullify();
+        if (fromTags != null)
+        {
+            return fromTags;
+        }
+
+        var fromSongArtist = songsGroupedByAlbum
+            .Select(song => song.SongArtist().Nullify())
+            .FirstOrDefault(artist => artist != null);
+        if (fromSongArtist != null)
+        {
+            return fromSongArtist;
+        }
+
+        // Directory names conventionally follow "Artist - Album (Year)"; derive the artist from the leading segment,
+        // but only when a separator is present so bracket/year-only folders don't get mistaken for artist names.
+        var directoryName = directoryInfo.Name.Nullify();
+        if (directoryName != null &&
+            (directoryName.Contains('-') || directoryName.Contains(StringExtensions.TagsSeparator)))
+        {
+            var directoryArtist = directoryName
+                .Split('-', StringExtensions.TagsSeparator)
+                .FirstOrDefault()?
+                .CleanString()
+                .Nullify();
+            if (directoryArtist != null)
+            {
+                return directoryArtist;
+            }
+        }
+
+        return "Unknown Artist";
     }
 }
