@@ -337,7 +337,7 @@ public sealed class DirectoryProcessorToStagingService(
         var activeRunContext = runContext ?? localRunContext!;
 
         // Ensure directory to process exists
-        Trace.WriteLine($"Ensuring processing path [{fileSystemDirectoryInfo.Path}] exists...");
+        LogAndRaiseEvent(LogEventLevel.Debug, "Ensuring processing path [{0}] exists...", null, fileSystemDirectoryInfo.Path);
         if (!fileSystemService.DirectoryExists(fileSystemDirectoryInfo.Path))
         {
             return new OperationResult<DirectoryProcessorResult>
@@ -351,7 +351,7 @@ public sealed class DirectoryProcessorToStagingService(
         }
 
         // Ensure that staging directory exists
-        Trace.WriteLine($"Ensuring staging path [{_directoryStaging}] exists...");
+        LogAndRaiseEvent(LogEventLevel.Debug, "Ensuring staging path [{0}] exists...", null, _directoryStaging);
         if (!fileSystemService.DirectoryExists(_directoryStaging))
         {
             return new OperationResult<DirectoryProcessorResult>
@@ -620,7 +620,7 @@ public sealed class DirectoryProcessorToStagingService(
         var numberOfAlbumsProcessed = 0;
         var dirStartTicks = Stopwatch.GetTimestamp();
 
-        Trace.WriteLine($"DirectoryInfoToProcess: [{directoryInfoToProcess}]");
+        LogAndRaiseEvent(LogEventLevel.Debug, "DirectoryInfoToProcess: [{0}]", null, directoryInfoToProcess);
         try
         {
             var unstableSourceFile = await FindUnstableSourceFileAsync(directoryInfoToProcess, cancellationToken: cancellationToken)
@@ -867,7 +867,7 @@ public sealed class DirectoryProcessorToStagingService(
             var pluginTimeMs = Stopwatch.GetElapsedTime(dirStartTicks).TotalMilliseconds;
             runContext.AddPluginTime((long)pluginTimeMs);
 
-            Trace.WriteLine("Loading images for album...");
+            LogAndRaiseEvent(LogEventLevel.Debug, "Loading images for album...");
             var processingResult = await ProcessAlbumsAsync(
                 directoryInfoToProcess,
                 albumsForDirectory,
@@ -1069,7 +1069,7 @@ public sealed class DirectoryProcessorToStagingService(
                     if ((album.Tags ?? []).Any(x => x.WasModified) ||
                         album.Songs!.Any(x => (x.Tags ?? []).Any(y => y.WasModified)))
                     {
-                        Trace.WriteLine("Running plugins on songs with modified tags...");
+                        LogAndRaiseEvent(LogEventLevel.Debug, "Running plugins on songs with modified tags...");
                         var songsWithModifiedTags = album.Songs
                             .Where(x => x.Tags?.Any(t => t.WasModified) ?? false)
                             .ToArray();
@@ -1127,7 +1127,7 @@ public sealed class DirectoryProcessorToStagingService(
                 album.Directory = albumDirectorySystemInfo;
 
                 // Artist search with run-context caching to avoid duplicate API calls
-                Trace.WriteLine("Querying for artist...");
+                LogAndRaiseEvent(LogEventLevel.Debug, "Querying for artist...");
                 var searchRequest = album.Artist.ToArtistQuery([
                     new KeyValue((album.AlbumYear() ?? 0).ToString(),
                         album.AlbumTitle().ToNormalizedString() ?? album.AlbumTitle())
@@ -1201,11 +1201,11 @@ public sealed class DirectoryProcessorToStagingService(
                     }
                 }
 
-                Trace.WriteLine("Testing for album images...");
+                LogAndRaiseEvent(LogEventLevel.Debug, "Testing for album images...");
                 // Album image search with run-context caching
                 if (album.Images?.Count() == 0)
                 {
-                    Trace.WriteLine("Querying for album image...");
+                    LogAndRaiseEvent(LogEventLevel.Debug, "Querying for album image...");
                     var albumImageSearchRequest = album.ToAlbumQuery();
                     var albumImageSearchResult = await albumImageSearchEngineService.DoSearchAsync(
                             albumImageSearchRequest,
@@ -1287,7 +1287,7 @@ public sealed class DirectoryProcessorToStagingService(
 
                 var isMagicEnabled = _configuration.GetValue<bool>(SettingRegistry.MagicEnabled);
 
-                Trace.WriteLine("Validating album...");
+                LogAndRaiseEvent(LogEventLevel.Debug, "Validating album...");
                 var validationResult = _albumValidator.ValidateAlbum(album);
                 album.ValidationMessages = validationResult.Data.Messages ?? [];
                 album.Status = validationResult.Data.AlbumStatus;

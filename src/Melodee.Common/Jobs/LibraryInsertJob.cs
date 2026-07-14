@@ -977,7 +977,15 @@ public class LibraryInsertJob(
     {
         var melodeeAlbums = new ConcurrentBag<Album>();
 
-        await Task.WhenAll(melodeeFileInfos.Select(melodeeFileInfo => Task.Run(async () =>
+        // Bounded concurrency to avoid saturating the thread pool with concurrent file I/O when
+        // a batch is large. Matches the throttling pattern used in the other pipeline stages.
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount)
+        };
+
+        await Parallel.ForEachAsync(melodeeFileInfos, parallelOptions, async (melodeeFileInfo, ct) =>
         {
             try
             {
@@ -993,7 +1001,7 @@ public class LibraryInsertJob(
                 try
                 {
                     var melodeeAlbum = await Album.DeserializeAndInitializeAlbumAsync(serializer,
-                        melodeeFileInfo.FullName, cancellationToken).ConfigureAwait(false);
+                        melodeeFileInfo.FullName, ct).ConfigureAwait(false);
                     if (melodeeAlbum == null)
                     {
                         Interlocked.Increment(ref _invalidMelodeeFiles);
@@ -1055,7 +1063,7 @@ public class LibraryInsertJob(
                 Logger.Error(e, "[{JobName}] Error processing directory [{Dir}]",
                     nameof(LibraryInsertJob), melodeeFileInfo.Directory);
             }
-        }, cancellationToken))).ConfigureAwait(false);
+        }).ConfigureAwait(false);
 
         return melodeeAlbums.ToList();
     }

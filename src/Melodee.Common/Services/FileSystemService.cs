@@ -12,6 +12,11 @@ public class FileSystemService(ISerializer serializer) : IFileSystemService
         return Directory.Exists(path);
     }
 
+    public DateTime GetDirectoryLastWriteTimeUtc(string path)
+    {
+        return Directory.GetLastWriteTimeUtc(path);
+    }
+
     public IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption)
     {
         var dirInfo = new DirectoryInfo(path);

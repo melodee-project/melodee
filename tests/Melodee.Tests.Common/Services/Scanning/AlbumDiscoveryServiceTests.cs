@@ -907,29 +907,90 @@ public class AlbumDiscoveryServiceTests : ServiceTestBase
     }
 
     [Fact]
-    public async Task AlbumsDataInfosForDirectoryAsync_HandlesZeroPageSize_UsesDefault()
+    public async Task DirectoryCache_InvalidatesImmediately_WhenDirectoryLastWriteTimeChanges()
     {
-        // Arrange
-        var album1 = CreateTestAlbum(title: "Album 1");
+        // Arrange: the cache must invalidate as soon as the directory's LastWriteTimeUtc changes,
+        // rather than serving stale albums until the TTL expires.
         var directoryPath = "/test/albums";
-        var albumFile1 = Path.Combine(directoryPath, Album.JsonFileName);
+        var albumFile = Path.Combine(directoryPath, Album.JsonFileName);
+        var fixedWriteTime = DateTime.UtcNow;
 
         var mockFileSystem = new MockFileSystemService()
             .SetDirectoryExists(directoryPath)
-            .AddFilesToDirectory(directoryPath, albumFile1)
-            .SetAlbumForFile(albumFile1, album1);
+            .AddFilesToDirectory(directoryPath, albumFile)
+            .SetAlbumForFile(albumFile, CreateTestAlbum(title: "Original"))
+            .SetDirectoryLastWriteTime(directoryPath, fixedWriteTime);
 
-        var service = GetTestService(mockFileSystem);
+        var service = new AlbumDiscoveryService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            mockFileSystem,
+            TimeSpan.FromSeconds(30), // Long TTL so only write-time change can invalidate
+            100
+        );
         await service.InitializeAsync();
 
         var directoryInfo = new FileSystemDirectoryInfo { Path = directoryPath, Name = "albums" };
-        var pagedRequest = new PagedRequest { PageSize = 0 }; // Invalid page size
 
-        // Act
-        var result = await service.AlbumsDataInfosForDirectoryAsync(directoryInfo, pagedRequest);
+        // First call populates the cache
+        var first = await service.AllMelodeeAlbumDataFilesForDirectoryAsync(directoryInfo);
+        Assert.True(first.IsSuccess);
+        var firstTitle = first.Data!.First().Tags?
+            .FirstOrDefault(t => t.Identifier == MetaTagIdentifier.Album)?.Value?.ToString();
+        Assert.Equal("Original", firstTitle);
 
-        // Assert - Should handle gracefully and return data
-        Assert.NotNull(result);
-        Assert.True(result.Data.Any());
+        // Simulate an external modification: change the directory's last-write time and the album
+        // data WITHOUT waiting for the TTL to expire.
+        mockFileSystem.SetDirectoryLastWriteTime(directoryPath, fixedWriteTime.AddSeconds(1));
+        mockFileSystem.SetAlbumForFile(albumFile, CreateTestAlbum(title: "Updated"));
+
+        // Act - second call should detect the write-time change and rescan
+        var second = await service.AllMelodeeAlbumDataFilesForDirectoryAsync(directoryInfo);
+
+        // Assert
+        Assert.True(second.IsSuccess);
+        var secondTitle = second.Data!.First().Tags?
+            .FirstOrDefault(t => t.Identifier == MetaTagIdentifier.Album)?.Value?.ToString();
+        Assert.Equal("Updated", secondTitle);
+        Assert.NotEqual(firstTitle, secondTitle);
+    }
+
+    [Fact]
+    public async Task DirectoryCache_ServesCachedData_WhenDirectoryUnchangedWithinTtl()
+    {
+        // Arrange: when the directory has not changed, the cache hit should return the same
+        // album references without re-scanning.
+        var directoryPath = "/test/albums";
+        var albumFile = Path.Combine(directoryPath, Album.JsonFileName);
+        var fixedWriteTime = DateTime.UtcNow;
+
+        var mockFileSystem = new MockFileSystemService()
+            .SetDirectoryExists(directoryPath)
+            .AddFilesToDirectory(directoryPath, albumFile)
+            .SetAlbumForFile(albumFile, CreateTestAlbum(title: "Cached"))
+            .SetDirectoryLastWriteTime(directoryPath, fixedWriteTime);
+
+        var service = new AlbumDiscoveryService(
+            Logger,
+            CacheManager,
+            MockFactory(),
+            MockConfigurationFactory(),
+            mockFileSystem,
+            TimeSpan.FromSeconds(30),
+            100
+        );
+        await service.InitializeAsync();
+
+        var directoryInfo = new FileSystemDirectoryInfo { Path = directoryPath, Name = "albums" };
+
+        // First call populates cache
+        var first = await service.AllMelodeeAlbumDataFilesForDirectoryAsync(directoryInfo);
+        var firstCount = first.Data!.Count();
+
+        // Second call with unchanged directory should return cached data (same count)
+        var second = await service.AllMelodeeAlbumDataFilesForDirectoryAsync(directoryInfo);
+        Assert.Equal(firstCount, second.Data!.Count());
     }
 }

@@ -318,6 +318,40 @@ public class OptimizedFileOperationsTests : IDisposable
     }
 
     [Fact]
+    public void HasFileChanged_AfterFileModified_ReturnsTrue()
+    {
+        // Arrange - cache the fingerprint, then modify the file so the fingerprint changes
+        var file = CreateTestFile("fingerprint.txt", "original");
+        OptimizedFileOperations.UpdateFileHashCache(file);
+
+        // Ensure the cached fingerprint is recognized as unchanged
+        Assert.False(OptimizedFileOperations.HasFileChanged(file));
+
+        // Modify the file content (changes size and last-write-time, altering the fingerprint)
+        File.WriteAllText(file, "modified content with more bytes");
+
+        // Act - the fingerprint should no longer match
+        var result = OptimizedFileOperations.HasFileChanged(file);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void HasFileChanged_WithLastProcessDateBeforeWrite_ReturnsFalse()
+    {
+        // Arrange
+        var file = CreateTestFile("datecheck.txt");
+        var lastProcessDate = DateTime.UtcNow.AddHours(1); // After the file's write time
+
+        // Act - lastProcessDate is after the file's LastWriteTime, so it is considered unchanged
+        var result = OptimizedFileOperations.HasFileChanged(file, lastProcessDate);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
     public async Task EnumerateFilesAsync_WithValidDirectory_ReturnsFiles()
     {
         // Arrange

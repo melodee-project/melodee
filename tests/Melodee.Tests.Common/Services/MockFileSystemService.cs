@@ -13,6 +13,7 @@ public class MockFileSystemService : IFileSystemService
     private readonly HashSet<string> _directories = [];
     private readonly Dictionary<string, Album> _albumsByFile = new();
     private readonly Dictionary<string, DateTime> _fileCreationTimes = new();
+    private readonly Dictionary<string, DateTime> _directoryLastWriteTimes = new();
 
     public bool DirectoryExists(string path) => _directories.Contains(path) || path == "/" || path == "\\";
 
@@ -31,6 +32,11 @@ public class MockFileSystemService : IFileSystemService
     public DateTime GetFileCreationTimeUtc(string filePath)
     {
         return _fileCreationTimes.TryGetValue(filePath, out var time) ? time : DateTime.UtcNow;
+    }
+
+    public DateTime GetDirectoryLastWriteTimeUtc(string path)
+    {
+        return _directoryLastWriteTimes.TryGetValue(path, out var time) ? time : DateTime.UtcNow;
     }
 
     public void DeleteDirectory(string path, bool recursive)
@@ -168,6 +174,12 @@ public class MockFileSystemService : IFileSystemService
         return this;
     }
 
+    public MockFileSystemService SetDirectoryLastWriteTime(string directoryPath, DateTime lastWriteTime)
+    {
+        _directoryLastWriteTimes[directoryPath] = lastWriteTime;
+        return this;
+    }
+
     public void DeleteAllFilesForExtension(FileSystemDirectoryInfo directoryInfo, string searchPattern)
     {
         DeleteAllFilesForExtension(directoryInfo.Path, directoryInfo, searchPattern);
@@ -195,5 +207,6 @@ public class MockFileSystemService : IFileSystemService
         _directories.Clear();
         _albumsByFile.Clear();
         _fileCreationTimes.Clear();
+        _directoryLastWriteTimes.Clear();
     }
 }

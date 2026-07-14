@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Melodee.Common.Configuration;
 using Melodee.Common.Constants;
 using Melodee.Common.Enums;
@@ -97,7 +96,8 @@ public class Mp3Files(
                                 break;
                             }
 
-                            Trace.WriteLine($"Plugin [{plugin.DisplayName}] failed to process file: [{fsi}] result [{serializer.Serialize(pluginResult)}]");
+                            logger.Debug("[{Plugin}] failed to process file: [{File}] result [{Result}]",
+                                plugin.DisplayName, fsi, serializer.Serialize(pluginResult));
                         }
                     }
                 });
@@ -247,7 +247,7 @@ public class Mp3Files(
 
     private void EnsureSortOrderSet(Common.Models.Song[] songs)
     {
-        Trace.WriteLine("Ensuring sort order is set on songs...");
+        logger.Debug("[{Plugin}] Ensuring sort order is set on songs...", DisplayName);
         foreach (var song in songs)
         {
             song.SortOrder = song.SongNumber() + song.MediaNumber() * MediaEditService.SortOrderMediaMultiplier -
@@ -319,9 +319,21 @@ public class Mp3Files(
                 foreach (var ds in duplicateSong)
                 {
                     var duplicateSongFile = ds.File.FullName(fileSystemDirectoryInfo);
-                    File.Delete(duplicateSongFile);
-                    Trace.WriteLine($"Deleted duplicate song: {duplicateSongFile}");
-                    ss.RemoveAll(x => x.File.FullName(fileSystemDirectoryInfo) == duplicateSongFile);
+                    try
+                    {
+                        File.Delete(duplicateSongFile);
+                        // Only prune the in-memory list once the file is actually deleted, so a
+                        // locked duplicate does not leave the album JSON referencing a song that
+                        // was never removed from disk.
+                        ss.RemoveAll(x => x.File.FullName(fileSystemDirectoryInfo) == duplicateSongFile);
+                        logger.Debug("[{Plugin}] Deleted duplicate song: {DuplicateSongFile}", DisplayName,
+                            duplicateSongFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Warning(ex, "[{Plugin}] Could not delete duplicate song [{DuplicateSongFile}]",
+                            DisplayName, duplicateSongFile);
+                    }
                 }
             }
         }
@@ -334,13 +346,22 @@ public class Mp3Files(
 
         if (filesBySize.Length > 0)
         {
-            Trace.WriteLine($"Checking for file-level duplicates in [{fileSystemDirectoryInfo.FullName()}]...");
+            logger.Debug("[{Plugin}] Checking for file-level duplicates in [{Directory}]...", DisplayName,
+                fileSystemDirectoryInfo.FullName());
             var foundDuplicates = await fileSystemDirectoryInfo.FindDuplicatesAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
             foreach (var dup in foundDuplicates.SelectMany(x => x.Value))
             {
-                dup.Delete();
-                Trace.WriteLine($"Deleted duplicate: {dup.FullName}");
+                try
+                {
+                    dup.Delete();
+                    logger.Debug("[{Plugin}] Deleted duplicate: {Duplicate}", DisplayName, dup.FullName);
+                }
+                catch (Exception ex)
+                {
+                    logger.Warning(ex, "[{Plugin}] Could not delete duplicate file [{Duplicate}]", DisplayName,
+                        dup.FullName);
+                }
             }
         }
     }

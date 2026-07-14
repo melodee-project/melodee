@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using ATL;
 using Commons;
 using Melodee.Common.Configuration;
@@ -398,6 +397,22 @@ public sealed class AtlMetaTag(
                                     }
                                     else
                                     {
+                                        // Remove the orphaned image file that failed validation so it
+                                        // does not accumulate in album directories and get re-scanned.
+                                        try
+                                        {
+                                            if (File.Exists(newImageFileName))
+                                            {
+                                                File.Delete(newImageFileName);
+                                            }
+                                        }
+                                        catch (Exception cleanupEx)
+                                        {
+                                            Log.Warning(cleanupEx,
+                                                "[{PluginName}] Could not delete invalid embedded image [{File}]",
+                                                nameof(AtlMetaTag), newImageFileName);
+                                        }
+
                                         Log.Warning("[{PluginName}] embedded image did not pass validation.",
                                             nameof(AtlMetaTag));
                                     }
@@ -752,7 +767,7 @@ public sealed class AtlMetaTag(
             var ext = track.FileInfo().Extension;
             if (!ext.ToLower().EndsWith("m4a")) // M4A is an audio file using the MP4 encoding
             {
-                Trace.WriteLine($"Video file found in Scanning. File [{track.FileInfo().FullName}]");
+                Log.Debug("[{PluginName}] Video file found in Scanning. File [{File}]", nameof(AtlMetaTag), track.FileInfo().FullName);
                 return false;
             }
         }

@@ -27,6 +27,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Capped concurrency in `LibraryInsertJob.LoadAlbumsInParallelAsync` with a bounded
+  `Parallel.ForEachAsync` (max 4 / `ProcessorCount`) replacing the previous unbounded
+  `Task.WhenAll` + `Task.Run` pattern, preventing thread-pool saturation during large
+  batch database-insert deserialization.
+- Converted media, image, and metadata extension lists in `FileHelper` from
+  `IEnumerable<string>` with per-call `Contains(..., StringComparer.OrdinalIgnoreCase)` to
+  `HashSet<string>(StringComparer.OrdinalIgnoreCase)`, making per-file extension checks O(1)
+  in library scanning hot paths.
+- Renamed the internal `OptimizedFileOperations.FileHashCache` field to
+  `FileFingerprintCache` and updated its XML doc comments to accurately reflect that it
+  stores a path + size + last-write-time fingerprint, not a content hash.
+
+### Fixed
+
+- Embedded pictures extracted via `AtlMetaTag` that fail image validation are now deleted
+  from disk instead of being left as orphaned files in album directories that would be
+  re-scanned on subsequent runs.
+- `AlbumDiscoveryService` directory cache now captures and compares the directory's actual
+  `LastWriteTimeUtc` instead of a wall-clock insertion timestamp, so an external directory
+  modification invalidates the cache immediately rather than serving stale albums for up
+  to the TTL window.
+- `Mp3Files.HandleDuplicates` now guards `File.Delete` calls so a locked or inaccessible
+  duplicate file no longer prevents the in-memory song list from being pruned and no longer
+  propagates the exception to the caller; delete failures are logged at warning level.
+- Silent `catch {}` blocks in `AudioTagManager.AllMediaFilesForDirectoryAsync`,
+  `AudioTagManager.NeedsConversionToMp3Async`, and the `AlbumDiscoveryService` cache
+  freshness check now log exceptions at debug level instead of swallowing them, making
+  corrupted-file and filesystem-failure investigations traceable.
+- Replaced `Trace.WriteLine` calls in `DirectoryProcessorToStagingService`, `Mp3Files`, and
+  `AtlMetaTag` hot paths with structured Serilog debug logging, eliminating unnecessary
+  string allocations on code paths that run per-directory and per-file during scans.
+
+### Added
+
+- Added `IFileSystemService.GetDirectoryLastWriteTimeUtc` to support directory-change
+  detection for cache invalidation, with a corresponding `FileSystemService` and
+  `MockFileSystemService` implementation.
+- Added unit tests covering `FileHelper` case-insensitive extension detection,
+  `AlbumDiscoveryService` cache invalidation on directory modification and cache hits on
+  unchanged directories, `OptimizedFileOperations` fingerprint change detection,
+  `FileSystemService.GetDirectoryLastWriteTimeUtc`, and `Mp3Files.HandleDuplicates`
+  graceful handling of locked and deletable duplicate files.
+
 ## [2.2.0] - 2026-07-11
 
 ### Added

@@ -2,6 +2,7 @@ using Melodee.Common.Enums;
 using Melodee.Common.Metadata.AudioTags.Interfaces;
 using Melodee.Common.Metadata.AudioTags.Models;
 using Melodee.Common.Metadata.AudioTags.Readers;
+using Serilog;
 
 namespace Melodee.Common.Metadata.AudioTags;
 
@@ -44,10 +45,12 @@ public static class AudioTagManager
                     files.Add(file);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore files that cannot be read or do not match any known format
-                // This is useful for skipping unsupported or corrupted files
+                // Skip files that cannot be read or do not match any known format, but log at
+                // debug so corrupted-file investigations are not blind.
+                Log.Logger.Debug(ex, "[{ServiceName}] Could not detect format for file [{File}]",
+                    nameof(AudioTagManager), file.FullName);
             }
         }
 
@@ -141,9 +144,12 @@ public static class AudioTagManager
             return detectedFormat != AudioFormat.Unknown &&
                    detectedFormat != AudioFormat.MP3;
         }
-        catch
+        catch (Exception ex)
         {
-            // If there's an error reading the file, assume it can't be converted
+            // If there's an error reading the file, assume it can't be converted. Log at debug
+            // so the failure is traceable during conversion diagnostics.
+            Log.Logger.Debug(ex, "[{ServiceName}] Could not determine conversion need for [{File}]",
+                nameof(AudioTagManager), fileInfo?.FullName ?? "(null)");
             return false;
         }
     }

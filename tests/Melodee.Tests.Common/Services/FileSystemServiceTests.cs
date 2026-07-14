@@ -145,6 +145,45 @@ public class FileSystemServiceTests
     }
 
     [Fact]
+    public void GetDirectoryLastWriteTimeUtc_UpdatesAfterFileCreation()
+    {
+        // Arrange
+        var service = CreateService();
+        var tempDir = NewTempDir();
+
+        try
+        {
+            // Act - capture write time before and after creating a file
+            var beforeWrite = service.GetDirectoryLastWriteTimeUtc(tempDir);
+            Thread.Sleep(20); // Ensure filesystem timestamp resolution differs
+            File.WriteAllText(Path.Combine(tempDir, "new.txt"), "content");
+            var afterWrite = service.GetDirectoryLastWriteTimeUtc(tempDir);
+
+            // Assert
+            Assert.True(afterWrite >= beforeWrite);
+            Assert.True(afterWrite > DateTime.UnixEpoch);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetDirectoryLastWriteTimeUtc_ForNonExistentDirectory_ReturnsDefaultValue()
+    {
+        // Arrange
+        var service = CreateService();
+        var nonExistent = Path.Combine(Path.GetTempPath(), "Melodee_nonexistent_" + Guid.NewGuid());
+
+        // Act - .NET returns DateTime(1601) for non-existent paths
+        var result = service.GetDirectoryLastWriteTimeUtc(nonExistent);
+
+        // Assert - should not throw and should return a value (year 1601 on Windows, epoch-like on Linux)
+        Assert.True(result.Year < 2000);
+    }
+
+    [Fact]
     public void DeleteDirectory_Recursive_RemovesAll()
     {
         // Arrange

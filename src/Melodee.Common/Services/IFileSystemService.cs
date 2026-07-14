@@ -5,6 +5,7 @@ namespace Melodee.Common.Services;
 public interface IFileSystemService
 {
     bool DirectoryExists(string path);
+    DateTime GetDirectoryLastWriteTimeUtc(string path);
     IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption);
     IEnumerable<DirectoryInfo> EnumerateDirectories(string path, string searchPattern, SearchOption searchOption);
     DateTime GetFileCreationTimeUtc(string filePath);

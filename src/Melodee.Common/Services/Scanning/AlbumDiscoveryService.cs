@@ -39,7 +39,10 @@ public sealed class AlbumDiscoveryService(
     private readonly SemaphoreSlim _cacheUpdateSemaphore = new(1, 1);
 
     // Performance optimizations
-    private readonly ConcurrentDictionary<string, (DateTime LastWriteTime, Album[] Albums)> _directoryCache = new();
+    // The tuple stores the directory's actual LastWriteTimeUtc (captured at cache population) so a
+    // cache hit can be invalidated immediately when the directory changes externally, rather than
+    // waiting for the TTL to expire and serving stale albums.
+    private readonly ConcurrentDictionary<string, (DateTime DirectoryLastWriteTimeUtc, Album[] Albums)> _directoryCache = new();
     private readonly TimeSpan _directoryCacheEntryMaxAge = directoryCacheEntryMaxAge ?? TimeSpan.FromSeconds(30);
     private readonly int _directoryCacheCapacity = directoryCacheCapacity is > 0 ? directoryCacheCapacity.Value : 1000;
     private long _directoryCacheHits;
@@ -463,9 +466,14 @@ public sealed class AlbumDiscoveryService(
         {
             try
             {
-                // Cache for configured window to balance performance vs. freshness
+                // A cache entry is valid only when the directory still exists, has not been
+                // modified since the entry was populated, and is within the TTL window. Comparing
+                // the directory's actual LastWriteTimeUtc against the cached value invalidates the
+                // entry immediately on external modification instead of serving stale albums.
                 if (fileSystemService.DirectoryExists(fileSystemDirectoryInfo.Path) &&
-                    DateTime.UtcNow - cached.LastWriteTime < _directoryCacheEntryMaxAge)
+                    fileSystemService.GetDirectoryLastWriteTimeUtc(fileSystemDirectoryInfo.Path) ==
+                    cached.DirectoryLastWriteTimeUtc &&
+                    DateTime.UtcNow - cached.DirectoryLastWriteTimeUtc < _directoryCacheEntryMaxAge)
                 {
                     Interlocked.Increment(ref _directoryCacheHits);
                     return new OperationResult<IEnumerable<Album>?>
@@ -474,9 +482,12 @@ public sealed class AlbumDiscoveryService(
                     };
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // If we can't check timestamps, proceed with fresh scan
+                // If we can't check timestamps, proceed with fresh scan rather than silently
+                // serving potentially stale data.
+                Logger.Debug(ex, "[{ServiceName}] Cache freshness check failed for [{Path}], rescanning",
+                    nameof(AlbumDiscoveryService), fileSystemDirectoryInfo.Path);
             }
             Interlocked.Increment(ref _directoryCacheMisses);
         }
@@ -563,17 +574,19 @@ public sealed class AlbumDiscoveryService(
             await _cacheUpdateSemaphore.WaitAsync(cancellationToken);
             try
             {
-                var currentWriteTime = DateTime.UtcNow;
+                // Capture the directory's actual LastWriteTimeUtc so a later external modification
+                // is detected on lookup and invalidates the entry immediately.
+                var directoryLastWriteTimeUtc = fileSystemService.GetDirectoryLastWriteTimeUtc(cacheKey);
 
                 _directoryCache.AddOrUpdate(cacheKey,
-                    (currentWriteTime, albums),
-                    (_, _) => (currentWriteTime, albums));
+                    (directoryLastWriteTimeUtc, albums),
+                    (_, _) => (directoryLastWriteTimeUtc, albums));
 
                 // Implement cache size management to prevent memory bloat
                 if (_directoryCache.Count > _directoryCacheCapacity) // Configurable threshold
                 {
                     var oldestEntries = _directoryCache
-                        .OrderBy(kvp => kvp.Value.LastWriteTime)
+                        .OrderBy(kvp => kvp.Value.DirectoryLastWriteTimeUtc)
                         .Take(_directoryCache.Count - (int)Math.Floor(_directoryCacheCapacity * 0.8)) // Keep 80% most recent
                         .Select(kvp => kvp.Key)
                         .ToArray();

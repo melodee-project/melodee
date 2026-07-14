@@ -10,7 +10,11 @@ namespace Melodee.Common.Services.Scanning;
 /// </summary>
 public static class OptimizedFileOperations
 {
-    private static readonly ConcurrentDictionary<string, DateTime> FileHashCache = new();
+    // Tracks file fingerprints (path:size:lastWriteTime) that have already been processed, so
+    // unchanged files can be skipped. Despite the historical name, this is NOT a content hash; it
+    // is a lightweight identity fingerprint. The DateTime value records when the fingerprint was
+    // added and is used only for periodic eviction, not for change detection.
+    private static readonly ConcurrentDictionary<string, DateTime> FileFingerprintCache = new();
     private const int MaxIoRetries = 5;
     private static readonly TimeSpan MaxIoBackoff = TimeSpan.FromSeconds(8);
 
@@ -329,7 +333,9 @@ public static class OptimizedFileOperations
     }
 
     /// <summary>
-    ///     Check if file has changed using cached hash comparison
+    ///     Check if file has changed using a cached fingerprint (path + size + last write time)
+    ///     comparison. A file is considered unchanged when its current fingerprint matches a
+    ///     previously recorded entry. Note: this is a fingerprint, not a content hash.
     /// </summary>
     public static bool HasFileChanged(string filePath, DateTime? lastProcessDate = null)
     {
@@ -346,14 +352,16 @@ public static class OptimizedFileOperations
             return false;
         }
 
-        // Use cached hash for more accurate comparison
+        // Use cached fingerprint for identity comparison
         var cacheKey = $"{filePath}:{fileInfo.Length}:{fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}";
 
-        return !FileHashCache.ContainsKey(cacheKey);
+        return !FileFingerprintCache.ContainsKey(cacheKey);
     }
 
     /// <summary>
-    ///     Update file hash cache
+    ///     Record the file's current fingerprint (path + size + last write time) in the cache so a
+    ///     subsequent <see cref="HasFileChanged" /> call can skip it. Note: this is a fingerprint,
+    ///     not a content hash.
     /// </summary>
     public static void UpdateFileHashCache(string filePath)
     {
@@ -367,26 +375,26 @@ public static class OptimizedFileOperations
             var fileInfo = new FileInfo(filePath);
             var cacheKey = $"{filePath}:{fileInfo.Length}:{fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}";
 
-            FileHashCache.TryAdd(cacheKey, DateTime.UtcNow);
+            FileFingerprintCache.TryAdd(cacheKey, DateTime.UtcNow);
 
             // Clean old cache entries periodically
-            if (FileHashCache.Count > 10000)
+            if (FileFingerprintCache.Count > 10000)
             {
                 var cutoff = DateTime.UtcNow.AddHours(-1);
-                var keysToRemove = FileHashCache
+                var keysToRemove = FileFingerprintCache
                     .Where(kvp => kvp.Value < cutoff)
                     .Select(kvp => kvp.Key)
                     .ToList();
 
                 foreach (var key in keysToRemove)
                 {
-                    FileHashCache.TryRemove(key, out _);
+                    FileFingerprintCache.TryRemove(key, out _);
                 }
             }
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to update file hash cache for: {FilePath}", filePath);
+            Log.Warning(ex, "Failed to update file fingerprint cache for: {FilePath}", filePath);
         }
     }
 

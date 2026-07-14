@@ -79,6 +79,51 @@ namespace Melodee.Tests.Common.Utility
                 Directory.Delete(_testDir, true);
             }
         }
+
+        [Theory]
+        [InlineData(".mp3", true)]
+        [InlineData("mp3", true)]
+        [InlineData(".MP3", true)]
+        [InlineData("MP3", true)]
+        [InlineData(".flac", true)]
+        [InlineData(".m4a", true)]
+        [InlineData(".wav", true)]
+        [InlineData(".txt", false)]
+        [InlineData(".pdf", false)]
+        [InlineData("", false)]
+        [InlineData(null, false)]
+        public void IsFileMediaType_DetectsMediaExtensionsCaseInsensitively(string? extension, bool expected)
+        {
+            Assert.Equal(expected, FileHelper.IsFileMediaType(extension));
+        }
+
+        [Theory]
+        [InlineData(".jpg", true)]
+        [InlineData("jpg", true)]
+        [InlineData(".JPG", true)]
+        [InlineData(".png", true)]
+        [InlineData(".webp", true)]
+        [InlineData(".bmp", true)]
+        [InlineData(".mp3", false)]
+        [InlineData(".txt", false)]
+        [InlineData(null, false)]
+        public void IsFileImageType_DetectsImageExtensionsCaseInsensitively(string? extension, bool expected)
+        {
+            Assert.Equal(expected, FileHelper.IsFileImageType(extension));
+        }
+
+        [Theory]
+        [InlineData(".cue", true)]
+        [InlineData("cue", true)]
+        [InlineData(".CUE", true)]
+        [InlineData(".m3u", true)]
+        [InlineData(".sfv", true)]
+        [InlineData(".mp3", false)]
+        [InlineData(null, false)]
+        public void IsFileMediaMetaDataType_DetectsMetadataExtensionsCaseInsensitively(string? extension, bool expected)
+        {
+            Assert.Equal(expected, FileHelper.IsFileMediaMetaDataType(extension));
+        }
     }
 }
 

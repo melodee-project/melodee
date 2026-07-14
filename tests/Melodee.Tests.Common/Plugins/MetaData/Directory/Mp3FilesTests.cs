@@ -1,7 +1,13 @@
 using FluentAssertions;
+using Melodee.Common.Configuration;
 using Melodee.Common.Enums;
 using Melodee.Common.Models;
 using Melodee.Common.Plugins.MetaData.Directory;
+using Melodee.Common.Plugins.Validation;
+using Melodee.Common.Serialization;
+using Serilog;
+using System.Reflection;
+using Album = Melodee.Common.Models.Album;
 
 namespace Melodee.Tests.Common.Plugins.MetaData;
 
@@ -99,5 +105,130 @@ public class Mp3FilesResolveArtistNameTests
             DirectoryNamed("Main Artist - Album"));
 
         result.Should().Be("Main Artist");
+    }
+
+    private static Mp3Files CreateMp3FilesService()
+    {
+        var serializer = new Serializer(Log.Logger);
+        var config = new MelodeeConfiguration([]);
+        var validator = new AlbumValidator(config);
+        return new Mp3Files(
+            [],
+            validator,
+            serializer,
+            Log.Logger,
+            config);
+    }
+
+    private static Melodee.Common.Models.Song CreateSongWithFile(string filePath, string crcHash)
+    {
+        // DuplicateHashCheck is computed from AlbumTitle, SongNumber, and Title — so songs with
+        // matching tag values will be treated as duplicates by HandleDuplicates.
+        var tags = new[]
+        {
+            new MetaTag<object?> { Identifier = MetaTagIdentifier.Album, Value = "Test Album" },
+            new MetaTag<object?> { Identifier = MetaTagIdentifier.TrackNumber, Value = 1 },
+            new MetaTag<object?> { Identifier = MetaTagIdentifier.Title, Value = "Track 01" }
+        };
+
+        return new Melodee.Common.Models.Song
+        {
+            Id = Guid.NewGuid(),
+            CrcHash = crcHash,
+            File = new FileSystemFileInfo
+            {
+                Name = Path.GetFileName(filePath),
+                Size = 100
+            },
+            Tags = tags
+        };
+    }
+
+    [Fact]
+    public async Task HandleDuplicates_WithOpenDuplicateFile_DoesNotThrow()
+    {
+        // Arrange - create two real files with the same duplicate-hash tags so HandleDuplicates
+        // tries to delete the non-best one. Keep the duplicate open to stress the delete path.
+        // On Windows this forces File.Delete to throw (sharing violation); on Linux the file is
+        // unlinked but the handle stays alive. Either way, HandleDuplicates must not throw.
+        var tempDir = Path.Combine(Path.GetTempPath(), "Melodee_DupTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+
+        var bestFile = Path.Combine(tempDir, "best.mp3");
+        var dupFile = Path.Combine(tempDir, "dup.mp3");
+        File.WriteAllText(bestFile, "best");
+        File.WriteAllText(dupFile, "duplicate");
+
+        var dirInfo = new FileSystemDirectoryInfo { Path = tempDir, Name = Path.GetFileName(tempDir) };
+        var service = CreateMp3FilesService();
+
+        var bestSong = CreateSongWithFile(bestFile, "crc-best");
+        var dupSong = CreateSongWithFile(dupFile, "crc-dup");
+        var songs = new[] { bestSong, dupSong };
+
+        var handleDuplicates = typeof(Mp3Files).GetMethod("HandleDuplicates",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        await using var lockStream = new FileStream(dupFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            // Act - should NOT throw regardless of platform-specific delete behavior
+            var task = (Task?)handleDuplicates?.Invoke(service, [dirInfo, songs, CancellationToken.None]);
+            task.Should().NotBeNull();
+            await task!;
+
+            // Assert - the method completed without throwing. The best file must remain.
+            File.Exists(bestFile).Should().BeTrue();
+        }
+        finally
+        {
+            await lockStream.DisposeAsync();
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task HandleDuplicates_WithDeletableDuplicate_RemovesFileSuccessfully()
+    {
+        // Arrange - two files with same hash; the duplicate should be deleted and not throw.
+        var tempDir = Path.Combine(Path.GetTempPath(), "Melodee_DupTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+
+        var bestFile = Path.Combine(tempDir, "best.mp3");
+        var dupFile = Path.Combine(tempDir, "dup.mp3");
+        File.WriteAllText(bestFile, "best");
+        File.WriteAllText(dupFile, "duplicate");
+
+        var dirInfo = new FileSystemDirectoryInfo { Path = tempDir, Name = Path.GetFileName(tempDir) };
+        var service = CreateMp3FilesService();
+
+        var bestSong = CreateSongWithFile(bestFile, "crc-best");
+        var dupSong = CreateSongWithFile(dupFile, "crc-dup");
+        var songs = new[] { bestSong, dupSong };
+
+        var handleDuplicates = typeof(Mp3Files).GetMethod("HandleDuplicates",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        try
+        {
+            // Act
+            var task = (Task?)handleDuplicates?.Invoke(service, [dirInfo, songs, CancellationToken.None]);
+            task.Should().NotBeNull();
+            await task!;
+
+            // Assert - the duplicate file is deleted, the best file remains
+            File.Exists(dupFile).Should().BeFalse();
+            File.Exists(bestFile).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
     }
 }

@@ -16,15 +16,15 @@ public static class FileHelper
     };
 
 
-    private static readonly IEnumerable<string> MediaMetaDataFileTypeExtensions =
-    [
+    private static readonly HashSet<string> MediaMetaDataFileTypeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
         "cue",
         "m3u",
         "sfv"
-    ];
+    };
 
-    private static readonly IEnumerable<string> MediaFileTypeExtensions =
-    [
+    private static readonly HashSet<string> MediaFileTypeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
         "aac",
         "alac",
         "ac3",
@@ -45,10 +45,10 @@ public static class FileHelper
         "tta",
         "wav",
         "wma"
-    ];
+    };
 
-    private static readonly IEnumerable<string> ImageFileTypeExtensions =
-    [
+    private static readonly HashSet<string> ImageFileTypeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
         "bmp",
         "gif",
         "jfif",
@@ -58,25 +58,24 @@ public static class FileHelper
         "png",
         "tiff",
         "webp"
-    ];
+    };
 
     public static bool IsFileMediaType(string? extension)
     {
         return !string.IsNullOrEmpty(extension) &&
-               MediaFileTypeExtensions.Contains(extension.Replace(".", ""), StringComparer.OrdinalIgnoreCase);
+               MediaFileTypeExtensions.Contains(extension.Replace(".", ""));
     }
 
     public static bool IsFileImageType(string? extension)
     {
         return !string.IsNullOrEmpty(extension) &&
-               ImageFileTypeExtensions.Contains(extension.Replace(".", ""), StringComparer.OrdinalIgnoreCase);
+               ImageFileTypeExtensions.Contains(extension.Replace(".", ""));
     }
 
     public static bool IsFileMediaMetaDataType(string? extension)
     {
         return !string.IsNullOrEmpty(extension) &&
-               MediaMetaDataFileTypeExtensions.Contains(extension.Replace(".", ""),
-                   StringComparer.OrdinalIgnoreCase);
+               MediaMetaDataFileTypeExtensions.Contains(extension.Replace(".", ""));
     }
 
     public static int GetNumberOfTotalFilesForDirectory(DirectoryInfo directoryInfo)
