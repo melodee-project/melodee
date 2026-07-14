@@ -67,7 +67,11 @@
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.Net.Http.Headers" Version="10.0.10" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <!-- Pinned to the latest 2.x release. The 3.x line (3.8.0+) has breaking API changes that
+         Microsoft.AspNetCore.OpenApi 10.x does not support; 3.x requires ASP.NET Core 11.
+         The direct PackageReference in Melodee.Blazor.csproj forces this patched version above
+         the vulnerable 2.0.0 minimum that the transitive dependency would otherwise resolve. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.10.0" />
     <PackageVersion Include="MailKit" Version="4.17.0" />
     <PackageVersion Include="MimeKit" Version="4.17.0" />
     <PackageVersion Include="Moq" Version="4.20.72" />

@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the internal `OptimizedFileOperations.FileHashCache` field to
   `FileFingerprintCache` and updated its XML doc comments to accurately reflect that it
   stores a path + size + last-write-time fingerprint, not a content hash.
+- Upgraded `Microsoft.OpenApi` from `2.7.5` to `2.10.0`, the latest 2.x release. The 3.x
+  line has breaking API changes incompatible with `Microsoft.AspNetCore.OpenApi` 10.x
+  (.NET 10); 3.x requires ASP.NET Core 11. Added an inline comment in
+  `Directory.Packages.props` documenting the intentional 2.x pin.
 
 ### Fixed
 
